@@ -2,6 +2,7 @@ import sqlite3
 
 from src.domain.entities.item import Item
 from src.domain.repositories.item_repository import IItemRepository
+from src.domain.value_objects.item_name import ItemName
 
 
 class SQLiteItemRepository(IItemRepository):
@@ -9,11 +10,12 @@ class SQLiteItemRepository(IItemRepository):
         self._conn = conn
 
     def save(self, name: str) -> Item:
+        validated_name = ItemName(name)  # enforce domain invariants before any DB write
         cursor = self._conn.execute(
-            "INSERT INTO items (name) VALUES (?)", (name,)
+            "INSERT INTO items (name) VALUES (?)", (validated_name.value,)
         )
         self._conn.commit()
-        return Item.create(id=cursor.lastrowid, name=name)
+        return Item(id=cursor.lastrowid, name=validated_name)
 
     def find_all(self) -> list[Item]:
         rows = self._conn.execute(

@@ -8,14 +8,12 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from src.infrastructure.build_info import load_build_info
 from src.infrastructure.database.connection import init_db
 from src.infrastructure.logging.structured_logger import setup_logging
-from src.presentation.api.dependencies import set_db_path
 from src.presentation.api.routers import admin, health, items, ops
 from src.presentation.middleware.logging_middleware import RequestLoggingMiddleware
 
 
 def create_app(db_path: str = "app.db") -> FastAPI:
     setup_logging()
-    set_db_path(db_path)
 
     build_info = load_build_info()
 
@@ -32,6 +30,7 @@ def create_app(db_path: str = "app.db") -> FastAPI:
     )
 
     # State available to all route handlers via request.app.state
+    app.state.db_path = db_path
     app.state.build_info = build_info
     app.state.startup_time = datetime.now(UTC)
 
