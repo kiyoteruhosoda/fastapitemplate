@@ -5,6 +5,7 @@ description = "FastAPI + SQLite template – Clean Architecture / DDD"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.1",
+    "prometheus-fastapi-instrumentator>=7.1.0",
     "uvicorn[standard]>=0.47.0",
 ]
 
