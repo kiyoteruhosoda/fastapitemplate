@@ -1,18 +1,22 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 
+from src.infrastructure.build_info import load_build_info
 from src.infrastructure.database.connection import init_db
 from src.infrastructure.logging.structured_logger import setup_logging
 from src.presentation.api.dependencies import set_db_path
-from src.presentation.api.routers import health, items
+from src.presentation.api.routers import health, items, ops
 from src.presentation.middleware.logging_middleware import RequestLoggingMiddleware
 
 
 def create_app(db_path: str = "app.db") -> FastAPI:
     setup_logging()
     set_db_path(db_path)
+
+    build_info = load_build_info()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
@@ -21,12 +25,18 @@ def create_app(db_path: str = "app.db") -> FastAPI:
 
     app = FastAPI(
         title="FastAPI Template",
-        version="0.1.0",
+        version=build_info.version,
         description="FastAPI + SQLite template – Clean Architecture / DDD.",
         lifespan=lifespan,
     )
+
+    # State available to all route handlers via request.app.state
+    app.state.build_info = build_info
+    app.state.startup_time = datetime.now(UTC)
+
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(health.router)
+    app.include_router(ops.router)
     app.include_router(items.router)
     return app
 
