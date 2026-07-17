@@ -1,50 +1,20 @@
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+"""開発用エントリポイント。
 
-from fastapi import FastAPI
-from prometheus_fastapi_instrumentator import Instrumentator
+本番では ``uvicorn asgi:app``（または Gunicorn + UvicornWorker）を使用すること。
 
-from src.infrastructure.build_info import load_build_info
-from src.infrastructure.database.connection import init_db
-from src.infrastructure.logging.structured_logger import setup_logging
-from src.presentation.api.routers import admin, health, items, ops
-from src.presentation.middleware.logging_middleware import RequestLoggingMiddleware
+開発時の起動方法::
 
+    uv run python main.py
+"""
+import uvicorn
+from dotenv import load_dotenv
 
-def create_app(db_path: str = "app.db") -> FastAPI:
-    setup_logging()
+load_dotenv()
 
-    build_info = load_build_info()
-
-    @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-        init_db(db_path)
-        yield
-
-    app = FastAPI(
-        title="FastAPI Template",
-        version=build_info.version,
-        description="FastAPI + SQLite template – Clean Architecture / DDD.",
-        lifespan=lifespan,
+if __name__ == "__main__":
+    uvicorn.run(
+        "asgi:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
     )
-
-    # State available to all route handlers via request.app.state
-    app.state.db_path = db_path
-    app.state.build_info = build_info
-    app.state.startup_time = datetime.now(UTC)
-
-    # Prometheus metrics at /metrics – excluded from its own tracking
-    Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(
-        app, include_in_schema=False
-    )
-
-    app.add_middleware(RequestLoggingMiddleware)
-    app.include_router(health.router)
-    app.include_router(ops.router)
-    app.include_router(admin.router)
-    app.include_router(items.router)
-    return app
-
-
-app = create_app()

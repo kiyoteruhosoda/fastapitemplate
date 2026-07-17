@@ -1,12 +1,21 @@
 [project]
 name = "fastapitemplate"
-version = "0.1.0"
-description = "FastAPI + SQLite template – Clean Architecture / DDD"
+version = "0.2.0"
+description = "FastAPI + DDD template (photonest-based) – Clean Architecture / DDD"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.1",
-    "prometheus-fastapi-instrumentator>=7.1.0",
     "uvicorn[standard]>=0.47.0",
+    "gunicorn>=23.0.0",
+    "prometheus-fastapi-instrumentator>=7.1.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "pymysql>=1.1.0",
+    "cryptography>=44.0.0",
+    "pyjwt>=2.10.0",
+    "werkzeug>=3.0.0",
+    "pydantic[email]>=2.7.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [dependency-groups]
@@ -19,6 +28,11 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths  = ["tests"]
+# importlib: 同名テストファイルの衝突回避 / smtp: 外部リソース要のため既定除外
+addopts = "--import-mode=importlib -m 'not smtp'"
+markers = [
+    "smtp: requires a real SMTP server (excluded by default)",
+]
 
 [tool.ruff]
 line-length = 100
@@ -27,3 +41,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI の Depends()/Cookie()/Query() は引数デフォルトでの呼び出しが正しい用法
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Cookie", "fastapi.Query"]
