@@ -35,6 +35,12 @@ class DbLogHandler(logging.Handler):
         if record.exc_info and record.exc_info[0] is not None:
             trace = "".join(tb_module.format_exception(*record.exc_info))
 
+        # duration_ms 列は Integer。SQLite は型アフィニティで float をそのまま
+        # 保持してしまうため、書き込み前に丸めて両バックエンドの挙動を揃える。
+        duration_ms = getattr(record, "duration_ms", None)
+        if duration_ms is not None:
+            duration_ms = int(round(float(duration_ms)))
+
         row = {
             "created_at": utcnow(),
             "level": record.levelname,
@@ -45,7 +51,7 @@ class DbLogHandler(logging.Handler):
             "path": getattr(record, "path", None),
             "method": getattr(record, "method", None),
             "status_code": getattr(record, "status_code", None),
-            "duration_ms": getattr(record, "duration_ms", None),
+            "duration_ms": duration_ms,
             "trace": trace,
         }
         with get_engine().begin() as connection:
