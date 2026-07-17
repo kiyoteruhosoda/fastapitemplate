@@ -1,0 +1,105 @@
+services:
+  init-paths:
+    image: alpine
+    command: >
+      sh -c "
+        echo '[init] ensure dirs exist';
+        mkdir -p /host/db_data;
+        mkdir -p /host/data;
+        echo '[init] apply correct ownership';
+        chown -R 999:999 /host/db_data;
+        chmod -R 770 /host/db_data;
+        chown -R 1000:1000 /host/data;
+        chmod -R 775 /host/data;
+        echo '[init] done';
+      "
+    volumes:
+      - ${HOST_DATA_ROOT:-./mnt}:/host
+    restart: "no"
+
+  db:
+    image: ${DB_IMAGE:-fastapitemplate-db:latest}
+    container_name: ${DB_CONTAINER_NAME:-fastapitemplate-mariadb}
+    environment:
+      - TZ=UTC
+      # 初期設定のみ（.env 未作成／項目未記入）でも DB が初期化されるようデフォルト値を
+      # 持つ。既定の資格情報は開発向け。外部公開する環境では .env で必ず上書きすること。
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-template123}
+      - MARIADB_USER=${MARIADB_USER:-web_user}
+      - MARIADB_PASSWORD=${MARIADB_PASSWORD:-template123}
+      - MARIADB_DATABASE=${MARIADB_DATABASE:-appdb}
+    ports:
+      - "${DB_HOST_PORT:-3307}:3306"
+    env_file:
+      - .env
+    volumes:
+      - ${HOST_DATA_ROOT:-./mnt}/db_data:/var/lib/mysql
+    command:
+      - --default-time-zone=+00:00
+    depends_on:
+      init-paths:
+        condition: service_completed_successfully
+    healthcheck:
+      # $$ でエスケープし、compose にパスワードを展開させずコンテナ内シェルの環境変数
+      # 参照のまま渡す。--protocol=tcp を明示: ソケット経由だと初回初期化時の一時
+      # ブートストラップサーバーにも ping が通り、healthy と誤判定されるのを防ぐ。
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --protocol=tcp -u root -p\"$$MARIADB_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 10s
+      # 初回起動（空 db_data）はシステムテーブル初期化に数分かかることがある。
+      # start_period 中も probe は interval ごとに走り、成功すれば即 healthy になる
+      # ので、長めに取っても2回目以降の起動は遅くならない。
+      retries: 30
+      start_period: 600s
+
+  web:
+    image: ${WEB_IMAGE:-fastapitemplate:latest}
+    init: true
+    stop_grace_period: 60s
+    command: web
+    # 公開ポートは nginx が受け持つ。web はネットワーク内部からのみ到達可能にする。
+    expose:
+      - "8000"
+    environment:
+      - TZ=UTC
+      - DATABASE_URI=mysql+pymysql://${MARIADB_USER:-web_user}:${MARIADB_PASSWORD:-template123}@db:3306/${MARIADB_DATABASE:-appdb}?charset=utf8mb4
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ${HOST_DATA_ROOT:-./mnt}/data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
+      interval: 30s
+      timeout: 10s
+      # web は db が healthy になった後も DB 接続待ち + alembic upgrade head を
+      # こなしてから起動する。初回（空 DB）はスキーマ構築まで含むため長めに取る。
+      retries: 5
+      start_period: 300s
+
+  nginx:
+    image: nginx:1.27-alpine
+    # 公開フロント。外部リバースプロキシからはこのポートへ接続する。
+    ports:
+      - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-8080}:80"
+    environment:
+      - TZ=UTC
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK_NAME:-fastapitemplate}

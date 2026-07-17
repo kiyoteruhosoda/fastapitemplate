@@ -1,7 +1,13 @@
 .git
 .gitignore
 .pytest_cache
+.ruff_cache
 .venv
 __pycache__/
 *.pyc
 app.db
+.env
+dist/
+frontend/node_modules
+frontend/dist
+logs/
