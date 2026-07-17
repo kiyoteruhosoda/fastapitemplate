@@ -29,9 +29,10 @@ Google OAuth・Google Photos 連携。
 | 10 | T10 | デプロイスクリプト（deploy.sh / entrypoint.sh / Makefile） | ⬜未着手 | 中 | 中 |
 | 11 | T11 | テスト整備（unit / integration、モデル・マイグレーション整合性テスト） | ⬜未着手 | 中 | 中 |
 | 12 | T12 | README・OPERATIONS 更新 | ⬜未着手 | 小 | 小 |
-| — | T13 | DB エンジン選定（SQLite 継続 or MariaDB 併用） | 🟡要判断 | 大 | — |
-| — | T14 | パスワードリセット（email_sender コンテキスト）を含めるか | 🟡要判断 | 中 | — |
-| — | T15 | TOTP / パスキーを含めるか | 🟡要判断 | 中 | — |
+
+T13〜T15（要判断だった事項）は決定済み: DB は本番 MariaDB + 開発/テスト SQLite
+（`decisions/ADR-0001-database-engine.md`）、パスワードリセットは含める・
+TOTP / パスキーは含めない（`decisions/ADR-0002-auth-scope.md`）。
 
 ---
 
@@ -111,21 +112,6 @@ Google OAuth・Google Photos 連携。
   （DB 使用）。`--import-mode=importlib`。モデルとマイグレーションの乖離を検出する
   `test_migration_model_consistency.py` を移植。時刻・乱数・UUID はテスト内で固定。
 
-- **T13 DB エンジン選定（要判断）** — photonest は MariaDB 10.11、現テンプレートは
-  SQLite。**推奨: 本番 compose は MariaDB、ローカル開発・テストは SQLite** の
-  二本立て（photonest の `with_variant` パターンで両立可能）。
-  シンプルさ優先なら SQLite 単独も可。決定後 ADR-0001 として記録する。
-
-- **T14 パスワードリセット（要判断）** — ForgotPassword / ResetPassword 画面を
-  スケルトンとして残す場合、メール送信（email_sender コンテキスト + SMTP 設定）が
-  必要になる。**推奨: email_sender を含めて移植**（テンプレートとして実用性が高い）。
-  除外する場合は該当画面も落とす。
-
-- **T15 TOTP / パスキー（要判断）** — photonest には TOTP・WebAuthn パスキーがあるが
-  「基本的な認証」の範囲を超える。**推奨: 初期スコープからは除外**し、必要になったら
-  photonest から移植する旨を ARCHITECTURE に注記。
-
 ### 実施順序
 
 T1 → T2 → T3 → T4 → T5 →（T6 / T7 並行）→ T8 → T9 → T10 → T11 → T12。
-T13〜T15 は T4 / T5 / T8 着手前に判断する。
