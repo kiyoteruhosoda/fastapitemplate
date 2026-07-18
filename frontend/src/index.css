@@ -1,0 +1,189 @@
+/* 最小限のスケルトン用スタイル。プロダクトでは好みの UI ライブラリへ置き換える。 */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: Canvas;
+  color: CanvasText;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  padding: 0.35rem 0.8rem;
+}
+
+input,
+select {
+  padding: 0.35rem 0.5rem;
+}
+
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+}
+
+.header-title {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.layout-body {
+  display: flex;
+  flex: 1;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 12rem;
+  padding: 1rem 0.5rem;
+  border-right: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+}
+
+.sidebar a {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  text-decoration: none;
+}
+
+.sidebar a.active {
+  background: color-mix(in srgb, CanvasText 12%, Canvas);
+  font-weight: 600;
+}
+
+.content {
+  flex: 1;
+  padding: 1.2rem;
+}
+
+.footer {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  border-top: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+}
+
+.card {
+  max-width: 60rem;
+  padding: 1.2rem;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  border-radius: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.auth-page .card {
+  width: min(22rem, 90vw);
+}
+
+.card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.config-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.3rem 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.scope-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.error {
+  color: #c0392b;
+}
+
+.loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.toast-container {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+.toast {
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+}
+
+.toast-success {
+  background: #2e7d32;
+}
+
+.toast-error {
+  background: #c0392b;
+}

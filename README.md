@@ -1,65 +1,71 @@
 # fastapitemplate
 
-FastAPI + SQLite のテンプレートです。  
-ローカル開発は `uv`、デプロイはそのまま Docker で実行できます。
+FastAPI + DDD のアプリケーションテンプレートです（photonest の構成・設計思想がベース）。
+認証認可（JWT + scope）・システム設定管理・構造化ログ・管理画面 SPA・
+Docker / デプロイスクリプトまで含んだ状態から開発を始められます。
 
 ## 技術スタック
 
-- Python 3.12
-- FastAPI (OpenAPI は `/docs` と `/openapi.json`)
-- SQLite
-- uv (依存管理・実行)
-- Docker
+- Python 3.12 / uv（依存管理）
+- FastAPI + Pydantic（OpenAPI は `/docs`・`/openapi.json`）
+- SQLAlchemy 2.x + Alembic（本番 MariaDB 10.11 / 開発・テスト SQLite）
+- React + TypeScript + Vite（`frontend/`、SPA スケルトン）
+- Docker（db / web / nginx 構成）+ Gunicorn + UvicornWorker
 
-## ローカル開発 (uv)
+## 主な機能
+
+- JWT 認証（access / refresh）・パスワード変更・パスワードリセット（SMTP）
+- **scope（権限コード）ベースの認可**（ユーザー / ロール / 権限の管理 API + 画面）
+- システム設定（優先順位: 環境変数 > DB > デフォルト。管理画面から編集可）
+- 構造化ログ（JSON stdout + `log` テーブル。`requestId` で追跡）
+- 運用プローブ（`/healthz` `/readyz` `/info`）+ Prometheus `/metrics`
+- `bounded_contexts/example/`（Item CRUD）= 新しい機能を追加するときの見本
+
+## クイックスタート（ローカル開発）
 
 ```bash
-# uv が未インストールの場合
-pip install --user uv
-
-# 依存関係をインストール
 uv sync
-
-# 開発サーバー起動
-uv run uvicorn main:app --reload
+uv run alembic upgrade head          # スキーマ + マスタデータ（SQLite: app.db）
+uv run python main.py                # http://127.0.0.1:8000
 ```
 
-アクセス:
-
-- API: http://127.0.0.1:8000
 - Swagger UI: http://127.0.0.1:8000/docs
-- OpenAPI JSON: http://127.0.0.1:8000/openapi.json
+- 初期管理者: `admin@example.com` / `admin`（`ADMIN_INITIAL_PASSWORD` で上書き可）
 
-## API サンプル
+フロントエンド:
 
 ```bash
-# ヘルスチェック
-curl http://127.0.0.1:8000/health
-
-# アイテム作成
-curl -X POST http://127.0.0.1:8000/items \
-  -H "Content-Type: application/json" \
-  -d '{"name":"sample"}'
-
-# アイテム一覧
-curl http://127.0.0.1:8000/items
+cd frontend && npm install && npm run dev    # http://127.0.0.1:5173（/api をプロキシ）
 ```
 
-SQLite ファイルは実行ディレクトリの `app.db` に作成されます。
-
-## テスト
+## テスト・Lint
 
 ```bash
 uv run pytest
+uv run ruff check .
 ```
 
-## Docker デプロイ
+## Docker / デプロイ
 
 ```bash
-docker build -t fastapitemplate .
-docker run --rm -p 8000:8000 -v $(pwd)/app.db:/app/app.db fastapitemplate
+make build && make build-db     # dist/ に image.tar / image-db.tar / deploy.sh
+docker compose up -d            # ローカルで db / web / nginx を起動（要 .env）
 ```
 
-Docker 起動後:
+配置先サーバーでは `dist/` の中身を `<app>/<stg|prod>/` に置き、
+`./scripts/deploy.sh <app|migrate|reset>` を実行します。
+詳細な手順は [docs/OPERATIONS.md](docs/OPERATIONS.md) を参照してください。
 
-- http://127.0.0.1:8000/docs
+## ドキュメント
+
+| ファイル | 内容 |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | 設計ルール・制約事項・ドキュメント運用（作業テンプレ） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | レイヤー構成・DDD パターン解説 |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作手順書 |
+| [docs/Progress.md](docs/Progress.md) | 進行中タスク |
+| [docs/decisions/](docs/decisions/) | 設計判断（ADR） |
+
+## ライセンス
+
+[LICENSE](LICENSE) を参照。
