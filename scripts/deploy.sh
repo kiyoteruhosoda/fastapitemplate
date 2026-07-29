@@ -1,16 +1,21 @@
 #!/bin/bash
 # デプロイスクリプト（stg / prod 共通・配置ディレクトリから環境を自動判定）
 #
-# 配置想定（環境ごとに自己完結したディレクトリ。<app>/ 配下に stg/ と prod/ を置く）:
+# 配置想定（環境ごとに自己完結したディレクトリ。<app>/ 配下に stg/ と prod/ を置き、
+# scripts/build.sh が出力した dist/ の中身をそのまま展開する）:
 #   <app>/
 #     stg/
-#       image.tar          # ビルド済みアプリイメージ（dist/image.tar を配置）
-#       image-db.tar       # (任意) DB イメージ（reset 時のみ使用。dist/image-db.tar を配置）
-#       scripts/deploy.sh  # このスクリプト（git 管理。dist/scripts/deploy.sh を配置）
+#       image.tar          # ビルド済みアプリイメージ
+#       image-db.tar       # DB イメージ（reset 時のみ使用）
+#       deploy.sh          # このスクリプト（dist/deploy.sh を配置）
+#       manifest.env       # ビルドメタデータ（commit・イメージ ID）
+#       manifest.sha256    # tar の checksum（配置時の転送破損検出）
 #       .env               # stg 用設定（無ければ初回デプロイ時にテンプレートを自動生成）
 #       docker-compose.yml # stg 用（デプロイ時にイメージ内のコピーで自動更新される）
 #       mnt/               # コンテナマウント用データ（data/ と db_data/ が作られる）
 #     prod/                # 上記と同じ構成
+#
+# 旧配置（<env>/scripts/deploy.sh に置く形）でも動く（配置場所から自動判別する）。
 #
 # 使い方（モード引数は必須。<app>/<stg|prod>/ で実行する）:
 #   ./scripts/deploy.sh app      # 通常デプロイ（アプリのみ更新。DBスキーマ変更なし）
@@ -25,22 +30,28 @@ set -Eeuo pipefail
 APP_NAME="fastapitemplate"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$(dirname "$SCRIPT_DIR")"
+# 配置場所の自動判別: dist をそのまま展開した新配置（<env>/deploy.sh）と、
+# 旧配置（<env>/scripts/deploy.sh）の両方に対応する。
+if [ "$(basename "$SCRIPT_DIR")" = "scripts" ]; then
+  BASE_DIR="$(dirname "$SCRIPT_DIR")"
+else
+  BASE_DIR="$SCRIPT_DIR"
+fi
 ENV_NAME="$(basename "$BASE_DIR")"
 
 # ===== 環境判定（配置ディレクトリ名で stg / prod を切り替える） =====
 case "$ENV_NAME" in
-  stg)
+  stg | staging | *-stg | *-staging)
     PROJECT="${APP_NAME}-stg"
     DEFAULT_WEB_HOST_PORT=8081
     ;;
-  prod)
+  prod | production | *-prod | *-production)
     PROJECT="${APP_NAME}"
     DEFAULT_WEB_HOST_PORT=8080
     ;;
   *)
-    echo "[deploy][error] このスクリプトは ${APP_NAME}/stg/scripts/ または ${APP_NAME}/prod/scripts/ に配置して実行してください。" >&2
-    echo "  現在の配置: $SCRIPT_DIR（親ディレクトリ名 '$ENV_NAME' が stg / prod ではありません）" >&2
+    echo "[deploy][error] このスクリプトは ${APP_NAME}/<stg|prod>/ 配下に配置して実行してください。" >&2
+    echo "  現在の配置: $SCRIPT_DIR（環境ディレクトリ名 '$ENV_NAME' が stg / prod 系ではありません）" >&2
     exit 1
     ;;
 esac
@@ -56,6 +67,45 @@ IMAGE_TAR="$BASE_DIR/image.tar"
 IMAGE_DB_TAR="$BASE_DIR/image-db.tar"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 ENV_FILE="$BASE_DIR/.env"
+MANIFEST_ENV="$BASE_DIR/manifest.env"
+MANIFEST_SHA="$BASE_DIR/manifest.sha256"
+
+# ===== manifest（build.sh の出力メタデータ。無ければ従来どおり動く） =====
+# ロード時タグ・イメージ ID・commit を manifest から取り、配置物とビルド成果の齟齬を検出する。
+LOADED_APP_REF="${APP_NAME}:latest"
+LOADED_DB_REF="${APP_NAME}-db:latest"
+MANIFEST_APP_IMAGE_ID=""
+MANIFEST_DB_IMAGE_ID=""
+MANIFEST_COMMIT=""
+if [ -f "$MANIFEST_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$MANIFEST_ENV"
+  LOADED_APP_REF="${app_ref:-$LOADED_APP_REF}"
+  LOADED_DB_REF="${db_ref:-$LOADED_DB_REF}"
+  MANIFEST_APP_IMAGE_ID="${app_image_id:-}"
+  MANIFEST_DB_IMAGE_ID="${db_image_id:-}"
+  MANIFEST_COMMIT="${commit:-}"
+fi
+
+# tar が manifest.sha256 の checksum と一致するか検証する（転送破損の早期検出）。
+# manifest が無い・sha256sum が無い・該当エントリが無い場合は従来どおりスキップする。
+verify_tar_checksum() { # 引数: tar のファイル名（BASE_DIR 直下）
+  local name="$1"
+  [ -f "$MANIFEST_SHA" ] || return 0
+  command -v sha256sum >/dev/null 2>&1 || return 0
+  grep -qE "  ${name}\$" "$MANIFEST_SHA" || return 0
+  ( cd "$BASE_DIR" && grep -E "  ${name}\$" "$MANIFEST_SHA" | sha256sum -c - >/dev/null 2>&1 ) \
+    || return 1
+  return 0
+}
+
+# ロード済みイメージが manifest のイメージ ID と一致していれば docker load を省略できる。
+image_matches_manifest() { # 引数: <イメージ参照> <期待イメージID>
+  local ref="$1" expected="$2" actual
+  [ -n "$expected" ] || return 1
+  actual="$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null || true)"
+  [ -n "$actual" ] && [ "$actual" = "$expected" ]
+}
 
 # ===== .env の値を読む（compose interpolation と同じく「最後の定義」を採用） =====
 # CR と前後の空白は必ず除去する（CR が残るとバインドマウント失敗の原因になる）。
@@ -155,14 +205,23 @@ retag_for_env() { # 引数: <ロード時タグ> <環境別タグ>
 }
 
 # ===== Load app image =====
+if [ -n "$MANIFEST_COMMIT" ]; then
+  log "Manifest: commit=$MANIFEST_COMMIT version=${version:-unknown} build=${build_date:-unknown}"
+fi
 if [ -f "$IMAGE_TAR" ]; then
-  load_image "$IMAGE_TAR"
-  retag_for_env "${APP_NAME}:latest" "$APP_IMAGE"
+  verify_tar_checksum "$(basename "$IMAGE_TAR")" \
+    || fail "image.tar が manifest.sha256 と一致しません（転送破損の可能性。dist/ を配置し直してください）"
+  if image_matches_manifest "$LOADED_APP_REF" "$MANIFEST_APP_IMAGE_ID"; then
+    log "App image already loaded ($LOADED_APP_REF matches manifest); skipping docker load"
+  else
+    load_image "$IMAGE_TAR"
+  fi
+  retag_for_env "$LOADED_APP_REF" "$APP_IMAGE"
 elif docker image inspect "$APP_IMAGE" >/dev/null 2>&1; then
   warn "Image tar not found: $IMAGE_TAR — reusing already-loaded $APP_IMAGE"
 else
   err "Image tar not found: $IMAGE_TAR"
-  echo "  ビルドマシンで 'make build' を実行し、dist/image.tar を配置してください。" >&2
+  echo "  ビルドマシンで './scripts/build.sh' を実行し、dist/ の中身を配置してください。" >&2
   exit 1
 fi
 
@@ -247,15 +306,17 @@ ensure_db_image() {
     return 0
   fi
   if [ -f "$IMAGE_DB_TAR" ]; then
+    verify_tar_checksum "$(basename "$IMAGE_DB_TAR")" \
+      || fail "image-db.tar が manifest.sha256 と一致しません（転送破損の可能性。dist/ を配置し直してください）"
     load_image "$IMAGE_DB_TAR"
-    retag_for_env "${APP_NAME}-db:latest" "$DB_IMAGE"
+    retag_for_env "$LOADED_DB_REF" "$DB_IMAGE"
     return 0
   fi
-  if docker image inspect "${APP_NAME}-db:latest" >/dev/null 2>&1; then
-    retag_for_env "${APP_NAME}-db:latest" "$DB_IMAGE"
+  if docker image inspect "$LOADED_DB_REF" >/dev/null 2>&1; then
+    retag_for_env "$LOADED_DB_REF" "$DB_IMAGE"
     return 0
   fi
-  fail "DB image not found: $DB_IMAGE（'make build-db' で dist/image-db.tar を作成し配置してください）"
+  fail "DB image not found: $DB_IMAGE（'./scripts/build.sh' で dist/image-db.tar を作成し配置してください）"
 }
 
 # ===== Stop running containers =====
@@ -266,8 +327,10 @@ $COMPOSE down || true
 if [ "$MODE" = "reset" ]; then
   echo -e "\033[33m[reset] WARNING: This will delete all $ENV_NAME DB & app data.\033[0m"
   if [ -f "$IMAGE_DB_TAR" ]; then
+    verify_tar_checksum "$(basename "$IMAGE_DB_TAR")" \
+      || fail "image-db.tar が manifest.sha256 と一致しません（転送破損の可能性。dist/ を配置し直してください）"
     load_image "$IMAGE_DB_TAR"
-    retag_for_env "${APP_NAME}-db:latest" "$DB_IMAGE"
+    retag_for_env "$LOADED_DB_REF" "$DB_IMAGE"
   else
     warn "[reset] DB image tar not found: $IMAGE_DB_TAR"
   fi
