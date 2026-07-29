@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
-import { ApiError, api } from '../services/api'
+import { api, errorMessageKey } from '../services/api'
 
 export function ChangePasswordPage() {
   const { t } = useI18n()
@@ -21,8 +21,7 @@ export function ChangePasswordPage() {
       setCurrent('')
       setNext('')
     } catch (err) {
-      const code = err instanceof ApiError ? err.code : 'unknown_error'
-      notify('error', t(`error.${code}`))
+      notify('error', t(errorMessageKey(err)))
     }
   }
 

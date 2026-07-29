@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
-import { ApiError, api } from '../services/api'
+import { api, errorMessageKey } from '../services/api'
 
 interface Role {
   id: number
@@ -39,8 +39,7 @@ export function RolesPage() {
       setName('')
       await reload()
     } catch (err) {
-      const code = err instanceof ApiError ? err.code : 'unknown_error'
-      notify('error', t(`error.${code}`))
+      notify('error', t(errorMessageKey(err)))
     }
   }
 

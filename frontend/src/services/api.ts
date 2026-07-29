@@ -21,6 +21,16 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 例外を i18n の翻訳キーへ変換する。
+ *
+ * バックエンドはエラーコードだけを返すので、画面側の扱いは常に
+ * 「`error.<code>` を引く」に落ちる。各ページで同じ分岐を書かないための入口。
+ */
+export function errorMessageKey(error: unknown): string {
+  return `error.${error instanceof ApiError ? error.code : 'unknown_error'}`
+}
+
 export function setTokens(access: string, refresh: string): void {
   localStorage.setItem(ACCESS_KEY, access)
   localStorage.setItem(REFRESH_KEY, refresh)

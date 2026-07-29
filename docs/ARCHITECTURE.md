@@ -27,7 +27,8 @@ Infrastructure は Domain のインターフェースを実装する（依存性
   - `shared/domain/auth/` — 認可マスタデータ（`master_data.py` が唯一の出所）
   - `shared/infrastructure/models/` — 共有 SQLAlchemy モデル（User / Role / Permission /
     SystemSetting / Log / PasswordResetToken）
-  - `shared/kernel/` — settings / logging / database（技術基盤。ドメイン知識を持たない）
+  - `shared/kernel/` — settings / logging / database / restart / timestamps
+    （技術基盤。ドメイン知識を持たない）
 - `presentation/fastapi/` はコンテキスト横断の API（認証・管理系）と
   アプリケーションファクトリ（`app.py`）を持つ。
 
@@ -42,9 +43,25 @@ Infrastructure は Domain のインターフェースを実装する（依存性
 - ロール・権限コード・初期管理者は `shared/domain/auth/master_data.py` で一元管理し、
   マイグレーションのシードと `scripts/seed_master_data.py` が参照する。
 
-将来 TOTP・パスキー（WebAuthn）・サービスアカウント等が必要になったら、
-photonest（本テンプレートの参照元）の実装を移植する。初期スコープには含めない
-（ADR-0002 参照）。
+- 第二の要素（二要素認証・パスキー）は `bounded_contexts/account_security/` が持つ
+  （ADR-0003）。パスワード認証は上記のまま、ログイン時に TOTP を検証する／パスキー
+  だけでトークンを発行する、という形で足している。詳細はコンテキストの README。
+
+サービスアカウント認証・外部 IdP 連携は初期スコープに含めない（ADR-0002）。
+
+## 自己再起動の設計
+
+管理画面から保存した設定のうち、起動時にしか読まれないもの（ログ・CORS）は
+保存だけでは反映されない。`shared/kernel/restart/` がその橋渡しをする。
+
+- 設定定義の `restart_scopes` が「反映にどのサービスの再起動が要るか」を宣言する。
+- 管理 API は要求を DB（`system_settings` の `app.restart_request`）へ書く。
+- 各プロセスは起動時に `RestartWatcher` を立て、自分宛の要求の token が変わったら
+  自分自身を終了させる。復帰はコンテナの restart policy に任せる。
+
+要求を DB 経由にするのは、管理 API を処理したプロセスと再起動すべきプロセスが
+別だから（Gunicorn は複数ワーカー）。判定を時刻ではなく token の変化で行うのは、
+時計のずれで再起動ループに陥らないようにするため（ADR-0004）。
 
 ## 設定管理の設計
 
@@ -72,7 +89,12 @@ photonest（本テンプレートの参照元）の実装を移植する。初�
 - `services/api.ts` — fetch ラッパー。JWT の保持・期限切れ時の refresh・401 処理。
 - `store/` — 認証状態（React Context）。
 - `pages/` — 画面単位。管理画面は scope で表示制御する。
-- `i18n/` — 言語別 JSON（en / ja）。キーは英語。
+- `i18n/` — 言語別 JSON（en / ja）。キーは英語。訳の抜けは
+  `tests/unit/test_i18n_dictionaries.py` が検出する。
+- `theme/` — テーマ（light / dark / system）。配色は `index.css` の CSS 変数で持ち、
+  `<html data-theme>` を切り替えて解決する。
+- 言語・テーマの既定値と選択肢は `GET /api/ui/settings`（公開）から受け取り、
+  利用者の選択は `localStorage` に持つ（ADR-0005）。
 - ビルド成果物（`frontend/dist`）は FastAPI の `routers/spa.py` が配信する。
   開発時は Vite dev server（`npm run dev`）から API へプロキシする。
 

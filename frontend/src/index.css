@@ -1,7 +1,34 @@
-/* 最小限のスケルトン用スタイル。プロダクトでは好みの UI ライブラリへ置き換える。 */
+/* 最小限のスケルトン用スタイル。プロダクトでは好みの UI ライブラリへ置き換える。
+ *
+ * 配色は CSS 変数で持ち、`<html data-theme>`（ThemeProvider が書き込む）で
+ * 切り替える。色を直に書かないことで、テーマの追加は :root[data-theme=...] を
+ * 1 ブロック足すだけで済む。
+ */
+:root,
+:root[data-theme='light'] {
+  --surface: #ffffff;
+  --surface-raised: #f5f6f8;
+  --text: #1b1f24;
+  --text-muted: #5a6472;
+  --border: #d5d9e0;
+  --accent: #4f46e5;
+  --danger: #c0392b;
+  --success: #2e7d32;
+}
+
+:root[data-theme='dark'] {
+  --surface: #16181d;
+  --surface-raised: #1f2229;
+  --text: #e6e8eb;
+  --text-muted: #a0a8b4;
+  --border: #333944;
+  --accent: #8b83ff;
+  --danger: #ff6b5b;
+  --success: #5cb85c;
+}
+
 :root {
-  color-scheme: light dark;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   line-height: 1.5;
 }
 
@@ -11,8 +38,8 @@
 
 body {
   margin: 0;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--surface);
+  color: var(--text);
 }
 
 a {
@@ -22,11 +49,24 @@ a {
 button {
   cursor: pointer;
   padding: 0.35rem 0.8rem;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 input,
 select {
   padding: 0.35rem 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
 }
 
 .layout {
@@ -40,7 +80,7 @@ select {
   justify-content: space-between;
   align-items: center;
   padding: 0.6rem 1rem;
-  border-bottom: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  border-bottom: 1px solid var(--border);
 }
 
 .header-title {
@@ -65,7 +105,7 @@ select {
   gap: 0.2rem;
   min-width: 12rem;
   padding: 1rem 0.5rem;
-  border-right: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  border-right: 1px solid var(--border);
 }
 
 .sidebar a {
@@ -75,7 +115,7 @@ select {
 }
 
 .sidebar a.active {
-  background: color-mix(in srgb, CanvasText 12%, Canvas);
+  background: var(--surface-raised);
   font-weight: 600;
 }
 
@@ -87,14 +127,14 @@ select {
 .footer {
   padding: 0.4rem 1rem;
   font-size: 0.8rem;
-  opacity: 0.7;
-  border-top: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
 }
 
 .card {
   max-width: 60rem;
   padding: 1.2rem;
-  border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  border: 1px solid var(--border);
   border-radius: 0.6rem;
   display: flex;
   flex-direction: column;
@@ -104,6 +144,21 @@ select {
 .card h1 {
   margin: 0;
   font-size: 1.3rem;
+}
+
+.card h2 {
+  font-size: 1.05rem;
+  margin: 0.4rem 0;
+}
+
+.card-inset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.8rem;
+  background: var(--surface-raised);
+  border-radius: 0.5rem;
 }
 
 .auth-page {
@@ -126,6 +181,7 @@ select {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: flex-end;
 }
 
 .config-row {
@@ -136,6 +192,30 @@ select {
   padding: 0.3rem 0;
 }
 
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  background: var(--surface-raised);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.qr-code {
+  width: 12rem;
+  height: 12rem;
+  /* QR は黒い線の SVG。ダークテーマでも読み取れるよう常に白地に載せる。 */
+  background: #ffffff;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
@@ -143,7 +223,7 @@ table {
 
 th,
 td {
-  border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+  border: 1px solid var(--border);
   padding: 0.4rem 0.6rem;
   text-align: left;
   font-size: 0.9rem;
@@ -155,12 +235,13 @@ td {
 }
 
 .error {
-  color: #c0392b;
+  color: var(--danger);
 }
 
 .loading {
   padding: 2rem;
   text-align: center;
+  color: var(--text-muted);
 }
 
 .toast-container {
@@ -181,9 +262,9 @@ td {
 }
 
 .toast-success {
-  background: #2e7d32;
+  background: var(--success);
 }
 
 .toast-error {
-  background: #c0392b;
+  background: var(--danger);
 }

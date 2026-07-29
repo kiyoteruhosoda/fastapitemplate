@@ -7,18 +7,39 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.kernel.database.session import get_db
 from shared.kernel.logging.request_context import user_id_hash_var
+from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
 
 # アクセストークンを格納する Cookie 名（ログイン時に auth ルーターが設定する）
 ACCESS_TOKEN_COOKIE = "access_token"
+
+
+def set_access_token_cookie(response: Response, token: str) -> None:
+    """アクセストークンを Cookie へ載せる。
+
+    トークンを発行する経路（パスワード・リフレッシュ・パスキー）が複数あるため、
+    属性の付け方をここ 1 か所に集約する。
+    """
+    response.set_cookie(
+        ACCESS_TOKEN_COOKIE,
+        token,
+        max_age=settings.access_token_expires_seconds,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+    )
+
+
+def clear_access_token_cookie(response: Response) -> None:
+    response.delete_cookie(ACCESS_TOKEN_COOKIE)
 
 # Authorization ヘッダー優先、無ければ Cookie フォールバック
 _bearer_scheme = HTTPBearer(auto_error=False)
@@ -91,4 +112,10 @@ def require_permission(*codes: str):
     return _check
 
 
-__all__ = ["get_current_principal", "require_permission", "ACCESS_TOKEN_COOKIE"]
+__all__ = [
+    "ACCESS_TOKEN_COOKIE",
+    "clear_access_token_cookie",
+    "get_current_principal",
+    "require_permission",
+    "set_access_token_cookie",
+]

@@ -16,6 +16,9 @@ dependencies = [
     "werkzeug>=3.0.0",
     "pydantic[email]>=2.7.0",
     "python-dotenv>=1.0.0",
+    "pyotp>=2.9.0",
+    "webauthn>=2.5.0",
+    "qrcode>=8.0",
 ]
 
 [dependency-groups]

@@ -9,9 +9,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from bounded_contexts.account_security.application.use_cases.verify_second_factor import (  # noqa: E501
+    VerifySecondFactor,
+)
+from bounded_contexts.account_security.domain.exceptions import (
+    InvalidTotpCodeError,
+    TotpRequiredError,
+)
+from bounded_contexts.account_security.presentation import dependencies as security
 from presentation.fastapi.dependencies.auth import (
-    ACCESS_TOKEN_COOKIE,
+    clear_access_token_cookie,
     get_current_principal,
+    set_access_token_cookie,
 )
 from presentation.fastapi.schemas.auth import (
     ChangePasswordRequest,
@@ -28,28 +37,30 @@ from presentation.fastapi.services.token_service import TokenService
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
-from shared.kernel.settings.settings import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
 
 DbDep = Annotated[Session, Depends(get_db)]
 PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_current_principal)]
-
-
-def _set_access_cookie(response: Response, token: str) -> None:
-    response.set_cookie(
-        ACCESS_TOKEN_COOKIE,
-        token,
-        max_age=settings.access_token_expires_seconds,
-        httponly=True,
-        secure=settings.session_cookie_secure,
-        samesite="lax",
-    )
+SecondFactorDep = Annotated[
+    VerifySecondFactor, Depends(security.verify_second_factor)
+]
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, response: Response, db: DbDep) -> TokenResponse:
+async def login(
+    body: LoginRequest,
+    response: Response,
+    db: DbDep,
+    second_factor: SecondFactorDep,
+) -> TokenResponse:
+    """パスワード認証。二要素認証が有効なら ``totp_code`` も必須になる。
+
+    コード未提示は ``totp_required``、不一致は ``invalid_totp`` を返す。どちらも
+    パスワードは正しかったことを意味するが、この時点ではまだトークンを発行して
+    いないため、コードを添えて再度ログインすればよい。
+    """
     user = db.scalar(select(User).where(User.email == body.email))
     if (
         user is None
@@ -60,8 +71,18 @@ async def login(body: LoginRequest, response: Response, db: DbDep) -> TokenRespo
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_credentials"},
         )
+
+    try:
+        second_factor.execute(user_id=user.id, code=body.totp_code)
+    except (TotpRequiredError, InvalidTotpCodeError) as error:
+        # 認証の失敗として 401 に揃える（既定の対応付けでは 400 になる）
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": error.code},
+        ) from None
+
     pair = TokenService.create_token_pair(user)
-    _set_access_cookie(response, str(pair["access_token"]))
+    set_access_token_cookie(response, str(pair["access_token"]))
     logger.info("login_succeeded")
     return TokenResponse(**pair)  # type: ignore[arg-type]
 
@@ -75,13 +96,13 @@ async def refresh(body: RefreshRequest, response: Response, db: DbDep) -> TokenR
             detail={"error": "invalid_token"},
         )
     pair = TokenService.create_token_pair(user)
-    _set_access_cookie(response, str(pair["access_token"]))
+    set_access_token_cookie(response, str(pair["access_token"]))
     return TokenResponse(**pair)  # type: ignore[arg-type]
 
 
 @router.post("/logout", response_model=StatusResponse)
 async def logout(response: Response) -> StatusResponse:
-    response.delete_cookie(ACCESS_TOKEN_COOKIE)
+    clear_access_token_cookie(response)
     return StatusResponse(status="ok")
 
 

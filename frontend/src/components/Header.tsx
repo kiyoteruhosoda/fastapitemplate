@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 
-import { useI18n } from '../i18n'
+import { LOCALE_LABELS, useI18n, type Locale } from '../i18n'
 import { useAuth } from '../store/AuthContext'
+import { THEME_PREFERENCES, useTheme, type ThemePreference } from '../theme'
 
 export function Header() {
-  const { t, locale, setLocale } = useI18n()
+  const { t, locale, locales, setLocale } = useI18n()
+  const { theme, setTheme } = useTheme()
   const { user, logout } = useAuth()
 
   return (
@@ -13,9 +15,27 @@ export function Header() {
         {t('app.title')}
       </Link>
       <div className="header-actions">
-        <select value={locale} onChange={(e) => setLocale(e.target.value as 'en' | 'ja')}>
-          <option value="en">English</option>
-          <option value="ja">日本語</option>
+        <select
+          aria-label={t('common.language')}
+          value={locale}
+          onChange={(e) => setLocale(e.target.value as Locale)}
+        >
+          {locales.map((value) => (
+            <option key={value} value={value}>
+              {LOCALE_LABELS[value]}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={t('common.theme')}
+          value={theme}
+          onChange={(e) => setTheme(e.target.value as ThemePreference)}
+        >
+          {THEME_PREFERENCES.map((value) => (
+            <option key={value} value={value}>
+              {t(`theme.${value}`)}
+            </option>
+          ))}
         </select>
         {user && (
           <>

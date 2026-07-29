@@ -26,7 +26,7 @@ uv run python scripts/seed_master_data.py
 ```bash
 cd frontend
 npm install
-npm run dev        # http://127.0.0.1:5173（/api は 8000 へプロキシ）
+npm run dev        # http://localhost:5173（/api は 8000 へプロキシ）
 ```
 
 ビルドして FastAPI から配信させたいとき:
@@ -111,6 +111,36 @@ git pull → build.sh → dist/ 取り込み → deploy.sh を 1 本で実行す
 
 管理画面（`/admin/config`。要 `admin:system-settings` 権限）から編集する。
 保存すると即時反映される（環境変数が設定されているキーは環境変数が優先）。
+
+「再起動後に反映」と表示される項目（ログ設定・CORS）は保存だけでは効かない。
+保存後に出る「今すぐ再起動」を押す（要 `system:manage` 権限）。要求は DB に置かれ、
+最大 10 秒でアプリが自分を終了し、コンテナの restart policy で復帰する。
+
+## アプリを再起動したいとき
+
+- 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
+- ホスト: `docker compose restart web`
+
+## 二要素認証・パスキーを設定したいとき
+
+利用者自身が `/security`（プロフィール → セキュリティ）から操作する。
+
+- 二要素認証: 「設定する」→ 認証アプリで QR を読む → 表示されたコードを入力して確定。
+  確定するまで有効にならないため、途中でやめてもログインできなくなることはない。
+- パスキー: 「パスキーを追加」→ 端末の画面ロック／セキュリティキーで承認。
+
+パスキーを使う前に `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` を実際に開く URL へ合わせる
+（`.env.example` 参照）。RP ID を後から変えると登録済みのパスキーは使えなくなる。
+
+| 開き方 | `WEBAUTHN_RP_ID` | `WEBAUTHN_ORIGIN` |
+|---|---|---|
+| `npm run dev`（既定） | `localhost` | `http://localhost:5173` |
+| ビルド済み SPA を FastAPI から | `localhost` | `http://localhost:8000` |
+| docker compose（nginx 経由） | `localhost` | `http://localhost:8080` |
+| 本番 | 公開ドメイン | `https://<公開ドメイン>` |
+
+RP ID にはドメイン名しか指定できない（IP アドレス不可）。開発時は
+`127.0.0.1` ではなく `localhost` で開くこと。
 
 ## ログを確認したいとき
 

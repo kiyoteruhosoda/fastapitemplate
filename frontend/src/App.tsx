@@ -14,6 +14,7 @@ import { PermissionsPage } from './pages/PermissionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RolesPage } from './pages/RolesPage'
+import { SecurityPage } from './pages/SecurityPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
 import { UsersPage } from './pages/UsersPage'
 import { useAuth } from './store/AuthContext'
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/items" element={<ItemsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/security" element={<SecurityPage />} />
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/roles" element={<RolesPage />} />
         <Route path="/admin/permissions" element={<PermissionsPage />} />

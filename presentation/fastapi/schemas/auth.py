@@ -7,6 +7,8 @@ from pydantic import BaseModel, EmailStr, Field
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    # 二要素認証が有効なアカウントでのみ必須（未提示なら totp_required を返す）
+    totp_code: str | None = None
 
 
 class TokenResponse(BaseModel):

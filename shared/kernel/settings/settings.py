@@ -74,22 +74,13 @@ class _DatabaseOverrides:
             self._expires_at = time.monotonic() + self._TTL_SECONDS
 
     def _load_payload(self) -> dict[str, Any] | None:
-        from sqlalchemy import text
+        from shared.kernel.settings.system_setting_records import (
+            SystemSettingRecordReader,
+        )
 
-        from shared.kernel.database.db import get_engine
-
-        with get_engine().connect() as connection:
-            row = connection.execute(
-                text(
-                    "SELECT setting_json FROM system_settings WHERE setting_key = :key"
-                ),
-                {"key": self._SETTING_KEY},
-            ).first()
-        if row is None:
+        value = SystemSettingRecordReader.read_json(self._SETTING_KEY)
+        if value is None:
             return {}
-        value = row[0]
-        if isinstance(value, str):
-            value = json.loads(value)
         return value if isinstance(value, dict) else {}
 
 
@@ -201,6 +192,38 @@ class ApplicationSettings:
         return self.get_int("PASSWORD_RESET_TOKEN_TTL_SECONDS", 3600)
 
     # ------------------------------------------------------------------
+    # 二要素認証（TOTP）
+    # ------------------------------------------------------------------
+
+    @property
+    def totp_issuer(self) -> str:
+        return str(self._get("TOTP_ISSUER"))
+
+    @property
+    def totp_valid_window(self) -> int:
+        return self.get_int("TOTP_VALID_WINDOW", 1)
+
+    # ------------------------------------------------------------------
+    # パスキー（WebAuthn）
+    # ------------------------------------------------------------------
+
+    @property
+    def webauthn_rp_id(self) -> str:
+        return str(self._get("WEBAUTHN_RP_ID"))
+
+    @property
+    def webauthn_rp_name(self) -> str:
+        return str(self._get("WEBAUTHN_RP_NAME"))
+
+    @property
+    def webauthn_origin(self) -> str:
+        return str(self._get("WEBAUTHN_ORIGIN")).rstrip("/")
+
+    @property
+    def webauthn_challenge_ttl_seconds(self) -> int:
+        return self.get_int("WEBAUTHN_CHALLENGE_TTL_SECONDS", 300)
+
+    # ------------------------------------------------------------------
     # 一般
     # ------------------------------------------------------------------
 
@@ -215,6 +238,10 @@ class ApplicationSettings:
     @property
     def default_locale(self) -> str:
         return str(self._get("DEFAULT_LOCALE"))
+
+    @property
+    def default_theme(self) -> str:
+        return str(self._get("DEFAULT_THEME"))
 
     @property
     def cors_allowed_origins(self) -> Sequence[str]:

@@ -2,6 +2,47 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
+## 2026-07 二要素認証・パスキー・テーマ切り替え・自己再起動
+
+photonest を参考に 5 つの機能を追加し、重複していた処理を整理した。
+
+- **二要素認証（TOTP）とパスキー（WebAuthn）** を
+  `bounded_contexts/account_security/` として追加（ADR-0003）。
+  移植元にあった 2 つの問題を設計で直した。
+  - 共有鍵を `users` の列ではなく `totp_secrets` テーブルに置き、確認できるまで
+    有効にしない 2 段階登録にした（QR の読み取り失敗で締め出されないように）。
+  - WebAuthn チャレンジをプロセス内 `dict` ではなく `webauthn_challenges` テーブルに
+    置いた。移植元の実装は単一プロセス専用で、既定の Gunicorn `--workers=2` では
+    発行と検証が別ワーカーに当たった瞬間に必ず失敗する状態だった。
+  - `pyotp` / `webauthn` は Infrastructure に閉じ込め、Domain には Protocol だけを置いた。
+- **設定変更による自己再起動** を `shared/kernel/restart/` として追加（ADR-0004）。
+  起動時にしか読まれない設定（`LOG_LEVEL` / `LOG_TO_DATABASE` /
+  `CORS_ALLOWED_ORIGINS`）は保存しても反映されず、画面上は成功と出ていた。
+  保存 API が `restart_required` を返し、`POST /api/admin/system/restart` で
+  再起動を要求できるようにした。
+- **テーマ切り替え**（light / dark / OS 追従）を追加。配色を CSS 変数へ移し、
+  `<html data-theme>` で切り替える。以前はブラウザ任せの `Canvas` /
+  `CanvasText` を使っており、アプリ側から配色を選べなかった。
+- **日英切り替えの仕上げ**。`LANGUAGES` / `DEFAULT_LOCALE` は定義済みだったが
+  参照するコードが無く、管理画面に並ぶだけで何も動かしていなかった。
+  公開エンドポイント `GET /api/ui/settings` で配り、実際に効くようにした
+  （ADR-0005）。管理画面の設定ラベル・選択肢も辞書で訳せるようにし、
+  訳の抜けを `tests/unit/test_i18n_dictionaries.py` が検出する。
+
+重複処理の整理:
+
+- `POST /api/admin/maintenance/shutdown` を削除。自プロセスへ SIGTERM を送るだけで、
+  Gunicorn 配下ではワーカーが 1 つ落ちてアービターが同じ環境で作り直すため、設定は
+  反映されなかった。終了方法の判断を `build_process_terminator()` に集約し、
+  `POST /api/admin/system/restart` へ一本化した。
+- `system_settings` テーブルを短命コネクションで読む生 SQL が設定解決と再起動要求で
+  重複していたため、`SystemSettingRecordReader` に集約した。
+- アクセストークン Cookie の付与を `set_access_token_cookie()` に集約
+  （パスワード・リフレッシュ・パスキーの 3 経路が同じ属性を使う）。
+- `utcnow()` を `shared/kernel/timestamps.py` へ移動（Application 層からも使うため）。
+- フロントエンドの 7 か所に散っていた「例外 → `error.<code>` 翻訳キー」変換を
+  `errorMessageKey()` に集約した。
+
 ## 2026-07 ビルド／デプロイ最新化・PWA 対応
 
 - ビルドを `scripts/build.sh` に集約（idp と同方式）。`dist/` に image tar・`deploy.sh`・
