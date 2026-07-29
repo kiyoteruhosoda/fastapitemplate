@@ -32,12 +32,16 @@ BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="$(basename "$BASE_DIR")"
 
 # ===== 環境判定（配置ディレクトリ名で stg / prod を切り替える） =====
+# ENV_KIND（stg / prod）が分類の正。以降の分岐は ENV_NAME の字面ではなく ENV_KIND で行う
+# （staging・*-stg 等のエイリアスに prod 既定値を適用してしまわないため）。
 case "$ENV_NAME" in
   stg | staging | *-stg | *-staging)
+    ENV_KIND=stg
     PROJECT="${APP_NAME}-stg"
     DEFAULT_WEB_HOST_PORT=8081
     ;;
   prod | production | *-prod | *-production)
+    ENV_KIND=prod
     PROJECT="${APP_NAME}"
     DEFAULT_WEB_HOST_PORT=8080
     ;;
@@ -259,7 +263,7 @@ fi
 # .env は上書き用のコメント付きテンプレートで足りる。既存の .env には触れない。
 if [ ! -f "$ENV_FILE" ]; then
   warn "$ENV_FILE not found; generating a default template."
-  if [ "$ENV_NAME" = "stg" ]; then
+  if [ "$ENV_KIND" = "stg" ]; then
     DEFAULT_DB_HOST_PORT=3308
     DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb-stg"
     DEFAULT_NETWORK="${APP_NAME}-stg"

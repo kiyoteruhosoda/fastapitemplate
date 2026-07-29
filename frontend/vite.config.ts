@@ -43,6 +43,8 @@ export default defineConfig({
           /^\/openapi\.json/,
           /^\/metrics/,
           /^\/healthz/,
+          /^\/readyz/,
+          /^\/info/,
         ],
         // API 応答は SW でキャッシュしない（常にネットワークへ）。オフライン時は
         // フロント側のエラーハンドリング（i18n エラーコード変換）に委ねる。
