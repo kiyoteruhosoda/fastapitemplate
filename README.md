@@ -48,12 +48,13 @@ uv run ruff check .
 ## Docker / デプロイ
 
 ```bash
-make build && make build-db     # dist/ に image.tar / image-db.tar / deploy.sh
+./scripts/build.sh              # dist/ に image.tar / image-db.tar / deploy.sh / manifest
 docker compose up -d            # ローカルで db / web / nginx を起動（要 .env）
 ```
 
 配置先サーバーでは `dist/` の中身を `<app>/<stg|prod>/` に置き、
-`./scripts/deploy.sh <app|migrate|reset>` を実行します。
+`./deploy.sh <app|migrate|reset>` を実行します。git の無いデプロイ先では
+`scripts/build-remote-container.sh`（一括デプロイ）が使えます。
 詳細な手順は [docs/OPERATIONS.md](docs/OPERATIONS.md) を参照してください。
 
 ## ドキュメント

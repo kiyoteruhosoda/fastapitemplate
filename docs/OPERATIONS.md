@@ -66,8 +66,8 @@ uv run alembic revision --autogenerate -m "<description>"
 ## Docker イメージをビルドしたいとき
 
 ```bash
-make build         # アプリイメージ + dist/image.tar + デプロイスクリプト配置
-make build-db      # DB イメージ + dist/image-db.tar
+./scripts/build.sh   # アプリ + DB イメージ → dist/（tar・deploy.sh・manifest 一式）
+# make build でも同じ（scripts/build.sh を呼ぶだけ）
 ```
 
 ## docker compose でローカル起動したいとき
@@ -81,17 +81,31 @@ docker compose up -d             # db / web / nginx が起動
 
 ## デプロイしたいとき
 
-配置先サーバーの `<app>/<stg|prod>/` に `dist/` の中身
-（`image.tar`・`image-db.tar`・`scripts/deploy.sh`）を置いて実行する:
+配置先サーバーの `<app>/<stg|prod>/` に `dist/` の中身をそのまま置いて実行する:
 
 ```bash
-./scripts/deploy.sh app          # 通常デプロイ（アプリのみ更新）
-./scripts/deploy.sh migrate      # DDL 更新時（Alembic migration 追加時）
-./scripts/deploy.sh reset        # 完全初期化（DB 消去。破壊的）
+./deploy.sh app          # 通常デプロイ（アプリのみ更新）
+./deploy.sh migrate      # DDL 更新時（Alembic migration 追加時）
+./deploy.sh reset        # 完全初期化（DB 消去。破壊的）
 ```
 
 環境（stg / prod）は配置ディレクトリ名から自動判定される。
 `.env` が無ければ初回実行時にテンプレートが自動生成される。
+
+## デプロイ先に git が無いホスト（Synology 等）で一括デプロイしたいとき
+
+`scripts/build-remote-container.sh` をデプロイ先の `<app>/<stg|prod>/` に一度だけ手で置き、
+同じ場所に `build-remote-container.env`（雛形: `scripts/build-remote-container.env.example`）を
+作成してから実行する:
+
+```bash
+./build-remote-container.sh            # app（通常デプロイ）
+./build-remote-container.sh migrate
+./build-remote-container.sh reset
+```
+
+git pull → build.sh → dist/ 取り込み → deploy.sh を 1 本で実行する
+（ビルドは同一ホスト上の dev コンテナ内。スクリプト自身も自動で最新版へ差し替わる）。
 
 ## システム設定を変更したいとき
 

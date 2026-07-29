@@ -28,8 +28,10 @@ services:
       - MARIADB_USER=${MARIADB_USER:-web_user}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-template123}
       - MARIADB_DATABASE=${MARIADB_DATABASE:-appdb}
+    # 保守用の DB 接続口。既定はループバックのみ（外部へは公開しない）。
+    # LAN から直接つなぎたい場合だけ .env の DB_BIND_ADDR で明示的に開ける。
     ports:
-      - "${DB_HOST_PORT:-3307}:3306"
+      - "${DB_BIND_ADDR:-127.0.0.1}:${DB_HOST_PORT:-3307}:3306"
     env_file:
       - .env
     volumes:
