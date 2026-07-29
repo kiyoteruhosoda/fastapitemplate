@@ -8,8 +8,8 @@
   `manifest.env`／`manifest.sha256`（checksum・イメージ ID 照合）を出力する。
 - git 非搭載のデプロイ先向けに `scripts/build-remote-container.sh` を導入
   （dev コンテナ内で SYNC → BUILD → PICK → DEPLOY を一括実行。self-update 対応）。
-- `deploy.sh` が dist 直下配置（`<env>/deploy.sh`）と旧配置（`<env>/scripts/deploy.sh`）の
-  両方に対応。manifest による tar 検証とロード済みイメージの再利用を追加。
+- `deploy.sh` の配置を dist 直下（`<env>/deploy.sh`）に統一（旧 `<env>/scripts/deploy.sh`
+  配置は廃止）。manifest による tar 検証とロード済みイメージの再利用を追加。
 - DB のホスト公開ポートを既定でループバック（127.0.0.1）に限定（`DB_BIND_ADDR`）。
   公開ポートは nginx のみ。
 - フロントエンドを PWA 化（vite-plugin-pwa: Web App Manifest・Service Worker 自動更新・

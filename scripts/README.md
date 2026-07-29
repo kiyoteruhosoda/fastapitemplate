@@ -12,9 +12,8 @@
 
 ## deploy.sh の挙動
 
-- 配置は 2 形態に対応: `dist/` の中身をそのまま `<app>/<stg|prod>/` へ展開した形
-  （`deploy.sh` が環境ディレクトリ直下）と、旧来の `<env>/scripts/deploy.sh`。
-  どちらも配置場所から自動判別する。
+- 配置は `dist/` の中身をそのまま `<app>/<stg|prod>/` へ展開した形のみ
+  （`deploy.sh` が環境ディレクトリ直下にある前提で動く）。
 - イメージは `image.tar`（`scripts/build.sh` の成果物）を `docker load` し、
   環境別タグ（`fastapitemplate:stg` 等）を付け直す。stg / prod を同一ホストで
   運用してもイメージを取り合わない。

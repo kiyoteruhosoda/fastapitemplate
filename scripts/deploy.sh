@@ -15,12 +15,10 @@
 #       mnt/               # コンテナマウント用データ（data/ と db_data/ が作られる）
 #     prod/                # 上記と同じ構成
 #
-# 旧配置（<env>/scripts/deploy.sh に置く形）でも動く（配置場所から自動判別する）。
-#
 # 使い方（モード引数は必須。<app>/<stg|prod>/ で実行する）:
-#   ./scripts/deploy.sh app      # 通常デプロイ（アプリのみ更新。DBスキーマ変更なし）
-#   ./scripts/deploy.sh migrate  # DDL更新時（新しい Alembic migration を追加した場合）
-#   ./scripts/deploy.sh reset    # 完全初期化（DB・データ消去。破壊的）
+#   ./deploy.sh app      # 通常デプロイ（アプリのみ更新。DBスキーマ変更なし）
+#   ./deploy.sh migrate  # DDL更新時（新しい Alembic migration を追加した場合）
+#   ./deploy.sh reset    # 完全初期化（DB・データ消去。破壊的）
 #
 # デプロイ中にエラーが発生した場合は、失敗したモジュール（コンテナ）のログを
 # 出力して終了する。
@@ -29,14 +27,8 @@ set -Eeuo pipefail
 
 APP_NAME="fastapitemplate"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 配置場所の自動判別: dist をそのまま展開した新配置（<env>/deploy.sh）と、
-# 旧配置（<env>/scripts/deploy.sh）の両方に対応する。
-if [ "$(basename "$SCRIPT_DIR")" = "scripts" ]; then
-  BASE_DIR="$(dirname "$SCRIPT_DIR")"
-else
-  BASE_DIR="$SCRIPT_DIR"
-fi
+# 配置は dist/ をそのまま展開した形（<env>/deploy.sh）のみ。環境ディレクトリ直下で動く。
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="$(basename "$BASE_DIR")"
 
 # ===== 環境判定（配置ディレクトリ名で stg / prod を切り替える） =====
@@ -51,7 +43,7 @@ case "$ENV_NAME" in
     ;;
   *)
     echo "[deploy][error] このスクリプトは ${APP_NAME}/<stg|prod>/ 配下に配置して実行してください。" >&2
-    echo "  現在の配置: $SCRIPT_DIR（環境ディレクトリ名 '$ENV_NAME' が stg / prod 系ではありません）" >&2
+    echo "  現在の配置: $BASE_DIR（環境ディレクトリ名 '$ENV_NAME' が stg / prod 系ではありません）" >&2
     exit 1
     ;;
 esac
