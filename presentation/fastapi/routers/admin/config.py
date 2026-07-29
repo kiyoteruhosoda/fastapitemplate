@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from presentation.fastapi.dependencies.auth import require_permission
 from presentation.fastapi.schemas.admin import (
+    RestartRequirementResponse,
     SystemSettingItemResponse,
     SystemSettingsUpdateRequest,
+    SystemSettingsUpdateResponse,
 )
-from presentation.fastapi.schemas.auth import StatusResponse
 from presentation.fastapi.services.system_setting_service import SystemSettingService
 from shared.kernel.database.session import get_db
 
@@ -32,7 +33,24 @@ async def get_config(db: DbDep) -> list[SystemSettingItemResponse]:
     ]
 
 
-@router.put("", response_model=StatusResponse)
-async def update_config(body: SystemSettingsUpdateRequest, db: DbDep) -> StatusResponse:
-    SystemSettingService.save(db, body.values)
-    return StatusResponse(status="ok")
+@router.put("", response_model=SystemSettingsUpdateResponse)
+async def update_config(
+    body: SystemSettingsUpdateRequest, db: DbDep
+) -> SystemSettingsUpdateResponse:
+    """設定を保存する。
+
+    起動時にしか読まれない設定を変更した場合は ``restart_required`` を返す。
+    実際の再起動は ``POST /api/admin/system/restart`` で要求する。
+    """
+    requirement = SystemSettingService.save(db, body.values)
+    return SystemSettingsUpdateResponse(
+        status="ok",
+        restart_required=(
+            RestartRequirementResponse(
+                scopes=[scope.value for scope in requirement.scopes],
+                keys=list(requirement.keys),
+            )
+            if requirement
+            else None
+        ),
+    )

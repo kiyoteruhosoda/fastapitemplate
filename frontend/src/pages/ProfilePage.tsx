@@ -27,7 +27,10 @@ export function ProfilePage() {
           </ul>
         </dd>
       </dl>
-      <Link to="/change-password">{t('changePassword.title')}</Link>
+      <div className="inline-form">
+        <Link to="/change-password">{t('changePassword.title')}</Link>
+        <Link to="/security">{t('security.title')}</Link>
+      </div>
     </div>
   )
 }

@@ -53,6 +53,10 @@ class SystemSettingItemResponse(BaseModel):
     label: str
     value_type: str
     secret: bool = False
+    # 選択肢を持つ項目のみ。[値, 表示ラベル] の並び。
+    choices: list[list[str]] | None = None
+    # 反映に再起動が必要なサービス（空 = 保存と同時に反映）
+    restart_scopes: list[str] = []
     value: object = None
     default: object = None
     env_locked: bool
@@ -62,6 +66,42 @@ class SystemSettingItemResponse(BaseModel):
 class SystemSettingsUpdateRequest(BaseModel):
     # key -> 新しい値（null でその key の DB 上書きを削除しデフォルトへ戻す）
     values: dict[str, object]
+
+
+class RestartRequirementResponse(BaseModel):
+    """保存した設定のうち、反映に再起動が必要なもの。"""
+
+    scopes: list[str] = []
+    keys: list[str] = []
+
+
+class SystemSettingsUpdateResponse(BaseModel):
+    status: str
+    restart_required: RestartRequirementResponse | None = None
+
+
+class RestartRequestResponse(BaseModel):
+    scope: str
+    token: str
+    requested_at: str | None = None
+    requested_by: str | None = None
+    reason: str | None = None
+
+
+class RestartStatusResponse(BaseModel):
+    available_scopes: list[str]
+    last_requests: list[RestartRequestResponse]
+
+
+class RestartCommandRequest(BaseModel):
+    # 省略時は全サービスが対象
+    scopes: list[str] | None = None
+    reason: str | None = None
+
+
+class RestartCommandResponse(BaseModel):
+    requested: bool
+    requests: list[RestartRequestResponse]
 
 
 class LogEntryResponse(BaseModel):

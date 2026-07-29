@@ -2,19 +2,16 @@
 
 - 主キー等の ``BigInteger`` は SQLite テストとの両立のため
   ``with_variant(sa.Integer(), "sqlite")`` を使う（CLAUDE.md「DB モデリング」）。
-- 時刻は常に UTC（naive datetime で保存する）。
+- 時刻は常に UTC（naive datetime で保存する）。生成は
+  :func:`shared.kernel.timestamps.utcnow` に集約する。
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import sqlalchemy as sa
 
+from shared.kernel.timestamps import utcnow
+
 BigIntPk = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 __all__ = ["BigIntPk", "utcnow"]

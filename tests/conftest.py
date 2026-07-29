@@ -11,6 +11,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import bounded_contexts.account_security.infrastructure.account_security_models  # noqa: F401,E501 — メタデータ登録
 import bounded_contexts.example.infrastructure.item_model  # noqa: F401 — メタデータ登録
 import shared.infrastructure.models  # noqa: F401 — メタデータ登録
 from shared.infrastructure.master_data_seeder import seed_master_data

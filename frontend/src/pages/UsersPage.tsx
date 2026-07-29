@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
-import { ApiError, api } from '../services/api'
+import { api, errorMessageKey } from '../services/api'
 
 interface User {
   id: number
@@ -49,8 +49,7 @@ export function UsersPage() {
       await reload()
       notify('success', t('common.saved'))
     } catch (err) {
-      const code = err instanceof ApiError ? err.code : 'unknown_error'
-      notify('error', t(`error.${code}`))
+      notify('error', t(errorMessageKey(err)))
     }
   }
 

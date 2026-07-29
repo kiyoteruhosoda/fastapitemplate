@@ -9,14 +9,17 @@ Docker / デプロイスクリプトまで含んだ状態から開発を始め�
 - Python 3.12 / uv（依存管理）
 - FastAPI + Pydantic（OpenAPI は `/docs`・`/openapi.json`）
 - SQLAlchemy 2.x + Alembic（本番 MariaDB 10.11 / 開発・テスト SQLite）
-- React + TypeScript + Vite（`frontend/`、SPA スケルトン）
+- React + TypeScript + Vite（`frontend/`、SPA スケルトン。i18n・テーマ切り替え込み）
 - Docker（db / web / nginx 構成）+ Gunicorn + UvicornWorker
 
 ## 主な機能
 
 - JWT 認証（access / refresh）・パスワード変更・パスワードリセット（SMTP）
+- **二要素認証（TOTP）とパスキー（WebAuthn）**（`bounded_contexts/account_security/`）
 - **scope（権限コード）ベースの認可**（ユーザー / ロール / 権限の管理 API + 画面）
 - システム設定（優先順位: 環境変数 > DB > デフォルト。管理画面から編集可）
+- 起動時にしか読まれない設定を反映するための**アプリ自己再起動**
+- **日英の言語切り替えとテーマ切り替え**（ライト / ダーク / OS 追従）
 - 構造化ログ（JSON stdout + `log` テーブル。`requestId` で追跡）
 - 運用プローブ（`/healthz` `/readyz` `/info`）+ Prometheus `/metrics`
 - `bounded_contexts/example/`（Item CRUD）= 新しい機能を追加するときの見本

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
-import { ApiError, api } from '../services/api'
+import { api, errorMessageKey } from '../services/api'
 
 export function ResetPasswordPage() {
   const { t } = useI18n()
@@ -21,7 +21,7 @@ export function ResetPasswordPage() {
       })
       navigate('/login')
     } catch (err) {
-      setError(err instanceof ApiError ? `error.${err.code}` : 'error.unknown_error')
+      setError(errorMessageKey(err))
     }
   }
 
