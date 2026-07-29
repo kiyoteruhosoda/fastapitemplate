@@ -21,6 +21,8 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "TOTP_VALID_WINDOW": 1,  # 前後いくつの時間枠を許容するか（時刻ずれ吸収）
     # --- パスキー（WebAuthn） ---
     # RP ID は登録済みパスキーの結び付け先。変更すると既存のパスキーが無効になる。
+    # 指定できるのは**ドメイン名のみ**（IP アドレス不可）。そのため開発時は
+    # 127.0.0.1 ではなく localhost で開く（docs/OPERATIONS.md に対応表）。
     "WEBAUTHN_RP_ID": "localhost",
     "WEBAUTHN_RP_NAME": "fastapitemplate",
     "WEBAUTHN_ORIGIN": "http://localhost:5173",

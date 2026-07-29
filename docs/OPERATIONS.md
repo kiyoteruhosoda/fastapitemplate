@@ -26,7 +26,7 @@ uv run python scripts/seed_master_data.py
 ```bash
 cd frontend
 npm install
-npm run dev        # http://127.0.0.1:5173（/api は 8000 へプロキシ）
+npm run dev        # http://localhost:5173（/api は 8000 へプロキシ）
 ```
 
 ビルドして FastAPI から配信させたいとき:
@@ -129,8 +129,18 @@ git pull → build.sh → dist/ 取り込み → deploy.sh を 1 本で実行す
   確定するまで有効にならないため、途中でやめてもログインできなくなることはない。
 - パスキー: 「パスキーを追加」→ 端末の画面ロック／セキュリティキーで承認。
 
-パスキーを使う前に `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` を公開ドメインに合わせる
+パスキーを使う前に `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` を実際に開く URL へ合わせる
 （`.env.example` 参照）。RP ID を後から変えると登録済みのパスキーは使えなくなる。
+
+| 開き方 | `WEBAUTHN_RP_ID` | `WEBAUTHN_ORIGIN` |
+|---|---|---|
+| `npm run dev`（既定） | `localhost` | `http://localhost:5173` |
+| ビルド済み SPA を FastAPI から | `localhost` | `http://localhost:8000` |
+| docker compose（nginx 経由） | `localhost` | `http://localhost:8080` |
+| 本番 | 公開ドメイン | `https://<公開ドメイン>` |
+
+RP ID にはドメイン名しか指定できない（IP アドレス不可）。開発時は
+`127.0.0.1` ではなく `localhost` で開くこと。
 
 ## ログを確認したいとき
 

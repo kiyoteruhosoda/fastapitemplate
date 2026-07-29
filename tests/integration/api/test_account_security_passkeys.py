@@ -169,6 +169,40 @@ def test_registration_excludes_already_registered_credentials(
     assert challenge["public_key"]["excludeCredentials"] == ["credential-1"]
 
 
+def test_registration_rejects_another_users_challenge(
+    client, admin_headers, relying_party, db_session
+) -> None:
+    """他人宛に発行されたチャレンジでは登録できない。
+
+    ここを見ないと、A の challenge_id を握った B が「A 向けに発行された
+    資格情報」を B のアカウントへ保存でき、以後それで B としてログインできる。
+    """
+    from bounded_contexts.account_security.infrastructure.account_security_models import (
+        WebAuthnChallengeRecord,
+    )
+
+    challenge = client.post(
+        "/api/account/security/passkeys/registration", headers=admin_headers
+    ).json()
+
+    # 発行後に持ち主だけを別ユーザーへ書き換える（他人のチャレンジを掴んだ状態）
+    record = db_session.get(WebAuthnChallengeRecord, challenge["challenge_id"])
+    record.user_id = None
+    db_session.commit()
+
+    response = client.post(
+        "/api/account/security/passkeys",
+        headers=admin_headers,
+        json={
+            "challenge_id": challenge["challenge_id"],
+            "credential": {"id": "credential-1", "response": {}},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "challenge_not_found"
+    assert client.get("/api/account/security/passkeys", headers=admin_headers).json() == []
+
+
 def test_unnamed_passkey_gets_a_fallback_name(
     client, admin_headers, relying_party
 ) -> None:

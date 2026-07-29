@@ -38,8 +38,12 @@ uv run python main.py                # http://127.0.0.1:8000
 フロントエンド:
 
 ```bash
-cd frontend && npm install && npm run dev    # http://127.0.0.1:5173（/api をプロキシ）
+cd frontend && npm install && npm run dev    # http://localhost:5173（/api をプロキシ）
 ```
+
+パスキーを試す場合は **`localhost` で開く**（`127.0.0.1` ではない）。WebAuthn の
+RP ID はドメイン名でなければならず IP アドレスは使えないため、既定値は
+`localhost` になっている。
 
 ## テスト・Lint
 

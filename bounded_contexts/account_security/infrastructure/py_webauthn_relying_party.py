@@ -65,10 +65,13 @@ class PyWebAuthnRelyingParty:
             user_display_name=display_name,
             attestation=AttestationConveyancePreference.NONE,
             authenticator_selection=AuthenticatorSelectionCriteria(
-                # ユーザー名を入力しないログインを可能にするため、認証器側に
-                # 資格情報を保存させる（discoverable credential）
-                resident_key=ResidentKeyRequirement.PREFERRED,
-                user_verification=UserVerificationRequirement.PREFERRED,
+                # ログインは資格情報を指定せずに始める（メールアドレスの入力が
+                # 要らない）。認証器が自分で選べる形で保存されていないと、
+                # 登録できても後から使えないパスキーになるため REQUIRED。
+                resident_key=ResidentKeyRequirement.REQUIRED,
+                # パスキーだけでログインできる＝パスワードも TOTP も通らない。
+                # 端末を拾っただけで入れないよう、生体・PIN の確認を必須にする。
+                user_verification=UserVerificationRequirement.REQUIRED,
             ),
             exclude_credentials=_descriptors(exclude_credential_ids),
         )
@@ -83,7 +86,7 @@ class PyWebAuthnRelyingParty:
                 expected_challenge=base64url_to_bytes(expected_challenge),
                 expected_rp_id=self.rp_id,
                 expected_origin=self.origin,
-                require_user_verification=False,
+                require_user_verification=True,
             )
         except Exception as exc:
             logger.warning("パスキー登録の検証に失敗しました: %s", type(exc).__name__)
@@ -108,7 +111,7 @@ class PyWebAuthnRelyingParty:
     ) -> PublicKeyOptions:
         options = generate_authentication_options(
             rp_id=self.rp_id,
-            user_verification=UserVerificationRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
             allow_credentials=_descriptors(allow_credential_ids),
         )
         return _to_public_key_options(options)
@@ -129,7 +132,7 @@ class PyWebAuthnRelyingParty:
                 expected_origin=self.origin,
                 credential_public_key=base64url_to_bytes(stored_public_key),
                 credential_current_sign_count=stored_sign_count,
-                require_user_verification=False,
+                require_user_verification=True,
             )
         except Exception as exc:
             logger.warning("パスキー認証の検証に失敗しました: %s", type(exc).__name__)

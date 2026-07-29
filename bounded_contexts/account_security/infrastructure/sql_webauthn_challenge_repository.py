@@ -52,10 +52,23 @@ class SqlWebAuthnChallengeRepository:
             user_id=record.user_id,
             expires_at=record.expires_at,
         )
-        # 期限切れでも 1 回限りの原則どおり消す（再送で粘られないように）
-        self.session.delete(record)
-        self.session.flush()
 
+        # 「読んでから消す」だと、同じ assertion を同時に 2 回送られたとき、
+        # どちらの削除も確定する前に両方が読み終えてしまい、2 本ともトークンを
+        # 得られる。消費は **削除の成否**（1 行消せたか）で決める。DELETE は
+        # 行ロックを取るため、後続は先行のコミットを待ってから 0 行を返す。
+        deleted = self.session.execute(
+            delete(WebAuthnChallengeRecord).where(
+                WebAuthnChallengeRecord.challenge_id == challenge_id
+            ),
+            # 同期方法を方言任せにせず、消えた行の後始末は expunge で明示する
+            execution_options={"synchronize_session": False},
+        ).rowcount
+        self.session.expunge(record)
+        if deleted != 1:
+            raise ChallengeNotFoundError
+
+        # 期限切れでも削除は済ませる（再送で粘られないように）
         if challenge.is_expired(utcnow()):
             raise ChallengeNotFoundError
         return challenge

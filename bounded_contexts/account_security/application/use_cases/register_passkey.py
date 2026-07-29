@@ -18,6 +18,7 @@ from bounded_contexts.account_security.domain.entities.webauthn_challenge import
     CHALLENGE_PURPOSE_REGISTRATION,
     WebAuthnChallenge,
 )
+from bounded_contexts.account_security.domain.exceptions import ChallengeNotFoundError
 from bounded_contexts.account_security.domain.repositories.passkey_credential_repository import (  # noqa: E501
     PasskeyCredentialRepository,
 )
@@ -84,6 +85,12 @@ class CompletePasskeyRegistration:
         challenge = self.challenges.consume(
             challenge_id, CHALLENGE_PURPOSE_REGISTRATION
         )
+        # チャレンジは発行した本人の分だけ使える。ここを見ないと、A の
+        # challenge_id を握った B が「A 向けに発行された資格情報」を B の
+        # アカウントに保存でき、以後その資格情報で B としてログインできてしまう。
+        if challenge.user_id != user_id:
+            raise ChallengeNotFoundError
+
         verified = self.relying_party.verify_registration(
             credential=credential, expected_challenge=challenge.challenge
         )
