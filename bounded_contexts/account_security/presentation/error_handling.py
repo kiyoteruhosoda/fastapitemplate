@@ -4,6 +4,7 @@
 例外ハンドラとして一度だけ登録する。応答本文はエラーコードのみで、表示文言は
 フロントエンドが決める（CLAUDE.md「国際化」）。
 """
+
 from __future__ import annotations
 
 from fastapi import FastAPI, Request, status
@@ -40,9 +41,7 @@ def status_for(error: AccountSecurityError) -> int:
 def register_account_security_error_handler(app: FastAPI) -> None:
     @app.exception_handler(AccountSecurityError)
     async def _handle(_: Request, error: AccountSecurityError) -> JSONResponse:
-        return JSONResponse(
-            status_code=status_for(error), content={"detail": {"error": error.code}}
-        )
+        return JSONResponse(status_code=status_for(error), content={"detail": {"error": error.code}})
 
 
 __all__ = ["register_account_security_error_handler", "status_for"]

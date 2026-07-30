@@ -5,6 +5,7 @@
 認証アプリへの登録に失敗した利用者がログインできなくなるため、確認コードの
 検証に成功するまでは未確認のまま保持する。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

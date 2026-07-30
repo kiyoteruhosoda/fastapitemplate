@@ -7,12 +7,17 @@
 大小で判定すると、アプリコンテナと DB の時計がずれている場合に自分が保存した
 直後の要求を「まだ未来の要求」と誤認して再起動ループに入り得る。
 """
+
 from __future__ import annotations
 
 import logging
 import threading
 
-from shared.kernel.restart.request import RestartRequest, RestartRequestStore
+from shared.kernel.restart.request import (
+    RestartRequest,
+    RestartRequestReader,
+    RestartRequestStore,
+)
 from shared.kernel.restart.scope import RestartScope
 from shared.kernel.restart.terminator import ProcessTerminator, build_process_terminator
 
@@ -28,7 +33,7 @@ class RestartWatcher:
         self,
         scope: RestartScope,
         *,
-        store: RestartRequestStore | None = None,
+        store: RestartRequestReader | None = None,
         terminator: ProcessTerminator | None = None,
         poll_interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
     ) -> None:
@@ -82,9 +87,7 @@ class RestartWatcher:
             return False
 
         self._baseline_token = request.token
-        self._terminator.terminate(
-            f"scope={self._scope.value} requested_by={request.requested_by or '-'}"
-        )
+        self._terminator.terminate(f"scope={self._scope.value} requested_by={request.requested_by or '-'}")
         return True
 
     def _current_token(self) -> str | None:

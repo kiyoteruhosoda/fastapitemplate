@@ -7,6 +7,7 @@
 出力は WebAuthn の仕様どおりの形（base64url 文字列の JSON）で、
 ``frontend/src/services/webauthn.ts`` がブラウザから作るものと同じ。
 """
+
 from __future__ import annotations
 
 import base64
@@ -15,6 +16,7 @@ import json
 import os
 import struct
 from dataclasses import dataclass, field
+from typing import Any
 
 import cbor2
 from cryptography.hazmat.primitives import hashes
@@ -57,15 +59,8 @@ def _cose_public_key(public_key: ec.EllipticCurvePublicKey) -> bytes:
     )
 
 
-def _authenticator_data(
-    *, rp_id: str, flags: int, sign_count: int, attested: bytes = b""
-) -> bytes:
-    return (
-        hashlib.sha256(rp_id.encode("utf-8")).digest()
-        + bytes([flags])
-        + struct.pack(">I", sign_count)
-        + attested
-    )
+def _authenticator_data(*, rp_id: str, flags: int, sign_count: int, attested: bytes = b"") -> bytes:
+    return hashlib.sha256(rp_id.encode("utf-8")).digest() + bytes([flags]) + struct.pack(">I", sign_count) + attested
 
 
 @dataclass
@@ -77,15 +72,11 @@ class SoftwareAuthenticator:
     aaguid: bytes = b"\x00" * 16
     sign_count: int = 0
     credential_id: bytes = field(default_factory=lambda: os.urandom(32))
-    _private_key: ec.EllipticCurvePrivateKey = field(
-        default_factory=lambda: ec.generate_private_key(ec.SECP256R1())
-    )
+    _private_key: ec.EllipticCurvePrivateKey = field(default_factory=lambda: ec.generate_private_key(ec.SECP256R1()))
 
-    def register(self, challenge: str) -> dict:
+    def register(self, challenge: str) -> dict[str, Any]:
         """``navigator.credentials.create`` が返すものと同じ形を組み立てる。"""
-        client_data = _client_data(
-            ceremony="webauthn.create", challenge=challenge, origin=self.origin
-        )
+        client_data = _client_data(ceremony="webauthn.create", challenge=challenge, origin=self.origin)
         attested = (
             self.aaguid
             + struct.pack(">H", len(self.credential_id))
@@ -94,15 +85,12 @@ class SoftwareAuthenticator:
         )
         auth_data = _authenticator_data(
             rp_id=self.rp_id,
-            flags=_FLAG_USER_PRESENT | _FLAG_USER_VERIFIED
-            | _FLAG_ATTESTED_CREDENTIAL_DATA,
+            flags=_FLAG_USER_PRESENT | _FLAG_USER_VERIFIED | _FLAG_ATTESTED_CREDENTIAL_DATA,
             sign_count=self.sign_count,
             attested=attested,
         )
         # fmt="none": 認証器の出自を証明しない（本テンプレートの登録方針と同じ）
-        attestation_object = cbor2.dumps(
-            {"fmt": "none", "attStmt": {}, "authData": auth_data}
-        )
+        attestation_object = cbor2.dumps({"fmt": "none", "attStmt": {}, "authData": auth_data})
         return {
             "id": base64url(self.credential_id),
             "rawId": base64url(self.credential_id),
@@ -114,12 +102,10 @@ class SoftwareAuthenticator:
             },
         }
 
-    def authenticate(self, challenge: str) -> dict:
+    def authenticate(self, challenge: str) -> dict[str, Any]:
         """``navigator.credentials.get`` が返すものと同じ形を組み立てる。"""
         self.sign_count += 1
-        client_data = _client_data(
-            ceremony="webauthn.get", challenge=challenge, origin=self.origin
-        )
+        client_data = _client_data(ceremony="webauthn.get", challenge=challenge, origin=self.origin)
         auth_data = _authenticator_data(
             rp_id=self.rp_id,
             flags=_FLAG_USER_PRESENT | _FLAG_USER_VERIFIED,

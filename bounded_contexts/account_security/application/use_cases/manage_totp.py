@@ -4,6 +4,7 @@
 アプリで生成したコードを 1 度検証できてから有効にする。これを 1 段階にすると、
 QR の読み取りに失敗した利用者が自分のアカウントから締め出される。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -35,9 +36,7 @@ class GetTwoFactorStatus:
         stored = self.repository.find_by_user(user_id)
         if stored is None:
             return TwoFactorStatusDto(enabled=False, enrolling=False)
-        return TwoFactorStatusDto(
-            enabled=stored.is_confirmed, enrolling=not stored.is_confirmed
-        )
+        return TwoFactorStatusDto(enabled=stored.is_confirmed, enrolling=not stored.is_confirmed)
 
 
 @dataclass(frozen=True)
@@ -59,9 +58,7 @@ class StartTotpEnrollment:
         self.repository.save(TotpSecret(user_id=user_id, secret=secret))
         return TotpEnrollmentDto(
             secret=secret,
-            otpauth_uri=self.authenticator.provisioning_uri(
-                secret=secret, account_name=account_name
-            ),
+            otpauth_uri=self.authenticator.provisioning_uri(secret=secret, account_name=account_name),
         )
 
 
@@ -95,9 +92,7 @@ class DisableTotp:
         stored = self.repository.find_by_user(user_id)
         if stored is None:
             raise TotpNotEnrolledError
-        if stored.is_confirmed and not self.authenticator.verify(
-            secret=stored.secret, code=code
-        ):
+        if stored.is_confirmed and not self.authenticator.verify(secret=stored.secret, code=code):
             raise InvalidTotpCodeError
         self.repository.delete(user_id)
 

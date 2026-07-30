@@ -5,10 +5,13 @@
   （ログのために本処理を落とさない）。
 - SQLAlchemy 自身のログを書き込むと再帰するため除外する。
 """
+
 from __future__ import annotations
 
 import logging
 import traceback as tb_module
+
+import sqlalchemy as sa
 
 _EXCLUDED_LOGGER_PREFIXES = ("sqlalchemy", "alembic", "shared.kernel.logging")
 
@@ -39,7 +42,7 @@ class DbLogHandler(logging.Handler):
         # 保持してしまうため、書き込み前に丸めて両バックエンドの挙動を揃える。
         duration_ms = getattr(record, "duration_ms", None)
         if duration_ms is not None:
-            duration_ms = int(round(float(duration_ms)))
+            duration_ms = round(float(duration_ms))
 
         row = {
             "created_at": utcnow(),
@@ -55,7 +58,7 @@ class DbLogHandler(logging.Handler):
             "trace": trace,
         }
         with get_engine().begin() as connection:
-            connection.execute(Log.__table__.insert().values(**row))
+            connection.execute(sa.insert(Log).values(**row))
 
 
 __all__ = ["DbLogHandler"]

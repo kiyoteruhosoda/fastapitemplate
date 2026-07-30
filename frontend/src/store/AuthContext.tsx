@@ -1,18 +1,8 @@
 /** 認証状態（ログイン中ユーザーと scope）。認可判定は hasScope で行う。 */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import { api, clearTokens, hasTokens, setTokens } from '../services/api'
-import {
-  assertPasskey,
-  type PasskeyChallenge,
-} from '../services/webauthn'
+import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
 export interface Me {
   user_id: number
@@ -57,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    refreshMe().finally(() => setLoading(false))
+    void refreshMe().finally(() => {
+      setLoading(false)
+    })
   }, [refreshMe])
 
   const login = async (email: string, password: string, totpCode?: string) => {

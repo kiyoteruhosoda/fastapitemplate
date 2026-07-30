@@ -3,6 +3,7 @@
 権限コードの正本は ``shared/domain/auth/master_data.py``。追加・削除は
 マスタデータ + マイグレーションで行うため、この API は読み取り専用。
 """
+
 from __future__ import annotations
 
 from typing import Annotated

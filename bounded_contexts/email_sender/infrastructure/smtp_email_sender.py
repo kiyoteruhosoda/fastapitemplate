@@ -1,4 +1,5 @@
 """``IEmailSender`` の SMTP 実装（接続設定はシステム設定から取得）。"""
+
 from __future__ import annotations
 
 import smtplib
@@ -17,9 +18,7 @@ class SmtpEmailSender(IEmailSender):
         mime["To"] = message.to
 
         if settings.mail_use_ssl:
-            client: smtplib.SMTP = smtplib.SMTP_SSL(
-                settings.mail_server, settings.mail_port
-            )
+            client: smtplib.SMTP = smtplib.SMTP_SSL(settings.mail_server, settings.mail_port)
         else:
             client = smtplib.SMTP(settings.mail_server, settings.mail_port)
         try:

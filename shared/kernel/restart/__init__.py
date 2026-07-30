@@ -16,6 +16,7 @@
     # 受け取る（プロセスの起動処理）
     start_restart_watcher(RestartScope.WEB)
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,6 +24,7 @@ import logging
 from shared.kernel.restart.request import (
     RESTART_REQUEST_SETTING_KEY,
     RestartRequest,
+    RestartRequestReader,
     RestartRequestStore,
 )
 from shared.kernel.restart.scope import ALL_RESTART_SCOPES, RestartScope
@@ -87,6 +89,7 @@ __all__ = [
     "RESTART_REQUEST_SETTING_KEY",
     "ProcessTerminator",
     "RestartRequest",
+    "RestartRequestReader",
     "RestartRequestStore",
     "RestartScope",
     "RestartWatcher",

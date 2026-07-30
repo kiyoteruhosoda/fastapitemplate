@@ -1,4 +1,5 @@
 """パスキーの永続化インターフェース（実装は Infrastructure 層）。"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence

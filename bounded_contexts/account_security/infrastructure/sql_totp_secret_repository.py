@@ -1,4 +1,5 @@
 """TOTP シークレットの SQLAlchemy 実装。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -52,9 +53,7 @@ class SqlTotpSecretRepository:
 
 
 def _to_entity(record: TotpSecretRecord) -> TotpSecret:
-    return TotpSecret(
-        user_id=record.user_id, secret=record.secret, confirmed_at=record.confirmed_at
-    )
+    return TotpSecret(user_id=record.user_id, secret=record.secret, confirmed_at=record.confirmed_at)
 
 
 __all__ = ["SqlTotpSecretRepository"]

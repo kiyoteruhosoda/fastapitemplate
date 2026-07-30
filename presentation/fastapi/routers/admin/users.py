@@ -1,4 +1,5 @@
 """ユーザー管理 API（要 ``user:manage``）。"""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -76,9 +77,7 @@ async def create_user(body: UserCreateRequest, db: DbDep) -> UserResponse:
 async def update_user(user_id: int, body: UserUpdateRequest, db: DbDep) -> UserResponse:
     user = db.get(User, user_id)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"}
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
     if body.username is not None:
         user.username = body.username
     if body.is_active is not None:
@@ -95,8 +94,6 @@ async def update_user(user_id: int, body: UserUpdateRequest, db: DbDep) -> UserR
 async def delete_user(user_id: int, db: DbDep) -> None:
     user = db.get(User, user_id)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"}
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
     user.roles = []
     db.delete(user)

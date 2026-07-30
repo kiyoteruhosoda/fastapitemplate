@@ -1,4 +1,5 @@
 """ログ閲覧 API（要 ``log:view``）。"""
+
 from __future__ import annotations
 
 from typing import Annotated

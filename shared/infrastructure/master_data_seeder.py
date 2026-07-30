@@ -3,6 +3,7 @@
 値の正本は ``shared/domain/auth/master_data.py``。ここには投入ロジックのみを
 置き、``scripts/seed_master_data.py``・マイグレーション・テストから共用する。
 """
+
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -39,14 +40,10 @@ def seed_master_data(session: Session, *, admin_password: str | None = None) -> 
             if code not in existing:
                 role.permissions.append(permissions[code])
 
-    admin = session.scalar(
-        select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL)
-    )
+    admin = session.scalar(select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     if admin is None:
         password_hash = (
-            generate_password_hash(admin_password)
-            if admin_password
-            else master_data.DEFAULT_ADMIN_PASSWORD_HASH
+            generate_password_hash(admin_password) if admin_password else master_data.DEFAULT_ADMIN_PASSWORD_HASH
         )
         admin = User(
             id=master_data.DEFAULT_ADMIN_ID,

@@ -3,6 +3,7 @@
 パスワードの代わりに認証器の署名で本人確認を行う。検証に成功したら通常の
 ログインと同じトークン対を発行する。
 """
+
 from __future__ import annotations
 
 import logging
@@ -11,7 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from bounded_contexts.account_security.application.use_cases.authenticate_with_passkey import (  # noqa: E501
+from bounded_contexts.account_security.application.use_cases.authenticate_with_passkey import (
     CompletePasskeyAuthentication,
     StartPasskeyAuthentication,
 )
@@ -35,9 +36,7 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 @router.post("/challenge", response_model=PasskeyChallengeResponse)
 async def create_login_challenge(
-    use_case: Annotated[
-        StartPasskeyAuthentication, Depends(dependencies.start_passkey_authentication)
-    ],
+    use_case: Annotated[StartPasskeyAuthentication, Depends(dependencies.start_passkey_authentication)],
 ) -> PasskeyChallengeResponse:
     """ログイン用のチャレンジを発行する（``navigator.credentials.get`` 用）。
 
@@ -45,9 +44,7 @@ async def create_login_challenge(
     メールアドレスの入力なしにログインできる。
     """
     challenge = use_case.execute()
-    return PasskeyChallengeResponse(
-        challenge_id=challenge.challenge_id, public_key=challenge.public_key
-    )
+    return PasskeyChallengeResponse(challenge_id=challenge.challenge_id, public_key=challenge.public_key)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -60,9 +57,7 @@ async def login_with_passkey(
         Depends(dependencies.complete_passkey_authentication),
     ],
 ) -> TokenResponse:
-    user_id = use_case.execute(
-        challenge_id=body.challenge_id, credential=body.credential
-    )
+    user_id = use_case.execute(challenge_id=body.challenge_id, credential=body.credential)
 
     user = db.get(User, user_id)
     if user is None or not user.is_active:

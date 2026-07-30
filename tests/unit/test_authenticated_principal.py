@@ -2,9 +2,7 @@ from shared.application.authenticated_principal import AuthenticatedPrincipal
 
 
 def _principal(*scopes: str) -> AuthenticatedPrincipal:
-    return AuthenticatedPrincipal(
-        user_id=1, email="a@example.com", username="a", permissions=frozenset(scopes)
-    )
+    return AuthenticatedPrincipal(user_id=1, email="a@example.com", username="a", permissions=frozenset(scopes))
 
 
 def test_can_requires_all_codes() -> None:

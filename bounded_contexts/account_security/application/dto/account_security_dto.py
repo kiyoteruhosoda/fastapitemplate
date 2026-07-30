@@ -1,4 +1,5 @@
 """ユースケースの入出力（Presentation 層へ返す形）。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

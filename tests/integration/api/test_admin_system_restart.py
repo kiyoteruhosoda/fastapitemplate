@@ -1,19 +1,22 @@
 """設定変更に伴う自己再起動 API。"""
+
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
 
-def test_restart_status_requires_permission(client) -> None:
+
+def test_restart_status_requires_permission(client: TestClient) -> None:
     client.cookies.clear()
     assert client.get("/api/admin/system/restart").status_code == 401
 
 
-def test_restart_status_is_empty_before_any_request(client, admin_headers) -> None:
+def test_restart_status_is_empty_before_any_request(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.get("/api/admin/system/restart", headers=admin_headers)
     assert response.status_code == 200
     assert response.json() == {"available_scopes": ["web"], "last_requests": []}
 
 
-def test_requesting_a_restart_records_the_request(client, admin_headers) -> None:
+def test_requesting_a_restart_records_the_request(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/api/admin/system/restart",
         headers=admin_headers,
@@ -31,7 +34,7 @@ def test_requesting_a_restart_records_the_request(client, admin_headers) -> None
     assert [item["scope"] for item in status["last_requests"]] == ["web"]
 
 
-def test_unknown_scope_is_rejected(client, admin_headers) -> None:
+def test_unknown_scope_is_rejected(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/api/admin/system/restart",
         headers=admin_headers,
@@ -42,7 +45,7 @@ def test_unknown_scope_is_rejected(client, admin_headers) -> None:
 
 
 def test_saving_a_startup_only_setting_reports_restart_required(
-    client, admin_headers
+    client: TestClient, admin_headers: dict[str, str]
 ) -> None:
     response = client.put(
         "/api/admin/config",
@@ -56,9 +59,7 @@ def test_saving_a_startup_only_setting_reports_restart_required(
     }
 
 
-def test_saving_a_live_setting_does_not_require_a_restart(
-    client, admin_headers
-) -> None:
+def test_saving_a_live_setting_does_not_require_a_restart(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.put(
         "/api/admin/config",
         headers=admin_headers,

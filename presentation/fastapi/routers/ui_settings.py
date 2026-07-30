@@ -6,6 +6,7 @@
 利用者が自分で選んだ言語・テーマはブラウザの ``localStorage`` が優先で、ここで
 返すのは「まだ何も選んでいないときの初期値」と「選択肢」だけ。
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter

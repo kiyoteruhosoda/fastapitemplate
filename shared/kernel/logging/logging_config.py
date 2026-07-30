@@ -3,6 +3,7 @@
 ログには PII を含めない。ユーザー識別子は ``user.id_hash`` のみ
 （CLAUDE.md「ログ」参照）。
 """
+
 from __future__ import annotations
 
 import json
@@ -16,12 +17,32 @@ from shared.kernel.logging.request_context import (
     current_user_id_hash,
 )
 
-_STDLIB_ATTRS = frozenset({
-    "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
-    "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
-    "created", "msecs", "relativeCreated", "thread", "threadName",
-    "processName", "process", "message", "taskName",
-})
+_STDLIB_ATTRS = frozenset(
+    {
+        "name",
+        "msg",
+        "args",
+        "levelname",
+        "levelno",
+        "pathname",
+        "filename",
+        "module",
+        "exc_info",
+        "exc_text",
+        "stack_info",
+        "lineno",
+        "funcName",
+        "created",
+        "msecs",
+        "relativeCreated",
+        "thread",
+        "threadName",
+        "processName",
+        "process",
+        "message",
+        "taskName",
+    }
+)
 
 
 class RequestContextFilter(logging.Filter):
@@ -79,4 +100,4 @@ def setup_logging(level: str = "INFO", database: bool = True) -> None:
     logging.getLogger("uvicorn.access").propagate = False
 
 
-__all__ = ["setup_logging", "StructuredFormatter", "RequestContextFilter"]
+__all__ = ["RequestContextFilter", "StructuredFormatter", "setup_logging"]

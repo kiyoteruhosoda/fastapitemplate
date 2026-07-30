@@ -4,6 +4,7 @@
 読まれない設定（``restart_scopes`` 付き）はプロセスを再起動するまで効かないため、
 保存結果として「どの設定がどのサービスの再起動を要するか」を返す。
 """
+
 from __future__ import annotations
 
 import os
@@ -104,7 +105,10 @@ class SystemSettingService:
             definition = SYSTEM_SETTING_DEFINITIONS_BY_KEY.get(key)
             if definition is None:
                 continue
-            parsed = RestartScope.parse_all(definition.get("restart_scopes") or ())
+            # 定義は dict[str, object] なので、Iterable として扱える形に絞ってから渡す
+            raw_scopes = definition.get("restart_scopes")
+            scope_values: Iterable[object] = raw_scopes if isinstance(raw_scopes, list | tuple) else ()
+            parsed = RestartScope.parse_all(scope_values)
             if not parsed:
                 continue
             affected.append(key)

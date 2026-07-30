@@ -1,4 +1,5 @@
 """ロール・権限のモデル（認可は scope = 権限コード値で行う）。"""
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -11,9 +12,7 @@ role_permissions = sa.Table(
     "role_permissions",
     Base.metadata,
     sa.Column("role_id", BigIntPk, sa.ForeignKey("roles.id"), primary_key=True),
-    sa.Column(
-        "permission_id", BigIntPk, sa.ForeignKey("permissions.id"), primary_key=True
-    ),
+    sa.Column("permission_id", BigIntPk, sa.ForeignKey("permissions.id"), primary_key=True),
 )
 
 
@@ -33,4 +32,4 @@ class Permission(Base):
     code: Mapped[str] = mapped_column(sa.String(100), unique=True, nullable=False)
 
 
-__all__ = ["Role", "Permission", "role_permissions"]
+__all__ = ["Permission", "Role", "role_permissions"]

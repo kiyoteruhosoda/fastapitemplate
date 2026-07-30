@@ -12,7 +12,7 @@ interface SettingItem {
   label: string
   value_type: 'string' | 'integer' | 'boolean' | 'list'
   secret?: boolean
-  choices?: string[][]
+  choices?: [value: string, label: string][]
   /** 空でなければ、反映にそのサービスの再起動が必要。 */
   restart_scopes: string[]
   value: unknown
@@ -65,11 +65,11 @@ export function ConfigPage() {
     notify('success', t('config.restartRequested'))
   }
 
-  const setValue = (key: string, value: unknown) =>
+  const setValue = (key: string, value: unknown) => {
     setEdits((prev) => ({ ...prev, [key]: value }))
+  }
 
-  const currentValue = (item: SettingItem) =>
-    item.key in edits ? edits[item.key] : item.value
+  const currentValue = (item: SettingItem) => (item.key in edits ? edits[item.key] : item.value)
 
   // 辞書に訳があればそれを使い、無ければサーバーが返した英語をそのまま出す。
   // 設定キーを追加したときに、訳を足すまでのあいだ画面が壊れないようにする。
@@ -78,14 +78,19 @@ export function ConfigPage() {
     return translated === key ? fallback : translated
   }
 
-  const labelFor = (item: SettingItem) =>
-    translateOr(`config.field.${item.key}`, item.label)
+  const labelFor = (item: SettingItem) => translateOr(`config.field.${item.key}`, item.label)
 
   const choiceLabelFor = (item: SettingItem, value: string, label: string) =>
     translateOr(`config.choice.${item.key}.${value}`, label)
 
-  const asText = (value: unknown) =>
-    Array.isArray(value) ? value.join(', ') : String(value ?? '')
+  /** 任意の設定値を表示用の文字列にする（`[object Object]` を出さない）。 */
+  const asText = (value: unknown): string => {
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+    if (Array.isArray(value)) return value.join(', ')
+    return JSON.stringify(value)
+  }
 
   const parseValue = (item: SettingItem, raw: string): unknown => {
     if (item.value_type === 'integer') return Number(raw)
@@ -106,11 +111,14 @@ export function ConfigPage() {
 
       {pendingRestart && (
         <div className="notice">
-          <p>
-            {t('config.restartRequired', { keys: pendingRestart.keys.join(', ') })}
-          </p>
+          <p>{t('config.restartRequired', { keys: pendingRestart.keys.join(', ') })}</p>
           {hasScope('system:manage') ? (
-            <button type="button" onClick={requestRestart}>
+            <button
+              type="button"
+              onClick={() => {
+                void requestRestart()
+              }}
+            >
               {t('config.restartNow')}
             </button>
           ) : (
@@ -129,22 +137,24 @@ export function ConfigPage() {
                 <span>
                   {labelFor(item)} <code>{item.key}</code>
                   {item.env_locked && <em> ({t('config.envLocked')})</em>}
-                  {item.restart_scopes.length > 0 && (
-                    <em> ({t('config.needsRestart')})</em>
-                  )}
+                  {item.restart_scopes.length > 0 && <em> ({t('config.needsRestart')})</em>}
                 </span>
                 {item.value_type === 'boolean' ? (
                   <input
                     type="checkbox"
                     disabled={item.env_locked}
                     checked={Boolean(currentValue(item))}
-                    onChange={(e) => setValue(item.key, e.target.checked)}
+                    onChange={(e) => {
+                      setValue(item.key, e.target.checked)
+                    }}
                   />
                 ) : item.choices ? (
                   <select
                     disabled={item.env_locked}
-                    value={String(currentValue(item) ?? '')}
-                    onChange={(e) => setValue(item.key, e.target.value)}
+                    value={asText(currentValue(item))}
+                    onChange={(e) => {
+                      setValue(item.key, e.target.value)
+                    }}
                   >
                     {item.choices.map(([value, label]) => (
                       <option key={value} value={value}>
@@ -155,22 +165,25 @@ export function ConfigPage() {
                 ) : (
                   <input
                     type={
-                      item.secret
-                        ? 'password'
-                        : item.value_type === 'integer'
-                          ? 'number'
-                          : 'text'
+                      item.secret ? 'password' : item.value_type === 'integer' ? 'number' : 'text'
                     }
                     disabled={item.env_locked}
                     value={asText(currentValue(item))}
-                    onChange={(e) => setValue(item.key, parseValue(item, e.target.value))}
+                    onChange={(e) => {
+                      setValue(item.key, parseValue(item, e.target.value))
+                    }}
                   />
                 )}
               </label>
             ))}
         </section>
       ))}
-      <button onClick={save} disabled={Object.keys(edits).length === 0}>
+      <button
+        onClick={() => {
+          void save()
+        }}
+        disabled={Object.keys(edits).length === 0}
+      >
         {t('config.save')}
       </button>
     </div>

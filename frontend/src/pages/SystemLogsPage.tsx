@@ -27,7 +27,12 @@ export function SystemLogsPage() {
   return (
     <div className="card">
       <h1>{t('logs.title')}</h1>
-      <select value={level} onChange={(e) => setLevel(e.target.value)}>
+      <select
+        value={level}
+        onChange={(e) => {
+          setLevel(e.target.value)
+        }}
+      >
         <option value="">ALL</option>
         <option value="INFO">INFO</option>
         <option value="WARNING">WARNING</option>

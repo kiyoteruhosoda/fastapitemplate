@@ -3,6 +3,7 @@
 Docker ビルド時に ``scripts/generate_version.sh`` が ``shared/kernel/version.json``
 を生成し、ここで読み込む。ローカル開発では環境変数フォールバックのみで動く。
 """
+
 from __future__ import annotations
 
 import json

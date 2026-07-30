@@ -11,6 +11,7 @@ Docker / デプロイスクリプトまで含んだ状態から開発を始め�
 - SQLAlchemy 2.x + Alembic（本番 MariaDB 10.11 / 開発・テスト SQLite）
 - React + TypeScript + Vite（`frontend/`、SPA スケルトン。i18n・テーマ切り替え込み）
 - Docker（db / web / nginx 構成）+ Gunicorn + UvicornWorker
+- 品質ゲート: Ruff / MyPy（strict）/ PyTest ・ Prettier / ESLint / TypeScript / Vitest
 
 ## 主な機能
 
@@ -45,12 +46,22 @@ cd frontend && npm install && npm run dev    # http://localhost:5173（/api を�
 RP ID はドメイン名でなければならず IP アドレスは使えないため、既定値は
 `localhost` になっている。
 
-## テスト・Lint
+## 品質ゲート（テスト・Lint・型チェック）
+
+CI の必須ゲートを手元で流す。落ちたらマージできない（[ADR-0006](docs/decisions/ADR-0006-quality-gates.md)）。
 
 ```bash
-uv run pytest
-uv run ruff check .
+make check              # Backend + Frontend の 8 ゲートすべて
+make format             # 整形の指摘を自動修正
 ```
+
+| 対象 | ゲート |
+|---|---|
+| Backend | Ruff Format → Ruff Check → MyPy（strict）→ PyTest |
+| Frontend | Prettier → ESLint → TypeScript → Vitest |
+
+個別に回すときは `make check-backend` / `make check-frontend`、
+さらに `make lint` / `make typecheck` / `make test`（Frontend は `*-frontend`）。
 
 ## Docker / デプロイ
 

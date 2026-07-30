@@ -4,6 +4,7 @@
 認証済みであることだけを条件にする（他人の二要素認証を触る管理操作は
 ``/api/admin/users`` 側の責務）。
 """
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -66,27 +67,19 @@ def _to_passkey_response(summary: PasskeySummaryDto) -> PasskeyResponse:
 @router.get("/two-factor", response_model=TwoFactorStatusResponse)
 async def two_factor_status(
     principal: PrincipalDep,
-    use_case: Annotated[
-        GetTwoFactorStatus, Depends(dependencies.get_two_factor_status)
-    ],
+    use_case: Annotated[GetTwoFactorStatus, Depends(dependencies.get_two_factor_status)],
 ) -> TwoFactorStatusResponse:
     status_dto = use_case.execute(principal.user_id)
-    return TwoFactorStatusResponse(
-        enabled=status_dto.enabled, enrolling=status_dto.enrolling
-    )
+    return TwoFactorStatusResponse(enabled=status_dto.enabled, enrolling=status_dto.enrolling)
 
 
 @router.post("/two-factor/enrollment", response_model=TotpEnrollmentResponse)
 async def start_two_factor_enrollment(
     principal: PrincipalDep,
-    use_case: Annotated[
-        StartTotpEnrollment, Depends(dependencies.start_totp_enrollment)
-    ],
+    use_case: Annotated[StartTotpEnrollment, Depends(dependencies.start_totp_enrollment)],
 ) -> TotpEnrollmentResponse:
     """共有鍵を発行する。この時点ではまだ二要素認証は有効にならない。"""
-    enrollment = use_case.execute(
-        user_id=principal.user_id, account_name=principal.email
-    )
+    enrollment = use_case.execute(user_id=principal.user_id, account_name=principal.email)
     return TotpEnrollmentResponse(
         secret=enrollment.secret,
         otpauth_uri=enrollment.otpauth_uri,
@@ -98,9 +91,7 @@ async def start_two_factor_enrollment(
 async def confirm_two_factor_enrollment(
     body: TotpCodeRequest,
     principal: PrincipalDep,
-    use_case: Annotated[
-        ConfirmTotpEnrollment, Depends(dependencies.confirm_totp_enrollment)
-    ],
+    use_case: Annotated[ConfirmTotpEnrollment, Depends(dependencies.confirm_totp_enrollment)],
 ) -> StatusResponse:
     """認証アプリのコードを検証し、二要素認証を有効にする。"""
     use_case.execute(user_id=principal.user_id, code=body.code)
@@ -133,9 +124,7 @@ async def list_registered_passkeys(
 @router.post("/passkeys/registration", response_model=PasskeyChallengeResponse)
 async def start_passkey_registration(
     principal: PrincipalDep,
-    use_case: Annotated[
-        StartPasskeyRegistration, Depends(dependencies.start_passkey_registration)
-    ],
+    use_case: Annotated[StartPasskeyRegistration, Depends(dependencies.start_passkey_registration)],
 ) -> PasskeyChallengeResponse:
     """登録用のチャレンジを発行する（``navigator.credentials.create`` 用）。"""
     challenge = use_case.execute(
@@ -143,9 +132,7 @@ async def start_passkey_registration(
         user_name=principal.email,
         display_name=principal.username,
     )
-    return PasskeyChallengeResponse(
-        challenge_id=challenge.challenge_id, public_key=challenge.public_key
-    )
+    return PasskeyChallengeResponse(challenge_id=challenge.challenge_id, public_key=challenge.public_key)
 
 
 @router.post(
@@ -156,9 +143,7 @@ async def start_passkey_registration(
 async def complete_passkey_registration(
     body: PasskeyRegistrationRequest,
     principal: PrincipalDep,
-    use_case: Annotated[
-        CompletePasskeyRegistration, Depends(dependencies.complete_passkey_registration)
-    ],
+    use_case: Annotated[CompletePasskeyRegistration, Depends(dependencies.complete_passkey_registration)],
 ) -> PasskeyResponse:
     summary = use_case.execute(
         user_id=principal.user_id,

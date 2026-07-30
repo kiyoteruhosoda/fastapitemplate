@@ -34,7 +34,7 @@ function base64urlToBuffer(value: string): ArrayBuffer {
 function bufferToBase64url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   let binary = ''
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
+  for (const byte of bytes) binary += String.fromCharCode(byte)
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
@@ -51,9 +51,7 @@ function toDescriptors(source: unknown): PublicKeyCredentialDescriptor[] {
 }
 
 /** サーバーが返した JSON のうち、ArrayBuffer が要る項目だけを変換する。 */
-function toCreationOptions(
-  source: Record<string, unknown>,
-): PublicKeyCredentialCreationOptions {
+function toCreationOptions(source: Record<string, unknown>): PublicKeyCredentialCreationOptions {
   const user = source.user as { id: string; name: string; displayName: string }
   return {
     ...source,
@@ -63,14 +61,12 @@ function toCreationOptions(
   } as PublicKeyCredentialCreationOptions
 }
 
-function toRequestOptions(
-  source: Record<string, unknown>,
-): PublicKeyCredentialRequestOptions {
+function toRequestOptions(source: Record<string, unknown>): PublicKeyCredentialRequestOptions {
   return {
     ...source,
     challenge: base64urlToBuffer(source.challenge as string),
     allowCredentials: toDescriptors(source.allowCredentials),
-  } as PublicKeyCredentialRequestOptions
+  }
 }
 
 function assertCredential(credential: Credential | null): PublicKeyCredential {
@@ -95,8 +91,7 @@ export async function createPasskey(
     response: {
       clientDataJSON: bufferToBase64url(response.clientDataJSON),
       attestationObject: bufferToBase64url(response.attestationObject),
-      transports:
-        typeof response.getTransports === 'function' ? response.getTransports() : [],
+      transports: typeof response.getTransports === 'function' ? response.getTransports() : [],
     },
   }
 }

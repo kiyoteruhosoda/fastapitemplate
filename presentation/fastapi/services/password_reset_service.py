@@ -3,6 +3,7 @@
 トークンは平文を保存せず SHA-256 ハッシュのみを保存する。
 ユーザーの存在有無は API 応答から判別できないようにする（列挙攻撃対策）。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -49,8 +50,7 @@ class PasswordResetService:
             PasswordResetToken(
                 user_id=user.id,
                 token_hash=_hash_token(token),
-                expires_at=utcnow()
-                + timedelta(seconds=settings.password_reset_token_ttl_seconds),
+                expires_at=utcnow() + timedelta(seconds=settings.password_reset_token_ttl_seconds),
             )
         )
         session.flush()
@@ -76,11 +76,7 @@ class PasswordResetService:
         """トークンを検証してパスワードを更新する。成功時 True。"""
         from werkzeug.security import generate_password_hash
 
-        row = session.scalar(
-            select(PasswordResetToken).where(
-                PasswordResetToken.token_hash == _hash_token(token)
-            )
-        )
+        row = session.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == _hash_token(token)))
         if row is None or row.used_at is not None or row.expires_at < utcnow():
             return False
         user = session.get(User, row.user_id)

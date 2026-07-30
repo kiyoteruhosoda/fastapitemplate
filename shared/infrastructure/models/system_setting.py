@@ -1,4 +1,5 @@
 """システム設定の永続化モデル（``settings`` の DB 上書き層が参照する）。"""
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -13,9 +14,7 @@ class SystemSetting(Base):
 
     setting_key: Mapped[str] = mapped_column(sa.String(100), primary_key=True)
     setting_json = mapped_column(sa.JSON(), nullable=False)
-    updated_at = mapped_column(
-        sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow
-    )
+    updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
 
 __all__ = ["SystemSetting"]

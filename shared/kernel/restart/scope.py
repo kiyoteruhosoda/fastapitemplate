@@ -7,6 +7,7 @@
 場合はここへ値を追加し、そのプロセスの起動処理で
 :func:`shared.kernel.restart.start_restart_watcher` を呼ぶ。
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -34,9 +35,7 @@ class RestartScope(StrEnum):
 
         並び順は :data:`ALL_RESTART_SCOPES` に揃え、重複は取り除く。
         """
-        parsed = {
-            scope for scope in (cls.parse(value) for value in values) if scope is not None
-        }
+        parsed = {scope for scope in (cls.parse(value) for value in values) if scope is not None}
         return tuple(scope for scope in ALL_RESTART_SCOPES if scope in parsed)
 
 

@@ -5,6 +5,7 @@
 - 時刻は常に UTC（naive datetime で保存する）。生成は
   :func:`shared.kernel.timestamps.utcnow` に集約する。
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa

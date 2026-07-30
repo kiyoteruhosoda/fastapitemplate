@@ -8,12 +8,13 @@
 
 接続先は環境変数 ``DATABASE_URI``（または ``.env``）で指定する。
 """
+
 from __future__ import annotations
 
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, create_engine
 
 config = context.config
 
@@ -34,12 +35,12 @@ def _get_database_url() -> str:
     return settings.database_uri
 
 
-def _load_metadata():
+def _load_metadata() -> MetaData:
     """全モデルを import して MetaData を返す。
 
     コンテキスト固有モデルを追加したらここへ import を足す。
     """
-    import bounded_contexts.account_security.infrastructure.account_security_models  # noqa: F401,E501
+    import bounded_contexts.account_security.infrastructure.account_security_models
     import bounded_contexts.example.infrastructure.item_model  # noqa: F401
     import shared.infrastructure.models  # noqa: F401
     from shared.kernel.database.db import Base

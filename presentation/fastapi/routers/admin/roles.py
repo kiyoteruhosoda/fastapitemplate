@@ -1,4 +1,5 @@
 """ロール管理 API（要 ``role:manage``）。"""
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -26,15 +27,11 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 
 def _to_response(role: Role) -> RoleResponse:
-    return RoleResponse(
-        id=role.id, name=role.name, permissions=sorted(p.code for p in role.permissions)
-    )
+    return RoleResponse(id=role.id, name=role.name, permissions=sorted(p.code for p in role.permissions))
 
 
 def _resolve_permissions(db: Session, codes: list[str]) -> list[Permission]:
-    permissions = db.scalars(
-        select(Permission).where(Permission.code.in_(codes))
-    ).all()
+    permissions = db.scalars(select(Permission).where(Permission.code.in_(codes))).all()
     missing = set(codes) - {p.code for p in permissions}
     if missing:
         raise HTTPException(
@@ -68,9 +65,7 @@ async def create_role(body: RoleCreateRequest, db: DbDep) -> RoleResponse:
 async def update_role(role_id: int, body: RoleUpdateRequest, db: DbDep) -> RoleResponse:
     role = db.get(Role, role_id)
     if role is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"}
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
     if body.name is not None:
         role.name = body.name
     if body.permissions is not None:
@@ -83,8 +78,6 @@ async def update_role(role_id: int, body: RoleUpdateRequest, db: DbDep) -> RoleR
 async def delete_role(role_id: int, db: DbDep) -> None:
     role = db.get(Role, role_id)
     if role is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"}
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
     role.permissions = []
     db.delete(role)

@@ -9,6 +9,7 @@
 同じ生 SQL を両者が持たないよう、ここへ集約する。書き込みは通常の
 ORM セッション（リクエスト内）で行うため、ここには読み取りだけを置く。
 """
+
 from __future__ import annotations
 
 import json
@@ -16,9 +17,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-_SELECT_SETTING_JSON = text(
-    "SELECT setting_json FROM system_settings WHERE setting_key = :key"
-)
+_SELECT_SETTING_JSON = text("SELECT setting_json FROM system_settings WHERE setting_key = :key")
 
 
 class SystemSettingRecordReader:

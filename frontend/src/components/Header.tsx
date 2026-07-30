@@ -18,7 +18,9 @@ export function Header() {
         <select
           aria-label={t('common.language')}
           value={locale}
-          onChange={(e) => setLocale(e.target.value as Locale)}
+          onChange={(e) => {
+            setLocale(e.target.value as Locale)
+          }}
         >
           {locales.map((value) => (
             <option key={value} value={value}>
@@ -29,7 +31,9 @@ export function Header() {
         <select
           aria-label={t('common.theme')}
           value={theme}
-          onChange={(e) => setTheme(e.target.value as ThemePreference)}
+          onChange={(e) => {
+            setTheme(e.target.value as ThemePreference)
+          }}
         >
           {THEME_PREFERENCES.map((value) => (
             <option key={value} value={value}>

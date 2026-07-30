@@ -39,7 +39,57 @@ cd frontend && npm run build     # frontend/dist に出力 → / で配信され
 
 ```bash
 uv run pytest                    # smtp マーカーは既定で除外
-uv run ruff check .              # Lint
+cd frontend && npm run test      # Vitest
+```
+
+## 品質ゲートを手元で確認したいとき
+
+CI と同じ順序・同じコマンドを流す。落ちたらマージできない（ADR-0006）。
+
+```bash
+make check                       # Backend + Frontend を全部
+make check-backend               # Backend だけ
+make check-frontend              # Frontend だけ
+```
+
+`make check` の中身:
+
+```bash
+# Backend
+uv run ruff format --check .     # 整形
+uv run ruff check .              # 静的解析
+uv run mypy                      # 型チェック（対象は pyproject.toml の files）
+uv run pytest                    # テスト
+
+# Frontend（cd frontend）
+npm run format:check             # 整形（Prettier）
+npm run lint                     # 静的解析（ESLint）
+npm run type-check               # 型チェック（tsc --noEmit）
+npm run test                     # テスト（Vitest）
+```
+
+個別に回したいときは `make lint` / `make typecheck` / `make test`、
+Frontend は `make lint-frontend` / `make typecheck-frontend` / `make test-frontend`。
+
+## 整形の指摘を自動で直したいとき
+
+```bash
+make format                      # Backend + Frontend を自動整形
+make format-backend              # ruff format . && ruff check . --fix
+make format-frontend             # prettier --write .
+```
+
+`ruff check --fix` と `eslint --fix` で直らない指摘は手で直す。
+
+## フロントエンドのテストを書きたいとき
+
+`frontend/src/**/*.test.ts` / `*.test.tsx` に置く（`vite.config.ts` の
+`test.include`）。jsdom + Testing Library が使える。
+
+```bash
+cd frontend
+npm run test:watch               # 変更を監視して再実行
+npm run test:coverage            # カバレッジ（coverage/ に出力）
 ```
 
 ## マイグレーションを追加したいとき

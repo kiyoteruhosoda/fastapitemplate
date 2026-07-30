@@ -12,6 +12,7 @@ Revises:
 Create Date: 2026-07-17
 
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -81,9 +82,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("token_hash"),
     )
-    op.create_index(
-        "ix_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"]
-    )
+    op.create_index("ix_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"])
     op.create_table(
         "system_settings",
         sa.Column("setting_key", sa.String(length=100), nullable=False),
@@ -123,9 +122,7 @@ def downgrade() -> None:
     op.drop_index("ix_log_created_at", table_name="log")
     op.drop_table("log")
     op.drop_table("system_settings")
-    op.drop_index(
-        "ix_password_reset_tokens_user_id", table_name="password_reset_tokens"
-    )
+    op.drop_index("ix_password_reset_tokens_user_id", table_name="password_reset_tokens")
     op.drop_table("password_reset_tokens")
     op.drop_table("role_permissions")
     op.drop_table("user_roles")

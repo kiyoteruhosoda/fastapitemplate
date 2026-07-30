@@ -3,6 +3,7 @@
 パスワード認証に成功した直後の判定だけを担い、トークン発行には関与しない
 （発行は Presentation 層の ``TokenService``）。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

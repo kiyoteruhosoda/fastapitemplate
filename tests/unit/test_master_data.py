@@ -1,4 +1,5 @@
 """マスタデータの整合性（正本ファイル内のドリフト検出）。"""
+
 from shared.domain.auth import master_data
 
 
@@ -15,9 +16,7 @@ def test_every_role_has_permission_assignment() -> None:
 
 
 def test_admin_role_has_all_permissions() -> None:
-    assert set(master_data.ROLE_PERMISSIONS["admin"]) == set(
-        master_data.PERMISSION_CODES
-    )
+    assert set(master_data.ROLE_PERMISSIONS["admin"]) == set(master_data.PERMISSION_CODES)
 
 
 def test_default_admin_role_exists() -> None:

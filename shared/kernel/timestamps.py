@@ -4,6 +4,7 @@
 （CLAUDE.md「ログ」参照）。tz 情報の有無が混ざると比較が例外になるため、
 生成口をここ 1 か所に集約する。
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

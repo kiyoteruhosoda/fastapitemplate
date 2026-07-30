@@ -4,6 +4,7 @@
 巻き戻りは資格情報の複製を疑う手がかりになる。検証そのものは WebAuthn の
 ライブラリが行い、ここでは検証済みの新しい値を受け取って進めるだけ。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, replace

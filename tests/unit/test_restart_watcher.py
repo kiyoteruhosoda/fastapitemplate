@@ -1,4 +1,5 @@
 """再起動ウォッチャーの判定（DB もスレッドも使わない）。"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

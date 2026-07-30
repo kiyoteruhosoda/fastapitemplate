@@ -4,6 +4,7 @@
 ``presentation/fastapi/admin/system_settings_definitions.py`` も更新する
 （CLAUDE.md「設定管理」参照）。
 """
+
 from __future__ import annotations
 
 DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {

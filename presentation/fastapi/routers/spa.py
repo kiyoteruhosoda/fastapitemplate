@@ -3,6 +3,7 @@
 ビルド済みフロントエンドが存在する場合のみマウントされる。API・docs 以外の
 パスは ``index.html`` へフォールバックする（React Router の履歴モード対応）。
 """
+
 from __future__ import annotations
 
 from pathlib import Path

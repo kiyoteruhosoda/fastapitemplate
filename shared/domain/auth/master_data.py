@@ -10,6 +10,7 @@
 の双方がこのモジュールを参照する。フレームワーク・DB に依存しない純データの
 ため、どこからでも安全に import できる。
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -75,12 +76,12 @@ DEFAULT_ADMIN_PASSWORD_HASH: str = (
 )
 
 __all__ = [
-    "ROLES",
-    "PERMISSION_CODES",
-    "ROLE_PERMISSIONS",
-    "DEFAULT_ADMIN_ID",
     "DEFAULT_ADMIN_EMAIL",
-    "DEFAULT_ADMIN_USERNAME",
-    "DEFAULT_ADMIN_ROLE",
+    "DEFAULT_ADMIN_ID",
     "DEFAULT_ADMIN_PASSWORD_HASH",
+    "DEFAULT_ADMIN_ROLE",
+    "DEFAULT_ADMIN_USERNAME",
+    "PERMISSION_CODES",
+    "ROLES",
+    "ROLE_PERMISSIONS",
 ]

@@ -4,6 +4,7 @@
 資格情報を選ばせる（discoverable credential）。誰のパスキーかは、返ってきた
 資格情報 ID から特定する。
 """
+
 from __future__ import annotations
 
 import uuid
@@ -22,10 +23,10 @@ from bounded_contexts.account_security.domain.entities.webauthn_challenge import
 from bounded_contexts.account_security.domain.exceptions import (
     PasskeyVerificationError,
 )
-from bounded_contexts.account_security.domain.repositories.passkey_credential_repository import (  # noqa: E501
+from bounded_contexts.account_security.domain.repositories.passkey_credential_repository import (
     PasskeyCredentialRepository,
 )
-from bounded_contexts.account_security.domain.repositories.webauthn_challenge_repository import (  # noqa: E501
+from bounded_contexts.account_security.domain.repositories.webauthn_challenge_repository import (
     WebAuthnChallengeRepository,
 )
 from bounded_contexts.account_security.domain.services.webauthn_relying_party import (
@@ -51,9 +52,7 @@ class StartPasskeyAuthentication:
                 expires_at=utcnow() + timedelta(seconds=self.challenge_ttl_seconds),
             )
         )
-        return PasskeyChallengeDto(
-            challenge_id=challenge_id, public_key=options.public_key
-        )
+        return PasskeyChallengeDto(challenge_id=challenge_id, public_key=options.public_key)
 
 
 @dataclass(frozen=True)
@@ -62,20 +61,12 @@ class CompletePasskeyAuthentication:
     challenges: WebAuthnChallengeRepository
     relying_party: WebAuthnRelyingParty
 
-    def execute(
-        self, *, challenge_id: str, credential: Mapping[str, Any]
-    ) -> int:
+    def execute(self, *, challenge_id: str, credential: Mapping[str, Any]) -> int:
         """検証に成功したパスキーの持ち主（``user_id``）を返す。"""
-        challenge = self.challenges.consume(
-            challenge_id, CHALLENGE_PURPOSE_AUTHENTICATION
-        )
+        challenge = self.challenges.consume(challenge_id, CHALLENGE_PURPOSE_AUTHENTICATION)
 
         credential_id = self.relying_party.extract_credential_id(credential)
-        stored = (
-            self.credentials.find_by_credential_id(credential_id)
-            if credential_id
-            else None
-        )
+        stored = self.credentials.find_by_credential_id(credential_id) if credential_id else None
         if stored is None:
             # 「未登録の資格情報」と「署名不一致」を呼び出し側から区別できる
             # 必要はない（どちらもログイン失敗として同じ応答を返す）。
@@ -87,9 +78,7 @@ class CompletePasskeyAuthentication:
             stored_public_key=stored.public_key,
             stored_sign_count=stored.sign_count,
         )
-        self.credentials.update_usage(
-            stored.with_usage(sign_count=verified.sign_count, used_at=utcnow())
-        )
+        self.credentials.update_usage(stored.with_usage(sign_count=verified.sign_count, used_at=utcnow()))
         return stored.user_id
 
 

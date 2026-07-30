@@ -47,7 +47,7 @@ function initialTheme(settings: UiSettings): ThemePreference {
 }
 
 function prefersDark(): boolean {
-  return window.matchMedia?.(DARK_QUERY).matches ?? false
+  return window.matchMedia(DARK_QUERY).matches
 }
 
 export function ThemeProvider({
@@ -65,12 +65,14 @@ export function ThemeProvider({
   // OS 側の切り替えに追従する（`system` 以外を選んでいても購読は続ける。
   // 途中で `system` に戻したときに古い値が残らないようにするため）。
   useEffect(() => {
-    const query = window.matchMedia?.(DARK_QUERY)
-    if (!query) return
-    const handle = (event: MediaQueryListEvent) =>
+    const query = window.matchMedia(DARK_QUERY)
+    const handle = (event: MediaQueryListEvent) => {
       setSystemTheme(event.matches ? 'dark' : 'light')
+    }
     query.addEventListener('change', handle)
-    return () => query.removeEventListener('change', handle)
+    return () => {
+      query.removeEventListener('change', handle)
+    }
   }, [])
 
   const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme

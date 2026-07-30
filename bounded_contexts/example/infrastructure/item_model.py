@@ -4,6 +4,7 @@
 infrastructure に置く。Alembic が認識できるよう ``migrations/env.py`` へ
 import を追加すること。
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa

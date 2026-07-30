@@ -4,6 +4,7 @@
 一致を機械的に見る。フロントエンドにテストランナーを足すほどの規模ではない
 ため、ここで確認する。
 """
+
 from __future__ import annotations
 
 import json
@@ -16,13 +17,12 @@ _REFERENCE = "en"
 
 
 def _load(locale: str) -> dict[str, str]:
-    return json.loads((_DICTIONARY_DIR / f"{locale}.json").read_text(encoding="utf-8"))
+    loaded: dict[str, str] = json.loads((_DICTIONARY_DIR / f"{locale}.json").read_text(encoding="utf-8"))
+    return loaded
 
 
 def _translated_locales() -> list[str]:
-    return sorted(
-        path.stem for path in _DICTIONARY_DIR.glob("*.json") if path.stem != _REFERENCE
-    )
+    return sorted(path.stem for path in _DICTIONARY_DIR.glob("*.json") if path.stem != _REFERENCE)
 
 
 @pytest.mark.parametrize("locale", _translated_locales())

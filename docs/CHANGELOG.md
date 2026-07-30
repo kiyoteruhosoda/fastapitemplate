@@ -2,6 +2,46 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
+## 2026-07 品質ゲートの必須化（整形・静的解析・型・テスト）
+
+CI を「Lint → Type Check → Test」の必須ゲートにした（ADR-0006）。
+Backend 4 種・Frontend 4 種の計 8 ゲートで、落ちたらマージできない。
+経緯は `history/2026-07-quality-gates.md`。
+
+導入したツールと、それによって見つかった実際の不具合:
+
+- **Ruff Format**（新規）。162 ファイル中 100 ファイルが未整形だった。一括整形した。
+  `line-length` を 100 → 120 に上げ、`E501` の一律除外をやめた。
+- **Ruff Check の拡張**。`select` に `C4` / `ARG` / `N` / `RET` / `PTH` / `RUF` を追加。
+  `DomainException` → `DomainError`（N818）、`int(round(...))` の二重変換（RUF046）、
+  未使用引数、`__all__` の未ソート、効かない `# noqa` 14 件を整理した。
+- **MyPy strict**（新規）。本番コードとテストの両方を対象にし、114 件を修正。
+  - `RestartWatcher` が具象 `RestartRequestStore` に依存していた **DIP 違反**を検出。
+    `RestartRequestReader` Protocol を切り出し、watcher はそれだけに依存するようにした。
+    テストダブルを渡すのに具象クラスの継承が要らなくなった。
+  - `sessionmaker` / `dict` / `Callable` の型引数漏れ、`Result` に無い `rowcount` への
+    アクセス、`FromClause.insert()`（`sa.insert(Log)` へ修正）を検出。
+  - `require_permission()` が戻り値の型を持っていなかった（依存関数ファクトリ）。
+- **TypeScript の追加フラグ**。`noUncheckedIndexedAccess` /
+  `exactOptionalPropertyTypes` / `noImplicitOverride` /
+  `noFallthroughCasesInSwitch` を有効化。空配列を前提にした `locales[0]`、
+  `choices` を `string[][]` と緩く持っていた箇所（`[value, label]` のタプルへ）、
+  `fetch` に `body: undefined` を渡していた箇所を直した。
+- **ESLint**（新規）。`strictTypeChecked` + `react-hooks` + `sonarjs` で 74 件。
+  最多は **`no-misused-promises` 19 件**で、`onSubmit={submit}` のように async 関数を
+  そのままハンドラへ渡し、Promise を投げ捨てていた箇所。内部で `catch` 済みなので
+  `void` で明示に変えた。`main.tsx` の非 null 断言、`response.json()` の `any`、
+  `String(unknown)` による `[object Object]` の混入も直した。
+- **Vitest**（新規）。Frontend にテストが 1 本も無かったため 27 件を追加
+  （i18n の言語選択・プレースホルダ、テーマの OS 追従と購読解除、API クライアントの
+  トークン保持とエラーコード変換、UI 設定取得のフォールバック）。
+- **DDD 依存方向の検証**（新規）。`tests/unit/test_layer_dependencies.py` が AST で
+  「Domain は Application / Infrastructure / Presentation を import しない」
+  「Application は Infrastructure / Presentation へ依存しない」
+  「Domain は FastAPI / SQLAlchemy 等に依存しない」を検証する（93 ケース）。
+
+`make check` で CI と同じものを手元で流せる（`make format` で自動整形）。
+
 ## 2026-07 二要素認証・パスキー・テーマ切り替え・自己再起動
 
 photonest を参考に 5 つの機能を追加し、重複していた処理を整理した。

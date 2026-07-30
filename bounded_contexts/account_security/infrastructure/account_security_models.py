@@ -3,6 +3,7 @@
 ``migrations/env.py`` と ``tests/conftest.py`` がこのモジュールを import して
 メタデータへ登録する（コンテキスト固有モデルの扱い。CLAUDE.md「DDL 管理」）。
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -20,16 +21,12 @@ class TotpSecretRecord(Base):
 
     __tablename__ = "totp_secrets"
 
-    user_id: Mapped[int] = mapped_column(
-        BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
+    user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     secret: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     # NULL のあいだは「登録手続き中」。二要素認証はまだ有効ではない。
     confirmed_at = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
-    updated_at = mapped_column(
-        sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow
-    )
+    updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
 
 class PasskeyCredentialRecord(Base):
@@ -45,9 +42,7 @@ class PasskeyCredentialRecord(Base):
         index=True,
     )
     # base64url 文字列。認証時はこの値で持ち主を引く。
-    credential_id: Mapped[str] = mapped_column(
-        sa.String(255), unique=True, nullable=False
-    )
+    credential_id: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
     public_key: Mapped[str] = mapped_column(sa.Text(), nullable=False)
     sign_count: Mapped[int] = mapped_column(
         sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
@@ -61,14 +56,10 @@ class PasskeyCredentialRecord(Base):
     backup_eligible: Mapped[bool] = mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default=sa.false()
     )
-    backup_state: Mapped[bool] = mapped_column(
-        sa.Boolean(), nullable=False, default=False, server_default=sa.false()
-    )
+    backup_state: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=False, server_default=sa.false())
     last_used_at = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
-    updated_at = mapped_column(
-        sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow
-    )
+    updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
 
 class WebAuthnChallengeRecord(Base):
@@ -84,14 +75,11 @@ class WebAuthnChallengeRecord(Base):
     challenge: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     # DB ネイティブ ENUM は使わず、CHECK 付き VARCHAR にする（CLAUDE.md）
     purpose: Mapped[str] = mapped_column(
-        sa.Enum(*CHALLENGE_PURPOSES, name="webauthn_challenge_purpose",
-                native_enum=False),
+        sa.Enum(*CHALLENGE_PURPOSES, name="webauthn_challenge_purpose", native_enum=False),
         nullable=False,
     )
     # ログイン用チャレンジは発行時点で相手が分からないため NULL 可
-    user_id: Mapped[int | None] = mapped_column(
-        BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )
+    user_id: Mapped[int | None] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     expires_at = mapped_column(sa.DateTime(), nullable=False, index=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 

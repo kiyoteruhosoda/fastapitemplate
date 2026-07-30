@@ -2,6 +2,7 @@
 
 DB 層（system_settings 上書き）は integration 側で検証する。
 """
+
 from shared.kernel.settings.settings import ApplicationSettings
 
 
@@ -28,12 +29,14 @@ def test_int_parsing_with_invalid_value_falls_back() -> None:
 
 
 def test_list_parsing_from_json_and_csv() -> None:
-    assert ApplicationSettings(
-        env={"CORS_ALLOWED_ORIGINS": '["http://a", "http://b"]'}
-    ).cors_allowed_origins == ["http://a", "http://b"]
-    assert ApplicationSettings(
-        env={"CORS_ALLOWED_ORIGINS": "http://a, http://b"}
-    ).cors_allowed_origins == ["http://a", "http://b"]
+    assert ApplicationSettings(env={"CORS_ALLOWED_ORIGINS": '["http://a", "http://b"]'}).cors_allowed_origins == [
+        "http://a",
+        "http://b",
+    ]
+    assert ApplicationSettings(env={"CORS_ALLOWED_ORIGINS": "http://a, http://b"}).cors_allowed_origins == [
+        "http://a",
+        "http://b",
+    ]
 
 
 def test_database_uri_is_env_only() -> None:
