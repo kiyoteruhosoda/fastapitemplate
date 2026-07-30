@@ -1,7 +1,7 @@
 """システム設定 API（要 ``admin:system-settings``）。
 
 保存は監査ログへ残す。``reason`` には**変更したキー名**だけを入れる。設定値には
-SMTP パスワードのような秘密が含まれるため、値そのものは記録しない（ADR-0010）。
+SMTP パスワードのような秘密が含まれるため、値そのものは記録しない（ADR-0013）。
 """
 
 from __future__ import annotations

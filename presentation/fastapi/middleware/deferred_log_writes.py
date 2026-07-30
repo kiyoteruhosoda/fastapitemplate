@@ -11,7 +11,7 @@ FastAPI は ``yield`` を使う依存（``get_db`` の commit）をレスポン�
 ``await self.app(...)`` は下流を最後まで待つので、確実に commit / rollback の後になる。
 
 監査ログにも同じ仕組みがあるが、書き込みの持ち主が違うので分けている
-（アプリログはロギング基盤、監査ログは audit コンテキスト。ADR-0010）。
+（アプリログはロギング基盤、監査ログは audit コンテキスト。ADR-0013）。
 """
 
 from __future__ import annotations

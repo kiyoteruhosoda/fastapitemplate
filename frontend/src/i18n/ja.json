@@ -10,6 +10,8 @@
   "nav.logs": "システムログ",
   "nav.auditLogs": "監査ログ",
   "nav.logout": "ログアウト",
+  "nav.menu": "メニュー",
+  "nav.closeMenu": "メニューを閉じる",
   "login.title": "ログイン",
   "login.email": "メールアドレス",
   "login.password": "パスワード",

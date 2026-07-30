@@ -256,35 +256,37 @@ export function SecurityPage() {
         {passkeys.length === 0 ? (
           <p>{t('security.noPasskeys')}</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>{t('security.passkeyName')}</th>
-                <th>{t('security.registeredAt')}</th>
-                <th>{t('security.lastUsedAt')}</th>
-                <th>{t('common.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {passkeys.map((passkey) => (
-                <tr key={passkey.id}>
-                  <td>{passkey.name}</td>
-                  <td>{formatDate(passkey.created_at)}</td>
-                  <td>{formatDate(passkey.last_used_at)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void removePasskey(passkey.id)
-                      }}
-                    >
-                      {t('common.delete')}
-                    </button>
-                  </td>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('security.passkeyName')}</th>
+                  <th>{t('security.registeredAt')}</th>
+                  <th>{t('security.lastUsedAt')}</th>
+                  <th>{t('common.actions')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {passkeys.map((passkey) => (
+                  <tr key={passkey.id}>
+                    <td>{passkey.name}</td>
+                    <td>{formatDate(passkey.created_at)}</td>
+                    <td>{formatDate(passkey.last_used_at)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void removePasskey(passkey.id)
+                        }}
+                      >
+                        {t('common.delete')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

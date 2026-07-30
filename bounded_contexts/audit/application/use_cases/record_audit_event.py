@@ -6,7 +6,7 @@
 
 **ここでは DB へ書かない。** 控えに積むだけで、実際の書き込みはリクエストの処理が
 終わってから :class:`~bounded_contexts.audit.application.use_cases.write_audit_events.WriteAuditEvents`
-がまとめて行う（ADR-0010）。処理の途中で別コネクションから書くと、SQLite では
+がまとめて行う（ADR-0013）。処理の途中で別コネクションから書くと、SQLite では
 リクエストのセッションが持つ書き込みロックと衝突するため。
 """
 
@@ -40,21 +40,29 @@ class RecordAuditEvent:
         self._context = context
         self._actor_user_id = actor_user_id
 
+    def as_actor(self, actor_user_id: int) -> RecordAuditEvent:
+        """実行者を差し替えた記録口を返す。
+
+        実行者はふつうリクエスト開始時（認証依存関数）に決まるが、**ログインだけは
+        その最中に確定する**ため、確定した時点で束ね直す。呼び出しごとに実行者を
+        渡せるようにすると、未認証の操作にうっかり相手を実行者として渡してしまう
+        （ADR-0013 で直した誤帰属がまさにそれ）。
+        """
+        return RecordAuditEvent(self._collector, self._context, actor_user_id)
+
     def execute(
         self,
         event_type: AuditEventType,
         result: AuditResult = AuditResult.SUCCESS,
         *,
-        actor_user_id: int | None = None,
         target: AuditTarget | None = None,
         reason: str | None = None,
     ) -> None:
         """イベントを 1 件記録する（書き込みはリクエスト終了後）。
 
-        ``actor_user_id`` は**認証済みの実行者**。省略時はリクエストの認証済み利用者
-        で、未認証のリクエストでは ``None`` のままになる。「誰がやったか分からないが
-        誰に対しての操作かは分かる」場合（ログイン失敗・パスワードリセット）は、
-        主体ではなく ``target`` に相手を入れる（ADR-0010）。
+        実行者はこの記録口に束ねられた**認証済みの利用者**で、未認証のリクエストでは
+        ``None`` のままになる。「誰がやったか分からないが誰に対しての操作かは分かる」
+        場合（ログイン失敗・パスワードリセット）は ``target`` に相手を入れる。
 
         ``reason`` には失敗理由や変更した項目名を入れる。**値そのもの（パスワード・
         メールアドレス等）は渡さない**。
@@ -65,7 +73,7 @@ class RecordAuditEvent:
                 result=result,
                 occurred_at=utcnow(),
                 context=self._context,
-                actor_user_id=actor_user_id if actor_user_id is not None else self._actor_user_id,
+                actor_user_id=self._actor_user_id,
                 target=target,
                 reason=reason,
             )

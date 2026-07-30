@@ -181,54 +181,56 @@ export function SystemLogsPage() {
       {result.entries.length === 0 ? (
         <p className="hint">{t('logs.empty')}</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>{t('logs.time')}</th>
-              <th>{t('logs.level')}</th>
-              <th>{t('logs.logger')}</th>
-              <th>{t('logs.message')}</th>
-              <th>{t('logs.requestId')}</th>
-              <th>{t('logs.path')}</th>
-              <th>{t('logs.status')}</th>
-              <th>{t('logs.duration')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.entries.map((log) => (
-              <tr key={log.id}>
-                <td className="timestamp">{formatUtcTimestamp(log.created_at)}</td>
-                <td>
-                  <span className={`level level-${log.level.toLowerCase()}`}>{log.level}</span>
-                </td>
-                <td>{log.logger}</td>
-                <td>
-                  {log.message}
-                  {log.trace !== null && (
-                    <>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => {
-                          setExpanded(expanded === log.id ? null : log.id)
-                        }}
-                      >
-                        {expanded === log.id ? t('logs.hideTrace') : t('logs.showTrace')}
-                      </button>
-                      {expanded === log.id && <pre className="trace">{log.trace}</pre>}
-                    </>
-                  )}
-                </td>
-                <td>
-                  <code>{orEmpty(log.request_id)}</code>
-                </td>
-                <td>{log.path === null ? orEmpty(null) : `${log.method ?? ''} ${log.path}`}</td>
-                <td>{orEmpty(log.status_code)}</td>
-                <td>{log.duration_ms === null ? orEmpty(null) : `${log.duration_ms} ms`}</td>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t('logs.time')}</th>
+                <th>{t('logs.level')}</th>
+                <th>{t('logs.logger')}</th>
+                <th>{t('logs.message')}</th>
+                <th>{t('logs.requestId')}</th>
+                <th>{t('logs.path')}</th>
+                <th>{t('logs.status')}</th>
+                <th>{t('logs.duration')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {result.entries.map((log) => (
+                <tr key={log.id}>
+                  <td className="timestamp">{formatUtcTimestamp(log.created_at)}</td>
+                  <td>
+                    <span className={`level level-${log.level.toLowerCase()}`}>{log.level}</span>
+                  </td>
+                  <td>{log.logger}</td>
+                  <td>
+                    {log.message}
+                    {log.trace !== null && (
+                      <>
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => {
+                            setExpanded(expanded === log.id ? null : log.id)
+                          }}
+                        >
+                          {expanded === log.id ? t('logs.hideTrace') : t('logs.showTrace')}
+                        </button>
+                        {expanded === log.id && <pre className="trace">{log.trace}</pre>}
+                      </>
+                    )}
+                  </td>
+                  <td>
+                    <code>{orEmpty(log.request_id)}</code>
+                  </td>
+                  <td>{log.path === null ? orEmpty(null) : `${log.method ?? ''} ${log.path}`}</td>
+                  <td>{orEmpty(log.status_code)}</td>
+                  <td>{log.duration_ms === null ? orEmpty(null) : `${log.duration_ms} ms`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <div className="pager">

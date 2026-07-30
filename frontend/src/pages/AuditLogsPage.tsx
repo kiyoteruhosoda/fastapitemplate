@@ -6,7 +6,7 @@
  * （`/admin/logs`）に入れれば、その裏で何が起きていたかを突き合わせられる。
  *
  * 実行者・対象は内部 ID で表示する。監査ログにメールアドレス等の PII を保存しない
- * ため（ADR-0010）。ID から利用者を辿るときはユーザー管理画面を見る。
+ * ため（ADR-0013）。ID から利用者を辿るときはユーザー管理画面を見る。
  */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
@@ -226,44 +226,46 @@ export function AuditLogsPage() {
       {result.entries.length === 0 ? (
         <p className="hint">{t('audit.empty')}</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>{t('audit.time')}</th>
-              <th>{t('audit.eventType')}</th>
-              <th>{t('audit.result')}</th>
-              <th>{t('audit.actor')}</th>
-              <th>{t('audit.target')}</th>
-              <th>{t('audit.reason')}</th>
-              <th>{t('audit.ipAddress')}</th>
-              <th>{t('audit.requestId')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.entries.map((entry) => (
-              <tr key={entry.id}>
-                <td className="timestamp">{formatUtcTimestamp(entry.occurred_at)}</td>
-                <td>
-                  <code>{entry.event_type}</code>
-                </td>
-                <td>
-                  <span className={`result result-${entry.result}`}>{entry.result}</span>
-                </td>
-                <td>{orEmpty(entry.actor_user_id)}</td>
-                <td>
-                  {entry.target_type === null
-                    ? orEmpty(null)
-                    : `${entry.target_type}${entry.target_id === null ? '' : `:${entry.target_id}`}`}
-                </td>
-                <td>{orEmpty(entry.reason)}</td>
-                <td>{orEmpty(entry.ip_address)}</td>
-                <td>
-                  <code>{orEmpty(entry.request_id)}</code>
-                </td>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t('audit.time')}</th>
+                <th>{t('audit.eventType')}</th>
+                <th>{t('audit.result')}</th>
+                <th>{t('audit.actor')}</th>
+                <th>{t('audit.target')}</th>
+                <th>{t('audit.reason')}</th>
+                <th>{t('audit.ipAddress')}</th>
+                <th>{t('audit.requestId')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {result.entries.map((entry) => (
+                <tr key={entry.id}>
+                  <td className="timestamp">{formatUtcTimestamp(entry.occurred_at)}</td>
+                  <td>
+                    <code>{entry.event_type}</code>
+                  </td>
+                  <td>
+                    <span className={`result result-${entry.result}`}>{entry.result}</span>
+                  </td>
+                  <td>{orEmpty(entry.actor_user_id)}</td>
+                  <td>
+                    {entry.target_type === null
+                      ? orEmpty(null)
+                      : `${entry.target_type}${entry.target_id === null ? '' : `:${entry.target_id}`}`}
+                  </td>
+                  <td>{orEmpty(entry.reason)}</td>
+                  <td>{orEmpty(entry.ip_address)}</td>
+                  <td>
+                    <code>{orEmpty(entry.request_id)}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <div className="pager">

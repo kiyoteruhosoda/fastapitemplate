@@ -77,7 +77,7 @@ async def search_audit_logs(
     use_case: SearchAuditLogsDep,
 ) -> AuditLogSearchResponse:
     """監査ログを条件で絞り込み、新しい順に 1 ページ返す。"""
-    criteria = AuditLogCriteria.of(
+    criteria = AuditLogCriteria(
         event_type=query.event_type,
         result=query.result,
         actor_user_id=query.actor_user_id,
@@ -117,7 +117,7 @@ async def search_application_logs(
     use_case: SearchApplicationLogsDep,
 ) -> LogSearchResponse:
     """アプリログを条件で絞り込み、新しい順に 1 ページ返す。"""
-    criteria = ApplicationLogCriteria.of(
+    criteria = ApplicationLogCriteria(
         level=query.level,
         logger_prefix=query.logger,
         message_contains=query.message,

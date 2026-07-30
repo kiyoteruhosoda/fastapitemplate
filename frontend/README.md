@@ -229,6 +229,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
     （画面に列挙を写さない）。
   - DB に書かれる下限レベルはシステム設定の `LOG_DB_MIN_LEVEL`。ここに出ないログは
     stdout 側には出ている可能性がある。
+  - 狭い画面では絞り込みが 1 列に積まれ、表だけが横スクロールする（列が多いため）。
 
 ### S14 監査ログ（`/admin/audit-logs`）
 
@@ -245,7 +246,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **使用 API**: `GET /api/admin/audit-logs`, `GET /api/admin/audit-logs/filters`
 - **備考**:
   - 実行者・対象は**内部 ID** で表示する。監査ログにメールアドレス等の PII を保存しない
-    ため（`docs/decisions/ADR-0010-audit-log.md`）。ID から利用者を辿るときは
+    ため（`docs/decisions/ADR-0013-audit-log.md`）。ID から利用者を辿るときは
     ユーザー管理（S9）を見る。
   - 「詳細」列には失敗の分類（`invalid_password` 等）や変更した項目名
     （`fields=is_active`・`keys=LOG_LEVEL`）が入る。**値そのものは入らない**。
@@ -255,14 +256,30 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
   - ログイン失敗の応答は理由を問わず同じ（`invalid_credentials`）。理由の内訳を
     見られるのはこの画面だけ。
   - ログアウトは記録されない（操作した利用者を特定できないため）。
+  - 狭い画面での扱いは S13 と同じ（絞り込みは 1 列、表だけが横スクロールする）。
 
 ### 共通レイアウト（Header / Sidebar / Footer）
 
 - **Header**: アプリ名（`/` へ戻る）、言語切り替え、テーマ切り替え
   （ライト / ダーク / OS 追従）、ユーザー名（`/profile` へ）、ログアウト。
+  狭い画面ではメニューボタン（☰）が左端に出る。
 - **Sidebar**: S4〜S14 のうち、**保有 scope に合致する項目だけ**を表示する。
 - **Footer**: バージョンと git SHA（`GET /info`）。
 - 言語・テーマの初期値はサインイン前に `GET /api/ui/settings` から取得する。
+
+#### 画面幅による違い（768px で切り替わる）
+
+|                    | 広い画面（769px 以上） | 狭い画面（768px 以下）                                              |
+| ------------------ | ---------------------- | ------------------------------------------------------------------- |
+| サイドバー         | 本文の左に常に表示     | ☰ で開くドロワー（閉じるのは ✕ / 画面外タップ / Esc / 項目を選ぶ） |
+| 言語・テーマの選択 | ヘッダーの右           | ドロワーの下端                                                      |
+| 表                 | そのまま表示           | 表だけが横スクロールする（画面全体は横スクロールしない）            |
+| 横並びのフォーム   | 横に並ぶ               | 縦に積み、入力欄は画面幅いっぱい                                    |
+| ログの絞り込み     | 折り返して横に並ぶ     | 1 列に積む。検索・クリア等のボタンは横並びのまま等分                |
+
+ドロワーの開閉状態は `components/AppLayout.tsx` が持ち、`nav[data-open]` に書き込む。
+**どの幅で何が変わるかは CSS（`src/index.css` のメディアクエリ）が唯一の出所**で、
+コンポーネント側は幅を判定しない。
 
 ---
 
@@ -373,8 +390,16 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 ### 表示言語・テーマを変えたいとき
 
 ヘッダーの言語セレクタ・テーマセレクタで切り替える（選択はブラウザに保存される）。
+**スマートフォンなど狭い画面では、ヘッダーではなくメニュー（☰）を開いた下端にある。**
 テーマは ライト / ダーク / OS 追従 の 3 つ。既定値はシステム設定の
 `DEFAULT_LOCALE` / `DEFAULT_THEME`。
+
+### スマートフォンで画面を切り替えたいとき
+
+1. 左上のメニューボタン（☰）を押す。
+2. 移動したい項目を選ぶ（選ぶとメニューは自動で閉じる）。
+   - 閉じるだけなら ✕ ・メニューの外側をタップ・Esc のいずれか。
+3. 表が画面幅に収まらないときは、**表の上を横になぞる**（表だけが横に動く）。
 
 ---
 
@@ -383,7 +408,8 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 ```
 src/
   App.tsx           # ルート定義と RequireAuth（画面を増やすときはここも）
-  components/       # Header / Sidebar / Footer / ToastNotification
+  components/       # AppLayout（外枠・ドロワー）/ Header / Sidebar / Footer /
+                    # PreferenceControls（言語・テーマ）/ ToastNotification
   pages/            # 画面 1 つ = 1 ファイル（*Page.tsx）
   services/         # api.ts（fetch + トークン更新）/ webauthn.ts / uiSettings.ts
   store/            # AuthContext（サインイン状態・scope 判定）
@@ -398,6 +424,8 @@ src/
 2. `src/App.tsx` にルートを追加する（認証が必要なら `RequireAuth` の中）。
 3. サイドバーに出すなら `components/Sidebar.tsx` の `ITEMS` に
    **必要な scope 付きで**追加する。
+   表を置くときは `<div className="table-scroll">` で包む（狭い画面で
+   ページ全体が横スクロールしないようにするため）。
 4. 文言は `src/i18n/en.json` に英語キーで追加し、各言語ファイルへ訳を入れる。
 5. **本 README の画面遷移図・画面一覧・画面仕様・操作マニュアルを更新する。**
 6. `npm run test` と `make check-frontend` を通す。

@@ -53,6 +53,9 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 
 - 認証は JWT（access / refresh の2トークン）。発行・検証は
   `presentation/fastapi/services/token_service.py`。
+- ログインの資格情報検証（パスワード照合 → 第二要素 → 監査記録）は
+  `presentation/fastapi/services/login_service.py`。失敗の応答はどの理由でも
+  `invalid_credentials` に揃え、どこで落ちたかは監査ログの `reason` にだけ残す。
 - 認可は **scope（権限コード値）** ベース。ロール名で分岐しない。
   - 有効 scope = ユーザーの全ロールが持つ権限の和集合。
   - エンドポイントでは `Depends(require_permission("user:manage"))` のように宣言する。
@@ -69,7 +72,7 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 ## ログと監査の設計
 
 「システムが何をしたか」（アプリログ・`log`）と「誰が何をしたか」（監査ログ・
-`audit_log`）を別のテーブルとして持つ（ADR-0010）。どちらも `requestId` を持つので、
+`audit_log`）を別のテーブルとして持つ（ADR-0013）。どちらも `requestId` を持つので、
 1 リクエストの記録を両側から突き合わせられる。
 
 書き手と読み手で責務が分かれている。

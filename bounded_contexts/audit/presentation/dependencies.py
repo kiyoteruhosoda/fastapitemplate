@@ -61,7 +61,7 @@ def record_audit_event() -> RecordAuditEvent:
 
     積む先はリクエストの控え。実際の書き込みは処理が終わってから
     :class:`~bounded_contexts.audit.presentation.middleware.AuditRecordingMiddleware`
-    が行う（ADR-0010）。DB セッションを受け取らないのはそのため。
+    が行う（ADR-0013）。DB セッションを受け取らないのはそのため。
 
     控えが無い（ミドルウェアが外れている）ときは捨て先を渡して本処理は通し、
     警告を残す。監査が黙って止まる方が、記録できないことで機能が落ちるより悪い

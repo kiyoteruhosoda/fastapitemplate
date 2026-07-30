@@ -1,7 +1,7 @@
 """``audit_log`` テーブルの SQLAlchemy モデル（audit コンテキスト固有）。
 
 追記専用の記録なので外部キーは張らない。ユーザーを削除しても「誰が何をしたか」
-の行は残らなければならないため（ADR-0010）。
+の行は残らなければならないため（ADR-0013）。
 
 Alembic とテストが認識できるよう ``migrations/env.py`` と ``tests/conftest.py``
 へ import を追加してある。

@@ -114,6 +114,13 @@ def _layer_of(module: str) -> str | None:
     return None
 
 
+def _imported_from(node: ast.ImportFrom, package: str) -> str | None:
+    """``from x import y`` が指すモジュールの絶対名。解決できなければ ``None``。"""
+    if node.level == 0:
+        return node.module
+    return _resolve_relative_import(package, node.level, node.module)
+
+
 def _imported_modules(tree: ast.Module, package: str) -> Iterator[str]:
     """*tree* が import しているモジュールを、すべて絶対名で返す。
 
@@ -124,12 +131,8 @@ def _imported_modules(tree: ast.Module, package: str) -> Iterator[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 yield alias.name
-        elif isinstance(node, ast.ImportFrom):
-            if node.level == 0:
-                if node.module:
-                    yield node.module
-            elif (resolved := _resolve_relative_import(package, node.level, node.module)) is not None:
-                yield resolved
+        elif isinstance(node, ast.ImportFrom) and (resolved := _imported_from(node, package)) is not None:
+            yield resolved
 
 
 def _files_with_restricted_imports() -> list[Path]:

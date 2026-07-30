@@ -1,46 +1,49 @@
+import type { RefObject } from 'react'
 import { Link } from 'react-router-dom'
 
-import { LOCALE_LABELS, useI18n, type Locale } from '../i18n'
+import { useI18n } from '../i18n'
 import { useAuth } from '../store/AuthContext'
-import { THEME_PREFERENCES, useTheme, type ThemePreference } from '../theme'
+import { PreferenceControls } from './PreferenceControls'
 
-export function Header() {
-  const { t, locale, locales, setLocale } = useI18n()
-  const { theme, setTheme } = useTheme()
+export function Header({
+  navOpen,
+  onToggleNav,
+  toggleRef,
+}: {
+  navOpen: boolean
+  onToggleNav: () => void
+  /** ドロワーを閉じたときにフォーカスを戻す先（AppLayout が保持する）。 */
+  toggleRef: RefObject<HTMLButtonElement>
+}) {
+  const { t } = useI18n()
   const { user, logout } = useAuth()
 
   return (
     <header className="header">
-      <Link to="/" className="header-title">
-        {t('app.title')}
-      </Link>
+      <div className="header-brand">
+        {/* 狭い画面だけに出るナビゲーションの開閉ボタン（表示制御は index.css）。
+            開閉は aria-expanded で伝え、ラベル自体は変えない（同じボタンの名前が
+            操作のたびに変わると読み上げで追いにくいため）。 */}
+        <button
+          ref={toggleRef}
+          type="button"
+          className="nav-toggle"
+          aria-label={t('nav.menu')}
+          aria-expanded={navOpen}
+          aria-controls="primary-nav"
+          onClick={onToggleNav}
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
+        <Link to="/" className="header-title">
+          {t('app.title')}
+        </Link>
+      </div>
       <div className="header-actions">
-        <select
-          aria-label={t('common.language')}
-          value={locale}
-          onChange={(e) => {
-            setLocale(e.target.value as Locale)
-          }}
-        >
-          {locales.map((value) => (
-            <option key={value} value={value}>
-              {LOCALE_LABELS[value]}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label={t('common.theme')}
-          value={theme}
-          onChange={(e) => {
-            setTheme(e.target.value as ThemePreference)
-          }}
-        >
-          {THEME_PREFERENCES.map((value) => (
-            <option key={value} value={value}>
-              {t(`theme.${value}`)}
-            </option>
-          ))}
-        </select>
+        {/* 言語・テーマは狭い画面ではドロワー側（.sidebar-preferences）に出る。 */}
+        <div className="header-preferences">
+          <PreferenceControls />
+        </div>
         {user && (
           <>
             <Link to="/profile">{user.username}</Link>

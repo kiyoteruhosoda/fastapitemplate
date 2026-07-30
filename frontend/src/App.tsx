@@ -1,8 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
-import { Footer } from './components/Footer'
-import { Header } from './components/Header'
-import { Sidebar } from './components/Sidebar'
+import { AppLayout } from './components/AppLayout'
 import { useI18n } from './i18n'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AuditLogsPage } from './pages/AuditLogsPage'
@@ -26,16 +24,9 @@ function RequireAuth() {
   if (loading) return <p className="loading">{t('common.loading')}</p>
   if (!user) return <Navigate to="/login" replace />
   return (
-    <div className="layout">
-      <Header />
-      <div className="layout-body">
-        <Sidebar />
-        <main className="content">
-          <Outlet />
-        </main>
-      </div>
-      <Footer />
-    </div>
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
   )
 }
 

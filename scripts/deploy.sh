@@ -302,11 +302,9 @@ fi
 if [ ! -f "$ENV_FILE" ]; then
   warn "$ENV_FILE not found; generating a default template."
   if [ "$ENV_KIND" = "stg" ]; then
-    DEFAULT_DB_HOST_PORT=3308
     DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb-stg"
     DEFAULT_NETWORK="${APP_NAME}-stg"
   else
-    DEFAULT_DB_HOST_PORT=3307
     DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb"
     DEFAULT_NETWORK="${APP_NAME}-prod"
   fi
@@ -316,9 +314,10 @@ if [ ! -f "$ENV_FILE" ]; then
 # すべての項目は .env.example を参照。
 
 # --- 環境固有の実値（この環境ディレクトリに閉じた値に固定する）---
+# DB はホストへポートを公開しない（ADR-0013）。stg / prod を同一ホストで動かしても
+# 衝突しないのはコンテナ名とネットワーク名を環境ごとに分けているため。
 HOST_DATA_ROOT=$BASE_DIR/mnt
 WEB_HOST_PORT=$WEB_HOST_PORT
-DB_HOST_PORT=$DEFAULT_DB_HOST_PORT
 DB_CONTAINER_NAME=$DEFAULT_DB_CONTAINER
 DOCKER_NETWORK_NAME=$DEFAULT_NETWORK
 

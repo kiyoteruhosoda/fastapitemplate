@@ -146,13 +146,15 @@ class RestartRequestStore:
         *,
         requested_by: str | None = None,
         reason: str | None = None,
-        requested_at: datetime | None = None,
     ) -> tuple[RestartRequest, ...]:
         """再起動要求を保存する（リクエスト内から呼ぶ）。
 
         対象が空の場合は全スコープを対象とする。指定したスコープの分だけを
         書き換え、対象外のスコープに残っている要求は保持する（まだ拾われて
         いない要求を消さないため）。
+
+        要求時刻は常にこの場で採る。テストで固定したい場合は
+        :func:`datetime.datetime.now` を差し替える（CLAUDE.md「テスト」参照）。
         """
         from shared.infrastructure.models import SystemSetting
 
@@ -160,7 +162,7 @@ class RestartRequestStore:
         if not targets:
             targets = ALL_RESTART_SCOPES
 
-        moment = requested_at or datetime.now(UTC)
+        moment = datetime.now(UTC)
         token = moment.isoformat()
 
         record = session.get(SystemSetting, RESTART_REQUEST_SETTING_KEY)

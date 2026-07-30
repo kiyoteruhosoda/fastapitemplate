@@ -35,6 +35,18 @@ npm run dev        # http://localhost:5173（/api は 8000 へプロキシ）
 cd frontend && npm run build     # frontend/dist に出力 → / で配信される
 ```
 
+## アプリのアイコン（PWA・favicon）を変えたいとき
+
+配色（`GRADIENT_START` / `GRADIENT_END`）と図形（`MARK_POINTS`）を
+`scripts/generate_pwa_icons.py` で編集してから生成し直す。出力物もコミットする。
+
+```bash
+uv run python scripts/generate_pwa_icons.py   # frontend/public/ の 5 ファイルを再生成
+```
+
+図形を変えたときは `frontend/index.html` の `theme-color` と
+`frontend/vite.config.ts` の `theme_color`（どちらも `#4f46e5`）も配色に合わせる。
+
 ## テストを実行したいとき
 
 ```bash
@@ -131,6 +143,49 @@ docker compose up -d             # db / web / nginx が起動
 ```
 
 - アプリ: http://127.0.0.1:8080 （nginx 経由）
+
+ホストへ公開されるのは nginx だけ。`web` と `db` は Docker ネットワーク内部からのみ
+到達できる（ADR-0010）。
+
+## DB を操作したいとき（SQL を流す・ダンプを取る）
+
+`db` はホストにポートを持たないため、`docker compose exec` でコンテナ内から実行する。
+
+**資格情報は必ず `sh -c '…'`（シングルクォート）でコンテナ内に展開させる。**
+`.env` は既定では資格情報の行がコメントアウトされていて（値は compose の
+`${VAR:-default}` が供給する）、ホスト側のシェルには変数が無い。ダブルクォートで
+書くとホストで空文字に展開され、パスワードなしで接続を試みて失敗する。
+
+```bash
+# 対話シェル
+docker compose exec db sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"'
+
+# SQL ファイルを流す（-T でホストの標準入力を渡す。リダイレクトはホスト側で解決される）
+docker compose exec -T db \
+  sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < some.sql
+
+# ダンプを取る（出力はホスト側のファイルへ）
+docker compose exec -T db \
+  sh -c 'exec mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' > dump.sql
+```
+
+デプロイ先では compose プロジェクトが分かれているため、環境ディレクトリ
+（`<app>/stg/` など）で実行する。
+
+## DB へホストのツールから一時的につなぎたいとき
+
+GUI クライアントを使いたい場合だけ、その場限りのポートフォワード用コンテナを立てる。
+`docker-compose.yml` は変更しない（恒久的に開けないため。ADR-0010）。
+
+```bash
+# ネットワーク名は .env の DOCKER_NETWORK_NAME（既定 fastapitemplate）
+docker run --rm -it --network fastapitemplate \
+  -p 127.0.0.1:3307:3306 alpine/socat \
+  tcp-listen:3306,fork,reuseaddr tcp-connect:db:3306
+```
+
+`127.0.0.1:3307` へつなげば DB に到達する。**作業が終わったら Ctrl-C で止める**
+（コンテナを消すと公開ポートも消える）。
 
 ## デプロイしたいとき
 
@@ -236,9 +291,9 @@ DELETE FROM users                 WHERE email = 'admin@example.com';
 sqlite3 app.db < recover-admin.sql
 ADMIN_INITIAL_PASSWORD='<new-password>' uv run python scripts/seed_master_data.py
 
-# docker compose（MariaDB）
+# docker compose（MariaDB）。資格情報はコンテナ内で展開させる（上記「DB を操作したいとき」参照）
 docker compose exec -T db \
-  mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" < recover-admin.sql
+  sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < recover-admin.sql
 docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' web \
   python scripts/seed_master_data.py
 ```

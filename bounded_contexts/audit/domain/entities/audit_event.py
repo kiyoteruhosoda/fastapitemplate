@@ -1,7 +1,7 @@
 """監査イベント（誰が・いつ・何に対して・何をして・どうなったか）。
 
 PII は持たない。実行者・対象は内部の識別子（サロゲートキー）のみで表す
-（ADR-0010）。メールアドレス・ユーザー名・パスワード・トークンは記録しない。
+（ADR-0013）。メールアドレス・ユーザー名・パスワード・トークンは記録しない。
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class AuditEventType(StrEnum):
 
     # --- 認証 ---
     # ログアウトは記録しない。Cookie を落とすだけの未認証エンドポイントで、
-    # 「誰が」を特定できないため（ADR-0010）。
+    # 「誰が」を特定できないため（ADR-0013）。
     LOGIN_SUCCEEDED = "login.succeeded"
     LOGIN_FAILED = "login.failed"
     PASSWORD_CHANGED = "password.changed"

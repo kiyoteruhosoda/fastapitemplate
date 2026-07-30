@@ -4,6 +4,10 @@
 Domain の :mod:`~bounded_contexts.audit.domain.value_objects.log_page` を参照し、
 ここに数値を写さない。
 
+**外部入力の正規化はここで行う。** 画面のフォームは未入力の項目も空文字で送ってくる
+ので、空白を落として空文字を「未指定」（``None``）へ丸める。Application 層へは
+バリデーション済みの値だけを渡す（CLAUDE.md「API 設計」）。
+
 検索結果は ``total`` を添えて返す。画面がページ送りの可否と総件数を出せるように
 するため（``entries`` だけでは「次があるか」が分からない）。
 """
@@ -11,21 +15,41 @@ Domain の :mod:`~bounded_contexts.audit.domain.value_objects.log_page` を参�
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from bounded_contexts.audit.domain.value_objects.log_page import MAX_LIMIT
+
+
+def _blank_to_none(value: object) -> object:
+    """前後の空白を落とし、空文字を「未指定」にする。"""
+    if not isinstance(value, str):
+        return value
+    trimmed = value.strip()
+    return trimmed or None
+
+
+def _upper_or_none(value: object) -> object:
+    """レベル名を大文字へ揃える（``error`` でも拾えるようにする）。"""
+    normalized = _blank_to_none(value)
+    return normalized.upper() if isinstance(normalized, str) else normalized
+
+
+# 絞り込みの文字列項目。空欄で送られてきたら条件に使わない。
+FilterText = Annotated[str | None, BeforeValidator(_blank_to_none)]
+LevelFilter = Annotated[str | None, BeforeValidator(_upper_or_none)]
 
 
 class AuditLogSearchRequest(BaseModel):
     """監査ログの検索条件（クエリ文字列）。未指定の項目は絞り込みに使わない。"""
 
-    event_type: str | None = None
-    result: str | None = None
+    event_type: FilterText = None
+    result: FilterText = None
     actor_user_id: int | None = None
-    target_type: str | None = None
-    target_id: str | None = None
-    request_id: str | None = None
+    target_type: FilterText = None
+    target_id: FilterText = None
+    request_id: FilterText = None
     occurred_from: datetime | None = None
     occurred_to: datetime | None = None
     limit: int | None = Field(default=None, ge=1, le=MAX_LIMIT)
@@ -64,11 +88,11 @@ class AuditLogFilterOptionsResponse(BaseModel):
 class LogSearchRequest(BaseModel):
     """アプリログの検索条件（クエリ文字列）。"""
 
-    level: str | None = None
-    logger: str | None = Field(default=None, description="ロガー名の前方一致")
-    message: str | None = Field(default=None, description="メッセージ本文の部分一致")
-    request_id: str | None = None
-    user_id_hash: str | None = None
+    level: LevelFilter = None
+    logger: FilterText = Field(default=None, description="ロガー名の前方一致")
+    message: FilterText = Field(default=None, description="メッセージ本文の部分一致")
+    request_id: FilterText = None
+    user_id_hash: FilterText = None
     created_from: datetime | None = None
     created_to: datetime | None = None
     limit: int | None = Field(default=None, ge=1, le=MAX_LIMIT)

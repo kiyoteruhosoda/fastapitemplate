@@ -1,6 +1,6 @@
 """``RecordAuditEvent`` の組み立てと、``WriteAuditEvents`` の失敗時のふるまい。
 
-記録は 2 段階に分かれている（ADR-0010）。
+記録は 2 段階に分かれている（ADR-0013）。
 
 - 処理の途中: :class:`RecordAuditEvent` が組み立てて控えに積む（I/O なし・失敗しない）
 - 処理の後: :class:`WriteAuditEvents` がまとめて書く（失敗しても呼び出し元を落とさない）
@@ -61,18 +61,19 @@ def test_records_the_bound_request_context_and_actor() -> None:
     assert event.occurred_at.tzinfo is None  # 保存値は常に UTC の naive
 
 
-def test_explicit_actor_wins_over_the_bound_one() -> None:
+def test_as_actor_rebinds_the_actor() -> None:
+    """ログインのように、実行者が処理の最中に確定する場合。"""
     pending = PendingAuditEvents()
-    RecordAuditEvent(pending, _CONTEXT).execute(
-        AuditEventType.PASSWORD_CHANGED,
-        AuditResult.FAILURE,
-        actor_user_id=99,
-        reason="invalid_current_password",
-    )
+    recorder = RecordAuditEvent(pending, _CONTEXT)
 
-    event = pending.drain()[0]
-    assert event.actor_user_id == 99
-    assert event.reason == "invalid_current_password"
+    recorder.as_actor(99).execute(AuditEventType.LOGIN_SUCCEEDED)
+    # 元の記録口は据え置き（束ね直した方だけが実行者を持つ）
+    recorder.execute(AuditEventType.PASSWORD_CHANGED, AuditResult.FAILURE, reason="invalid_current_password")
+
+    rebound, original = pending.drain()
+    assert rebound.actor_user_id == 99
+    assert original.actor_user_id is None
+    assert original.reason == "invalid_current_password"
 
 
 def test_unauthenticated_events_have_no_actor() -> None:
