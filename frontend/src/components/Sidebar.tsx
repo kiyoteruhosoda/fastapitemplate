@@ -1,4 +1,5 @@
 /** ナビゲーション。表示はロール名ではなく scope で制御する。 */
+import type { RefObject } from 'react'
 import { NavLink } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
@@ -28,12 +29,22 @@ const ITEMS: Item[] = [
  * 閉じるボタンと言語・テーマの選択は狭い画面だけに出る（ドロワーはヘッダーを覆うので、
  * 開いているあいだの操作をここで完結させる）。
  */
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function Sidebar({
+  open,
+  onClose,
+  navRef,
+}: {
+  open: boolean
+  onClose: () => void
+  /** 開いているあいだ Tab をこの中に閉じ込めるために AppLayout が使う。 */
+  navRef: RefObject<HTMLElement>
+}) {
   const { t } = useI18n()
   const { hasScope } = useAuth()
 
   return (
     <nav
+      ref={navRef}
       id="primary-nav"
       className="sidebar"
       data-open={open ? 'true' : 'false'}

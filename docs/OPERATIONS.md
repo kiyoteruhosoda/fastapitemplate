@@ -150,19 +150,23 @@ docker compose up -d             # db / web / nginx が起動
 ## DB を操作したいとき（SQL を流す・ダンプを取る）
 
 `db` はホストにポートを持たないため、`docker compose exec` でコンテナ内から実行する。
-パスワードは `.env` の `MARIADB_ROOT_PASSWORD`（未設定なら compose の既定値）。
+
+**資格情報は必ず `sh -c '…'`（シングルクォート）でコンテナ内に展開させる。**
+`.env` は既定では資格情報の行がコメントアウトされていて（値は compose の
+`${VAR:-default}` が供給する）、ホスト側のシェルには変数が無い。ダブルクォートで
+書くとホストで空文字に展開され、パスワードなしで接続を試みて失敗する。
 
 ```bash
 # 対話シェル
-docker compose exec db mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"
+docker compose exec db sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"'
 
-# SQL ファイルを流す（-T でホストの標準入力を渡す）
+# SQL ファイルを流す（-T でホストの標準入力を渡す。リダイレクトはホスト側で解決される）
 docker compose exec -T db \
-  mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" < some.sql
+  sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < some.sql
 
 # ダンプを取る（出力はホスト側のファイルへ）
 docker compose exec -T db \
-  mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" > dump.sql
+  sh -c 'exec mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' > dump.sql
 ```
 
 デプロイ先では compose プロジェクトが分かれているため、環境ディレクトリ
@@ -287,9 +291,9 @@ DELETE FROM users                 WHERE email = 'admin@example.com';
 sqlite3 app.db < recover-admin.sql
 ADMIN_INITIAL_PASSWORD='<new-password>' uv run python scripts/seed_master_data.py
 
-# docker compose（MariaDB）
+# docker compose（MariaDB）。資格情報はコンテナ内で展開させる（上記「DB を操作したいとき」参照）
 docker compose exec -T db \
-  mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" < recover-admin.sql
+  sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < recover-admin.sql
 docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' web \
   python scripts/seed_master_data.py
 ```

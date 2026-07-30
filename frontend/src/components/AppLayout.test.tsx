@@ -142,6 +142,62 @@ describe('AppLayout のナビゲーション', () => {
     expect(nav()).toHaveAttribute('data-open', 'false')
   })
 
+  it('開くとドロワーの先頭の操作にフォーカスが移る', async () => {
+    await renderSignedIn()
+
+    click(toggle())
+    // ドロワー内の先頭は閉じるボタン（オーバーレイの下に隠れたヘッダーへ
+    // フォーカスが残らないようにする）。フォーカスの移動は描画後の
+    // 1 フレームを待つため（実装のコメント参照）、待ってから確認する。
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close menu' }))
+    })
+  })
+
+  it('Tab がドロワーの外へ出ない', async () => {
+    const { nav } = await renderSignedIn()
+
+    click(toggle())
+    const focusable = [...nav().querySelectorAll<HTMLElement>('a[href], button, select')]
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    expect(first).toBeDefined()
+    expect(last).toBeDefined()
+
+    // 末尾から Tab → 先頭へ折り返す（ヘッダー・本文へ抜けない）。
+    act(() => {
+      last?.focus()
+      fireEvent.keyDown(window, { key: 'Tab' })
+    })
+    expect(document.activeElement).toBe(first)
+
+    // 先頭から Shift+Tab → 末尾へ折り返す。
+    act(() => {
+      fireEvent.keyDown(window, { key: 'Tab', shiftKey: true })
+    })
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('閉じるとメニューボタンへフォーカスが戻る', async () => {
+    await renderSignedIn()
+
+    click(toggle())
+    act(() => {
+      fireEvent.keyDown(window, { key: 'Escape' })
+    })
+    expect(document.activeElement).toBe(toggle())
+  })
+
+  it('開いていないあいだはフォーカスを動かさない', async () => {
+    await renderSignedIn()
+
+    const logout = screen.getByRole('button', { name: 'Logout' })
+    act(() => {
+      logout.focus()
+    })
+    expect(document.activeElement).toBe(logout)
+  })
+
   it('保有していない scope の項目は出さない', async () => {
     const { nav } = await renderSignedIn()
     expect(nav()).toHaveAttribute('data-open', 'false')

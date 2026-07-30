@@ -1,10 +1,20 @@
+import type { RefObject } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
 import { useAuth } from '../store/AuthContext'
 import { PreferenceControls } from './PreferenceControls'
 
-export function Header({ navOpen, onToggleNav }: { navOpen: boolean; onToggleNav: () => void }) {
+export function Header({
+  navOpen,
+  onToggleNav,
+  toggleRef,
+}: {
+  navOpen: boolean
+  onToggleNav: () => void
+  /** ドロワーを閉じたときにフォーカスを戻す先（AppLayout が保持する）。 */
+  toggleRef: RefObject<HTMLButtonElement>
+}) {
   const { t } = useI18n()
   const { user, logout } = useAuth()
 
@@ -15,6 +25,7 @@ export function Header({ navOpen, onToggleNav }: { navOpen: boolean; onToggleNav
             開閉は aria-expanded で伝え、ラベル自体は変えない（同じボタンの名前が
             操作のたびに変わると読み上げで追いにくいため）。 */}
         <button
+          ref={toggleRef}
           type="button"
           className="nav-toggle"
           aria-label={t('nav.menu')}

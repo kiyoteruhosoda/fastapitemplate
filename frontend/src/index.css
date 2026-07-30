@@ -344,14 +344,20 @@ td {
     /* 閉じているあいだは読み上げ・タブ移動の対象からも外す。 */
     visibility: hidden;
     transform: translateX(-100%);
+    /* visibility は離散的に変わるため、遷移時間を持たせると値が切り替わるのが
+     * 遅れる（開いた直後はまだ hidden = フォーカス不可）。開くときは 0s で即座に
+     * 可視化し、閉じるときだけ滑り終わってから隠す（0.2s 後に切り替え）。 */
     transition:
       transform 0.2s ease,
-      visibility 0.2s ease;
+      visibility 0s linear 0.2s;
   }
 
   .sidebar[data-open='true'] {
     visibility: visible;
     transform: translateX(0);
+    transition:
+      transform 0.2s ease,
+      visibility 0s;
   }
 
   .sidebar a {
@@ -468,7 +474,10 @@ td {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar {
+  /* 開いた状態の指定（.sidebar[data-open='true']）の方が詳細度が高いので、
+   * 両方を上書きしないとアニメーションが残る。 */
+  .sidebar,
+  .sidebar[data-open='true'] {
     transition: none;
   }
 }
