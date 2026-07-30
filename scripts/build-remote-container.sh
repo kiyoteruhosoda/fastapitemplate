@@ -31,6 +31,7 @@
 #   APP_DEV_WORKDIR    コンテナ内のリポジトリ working dir（scripts/build.sh がある場所）
 #   APP_DIST_DIR       ホストから見えるビルド済み dist/ の絶対パス（必須。無指定はエラー）
 #   APP_TARGET_DIR     デプロイ先ディレクトリ（既定: このスクリプトの場所）
+#   APP_WEB_HOST_PORT  WEB（nginx）をホストへ公開するポートの既定値（任意。DEPLOY へ引き継ぐ）
 #
 # ディレクトリ構成の前提は **/<プロジェクト名>/<環境>**（例: /volume1/docker/fastapitemplate/prod）。
 #   * 環境（stg/prod 等）  … デプロイ先ディレクトリ名から取得
@@ -43,7 +44,10 @@
 #     APP_DEV_CONTAINER=ubuntu-dev
 #     APP_DEV_WORKDIR=/work/project/{PROJECT}
 #     APP_DIST_DIR=/volume1/homes/user/work/project/{PROJECT}/dist
+#     APP_WEB_HOST_PORT=8080
 # ※ デプロイ用 `.env`（deploy.sh / Compose が読む秘密情報ファイル）とは別物。ここへ書いても効かない。
+#   例外的に APP_WEB_HOST_PORT だけは DEPLOY へ引き継ぎ、deploy.sh が `.env` を新規生成するときの
+#   `WEB_HOST_PORT` の既定値として転記される（既存の `.env` は書き換えない。ADR-0008 参照）。
 #
 # 前提: docker（デプロイ先）と、ビルド用 dev コンテナが起動していること。
 set -euo pipefail
@@ -107,6 +111,9 @@ dev_container="${APP_DEV_CONTAINER:-ubuntu-dev}"
 dev_user="${APP_DEV_USER:-sshuser}"
 dev_workdir="${APP_DEV_WORKDIR:-/work/project/$project}"
 dist_dir="${APP_DIST_DIR:-}"
+# WEB 公開ポートの既定値。ここでは値を検証するだけで、`.env` への転記は deploy.sh が行う
+# （`.env` の生成・管理は deploy.sh に一本化してある）。空なら deploy.sh 側の既定値に任せる。
+web_host_port="${APP_WEB_HOST_PORT:-}"
 
 # パス中の {PROJECT} を project の値へ展開する（プロジェクト名の一元管理）。
 # 置換文字列側では bash 5.2 の patsub_replacement により `&`（マッチ全体）・`\` が
@@ -148,9 +155,22 @@ log "    APP_DEV_USER      = $dev_user"
 log "    APP_DEV_WORKDIR   = $dev_workdir"
 log "    APP_DIST_DIR      = ${dist_dir:-(未設定)}"
 log "    APP_TARGET_DIR    = $target_dir （環境=$environment）"
+log "    APP_WEB_HOST_PORT = ${web_host_port:-(未設定 → deploy.sh の既定値)}"
 
 command -v docker >/dev/null 2>&1 || die "docker が見つかりません。"
 [[ -n "$dist_dir" ]] || die "APP_DIST_DIR（ホストから見えるビルド済み dist/ の絶対パス）を設定してください。"
+# ポートが不正なら早めに気付けるようここで警告する（ビルド前）。ただし**中断はしない**。
+# この値が実際に使われるかはデプロイ先の `.env` に WEB_HOST_PORT があるかで決まり、それを知って
+# いるのは deploy.sh だけ。使われもしない古い値でデプロイを止めないため、判定は deploy.sh に任せる
+# （優先順位の正本を 1 か所に保つ。ADR-0008）。
+# 先頭 0 を許すと bash の算術評価が 8 進数として解釈するため、`^[1-9][0-9]{0,4}$` に限定する
+# （`||` の短絡で非数値は算術評価へ渡らない）。
+if [[ -n "$web_host_port" ]] \
+  && { ! [[ "$web_host_port" =~ ^[1-9][0-9]{0,4}$ ]] || ((web_host_port > 65535)); }; then
+  log "警告: APP_WEB_HOST_PORT が不正です（1〜65535 の整数で指定してください）: $web_host_port"
+  log "      デプロイ先の .env に WEB_HOST_PORT があればこの値は使われないため続行しますが、"
+  log "      使われる場合は DEPLOY で中断します。"
+fi
 
 cd "$target_dir"
 
@@ -218,7 +238,13 @@ fi
 chmod +x "$target_dir"/*.sh 2>/dev/null || true
 
 # --- DEPLOY（.env は deploy.sh が管理: 初回生成・以後は不変） ----------------------
+# APP_WEB_HOST_PORT を渡すと、deploy.sh が `.env` を新規生成するときの WEB_HOST_PORT の
+# 既定値になる（既存の `.env` の値は上書きしない）。未設定なら渡さず deploy.sh の既定値に任せる。
 log "DEPLOY ./deploy.sh $mode"
-"$target_dir/deploy.sh" "$mode"
+if [[ -n "$web_host_port" ]]; then
+  APP_WEB_HOST_PORT="$web_host_port" "$target_dir/deploy.sh" "$mode"
+else
+  APP_WEB_HOST_PORT= "$target_dir/deploy.sh" "$mode"
+fi
 
 log "END    環境=$environment  モード=$mode（完了）"
