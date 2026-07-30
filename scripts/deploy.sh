@@ -62,20 +62,11 @@ log()  { echo -e "\033[36m${TAG}\033[0m $*"; }
 warn() { echo -e "\033[33m${TAG}[warn]\033[0m $*" >&2; }
 err()  { echo -e "\033[31m${TAG}[error]\033[0m $*" >&2; }
 
-# ===== WEB 公開ポートの既定値の上書き（build-remote-container.env からの引き継ぎ） =====
-# build-remote-container.sh が APP_WEB_HOST_PORT を渡してきたら、環境ディレクトリ名から
-# 決めた既定値の代わりに使う。あくまで**既定値**であり、`.env` の WEB_HOST_PORT が
-# あればそちらが勝つ（`.env` が正本。ADR-0008）。
-WEB_HOST_PORT_SOURCE="default (env: $ENV_KIND)"
-if [ -n "${APP_WEB_HOST_PORT:-}" ]; then
-  # 先頭 0 を許すと算術評価が 8 進数として解釈するため、`^[1-9][0-9]{0,4}$` に限定する。
-  if ! [[ "$APP_WEB_HOST_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || ((APP_WEB_HOST_PORT > 65535)); then
-    err "APP_WEB_HOST_PORT must be an integer in 1-65535: $APP_WEB_HOST_PORT"
-    exit 1
-  fi
-  DEFAULT_WEB_HOST_PORT="$APP_WEB_HOST_PORT"
-  WEB_HOST_PORT_SOURCE="APP_WEB_HOST_PORT"
-fi
+# WEB 公開ポートとして使える値か（1〜65535 の整数）。先頭 0 を許すと算術評価が 8 進数として
+# 解釈するため `^[1-9][0-9]{0,4}$` に限定する（`&&` の短絡で非数値は算術評価へ渡らない）。
+is_valid_web_port() {
+  [[ "$1" =~ ^[1-9][0-9]{0,4}$ ]] && (($1 <= 65535))
+}
 
 APP_IMAGE="${APP_NAME}:$ENV_NAME"
 DB_IMAGE="${APP_NAME}-db:$ENV_NAME"
@@ -138,13 +129,27 @@ HOST_DATA_ROOT="${HOST_DATA_ROOT:-$BASE_DIR/mnt}"
 DATA_PATH="$HOST_DATA_ROOT/data"
 DB_PATH="$HOST_DATA_ROOT/db_data"
 
-# WEB 公開ポート。`.env` の値が正本で、無ければ既定値（環境ディレクトリ名、または
-# build-remote-container.env の APP_WEB_HOST_PORT）を使う。
+# WEB 公開ポート。優先順位は `.env` ＞ APP_WEB_HOST_PORT（build-remote-container.env からの
+# 引き継ぎ）＞ 環境ディレクトリ名由来の既定値（ADR-0008）。
+# APP_WEB_HOST_PORT の検証は**その値が実際に選ばれたときだけ**行う。`.env` が正本なので、
+# 使われもしない古い・打ち間違えた値でデプロイを止めてはならない（不一致は警告で知らせる）。
 WEB_HOST_PORT="$(env_file_value WEB_HOST_PORT)"
 if [ -n "$WEB_HOST_PORT" ]; then
   WEB_HOST_PORT_SOURCE=".env"
+  if [ -n "${APP_WEB_HOST_PORT:-}" ] && [ "$APP_WEB_HOST_PORT" != "$WEB_HOST_PORT" ]; then
+    warn "APP_WEB_HOST_PORT=$APP_WEB_HOST_PORT is ignored; $ENV_FILE の WEB_HOST_PORT=$WEB_HOST_PORT が優先されます。"
+    warn "  ポートを変えるには .env を編集してください（deploy は既存の .env を書き換えません）。"
+  fi
+elif [ -n "${APP_WEB_HOST_PORT:-}" ]; then
+  if ! is_valid_web_port "$APP_WEB_HOST_PORT"; then
+    err "APP_WEB_HOST_PORT must be an integer in 1-65535: $APP_WEB_HOST_PORT"
+    exit 1
+  fi
+  WEB_HOST_PORT="$APP_WEB_HOST_PORT"
+  WEB_HOST_PORT_SOURCE="APP_WEB_HOST_PORT"
 else
   WEB_HOST_PORT="$DEFAULT_WEB_HOST_PORT"
+  WEB_HOST_PORT_SOURCE="default (env: $ENV_KIND)"
 fi
 HEALTH_URL="http://127.0.0.1:${WEB_HOST_PORT}/healthz"
 

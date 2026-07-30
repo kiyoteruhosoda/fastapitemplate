@@ -25,5 +25,7 @@
 - WEB 公開ポートの優先順位は `.env` の `WEB_HOST_PORT` ＞ 環境変数 `APP_WEB_HOST_PORT`
   ＞ 環境ディレクトリ名由来の既定値（stg=8081 / prod=8080）。解決した値は compose へ
   `export` されるため、公開ポートとヘルスチェック URL は常に一致する（ADR-0008）。
+  `APP_WEB_HOST_PORT` が不正な値のときデプロイを中断するのは、それが実際に選ばれたとき
+  （`.env` に `WEB_HOST_PORT` が無いとき）だけ。使われない場合は警告のみで続行する。
 - ヘルスチェックは `http://127.0.0.1:<WEB_HOST_PORT>/healthz`。失敗時は
   各コンテナのログを出力して終了する。

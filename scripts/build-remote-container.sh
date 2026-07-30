@@ -159,11 +159,17 @@ log "    APP_WEB_HOST_PORT = ${web_host_port:-(未設定 → deploy.sh の既定
 
 command -v docker >/dev/null 2>&1 || die "docker が見つかりません。"
 [[ -n "$dist_dir" ]] || die "APP_DIST_DIR（ホストから見えるビルド済み dist/ の絶対パス）を設定してください。"
-# ポートは DEPLOY まで進んでから落ちると手戻りが大きいので、ビルド前にここで弾く。
-# 先頭 0 を許すと bash の算術評価が 8 進数として解釈するため、`^[1-9][0-9]{0,4}$` に限定する。
-if [[ -n "$web_host_port" ]]; then
-  [[ "$web_host_port" =~ ^[1-9][0-9]{0,4}$ ]] && ((web_host_port <= 65535)) \
-    || die "APP_WEB_HOST_PORT が不正です（1〜65535 の整数で指定してください）: $web_host_port"
+# ポートが不正なら早めに気付けるようここで警告する（ビルド前）。ただし**中断はしない**。
+# この値が実際に使われるかはデプロイ先の `.env` に WEB_HOST_PORT があるかで決まり、それを知って
+# いるのは deploy.sh だけ。使われもしない古い値でデプロイを止めないため、判定は deploy.sh に任せる
+# （優先順位の正本を 1 か所に保つ。ADR-0008）。
+# 先頭 0 を許すと bash の算術評価が 8 進数として解釈するため、`^[1-9][0-9]{0,4}$` に限定する
+# （`||` の短絡で非数値は算術評価へ渡らない）。
+if [[ -n "$web_host_port" ]] \
+  && { ! [[ "$web_host_port" =~ ^[1-9][0-9]{0,4}$ ]] || ((web_host_port > 65535)); }; then
+  log "警告: APP_WEB_HOST_PORT が不正です（1〜65535 の整数で指定してください）: $web_host_port"
+  log "      デプロイ先の .env に WEB_HOST_PORT があればこの値は使われないため続行しますが、"
+  log "      使われる場合は DEPLOY で中断します。"
 fi
 
 cd "$target_dir"
