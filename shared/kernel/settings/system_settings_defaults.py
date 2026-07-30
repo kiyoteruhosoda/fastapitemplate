@@ -46,6 +46,9 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # --- ログ ---
     "LOG_LEVEL": "INFO",
     "LOG_TO_DATABASE": True,
+    # DB へ書くレコードの下限レベル（stdout は LOG_LEVEL のまま全量出す）。
+    # ログ量が問題になったら WARNING へ上げて DB の増え方だけを抑える。
+    "LOG_DB_MIN_LEVEL": "INFO",
 }
 
 __all__ = ["DEFAULT_APPLICATION_SETTINGS"]

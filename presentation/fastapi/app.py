@@ -19,11 +19,16 @@ from bounded_contexts.account_security.presentation.passkey_login_router import 
 from bounded_contexts.account_security.presentation.router import (
     router as account_security_router,
 )
+from bounded_contexts.audit.presentation.router import (
+    application_log_router as admin_logs_router,
+)
+from bounded_contexts.audit.presentation.router import (
+    audit_log_router as admin_audit_logs_router,
+)
 from bounded_contexts.example.presentation.router import router as items_router
 from presentation.fastapi.middleware.request_logging import RequestLoggingMiddleware
 from presentation.fastapi.routers import spa
 from presentation.fastapi.routers.admin.config import router as admin_config_router
-from presentation.fastapi.routers.admin.logs import router as admin_logs_router
 from presentation.fastapi.routers.admin.permissions import (
     router as admin_permissions_router,
 )
@@ -94,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_permissions_router)
     app.include_router(admin_config_router)
     app.include_router(admin_logs_router)
+    app.include_router(admin_audit_logs_router)
     app.include_router(admin_system_router)
     app.include_router(items_router)
 

@@ -1,4 +1,8 @@
-"""ユーザー管理 API（要 ``user:manage``）。"""
+"""ユーザー管理 API（要 ``user:manage``）。
+
+作成・更新・削除は監査ログ（``audit_log``）へ残す。``reason`` には**変更した項目名**
+だけを入れ、値そのもの（メールアドレス・パスワード）は入れない（ADR-0008）。
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
+from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
+from bounded_contexts.audit.domain.value_objects.audit_target import (
+    AuditTarget,
+    AuditTargetType,
+)
+from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import require_permission
 from presentation.fastapi.schemas.admin import (
     UserCreateRequest,
@@ -48,6 +58,12 @@ def _resolve_roles(db: Session, names: list[str]) -> list[Role]:
     return list(roles)
 
 
+def _changed_fields(body: UserUpdateRequest) -> str:
+    """監査ログの ``reason`` に載せる「何を変えたか」。値そのものは載せない。"""
+    fields = sorted(name for name, value in body.model_dump().items() if value is not None)
+    return f"fields={','.join(fields)}" if fields else "fields=none"
+
+
 @router.get("", response_model=list[UserResponse])
 async def list_users(db: DbDep) -> list[UserResponse]:
     users = db.scalars(select(User).order_by(User.id)).all()
@@ -55,7 +71,7 @@ async def list_users(db: DbDep) -> list[UserResponse]:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
-async def create_user(body: UserCreateRequest, db: DbDep) -> UserResponse:
+async def create_user(body: UserCreateRequest, db: DbDep, audit: AuditRecorderDep) -> UserResponse:
     if db.scalar(select(User).where(User.email == body.email)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -70,11 +86,20 @@ async def create_user(body: UserCreateRequest, db: DbDep) -> UserResponse:
     user.roles = _resolve_roles(db, body.roles)
     db.add(user)
     db.flush()
+    audit.execute(
+        AuditEventType.USER_CREATED,
+        target=AuditTarget.of(AuditTargetType.USER, user.id),
+    )
     return _to_response(user)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
-async def update_user(user_id: int, body: UserUpdateRequest, db: DbDep) -> UserResponse:
+async def update_user(
+    user_id: int,
+    body: UserUpdateRequest,
+    db: DbDep,
+    audit: AuditRecorderDep,
+) -> UserResponse:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
@@ -87,13 +112,22 @@ async def update_user(user_id: int, body: UserUpdateRequest, db: DbDep) -> UserR
     if body.password is not None:
         user.password_hash = generate_password_hash(body.password)
     db.flush()
+    audit.execute(
+        AuditEventType.USER_UPDATED,
+        target=AuditTarget.of(AuditTargetType.USER, user_id),
+        reason=_changed_fields(body),
+    )
     return _to_response(user)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, db: DbDep) -> None:
+async def delete_user(user_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
     user.roles = []
     db.delete(user)
+    audit.execute(
+        AuditEventType.USER_DELETED,
+        target=AuditTarget.of(AuditTargetType.USER, user_id),
+    )

@@ -296,6 +296,11 @@ class ApplicationSettings:
     def log_to_database(self) -> bool:
         return self.get_bool("LOG_TO_DATABASE", True)
 
+    @property
+    def log_db_min_level(self) -> str:
+        """DB（``log`` テーブル）へ書くレコードの下限レベル。"""
+        return str(self._get("LOG_DB_MIN_LEVEL"))
+
 
 settings = ApplicationSettings()
 

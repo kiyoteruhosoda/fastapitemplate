@@ -233,6 +233,98 @@ td {
   font-size: 0.9rem;
 }
 
+/* ログ検索の絞り込みフォーム（項目数が多いので折り返して並べる） */
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.8rem;
+  align-items: flex-end;
+  padding: 0.8rem;
+  background: var(--surface-raised);
+  border-radius: 0.5rem;
+}
+
+.filter-form label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.result-count {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.pager {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ログの一覧は横幅を取るので、カードの上限より広げて表示する */
+.card:has(.filter-form) {
+  max-width: none;
+  overflow-x: auto;
+}
+
+/* 時刻は日付の途中で折り返させない（1 行に収める） */
+.timestamp {
+  white-space: nowrap;
+}
+
+/* 重大度・成否は色で拾えるようにする（文字だけだと一覧から見つけにくい） */
+.level,
+.result {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.level-warning {
+  color: var(--danger);
+}
+
+.level-error,
+.level-critical,
+.result-failure {
+  color: var(--danger);
+}
+
+.result-success {
+  color: var(--success);
+}
+
+/* 例外のスタックトレース（既定では畳んでおき、必要なときだけ開く） */
+.trace {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  max-height: 16rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  background: var(--surface-raised);
+  border-radius: 0.3rem;
+  white-space: pre-wrap;
+}
+
+.link-button {
+  margin-left: 0.4rem;
+  padding: 0 0.2rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
 .scope-list {
   margin: 0;
   padding-left: 1.2rem;

@@ -251,6 +251,33 @@ RP ID にはドメイン名しか指定できない（IP アドレス不可）�
 
 ## ログを確認したいとき
 
-- 画面: `/admin/logs`（要 `log:view` 権限）
-- DB: `log` テーブル（`requestId` でリクエスト単位に追跡）
-- コンテナ: `docker compose logs web`
+| 見たいもの | 画面（必要 scope） | DB | コンテナ |
+|---|---|---|---|
+| システムが何をしたか（リクエスト・警告・例外） | `/admin/logs`（`log:view`） | `log` | `docker compose logs web` |
+| 誰が何をしたか（ログイン・管理操作・設定変更） | `/admin/audit-logs`（`audit:view`） | `audit_log` | — |
+
+どちらの記録にも同じ `requestId` が入る。片方で見つけた ID をもう一方の絞り込みに
+入れると、1 リクエストの記録を両側から突き合わせられる。画面ごとの絞り込み手順は
+`frontend/README.md`「操作マニュアル」を参照。
+
+API から直接引くときは Swagger UI（`/docs`）の `GET /api/admin/logs` /
+`GET /api/admin/audit-logs` を使う。
+
+### DB へ書くログの量を減らしたいとき
+
+1. `/admin/config` の「ログ」カテゴリを開く。
+2. `LOG_DB_MIN_LEVEL` を `WARNING` 等に上げて保存する（再起動は不要）。
+
+stdout 側の出力は `LOG_LEVEL` のままなので、コンテナのログには従来どおり出る。
+DB への書き込みを完全に止めるなら `LOG_TO_DATABASE` を off にする（要再起動）。
+監査ログはこの設定の影響を受けない（常に記録される）。
+
+### ログを DB から消したいとき
+
+自動削除は入っていない。`log` が増えすぎた場合は期間を指定して削除する。
+
+```sql
+DELETE FROM log WHERE created_at < '2026-01-01';
+```
+
+`audit_log` は監査記録であり、消す前に保持要件を確認すること。

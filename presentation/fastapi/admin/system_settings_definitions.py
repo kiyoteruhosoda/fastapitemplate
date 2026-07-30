@@ -120,6 +120,21 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "boolean",
         "restart_scopes": _RESTART_WEB,
     },
+    {
+        # 保存と同時に反映される（ハンドラが 1 レコードごとに参照する）ため
+        # restart_scopes は付けない。
+        "key": "LOG_DB_MIN_LEVEL",
+        "category": "logging",
+        "label": "Minimum level written to the database",
+        "value_type": "string",
+        "choices": [
+            ["DEBUG", "DEBUG"],
+            ["INFO", "INFO"],
+            ["WARNING", "WARNING"],
+            ["ERROR", "ERROR"],
+            ["CRITICAL", "CRITICAL"],
+        ],
+    },
 ]
 
 SYSTEM_SETTING_DEFINITIONS_BY_KEY: dict[str, dict[str, object]] = {

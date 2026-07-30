@@ -4,6 +4,8 @@
 再起動要求を受け付ける。要求は DB に置かれ、各プロセスが自分宛かを判定して
 自らを終了させる。復帰はコンテナの restart policy に任せる
 （:mod:`shared.kernel.restart`）。
+
+稼働中の全リクエストを打ち切る操作なので、要求は必ず監査ログへ残す。
 """
 
 from __future__ import annotations
@@ -14,6 +16,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from bounded_contexts.audit.domain.entities.audit_event import (
+    AuditEventType,
+    AuditResult,
+)
+from bounded_contexts.audit.domain.value_objects.audit_target import (
+    AuditTarget,
+    AuditTargetType,
+)
+from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import require_permission
 from presentation.fastapi.schemas.admin import (
     RestartCommandRequest,
@@ -67,6 +78,7 @@ async def request_restart(
     body: RestartCommandRequest,
     principal: SystemManagerDep,
     db: DbDep,
+    audit: AuditRecorderDep,
 ) -> RestartCommandResponse:
     """再起動を要求する。
 
@@ -78,6 +90,12 @@ async def request_restart(
     else:
         scopes = RestartScope.parse_all(body.scopes)
         if not scopes:
+            audit.execute(
+                AuditEventType.SERVICE_RESTART_REQUESTED,
+                AuditResult.FAILURE,
+                target=AuditTarget.of(AuditTargetType.SERVICE),
+                reason="invalid_restart_scope",
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"error": "invalid_restart_scope"},
@@ -94,9 +112,20 @@ async def request_restart(
         )
     except Exception:
         logger.exception("再起動要求の保存に失敗しました")
+        audit.execute(
+            AuditEventType.SERVICE_RESTART_REQUESTED,
+            AuditResult.FAILURE,
+            target=AuditTarget.of(AuditTargetType.SERVICE),
+            reason="restart_request_failed",
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "restart_request_failed"},
         ) from None
 
+    audit.execute(
+        AuditEventType.SERVICE_RESTART_REQUESTED,
+        target=AuditTarget.of(AuditTargetType.SERVICE, ",".join(scope.value for scope in scopes)),
+        reason=reason,
+    )
     return RestartCommandResponse(requested=True, requests=[_to_response(request) for request in requests])

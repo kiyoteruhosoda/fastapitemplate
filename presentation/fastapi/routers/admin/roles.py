@@ -1,4 +1,9 @@
-"""ロール管理 API（要 ``role:manage``）。"""
+"""ロール管理 API（要 ``role:manage``）。
+
+ロールへの権限（scope）付与は実質的な権限変更なので、作成・更新・削除を監査ログ
+へ残す。更新時の ``reason`` には**付与後の権限コード**を入れる（誰が何の権限を
+与えたかを後から検証できるようにするため。権限コードは PII ではない）。
+"""
 
 from __future__ import annotations
 
@@ -8,6 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
+from bounded_contexts.audit.domain.value_objects.audit_target import (
+    AuditTarget,
+    AuditTargetType,
+)
+from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import require_permission
 from presentation.fastapi.schemas.admin import (
     RoleCreateRequest,
@@ -25,6 +36,9 @@ router = APIRouter(
 
 DbDep = Annotated[Session, Depends(get_db)]
 
+# reason 列は 255 文字。権限を多く持つロールでも収まるよう組み立て時に切る。
+_MAX_REASON_LENGTH = 255
+
 
 def _to_response(role: Role) -> RoleResponse:
     return RoleResponse(id=role.id, name=role.name, permissions=sorted(p.code for p in role.permissions))
@@ -41,6 +55,11 @@ def _resolve_permissions(db: Session, codes: list[str]) -> list[Permission]:
     return list(permissions)
 
 
+def _granted_scopes(role: Role) -> str:
+    """監査ログの ``reason`` に載せる「付与後の権限」。"""
+    return f"scopes={','.join(sorted(p.code for p in role.permissions))}"[:_MAX_REASON_LENGTH]
+
+
 @router.get("", response_model=list[RoleResponse])
 async def list_roles(db: DbDep) -> list[RoleResponse]:
     roles = db.scalars(select(Role).order_by(Role.id)).all()
@@ -48,7 +67,7 @@ async def list_roles(db: DbDep) -> list[RoleResponse]:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=RoleResponse)
-async def create_role(body: RoleCreateRequest, db: DbDep) -> RoleResponse:
+async def create_role(body: RoleCreateRequest, db: DbDep, audit: AuditRecorderDep) -> RoleResponse:
     if db.scalar(select(Role).where(Role.name == body.name)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -58,11 +77,21 @@ async def create_role(body: RoleCreateRequest, db: DbDep) -> RoleResponse:
     role.permissions = _resolve_permissions(db, body.permissions)
     db.add(role)
     db.flush()
+    audit.execute(
+        AuditEventType.ROLE_CREATED,
+        target=AuditTarget.of(AuditTargetType.ROLE, role.id),
+        reason=_granted_scopes(role),
+    )
     return _to_response(role)
 
 
 @router.put("/{role_id}", response_model=RoleResponse)
-async def update_role(role_id: int, body: RoleUpdateRequest, db: DbDep) -> RoleResponse:
+async def update_role(
+    role_id: int,
+    body: RoleUpdateRequest,
+    db: DbDep,
+    audit: AuditRecorderDep,
+) -> RoleResponse:
     role = db.get(Role, role_id)
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
@@ -71,13 +100,22 @@ async def update_role(role_id: int, body: RoleUpdateRequest, db: DbDep) -> RoleR
     if body.permissions is not None:
         role.permissions = _resolve_permissions(db, body.permissions)
     db.flush()
+    audit.execute(
+        AuditEventType.ROLE_UPDATED,
+        target=AuditTarget.of(AuditTargetType.ROLE, role_id),
+        reason=_granted_scopes(role),
+    )
     return _to_response(role)
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_role(role_id: int, db: DbDep) -> None:
+async def delete_role(role_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
     role = db.get(Role, role_id)
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
     role.permissions = []
     db.delete(role)
+    audit.execute(
+        AuditEventType.ROLE_DELETED,
+        target=AuditTarget.of(AuditTargetType.ROLE, role_id),
+    )

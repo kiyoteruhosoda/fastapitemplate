@@ -266,11 +266,25 @@ SystemSetting.query.get("some_key")
 ## ログ
 
 - すべてのログは **JSON 形式**で stdout に出力し、同時に DB へ書き込む。
-- ログには **PII を含めない**。ユーザー識別子は `user.id_hash` のみ使用。
+- ログには **PII を含めない**（メールアドレス・氏名・パスワード・トークン・設定値）。
 
-| 出力先 | 追跡キー | 用途 |
-|---|---|---|
-| `log` テーブル | `requestId` | API リクエスト単位 |
+記録は 2 種類ある。使い分けと設計判断は ADR-0008。
+
+| 出力先 | 追跡キー | 用途 | ユーザー識別子 | 閲覧 scope |
+|---|---|---|---|---|
+| `log` テーブル | `requestId` | アプリログ（システムが何をしたか） | `user.id_hash` のみ | `log:view` |
+| `audit_log` テーブル | `requestId` | 監査ログ（誰が何をしたか） | 内部 ID（`actor_user_id`） | `audit:view` |
+
+- **アプリログを書くのは** `shared/kernel/logging` の `DbLogHandler`（全レイヤーが
+  `logging` 経由で書く横断的関心事）。`LOG_DB_MIN_LEVEL` 未満は DB へ書かない。
+- **監査ログを書くのは** audit コンテキストのユースケース
+  （`bounded_contexts/audit/application/use_cases/record_audit_event.py`）。ルーターが
+  操作の直後に明示的に呼ぶ。**本処理とは別のトランザクション**で書くため、失敗した
+  ログインのようにリクエストがロールバックされても記録が残る。
+- 監査ログには内部 ID のみを記録する（ハッシュではない）。監査は操作を主体へ帰属
+  させる記録で、後から誰か特定できなければ目的を果たさないため。値そのもの（PII）は
+  記録せず、`reason` には「変更した項目名」「失敗の分類」を入れる。
+- どちらの検索も audit コンテキストが担う（`bounded_contexts/audit/presentation/`）。
 
 時刻は常に UTC。traceback フィールドは NULLABLE（例外時のみ記録）。
 

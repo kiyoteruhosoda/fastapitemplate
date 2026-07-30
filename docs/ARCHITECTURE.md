@@ -38,6 +38,8 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 
 - 機能は `bounded_contexts/<context>/` として追加する。1コンテキスト = 1業務領域。
   `bounded_contexts/example/`（Item CRUD）が最小構成の見本。
+  現在のコンテキストは `example`（見本）・`account_security`（二要素認証・パスキー）・
+  `audit`（監査ログ／アプリログの記録と閲覧）・`email_sender`（メール送信）。
 - 複数コンテキストから使う横断的な要素だけを `shared/` に置く:
   - `shared/domain/auth/` — 認可マスタデータ（`master_data.py` が唯一の出所）
   - `shared/infrastructure/models/` — 共有 SQLAlchemy モデル（User / Role / Permission /
@@ -63,6 +65,32 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
   だけでトークンを発行する、という形で足している。詳細はコンテキストの README。
 
 サービスアカウント認証・外部 IdP 連携は初期スコープに含めない（ADR-0002）。
+
+## ログと監査の設計
+
+「システムが何をしたか」（アプリログ・`log`）と「誰が何をしたか」（監査ログ・
+`audit_log`）を別のテーブルとして持つ（ADR-0008）。どちらも `requestId` を持つので、
+1 リクエストの記録を両側から突き合わせられる。
+
+書き手と読み手で責務が分かれている。
+
+| | 書き手 | 読み手 |
+|---|---|---|
+| アプリログ | `shared/kernel/logging`（全レイヤーが `logging` で書く横断的関心事） | `bounded_contexts/audit/`（管理画面の検索） |
+| 監査ログ | `bounded_contexts/audit/`（ルーターがユースケースを呼ぶ） | 同左 |
+
+アプリログの書き込みだけ `shared/` に残しているのは、全モジュールが `logging` を使う
+ため。書き込み側をコンテキストに閉じ込めると、全コードが audit コンテキストへ依存する。
+
+監査に必要なリクエスト情報（`requestId`・IP・User-Agent・操作主体）は
+`shared/kernel/logging/request_context.py` の `contextvars` で伝播する。ミドルウェアが
+接続元を、認証依存関数が操作主体を設定するため、ルーターは追跡情報を引数で受け取らず、
+「誰が」を渡し忘れて記録が空になることもない。
+
+監査イベントは**本処理とは別のトランザクション**で書く。失敗したログインは 401 で
+終わり、リクエストのセッションはロールバックされるため、同じセッションで書くと最も
+記録したいイベントが消える。記録の失敗では本処理を落とさない（アプリログへ ERROR で
+残して続行する）。
 
 ## 自己再起動の設計
 

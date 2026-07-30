@@ -52,6 +52,7 @@ flowchart TD
         Perms["/admin/permissions<br/>権限一覧"]
         Config["/admin/config<br/>システム設定"]
         Logs["/admin/logs<br/>システムログ"]
+        Audit["/admin/audit-logs<br/>監査ログ"]
     end
 
     Login -->|"パスワード認証成功"| Dashboard
@@ -72,6 +73,8 @@ flowchart TD
     Dashboard --> Perms
     Dashboard --> Config
     Dashboard --> Logs
+    Dashboard --> Audit
+    Logs <-->|"同じ requestId で突き合わせる"| Audit
     Dashboard -->|"ヘッダーのユーザー名"| Profile
     Profile --> ChangePw
     Profile --> Security
@@ -100,6 +103,7 @@ flowchart TD
 | S11 | 権限一覧               | `/admin/permissions`      | 必要 | `permission:manage`                                 | ✅         |
 | S12 | システム設定           | `/admin/config`           | 必要 | `admin:system-settings`（再起動は `system:manage`） | ✅         |
 | S13 | システムログ           | `/admin/logs`             | 必要 | `log:view`                                          | ✅         |
+| S14 | 監査ログ               | `/admin/audit-logs`       | 必要 | `audit:view`                                        | ✅         |
 
 scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth/master_data.py`。
 
@@ -208,16 +212,52 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 
 ### S13 システムログ（`/admin/logs`）
 
-- **目的**: `log` テーブルの閲覧。**ログレベルで絞り込む**（ALL / INFO / WARNING / ERROR）。
-- **表示内容**: 時刻（UTC）・レベル・ロガー・メッセージ・`requestId`・パス・ステータス。
-- **使用 API**: `GET /api/admin/logs`
-- **備考**: ログに PII は含まれない。ユーザーの識別は `user.id_hash` のみ。
+- **目的**: `log` テーブル（アプリログ = **システムが何をしたか**）の検索・閲覧。
+- **表示内容**: 時刻（UTC）・レベル・ロガー・メッセージ・`requestId`・パス・
+  ステータス・所要時間。件数は「{総件数} 件中 {開始}〜{終了} 件」で示す。
+  例外が記録された行は「traceback を表示」で本文の下に展開する。
+- **操作**:
+  1. 絞り込み条件（レベル／ロガーの前方一致／メッセージの部分一致／`requestId`／
+     期間）を入れて「検索」。未入力の項目は条件に使われない。
+  2. 「条件をクリア」で全条件を消す。
+  3. 「前へ」「次へ」でページを送る（1 ページ 50 件、新しい順）。
+- **使用 API**: `GET /api/admin/logs`, `GET /api/admin/logs/filters`
+- **備考**:
+  - ログに PII は含まれない。ユーザーの識別は `user.id_hash` のみ。
+  - 期間の指定と時刻の表示はどちらも **UTC**（ブラウザのローカル時刻ではない）。
+  - レベルの選択肢はバックエンドの `GET /api/admin/logs/filters` から取得する
+    （画面に列挙を写さない）。
+  - DB に書かれる下限レベルはシステム設定の `LOG_DB_MIN_LEVEL`。ここに出ないログは
+    stdout 側には出ている可能性がある。
+
+### S14 監査ログ（`/admin/audit-logs`）
+
+- **目的**: `audit_log` テーブル（監査ログ = **誰が何をしたか**）の検索・閲覧。
+  ログイン成否・ユーザー／ロール管理・システム設定変更・再起動要求・二要素認証と
+  パスキーの変更が記録されている。
+- **表示内容**: 時刻（UTC）・イベント・結果（success / failure）・実行者（ユーザー ID）・
+  対象（`種別:ID`）・詳細・IP アドレス・`requestId`。
+- **操作**:
+  1. 絞り込み条件（イベント／結果／実行者のユーザー ID／対象の種別・ID／`requestId`／
+     期間）を入れて「検索」。
+  2. 「失敗だけ表示」で `result=failure` に一発で絞る（他の条件はクリアされる）。
+  3. 「条件をクリア」で全条件を消す。「前へ」「次へ」でページを送る。
+- **使用 API**: `GET /api/admin/audit-logs`, `GET /api/admin/audit-logs/filters`
+- **備考**:
+  - 実行者・対象は**内部 ID** で表示する。監査ログにメールアドレス等の PII を保存しない
+    ため（`docs/decisions/ADR-0008-audit-log.md`）。ID から利用者を辿るときは
+    ユーザー管理（S9）を見る。
+  - 「詳細」列には失敗の分類（`invalid_password` 等）や変更した項目名
+    （`fields=is_active`・`keys=LOG_LEVEL`）が入る。**値そのものは入らない**。
+  - ログイン失敗の応答は理由を問わず同じ（`invalid_credentials`）。理由の内訳を
+    見られるのはこの画面だけ。
+  - ログアウトは記録されない（操作した利用者を特定できないため）。
 
 ### 共通レイアウト（Header / Sidebar / Footer）
 
 - **Header**: アプリ名（`/` へ戻る）、言語切り替え、テーマ切り替え
   （ライト / ダーク / OS 追従）、ユーザー名（`/profile` へ）、ログアウト。
-- **Sidebar**: S4〜S13 のうち、**保有 scope に合致する項目だけ**を表示する。
+- **Sidebar**: S4〜S14 のうち、**保有 scope に合致する項目だけ**を表示する。
 - **Footer**: バージョンと git SHA（`GET /info`）。
 - 言語・テーマの初期値はサインイン前に `GET /api/ui/settings` から取得する。
 
@@ -295,10 +335,36 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 > 「環境変数で固定」と表示されている項目は画面から変更できない。
 > 優先順位は 環境変数 > DB > デフォルト値。
 
-### ログを確認したいとき（`log:view`）
+### エラーを調べたいとき（`log:view`）
 
 1. サイドバーの「システムログ」を開く。
-2. セレクタでログレベルを絞り込む。1 リクエストの流れは表の `requestId` 列で追える。
+2. レベルに `ERROR` を選んで「検索」。期間を絞るなら開始・終了（**UTC**）も入れる。
+3. 例外の行は「traceback を表示」で詳細を開く。
+4. 原因を追うときは、その行の `requestId` を控えて手順を変える。
+   - **同じリクエストの他のログ**を見る → `requestId` 欄に貼って「検索」。
+   - **誰の操作だったか**を見る → 「監査ログ」画面の `requestId` 欄に貼って「検索」。
+
+特定のモジュールだけ見たいときは「ロガー」に前方一致で入れる
+（`app.request` = HTTP アクセスログ、`bounded_contexts` = 業務処理）。
+
+> 画面に出ないログがある場合は、システム設定の `LOG_DB_MIN_LEVEL` が DB への
+> 書き込みを間引いている。stdout 側（コンテナのログ）には出ている。
+
+### 誰が何をしたかを調べたいとき（`audit:view`）
+
+1. サイドバーの「監査ログ」を開く。
+2. よく使う絞り込み:
+   - **不審なログイン試行** → 「失敗だけ表示」を押す。イベントが `login.failed` の行の
+     「詳細」に理由（`unknown_email` / `invalid_password` / `invalid_totp` 等）が出る。
+   - **あるユーザーへの操作** → 「対象の種別」に `user`、「対象 ID」にユーザー ID を入れる。
+   - **ある管理者の操作** → 「実行者（ユーザー ID）」にその管理者のユーザー ID を入れる。
+   - **設定を変えたのは誰か** → イベントに `system_settings.updated` を選ぶ。
+     「詳細」に変更されたキー名が出る（値は出ない）。
+3. ユーザー ID から人を特定するときは「ユーザー」画面（`user:manage` が必要）の
+   一覧と突き合わせる。
+
+> 監査ログには個人情報を保存しない。実行者・対象は内部 ID で表示され、パスワードや
+> 設定値そのものは記録されない。
 
 ### 表示言語・テーマを変えたいとき
 

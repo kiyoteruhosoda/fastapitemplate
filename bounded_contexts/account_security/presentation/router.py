@@ -3,6 +3,11 @@
 対象は「自分自身」のみ。他人のアカウントは扱わないため scope は要求せず、
 認証済みであることだけを条件にする（他人の二要素認証を触る管理操作は
 ``/api/admin/users`` 側の責務）。
+
+二要素認証・パスキーの**有効化と解除**は監査ログへ残す。アカウントを守る手段の
+increase/decrease はセキュリティ事故の調査で最初に見る情報のため。共有鍵・
+資格情報そのものは記録しない（ADR-0008）。登録の開始（チャレンジ発行）や一覧の
+参照は記録しない（状態を変えないため）。
 """
 
 from __future__ import annotations
@@ -40,6 +45,12 @@ from bounded_contexts.account_security.presentation.schemas import (
     TotpEnrollmentResponse,
     TwoFactorStatusResponse,
 )
+from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
+from bounded_contexts.audit.domain.value_objects.audit_target import (
+    AuditTarget,
+    AuditTargetType,
+)
+from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import get_current_principal
 from presentation.fastapi.schemas.auth import StatusResponse
 from shared.application.authenticated_principal import AuthenticatedPrincipal
@@ -92,9 +103,14 @@ async def confirm_two_factor_enrollment(
     body: TotpCodeRequest,
     principal: PrincipalDep,
     use_case: Annotated[ConfirmTotpEnrollment, Depends(dependencies.confirm_totp_enrollment)],
+    audit: AuditRecorderDep,
 ) -> StatusResponse:
     """認証アプリのコードを検証し、二要素認証を有効にする。"""
     use_case.execute(user_id=principal.user_id, code=body.code)
+    audit.execute(
+        AuditEventType.TWO_FACTOR_ENABLED,
+        target=AuditTarget.of(AuditTargetType.TWO_FACTOR, principal.user_id),
+    )
     return StatusResponse(status="ok")
 
 
@@ -103,8 +119,13 @@ async def disable_two_factor(
     body: TotpCodeRequest,
     principal: PrincipalDep,
     use_case: Annotated[DisableTotp, Depends(dependencies.disable_totp)],
+    audit: AuditRecorderDep,
 ) -> StatusResponse:
     use_case.execute(user_id=principal.user_id, code=body.code)
+    audit.execute(
+        AuditEventType.TWO_FACTOR_DISABLED,
+        target=AuditTarget.of(AuditTargetType.TWO_FACTOR, principal.user_id),
+    )
     return StatusResponse(status="ok")
 
 
@@ -144,12 +165,17 @@ async def complete_passkey_registration(
     body: PasskeyRegistrationRequest,
     principal: PrincipalDep,
     use_case: Annotated[CompletePasskeyRegistration, Depends(dependencies.complete_passkey_registration)],
+    audit: AuditRecorderDep,
 ) -> PasskeyResponse:
     summary = use_case.execute(
         user_id=principal.user_id,
         challenge_id=body.challenge_id,
         credential=body.credential,
         name=body.name,
+    )
+    audit.execute(
+        AuditEventType.PASSKEY_REGISTERED,
+        target=AuditTarget.of(AuditTargetType.PASSKEY, summary.id),
     )
     return _to_passkey_response(summary)
 
@@ -159,5 +185,10 @@ async def delete_registered_passkey(
     passkey_id: int,
     principal: PrincipalDep,
     use_case: Annotated[DeletePasskey, Depends(dependencies.delete_passkey)],
+    audit: AuditRecorderDep,
 ) -> None:
     use_case.execute(user_id=principal.user_id, passkey_id=passkey_id)
+    audit.execute(
+        AuditEventType.PASSKEY_DELETED,
+        target=AuditTarget.of(AuditTargetType.PASSKEY, passkey_id),
+    )

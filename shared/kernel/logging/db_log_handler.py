@@ -4,6 +4,9 @@
 - DB 未接続・マイグレーション前・書き込み失敗時は黙って諦める
   （ログのために本処理を落とさない）。
 - SQLAlchemy 自身のログを書き込むと再帰するため除外する。
+- ``LOG_DB_MIN_LEVEL`` 未満のレコードは書かない。stdout の構造化ログは
+  ``LOG_LEVEL`` のまま全量残しつつ、DB の増え方だけを別に抑えられるようにする
+  （既定は ``INFO``。ログ量が問題になったら管理画面で ``WARNING`` へ上げる）。
 """
 
 from __future__ import annotations
@@ -15,6 +18,14 @@ import sqlalchemy as sa
 
 _EXCLUDED_LOGGER_PREFIXES = ("sqlalchemy", "alembic", "shared.kernel.logging")
 
+# レベル名 -> 数値。未知の名前が設定されていても書き込みを止めないよう、
+# 解決できないときは全件通す（DEBUG 相当）。
+_LEVEL_NUMBERS = logging.getLevelNamesMapping()
+
+
+def _threshold(level_name: str) -> int:
+    return _LEVEL_NUMBERS.get(level_name.strip().upper(), logging.DEBUG)
+
 
 class DbLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
@@ -24,6 +35,8 @@ class DbLogHandler(logging.Handler):
             from shared.kernel.settings.settings import settings
 
             if not settings.log_to_database:
+                return
+            if record.levelno < _threshold(settings.log_db_min_level):
                 return
             self._insert(record)
         except Exception:

@@ -103,18 +103,3 @@ class RestartCommandRequest(BaseModel):
 class RestartCommandResponse(BaseModel):
     requested: bool
     requests: list[RestartRequestResponse]
-
-
-class LogEntryResponse(BaseModel):
-    id: int
-    created_at: str
-    level: str
-    logger: str
-    message: str
-    request_id: str | None
-    user_id_hash: str | None
-    path: str | None
-    method: str | None
-    status_code: int | None
-    duration_ms: int | None
-    trace: str | None

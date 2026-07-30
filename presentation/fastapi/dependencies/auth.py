@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.kernel.database.session import get_db
-from shared.kernel.logging.request_context import user_id_hash_var
+from shared.kernel.logging.request_context import actor_user_id_var, user_id_hash_var
 from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -84,6 +84,8 @@ async def get_current_principal(
 
     # 以降のログへ user.id_hash を伝播する（PII は残さない）
     user_id_hash_var.set(principal.id_hash)
+    # 監査ログの「誰が」。呼び出し側が主体を引き回さなくても記録できるようにする
+    actor_user_id_var.set(principal.user_id)
     return principal
 
 
