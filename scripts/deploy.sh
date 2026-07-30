@@ -20,6 +20,11 @@
 #   ./deploy.sh migrate  # DDL更新時（新しい Alembic migration を追加した場合）
 #   ./deploy.sh reset    # 完全初期化（DB・データ消去。破壊的）
 #
+# 環境変数（任意）:
+#   APP_WEB_HOST_PORT  WEB 公開ポートの既定値。`.env` を新規生成するときの WEB_HOST_PORT に
+#                      なる（既存の `.env` の値が正本なのでそちらが優先。ADR-0008）。
+#                      build-remote-container.sh から自動で引き継がれる。
+#
 # デプロイ中にエラーが発生した場合は、失敗したモジュール（コンテナ）のログを
 # 出力して終了する。
 
@@ -56,6 +61,21 @@ TAG="[deploy:$ENV_NAME]"
 log()  { echo -e "\033[36m${TAG}\033[0m $*"; }
 warn() { echo -e "\033[33m${TAG}[warn]\033[0m $*" >&2; }
 err()  { echo -e "\033[31m${TAG}[error]\033[0m $*" >&2; }
+
+# ===== WEB 公開ポートの既定値の上書き（build-remote-container.env からの引き継ぎ） =====
+# build-remote-container.sh が APP_WEB_HOST_PORT を渡してきたら、環境ディレクトリ名から
+# 決めた既定値の代わりに使う。あくまで**既定値**であり、`.env` の WEB_HOST_PORT が
+# あればそちらが勝つ（`.env` が正本。ADR-0008）。
+WEB_HOST_PORT_SOURCE="default (env: $ENV_KIND)"
+if [ -n "${APP_WEB_HOST_PORT:-}" ]; then
+  # 先頭 0 を許すと算術評価が 8 進数として解釈するため、`^[1-9][0-9]{0,4}$` に限定する。
+  if ! [[ "$APP_WEB_HOST_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || ((APP_WEB_HOST_PORT > 65535)); then
+    err "APP_WEB_HOST_PORT must be an integer in 1-65535: $APP_WEB_HOST_PORT"
+    exit 1
+  fi
+  DEFAULT_WEB_HOST_PORT="$APP_WEB_HOST_PORT"
+  WEB_HOST_PORT_SOURCE="APP_WEB_HOST_PORT"
+fi
 
 APP_IMAGE="${APP_NAME}:$ENV_NAME"
 DB_IMAGE="${APP_NAME}-db:$ENV_NAME"
@@ -118,8 +138,14 @@ HOST_DATA_ROOT="${HOST_DATA_ROOT:-$BASE_DIR/mnt}"
 DATA_PATH="$HOST_DATA_ROOT/data"
 DB_PATH="$HOST_DATA_ROOT/db_data"
 
+# WEB 公開ポート。`.env` の値が正本で、無ければ既定値（環境ディレクトリ名、または
+# build-remote-container.env の APP_WEB_HOST_PORT）を使う。
 WEB_HOST_PORT="$(env_file_value WEB_HOST_PORT)"
-WEB_HOST_PORT="${WEB_HOST_PORT:-$DEFAULT_WEB_HOST_PORT}"
+if [ -n "$WEB_HOST_PORT" ]; then
+  WEB_HOST_PORT_SOURCE=".env"
+else
+  WEB_HOST_PORT="$DEFAULT_WEB_HOST_PORT"
+fi
 HEALTH_URL="http://127.0.0.1:${WEB_HOST_PORT}/healthz"
 
 # compose interpolation はシェル環境変数 > --env-file の優先順位のため、ここで
@@ -128,6 +154,10 @@ HEALTH_URL="http://127.0.0.1:${WEB_HOST_PORT}/healthz"
 export HOST_DATA_ROOT
 export WEB_IMAGE="$APP_IMAGE"
 export DB_IMAGE
+# WEB_HOST_PORT も export する。ここで解決した値をヘルスチェック（HEALTH_URL）と
+# compose の公開ポートで必ず一致させるため（`.env` に WEB_HOST_PORT の行が無い環境で、
+# compose 側の既定値 8080 だけが効いて両者がずれるのを防ぐ）。
+export WEB_HOST_PORT
 
 COMPOSE="docker compose -p $PROJECT -f $COMPOSE_FILE --env-file $ENV_FILE"
 
@@ -187,6 +217,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 log "Mount root: $HOST_DATA_ROOT"
+log "Web host port: $WEB_HOST_PORT (source: $WEB_HOST_PORT_SOURCE)"
 
 load_image() {
   local tar="$1"
@@ -261,6 +292,8 @@ fi
 # ===== Ensure .env exists (zero-config deploy) =====
 # 値はすべて docker-compose.yml 側の ${VAR:-default} が供給するので、生成する
 # .env は上書き用のコメント付きテンプレートで足りる。既存の .env には触れない。
+# WEB_HOST_PORT は上で解決した値（`.env` 未生成なので既定値、または引き継がれた
+# APP_WEB_HOST_PORT）が書き込まれる。以後この `.env` が正本になる（ADR-0008）。
 if [ ! -f "$ENV_FILE" ]; then
   warn "$ENV_FILE not found; generating a default template."
   if [ "$ENV_KIND" = "stg" ]; then

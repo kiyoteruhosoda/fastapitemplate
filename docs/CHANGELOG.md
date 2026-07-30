@@ -2,6 +2,24 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
+## 2026-07 WEB 公開ポートの既定値を build-remote-container.env で指定できるようにした
+
+デプロイ先の WEB 公開ポートは `deploy.sh` の環境別既定値（stg=8081 / prod=8080）か、初回
+デプロイで生成された `.env` を手で直すしかなかった。8080 が空いていないホストでは
+「一度失敗させてから `.env` を直して再実行」する手順になっていたため、
+`build-remote-container.env` に `APP_WEB_HOST_PORT` を書けるようにした（ADR-0008）。
+
+- `build-remote-container.sh` が `APP_WEB_HOST_PORT` を DEPLOY ステップへ引き継ぎ、
+  `deploy.sh` が `.env` を新規生成するときの `WEB_HOST_PORT` に転記する。
+  優先順位は `.env` ＞ `APP_WEB_HOST_PORT` ＞ 環境ディレクトリ名由来の既定値。
+  既存の `.env` は従来どおり書き換えない。
+- 値の検証（1〜65535 の整数）はビルド前（`build-remote-container.sh`）と
+  `deploy.sh` 単体実行時の両方で行う。先頭 0 付きの値は 8 進数と解釈される前に弾く。
+- **`deploy.sh` が解決後の `WEB_HOST_PORT` を `export` するようにした（不具合修正）。**
+  従来は compose へ渡っておらず、`.env` に `WEB_HOST_PORT` の行が無い環境では
+  compose 側の既定値 8080 だけが効き、stg のヘルスチェック（8081）とずれていた。
+  公開ポートとヘルスチェック URL が常に同じ値を見るようになった。
+
 ## 2026-07 画面仕様・ER 図の追加とドキュメント更新義務の明文化
 
 「現在の仕様」を示すドキュメントが 2 種類欠けていたため追加し、更新義務を

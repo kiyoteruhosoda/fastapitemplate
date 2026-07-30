@@ -157,6 +157,21 @@ docker compose up -d             # db / web / nginx が起動
 git pull → build.sh → dist/ 取り込み → deploy.sh を 1 本で実行する
 （ビルドは同一ホスト上の dev コンテナ内。スクリプト自身も自動で最新版へ差し替わる）。
 
+## 初回デプロイの WEB 公開ポートを既定値から変えたいとき
+
+`.env` が生成される前（初回デプロイ）にポートを決めるには、`build-remote-container.env` に書く:
+
+```bash
+APP_WEB_HOST_PORT=8090
+```
+
+初回デプロイ時に生成される `.env` の `WEB_HOST_PORT` へ転記される。
+未指定なら環境ディレクトリ名から決まる既定値（stg=8081 / prod=8080）が使われる。
+
+**すでに `.env` がある環境でポートを変えるときは `.env` の `WEB_HOST_PORT` を直接編集する。**
+`deploy.sh` は既存の `.env` を書き換えないため、`APP_WEB_HOST_PORT` を後から変えても効かない
+（理由は ADR-0008）。編集後は `./deploy.sh app`（または `./build-remote-container.sh`）で再デプロイする。
+
 ## システム設定を変更したいとき
 
 管理画面（`/admin/config`。要 `admin:system-settings` 権限）から編集する。
