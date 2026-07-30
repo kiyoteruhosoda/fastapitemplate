@@ -65,6 +65,10 @@ services:
     environment:
       - TZ=UTC
       - DATABASE_URI=mysql+pymysql://${MARIADB_USER:-web_user}:${MARIADB_PASSWORD:-template123}@db:3306/${MARIADB_DATABASE:-appdb}?charset=utf8mb4
+      # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（それ以外の
+      # X-Forwarded-For は詐称できるので無視する）。web は expose のみで
+      # nginx 以外から到達できない。
+      - TRUSTED_PROXY_HOPS=1
     env_file:
       - .env
     depends_on:

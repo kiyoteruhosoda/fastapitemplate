@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import bounded_contexts.account_security.infrastructure.account_security_models
+import bounded_contexts.audit.infrastructure.audit_log_model
 import bounded_contexts.example.infrastructure.item_model  # noqa: F401 — メタデータ登録
 import shared.infrastructure.models  # noqa: F401 — メタデータ登録
 from shared.domain.auth import master_data

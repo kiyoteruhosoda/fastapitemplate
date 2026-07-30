@@ -314,7 +314,7 @@ if [ ! -f "$ENV_FILE" ]; then
 # すべての項目は .env.example を参照。
 
 # --- 環境固有の実値（この環境ディレクトリに閉じた値に固定する）---
-# DB はホストへポートを公開しない（ADR-0010）。stg / prod を同一ホストで動かしても
+# DB はホストへポートを公開しない（ADR-0013）。stg / prod を同一ホストで動かしても
 # 衝突しないのはコンテナ名とネットワーク名を環境ごとに分けているため。
 HOST_DATA_ROOT=$BASE_DIR/mnt
 WEB_HOST_PORT=$WEB_HOST_PORT

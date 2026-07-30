@@ -38,12 +38,17 @@ class PasswordResetService:
     def __init__(self, sender: IEmailSender | None = None) -> None:
         self._sender = sender or SmtpEmailSender()
 
-    def request_reset(self, session: Session, email: str) -> None:
-        """リセットトークンを発行しメールを送る。ユーザー不在でも黙って成功する。"""
+    def request_reset(self, session: Session, email: str) -> int | None:
+        """リセットトークンを発行しメールを送る。ユーザー不在でも黙って成功する。
+
+        監査ログへ「誰の」要求かを残せるよう、トークンを発行した利用者の ID を
+        返す（宛先不明のときは ``None``）。API 応答はどちらの場合も同じで、
+        存在の有無は呼び出し側から漏らさない。
+        """
         user = session.scalar(select(User).where(User.email == email))
         if user is None or not user.is_active:
             logger.info("password_reset_requested_unknown_email")
-            return
+            return None
 
         token = secrets.token_urlsafe(32)
         session.add(
@@ -71,21 +76,25 @@ class PasswordResetService:
             )
         except EmailSendingDisabledError:
             logger.warning("password_reset_mail_disabled")
+        return user.id
 
-    def reset(self, session: Session, token: str, new_password: str) -> bool:
-        """トークンを検証してパスワードを更新する。成功時 True。"""
+    def reset(self, session: Session, token: str, new_password: str) -> int | None:
+        """トークンを検証してパスワードを更新する。
+
+        成功したら対象利用者の ID（監査ログの「誰が」に使う）、失敗なら ``None``。
+        """
         from werkzeug.security import generate_password_hash
 
         row = session.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == _hash_token(token)))
         if row is None or row.used_at is not None or row.expires_at < utcnow():
-            return False
+            return None
         user = session.get(User, row.user_id)
         if user is None or not user.is_active:
-            return False
+            return None
         user.password_hash = generate_password_hash(new_password)
         row.used_at = utcnow()
         session.flush()
-        return True
+        return user.id
 
 
 __all__ = ["PasswordResetService"]

@@ -19,11 +19,20 @@ from bounded_contexts.account_security.presentation.passkey_login_router import 
 from bounded_contexts.account_security.presentation.router import (
     router as account_security_router,
 )
+from bounded_contexts.audit.presentation.middleware import AuditRecordingMiddleware
+from bounded_contexts.audit.presentation.router import (
+    application_log_router as admin_logs_router,
+)
+from bounded_contexts.audit.presentation.router import (
+    audit_log_router as admin_audit_logs_router,
+)
 from bounded_contexts.example.presentation.router import router as items_router
+from presentation.fastapi.middleware.deferred_log_writes import (
+    DeferredLogWriteMiddleware,
+)
 from presentation.fastapi.middleware.request_logging import RequestLoggingMiddleware
 from presentation.fastapi.routers import spa
 from presentation.fastapi.routers.admin.config import router as admin_config_router
-from presentation.fastapi.routers.admin.logs import router as admin_logs_router
 from presentation.fastapi.routers.admin.permissions import (
     router as admin_permissions_router,
 )
@@ -72,7 +81,16 @@ def create_app() -> FastAPI:
     # Prometheus metrics at /metrics
     Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(app, include_in_schema=False)
 
+    # ログ・監査の DB 書き込みは、リクエストの DB セッションが閉じた後に行う
+    # （途中で書くと SQLite でロックが競合する。ADR-0013）。
+    #
+    # 後から追加したものが外側になる。外側から
+    # DeferredLogWrite → RequestLogging → AuditRecording の順で、
+    # アクセスログ（RequestLogging が出す）もログのまとめ書きに載る
+    # ＝ 1 リクエストあたりの INSERT は 2 回（log と audit_log）に収まる。
+    app.add_middleware(AuditRecordingMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(DeferredLogWriteMiddleware)
     if settings.cors_allowed_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -94,6 +112,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_permissions_router)
     app.include_router(admin_config_router)
     app.include_router(admin_logs_router)
+    app.include_router(admin_audit_logs_router)
     app.include_router(admin_system_router)
     app.include_router(items_router)
 

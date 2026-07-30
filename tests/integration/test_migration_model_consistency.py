@@ -17,6 +17,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
 import bounded_contexts.account_security.infrastructure.account_security_models
+import bounded_contexts.audit.infrastructure.audit_log_model
 import bounded_contexts.example.infrastructure.item_model  # noqa: F401
 import shared.infrastructure.models  # noqa: F401
 from shared.kernel.database.db import Base

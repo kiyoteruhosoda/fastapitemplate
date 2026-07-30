@@ -34,6 +34,10 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "DEFAULT_LOCALE": "en",
     "DEFAULT_THEME": "system",  # system / light / dark
     "CORS_ALLOWED_ORIGINS": [],
+    # 前段に置いた**信頼できる**リバースプロキシの段数。X-Forwarded-For は
+    # 送信元が自由に付けられるヘッダーなので、既定（0）では一切信用せず TCP の
+    # 接続元を使う。同梱の nginx 構成では 1（docker-compose で設定済み）。
+    "TRUSTED_PROXY_HOPS": 0,
     # --- メール ---
     "MAIL_ENABLED": False,
     "MAIL_SERVER": "smtp.example.com",
@@ -46,6 +50,9 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # --- ログ ---
     "LOG_LEVEL": "INFO",
     "LOG_TO_DATABASE": True,
+    # DB へ書くレコードの下限レベル（stdout は LOG_LEVEL のまま全量出す）。
+    # ログ量が問題になったら WARNING へ上げて DB の増え方だけを抑える。
+    "LOG_DB_MIN_LEVEL": "INFO",
 }
 
 __all__ = ["DEFAULT_APPLICATION_SETTINGS"]

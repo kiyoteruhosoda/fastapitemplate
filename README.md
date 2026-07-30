@@ -21,7 +21,9 @@ Docker / デプロイスクリプトまで含んだ状態から開発を始め�
 - システム設定（優先順位: 環境変数 > DB > デフォルト。管理画面から編集可）
 - 起動時にしか読まれない設定を反映するための**アプリ自己再起動**
 - **日英の言語切り替えとテーマ切り替え**（ライト / ダーク / OS 追従）
-- 構造化ログ（JSON stdout + `log` テーブル。`requestId` で追跡）
+- 構造化ログ（JSON stdout + `log` テーブル。`requestId` で追跡）と、
+  **監査ログ**（`audit_log`。誰が何をしたか）。どちらも管理画面から検索・絞り込みできる
+  （`bounded_contexts/audit/`）
 - 運用プローブ（`/healthz` `/readyz` `/info`）+ Prometheus `/metrics`
 - `bounded_contexts/example/`（Item CRUD）= 新しい機能を追加するときの見本
 

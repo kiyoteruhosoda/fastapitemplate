@@ -70,10 +70,16 @@ case "$MODE" in
     log "Running DB migrations"
     python scripts/run_db_migrations.py
     log "Starting Gunicorn + UvicornWorker (ASGI web mode)"
+    # --forwarded-allow-ips="" : 転送ヘッダーによる接続元の書き換えをサーバー層で
+    # 行わせない。判定はアプリ側の TRUSTED_PROXY_HOPS に一本化する（ADR-0013）。
+    # uvicorn/gunicorn の実装は X-Forwarded-For の**左端**を採るため、
+    # $proxy_add_x_forwarded_for（受け取った値の後ろに実接続元を足す）と
+    # 組み合わせると詐称された値を拾ってしまう。
     exec gunicorn asgi:app \
       --worker-class uvicorn.workers.UvicornWorker \
       --workers "${GUNICORN_WORKERS:-2}" \
       --bind 0.0.0.0:8000 \
+      --forwarded-allow-ips="" \
       --timeout 120 \
       --graceful-timeout 30 \
       --access-logfile - \

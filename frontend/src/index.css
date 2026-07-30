@@ -268,6 +268,99 @@ td {
   font-size: 0.9rem;
 }
 
+/* ログ検索の絞り込みフォーム（項目数が多いので折り返して並べる） */
+.filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.8rem;
+  align-items: flex-end;
+  padding: 0.8rem;
+  background: var(--surface-raised);
+  border-radius: 0.5rem;
+}
+
+.filter-form label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.result-count {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.pager {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ログの一覧は列が多いので、カードの上限（60rem）を外して広い画面を使い切る。
+ * はみ出す分の横スクロールはカードではなく .table-scroll が受け持つ
+ * （カードごと流れるとフォームとページャまで一緒に動いてしまうため）。 */
+.card:has(.filter-form) {
+  max-width: none;
+}
+
+/* 時刻は日付の途中で折り返させない（1 行に収める） */
+.timestamp {
+  white-space: nowrap;
+}
+
+/* 重大度・成否は色で拾えるようにする（文字だけだと一覧から見つけにくい） */
+.level,
+.result {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.level-warning {
+  color: var(--danger);
+}
+
+.level-error,
+.level-critical,
+.result-failure {
+  color: var(--danger);
+}
+
+.result-success {
+  color: var(--success);
+}
+
+/* 例外のスタックトレース（既定では畳んでおき、必要なときだけ開く） */
+.trace {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  max-height: 16rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  background: var(--surface-raised);
+  border-radius: 0.3rem;
+  white-space: pre-wrap;
+}
+
+.link-button {
+  margin-left: 0.4rem;
+  padding: 0 0.2rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
 .scope-list {
   margin: 0;
   padding-left: 1.2rem;
@@ -455,6 +548,31 @@ td {
     flex-direction: column;
     align-items: stretch;
     gap: 0.4rem;
+  }
+
+  /* ログの絞り込みも縦に積む。項目が 6〜8 個あるので、横並びのままだと
+   * 1 行に 1 個ずつ折り返って隙間だらけになり、かえって縦に長くなる。 */
+  .filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-form label,
+  .filter-form input,
+  .filter-form select {
+    width: 100%;
+  }
+
+  /* 検索・クリア・ページ送りは指で押す前提の幅にする（横並びのまま等分）。 */
+  .filter-actions,
+  .pager {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .filter-actions button,
+  .pager button {
+    flex: 1;
   }
 
   /* 表は横スクロールに任せ、狭い画面で列が潰れないように下限を持たせる。 */

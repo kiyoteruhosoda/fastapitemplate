@@ -33,6 +33,9 @@ PERMISSION_CODES: Sequence[str] = (
     "permission:manage",
     "system:manage",
     "log:view",
+    # 監査ログ（誰が何をしたか）の閲覧。アプリログ（log:view）とは別の scope に
+    # している。「誰が」を追える記録は運用ログより取り扱いが重いため（ADR-0013）。
+    "audit:view",
     "dashboard:view",
     "gui:view",
     "item:view",

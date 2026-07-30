@@ -248,6 +248,11 @@ class ApplicationSettings:
     def cors_allowed_origins(self) -> Sequence[str]:
         return self.get_list("CORS_ALLOWED_ORIGINS")
 
+    @property
+    def trusted_proxy_hops(self) -> int:
+        """信頼できるリバースプロキシの段数（0 = ``X-Forwarded-For`` を信用しない）。"""
+        return max(self.get_int("TRUSTED_PROXY_HOPS", 0), 0)
+
     # ------------------------------------------------------------------
     # メール
     # ------------------------------------------------------------------
@@ -295,6 +300,11 @@ class ApplicationSettings:
     @property
     def log_to_database(self) -> bool:
         return self.get_bool("LOG_TO_DATABASE", True)
+
+    @property
+    def log_db_min_level(self) -> str:
+        """DB（``log`` テーブル）へ書くレコードの下限レベル。"""
+        return str(self._get("LOG_DB_MIN_LEVEL"))
 
 
 settings = ApplicationSettings()

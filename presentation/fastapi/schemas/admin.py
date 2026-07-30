@@ -103,31 +103,3 @@ class RestartCommandRequest(BaseModel):
 class RestartCommandResponse(BaseModel):
     requested: bool
     requests: list[RestartRequestResponse]
-
-
-class LogSearchRequest(BaseModel):
-    """ログ一覧のクエリパラメータ（`GET /api/admin/logs`）。
-
-    FastAPI は `Annotated[..., Query()]` を付けたモデルの各フィールドを、
-    従来どおり個別のクエリパラメータとして受け取る（OpenAPI の見た目も変わらない）。
-    """
-
-    limit: int = Field(default=100, ge=1, le=500)
-    offset: int = Field(default=0, ge=0)
-    level: str | None = None
-    request_id: str | None = None
-
-
-class LogEntryResponse(BaseModel):
-    id: int
-    created_at: str
-    level: str
-    logger: str
-    message: str
-    request_id: str | None
-    user_id_hash: str | None
-    path: str | None
-    method: str | None
-    status_code: int | None
-    duration_ms: int | None
-    trace: str | None

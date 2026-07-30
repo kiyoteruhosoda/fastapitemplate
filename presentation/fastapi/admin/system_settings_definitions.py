@@ -95,6 +95,12 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "list",
         "restart_scopes": _RESTART_WEB,
     },
+    {
+        "key": "TRUSTED_PROXY_HOPS",
+        "category": "general",
+        "label": "Trusted reverse proxy hops",
+        "value_type": "integer",
+    },
     # --- メール ---
     {"key": "MAIL_ENABLED", "category": "mail", "label": "Enable mail sending", "value_type": "boolean"},
     {"key": "MAIL_SERVER", "category": "mail", "label": "SMTP server", "value_type": "string"},
@@ -119,6 +125,21 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Write logs to database",
         "value_type": "boolean",
         "restart_scopes": _RESTART_WEB,
+    },
+    {
+        # 保存と同時に反映される（ハンドラが 1 レコードごとに参照する）ため
+        # restart_scopes は付けない。
+        "key": "LOG_DB_MIN_LEVEL",
+        "category": "logging",
+        "label": "Minimum level written to the database",
+        "value_type": "string",
+        "choices": [
+            ["DEBUG", "DEBUG"],
+            ["INFO", "INFO"],
+            ["WARNING", "WARNING"],
+            ["ERROR", "ERROR"],
+            ["CRITICAL", "CRITICAL"],
+        ],
     },
 ]
 

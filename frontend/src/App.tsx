@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useI18n } from './i18n'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { AuditLogsPage } from './pages/AuditLogsPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { ConfigPage } from './pages/ConfigPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/admin/permissions" element={<PermissionsPage />} />
         <Route path="/admin/config" element={<ConfigPage />} />
         <Route path="/admin/logs" element={<SystemLogsPage />} />
+        <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -20,6 +20,7 @@ const ITEMS: Item[] = [
   { to: '/admin/permissions', labelKey: 'nav.permissions', scopes: ['permission:manage'] },
   { to: '/admin/config', labelKey: 'nav.config', scopes: ['admin:system-settings'] },
   { to: '/admin/logs', labelKey: 'nav.logs', scopes: ['log:view'] },
+  { to: '/admin/audit-logs', labelKey: 'nav.auditLogs', scopes: ['audit:view'] },
 ]
 
 /**
