@@ -171,6 +171,63 @@ git pull → build.sh → dist/ 取り込み → deploy.sh を 1 本で実行す
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
 - ホスト: `docker compose restart web`
 
+## 管理者がパスワードを忘れてサインインできないとき
+
+メール送信が有効なら `/forgot-password` から再設定する。無効なとき
+（`MAIL_ENABLED` が off）は以下のいずれかで復旧する。
+
+> **`scripts/seed_master_data.py` の再実行では復旧しない。** 投入は冪等で既存ユーザーを
+> 変更しないため、`ADMIN_INITIAL_PASSWORD` は**ユーザーが存在しないときだけ**使われる。
+> 実行は成功するが、パスワードは元のまま。
+
+### 他に `user:manage` を持つユーザーがいるとき
+
+そのユーザーでサインインし、対象ユーザーのパスワードを上書きする。管理画面には
+パスワードの項目が無いため、API を直接呼ぶ（Swagger UI `/docs` からも実行できる）。
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/admin/users/<user_id> \
+  -H "Authorization: Bearer <access_token>" \
+  -H 'Content-Type: application/json' \
+  -d '{"password": "<new-password>"}'
+```
+
+パスワードは 8 文字以上。対象ユーザーの `<user_id>` は `GET /api/admin/users` または
+`/admin/users` の一覧で確認する。
+
+### 管理者が 1 人しかいないとき
+
+対象ユーザーの行を消してから投入スクリプトを流す（消さないと再投入されない）。
+`user_roles` と `password_reset_tokens` は `ON DELETE CASCADE` ではないので先に消す
+（テーブルの関係は `docs/ER.md`）。
+
+```sql
+DELETE FROM user_roles            WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@example.com');
+DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@example.com');
+DELETE FROM totp_secrets          WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@example.com');
+DELETE FROM passkey_credentials   WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@example.com');
+DELETE FROM webauthn_challenges   WHERE user_id IN (SELECT id FROM users WHERE email = 'admin@example.com');
+DELETE FROM users                 WHERE email = 'admin@example.com';
+```
+
+上の SQL を `recover-admin.sql` に保存して流し、続けて初期管理者を作り直す。
+
+```bash
+# 開発（SQLite）。sqlite3 コマンドが無ければ
+#   python -c "import sqlite3;sqlite3.connect('app.db').executescript(open('recover-admin.sql').read())"
+sqlite3 app.db < recover-admin.sql
+ADMIN_INITIAL_PASSWORD='<new-password>' uv run python scripts/seed_master_data.py
+
+# docker compose（MariaDB）
+docker compose exec -T db \
+  mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" < recover-admin.sql
+docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' web \
+  python scripts/seed_master_data.py
+```
+
+作り直したユーザーの ID は `master_data.DEFAULT_ADMIN_ID`（= 1）で固定されるため、
+`admin` ロールの付与も含めて元の状態に戻る。二要素認証・パスキーの登録は消える。
+
 ## 二要素認証・パスキーを設定したいとき
 
 利用者自身が `/security`（プロフィール → セキュリティ）から操作する。
@@ -194,6 +251,6 @@ RP ID にはドメイン名しか指定できない（IP アドレス不可）�
 
 ## ログを確認したいとき
 
-- 画面: `/admin/logs`（要 `system:manage` 権限）
+- 画面: `/admin/logs`（要 `log:view` 権限）
 - DB: `log` テーブル（`requestId` でリクエスト単位に追跡）
 - コンテナ: `docker compose logs web`
