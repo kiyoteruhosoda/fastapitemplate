@@ -35,6 +35,18 @@ npm run dev        # http://localhost:5173（/api は 8000 へプロキシ）
 cd frontend && npm run build     # frontend/dist に出力 → / で配信される
 ```
 
+## アプリのアイコン（PWA・favicon）を変えたいとき
+
+配色（`GRADIENT_START` / `GRADIENT_END`）と図形（`MARK_POINTS`）を
+`scripts/generate_pwa_icons.py` で編集してから生成し直す。出力物もコミットする。
+
+```bash
+uv run python scripts/generate_pwa_icons.py   # frontend/public/ の 5 ファイルを再生成
+```
+
+図形を変えたときは `frontend/index.html` の `theme-color` と
+`frontend/vite.config.ts` の `theme_color`（どちらも `#4f46e5`）も配色に合わせる。
+
 ## テストを実行したいとき
 
 ```bash
