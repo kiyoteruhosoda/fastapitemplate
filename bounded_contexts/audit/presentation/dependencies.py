@@ -29,8 +29,11 @@ from bounded_contexts.audit.infrastructure.sql_application_log_repository import
     SqlApplicationLogQuery,
 )
 from bounded_contexts.audit.infrastructure.sql_audit_log_repository import (
-    SqlAuditEventRecorder,
     SqlAuditLogQuery,
+)
+from bounded_contexts.audit.presentation.pending_events import (
+    PendingAuditEvents,
+    current_pending_events,
 )
 from shared.kernel.database.session import get_db
 from shared.kernel.logging.request_context import (
@@ -53,11 +56,16 @@ def current_audit_context() -> AuditRequestContext:
 def record_audit_event() -> RecordAuditEvent:
     """このリクエストの監査イベント記録口。
 
-    書き込みは本処理と別トランザクションなので DB セッションを受け取らない
-    （ロールバックされても記録が残る。ADR-0008）。
+    積む先はリクエストの控え。実際の書き込みは処理が終わってから
+    :class:`~bounded_contexts.audit.presentation.middleware.AuditRecordingMiddleware`
+    が行う（ADR-0008）。DB セッションを受け取らないのはそのため。
+
+    ミドルウェアの外から呼ばれた場合（テストが依存を直接呼ぶ等）は、書き込む相手が
+    いないので捨て先の控えを渡す。イベントを積めずに例外を投げるより、本処理を
+    通す方を選ぶ。
     """
     return RecordAuditEvent(
-        recorder=SqlAuditEventRecorder(),
+        collector=current_pending_events() or PendingAuditEvents(),
         context=current_audit_context(),
         actor_user_id=current_actor_user_id(),
     )

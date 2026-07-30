@@ -33,6 +33,10 @@ from bounded_contexts.audit.domain.entities.audit_event import (
     AuditEventType,
     AuditResult,
 )
+from bounded_contexts.audit.domain.value_objects.audit_target import (
+    AuditTarget,
+    AuditTargetType,
+)
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import (
     clear_access_token_cookie,
@@ -69,11 +73,15 @@ def _reject_login(audit: RecordAuditEvent, user: User | None, reason: str) -> No
     *reason* は失敗の分類（``unknown_email`` / ``invalid_password`` 等）。応答は
     どの理由でも同じ ``invalid_credentials`` に揃える（アカウントの存在を
     漏らさないため）。分類が分かるのは監査ログを読める管理者だけ。
+
+    相手のアカウントは**実行者ではなく対象**として記録する。認証に失敗した時点で
+    「誰が試したか」は分かっておらず、実行者に据えるとアカウントの持ち主が自分で
+    やったように読めてしまう（ADR-0008）。
     """
     audit.execute(
         AuditEventType.LOGIN_FAILED,
         AuditResult.FAILURE,
-        actor_user_id=user.id if user is not None else None,
+        target=AuditTarget.of(AuditTargetType.USER, user.id) if user is not None else None,
         reason=reason,
     )
     raise HTTPException(
@@ -110,7 +118,7 @@ async def login(
         audit.execute(
             AuditEventType.LOGIN_FAILED,
             AuditResult.FAILURE,
-            actor_user_id=user.id,
+            target=AuditTarget.of(AuditTargetType.USER, user.id),
             reason=error.code,
         )
         # 認証の失敗として 401 に揃える（既定の対応付けでは 400 になる）
@@ -181,12 +189,18 @@ async def change_password(
 
 @router.post("/forgot-password", response_model=StatusResponse)
 async def forgot_password(body: ForgotPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
+    """再設定リンクを送る。
+
+    未認証のエンドポイントなので、監査ログでは要求されたアカウントを**対象**として
+    記録し、実行者は空のままにする。メールアドレスを知っていれば誰でも叩けるため、
+    アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0008）。
+    """
     # ユーザーの存在有無に関わらず同じ応答を返す（列挙攻撃対策）
     user_id = PasswordResetService().request_reset(db, body.email)
     audit.execute(
         AuditEventType.PASSWORD_RESET_REQUESTED,
         AuditResult.SUCCESS if user_id is not None else AuditResult.FAILURE,
-        actor_user_id=user_id,
+        target=AuditTarget.of(AuditTargetType.USER, user_id) if user_id is not None else None,
         reason=None if user_id is not None else "unknown_email",
     )
     return StatusResponse(status="accepted")
@@ -194,6 +208,10 @@ async def forgot_password(body: ForgotPasswordRequest, db: DbDep, audit: AuditRe
 
 @router.post("/reset-password", response_model=StatusResponse)
 async def reset_password(body: ResetPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
+    """トークンで新しいパスワードを設定する。
+
+    こちらも未認証（トークンの提示だけ）なので、対象として記録し実行者は空にする。
+    """
     user_id = PasswordResetService().reset(db, body.token, body.new_password)
     if user_id is None:
         audit.execute(
@@ -205,5 +223,8 @@ async def reset_password(body: ResetPasswordRequest, db: DbDep, audit: AuditReco
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "invalid_or_expired_token"},
         )
-    audit.execute(AuditEventType.PASSWORD_RESET_COMPLETED, actor_user_id=user_id)
+    audit.execute(
+        AuditEventType.PASSWORD_RESET_COMPLETED,
+        target=AuditTarget.of(AuditTargetType.USER, user_id),
+    )
     return StatusResponse(status="ok")

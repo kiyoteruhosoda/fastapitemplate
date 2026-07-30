@@ -15,11 +15,32 @@
 
 ```
 domain/          監査イベントの種別・結果・対象と、検索条件・ページの値オブジェクト。
-                 永続化のインターフェース（記録用・検索用に分けた Protocol）
-application/     ユースケース（記録 1 件、監査ログ検索、アプリログ検索、選択肢一覧）
+                 永続化のインターフェース（収集用・書き込み用・検索用の Protocol）
+application/     ユースケース（イベントの組み立て、まとめ書き、2 種類の検索、選択肢一覧）
 infrastructure/  audit_log の SQLAlchemy モデルと、両テーブルのリポジトリ実装
-presentation/    API ルーター・スキーマ・依存の組み立て
+presentation/    API ルーター・スキーマ・依存の組み立て・書き込みミドルウェア
 ```
+
+## 監査イベントの書き込みタイミング
+
+記録は 2 段階に分かれている（ADR-0008）。
+
+1. **処理の途中**: ルーターが `RecordAuditEvent.execute()` を呼ぶ。イベントを
+   組み立ててリクエストの控え（`PendingAuditEvents`）に積むだけで、**DB を触らない**。
+2. **リクエストの処理が終わってから**: `AuditRecordingMiddleware` が控えを取り出し、
+   `WriteAuditEvents` が別トランザクションでまとめて書く。
+
+途中で書かない理由は 2 つ。
+
+- **失敗したログインを残すため。** リクエストのセッションで書くと、401 の
+  ロールバックで最も記録したいイベントが消える。
+- **SQLite で書き込みロックと競合しないため。** `db.flush()` を通る操作では
+  リクエストのセッションが書き込みロックを握っており、別コネクションからの INSERT は
+  `database is locked` になる。
+
+ミドルウェアは**素の ASGI**（`BaseHTTPMiddleware` ではない）。FastAPI は `get_db` の
+commit をレスポンス送出の後に行うため、`call_next` が戻った時点ではまだセッションが
+開いている。`await self.app(...)` なら下流を最後まで待てる。
 
 ## 書き込みの責務
 
@@ -53,8 +74,12 @@ audit.execute(AuditEventType.LOGIN_FAILED, AuditResult.FAILURE, reason="invalid_
 ```
 
 「誰が」「どこから」は渡さない。認証依存関数とミドルウェアが `contextvars` に載せた値を
-`Depends` が拾う（`presentation/dependencies.py`）。認証前のイベントだけ
-`actor_user_id=` を明示する。
+`Depends` が拾う（`presentation/dependencies.py`）。
+
+**実行者が入るのは認証済みのリクエストだけ。** 未認証で叩ける操作（ログイン失敗・
+パスワードリセット）は「誰がやったか」が分かっていない。分かっているのは「誰に対しての
+操作か」なので、そちらを `target` に入れる。持ち主を `actor_user_id` に据えると、
+第三者が起こしたイベントが本人の操作として残ってしまう（ADR-0008）。
 
 ## 記録するときの制約
 
@@ -66,6 +91,8 @@ audit.execute(AuditEventType.LOGIN_FAILED, AuditResult.FAILURE, reason="invalid_
 - **記録は本処理と別トランザクション**で行う。ログイン失敗のようにリクエストが
   ロールバックされても残る。逆に、commit 時に失敗した操作の成功行が残り得る。
 - **記録の失敗は本処理を落とさない。** 失敗はアプリログへ `ERROR` で出る。
+- **`execute()` を呼んでも即座には書かれない**（リクエスト終了時にまとめて書く）。
+  同じリクエスト内で監査ログを読み返すテストを書かないこと。
 
 ## 検索
 

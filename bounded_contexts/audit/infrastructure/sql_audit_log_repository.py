@@ -1,14 +1,20 @@
 """``audit_log`` テーブルの SQLAlchemy 実装（書き込みと検索）。
 
-書き込みは**本処理とは別のトランザクション**（専用の短命コネクション）で行う。
-ログイン失敗は ``HTTPException`` で終わり、リクエストのセッションはロールバック
-されるため、同じセッションで書くと「失敗したログイン」が記録されない
+書き込みは**リクエストのセッションとは別のトランザクション**（専用の短命コネクション）
+で行う。ログイン失敗は ``HTTPException`` で終わり、リクエストのセッションは
+ロールバックされるため、同じセッションで書くと「失敗したログイン」が記録されない
 （ADR-0008）。
+
+呼ばれるのは**リクエストの処理が完全に終わってから**（audit ミドルウェア）。処理の
+途中で呼ぶと、SQLite ではリクエストのセッションが持つ書き込みロックと衝突して
+``database is locked`` になる。
 
 検索はリクエストのセッションで読む（読み取りは本処理の状態を汚さない）。
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -44,24 +50,31 @@ def _clipped(value: str | None, limit: int) -> str | None:
 
 
 class SqlAuditEventRecorder:
-    """監査イベントを 1 件、独立したトランザクションで書き込む。"""
+    """監査イベントを独立したトランザクションでまとめて書き込む。"""
 
-    def record(self, event: AuditEvent) -> None:
-        target = event.target
-        row = {
-            "occurred_at": event.occurred_at,
-            "event_type": str(event.event_type),
-            "result": str(event.result),
-            "actor_user_id": event.actor_user_id,
-            "target_type": _clipped(str(target.type) if target else None, MAX_TARGET_TYPE_LENGTH),
-            "target_id": _clipped(target.identifier if target else None, MAX_TARGET_ID_LENGTH),
-            "ip_address": _clipped(event.context.ip_address, MAX_IP_ADDRESS_LENGTH),
-            "user_agent": _clipped(event.context.user_agent, MAX_USER_AGENT_LENGTH),
-            "reason": _clipped(event.reason, MAX_REASON_LENGTH),
-            "request_id": _clipped(event.context.request_id, MAX_REQUEST_ID_LENGTH),
-        }
+    def record_all(self, events: Sequence[AuditEvent]) -> None:
+        if not events:
+            return
+        rows = [_to_row(event) for event in events]
         with get_engine().begin() as connection:
-            connection.execute(sa.insert(AuditLogModel).values(**row))
+            connection.execute(sa.insert(AuditLogModel), rows)
+
+
+def _to_row(event: AuditEvent) -> dict[str, object]:
+    """DDL の長さ上限に収めた 1 行分の値。"""
+    target = event.target
+    return {
+        "occurred_at": event.occurred_at,
+        "event_type": str(event.event_type),
+        "result": str(event.result),
+        "actor_user_id": event.actor_user_id,
+        "target_type": _clipped(str(target.type) if target else None, MAX_TARGET_TYPE_LENGTH),
+        "target_id": _clipped(target.identifier if target else None, MAX_TARGET_ID_LENGTH),
+        "ip_address": _clipped(event.context.ip_address, MAX_IP_ADDRESS_LENGTH),
+        "user_agent": _clipped(event.context.user_agent, MAX_USER_AGENT_LENGTH),
+        "reason": _clipped(event.reason, MAX_REASON_LENGTH),
+        "request_id": _clipped(event.context.request_id, MAX_REQUEST_ID_LENGTH),
+    }
 
 
 class SqlAuditLogQuery:

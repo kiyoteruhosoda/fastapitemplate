@@ -93,6 +93,7 @@
   "config.field.DEFAULT_LOCALE": "Default locale",
   "config.field.DEFAULT_THEME": "Default theme",
   "config.field.CORS_ALLOWED_ORIGINS": "CORS allowed origins",
+  "config.field.TRUSTED_PROXY_HOPS": "Trusted reverse proxy hops",
   "config.field.MAIL_ENABLED": "Enable mail sending",
   "config.field.MAIL_SERVER": "SMTP server",
   "config.field.MAIL_PORT": "SMTP port",

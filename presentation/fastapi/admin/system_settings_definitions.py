@@ -95,6 +95,12 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "list",
         "restart_scopes": _RESTART_WEB,
     },
+    {
+        "key": "TRUSTED_PROXY_HOPS",
+        "category": "general",
+        "label": "Trusted reverse proxy hops",
+        "value_type": "integer",
+    },
     # --- メール ---
     {"key": "MAIL_ENABLED", "category": "mail", "label": "Enable mail sending", "value_type": "boolean"},
     {"key": "MAIL_SERVER", "category": "mail", "label": "SMTP server", "value_type": "string"},

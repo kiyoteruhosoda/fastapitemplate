@@ -93,6 +93,7 @@
   "config.field.DEFAULT_LOCALE": "既定の言語",
   "config.field.DEFAULT_THEME": "既定のテーマ",
   "config.field.CORS_ALLOWED_ORIGINS": "CORS で許可するオリジン",
+  "config.field.TRUSTED_PROXY_HOPS": "信頼するリバースプロキシの段数",
   "config.field.MAIL_ENABLED": "メール送信を有効にする",
   "config.field.MAIL_SERVER": "SMTP サーバー",
   "config.field.MAIL_PORT": "SMTP ポート",

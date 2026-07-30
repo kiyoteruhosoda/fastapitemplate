@@ -248,6 +248,11 @@ class ApplicationSettings:
     def cors_allowed_origins(self) -> Sequence[str]:
         return self.get_list("CORS_ALLOWED_ORIGINS")
 
+    @property
+    def trusted_proxy_hops(self) -> int:
+        """信頼できるリバースプロキシの段数（0 = ``X-Forwarded-For`` を信用しない）。"""
+        return max(self.get_int("TRUSTED_PROXY_HOPS", 0), 0)
+
     # ------------------------------------------------------------------
     # メール
     # ------------------------------------------------------------------

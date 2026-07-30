@@ -90,8 +90,14 @@ def test_successful_login_is_recorded(client: TestClient, admin_headers: dict[st
     assert entry["request_id"]
 
 
-def test_failed_login_is_recorded_with_a_reason(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """401 でリクエストがロールバックされても記録は残る。"""
+def test_failed_login_is_recorded_against_the_account_not_the_actor(
+    client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """401 でリクエストがロールバックされても記録は残る。
+
+    相手のアカウントは**対象**として記録する。認証に失敗した時点で「誰が試したか」は
+    分かっておらず、実行者に据えると持ち主が自分でやったように読めてしまう。
+    """
     response = client.post(
         "/api/auth/login",
         json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": "wrong-password"},
@@ -102,16 +108,32 @@ def test_failed_login_is_recorded_with_a_reason(client: TestClient, admin_header
     assert payload["total"] == 1
     entry = payload["entries"][0]
     assert entry["reason"] == "invalid_password"
-    assert entry["actor_user_id"] == master_data.DEFAULT_ADMIN_ID
+    assert entry["actor_user_id"] is None
+    assert (entry["target_type"], entry["target_id"]) == ("user", str(master_data.DEFAULT_ADMIN_ID))
 
 
-def test_unknown_email_is_recorded_without_an_actor(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_unknown_email_is_recorded_without_an_actor_or_target(
+    client: TestClient, admin_headers: dict[str, str]
+) -> None:
     response = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "whatever"})
     assert response.status_code == 401
 
     entry = _search(client, admin_headers, "?event_type=login.failed")["entries"][0]
     assert entry["reason"] == "unknown_email"
     assert entry["actor_user_id"] is None
+    assert entry["target_id"] is None
+
+
+def test_password_reset_request_is_not_attributed_to_the_account_owner(
+    client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """未認証で叩けるので、持ち主を実行者にはしない（対象として記録する）。"""
+    response = client.post("/api/auth/forgot-password", json={"email": master_data.DEFAULT_ADMIN_EMAIL})
+    assert response.status_code == 200
+
+    entry = _search(client, admin_headers, "?event_type=password_reset.requested")["entries"][0]
+    assert entry["actor_user_id"] is None
+    assert (entry["target_type"], entry["target_id"]) == ("user", str(master_data.DEFAULT_ADMIN_ID))
 
 
 def test_user_management_records_the_actor_and_the_target(client: TestClient, admin_headers: dict[str, str]) -> None:
