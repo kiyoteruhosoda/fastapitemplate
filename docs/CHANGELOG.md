@@ -2,6 +2,28 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
+## 2026-07 画面仕様・ER 図の追加とドキュメント更新義務の明文化
+
+「現在の仕様」を示すドキュメントが 2 種類欠けていたため追加し、更新義務を
+CLAUDE.md に書いた（ADR-0007）。
+
+- **`frontend/README.md`（新規）**: 画面遷移図（Mermaid）・画面一覧（ルートと必要
+  scope）・画面ごとの仕様・利用者向けの操作マニュアル。これまでルートと画面の
+  必要 scope は `App.tsx` と `Sidebar.tsx` を読まないと分からなかった。
+- **`docs/ER.md`（新規）**: ER 図（Mermaid）・テーブル定義・モデリング規約。
+  12 テーブルの関係、`log` が `users` へ FK を張らない理由（PII を持たない方針）、
+  `account_security` の 3 テーブルが `ON DELETE CASCADE` である点を図に含めた。
+- **CLAUDE.md**: 「変更したら必ず更新するドキュメント」の表を追加。画面を変えたら
+  `frontend/README.md`、スキーマを変えたら `docs/ER.md` を**同じコミットで**更新する。
+  あわせて `Progress.md` の運用（着手前に行を追加し、完了時に削除。「✅完了」は作らない）
+  と ADR の基準（対象・採番規則・承認済みは書き換えず置き換える）を明文化した。
+
+**初期管理者のパスワードを `admin` から `admin@example.com` に変更した。**
+平文は `master_data.DEFAULT_ADMIN_PASSWORD` に定数として持たせ、事前計算ハッシュ
+（`DEFAULT_ADMIN_PASSWORD_HASH`）との対応を `tests/unit/test_master_data.py` が検証する。
+Domain 層は werkzeug を import できないため、ハッシュ生成をここに置けないため。
+テストからパスワード文字列の直書きも無くした。
+
 ## 2026-07 品質ゲートの必須化（整形・静的解析・型・テスト）
 
 CI を「Lint → Type Check → Test」の必須ゲートにした（ADR-0006）。

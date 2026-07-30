@@ -2,11 +2,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from shared.domain.auth import master_data
 from shared.infrastructure.models import PasswordResetToken, User
 
 
 def test_login_success(client: TestClient) -> None:
-    response = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "admin"})
+    response = client.post(
+        "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
+    )
     assert response.status_code == 200
     data = response.json()
     assert data["token_type"] == "bearer"
@@ -35,14 +38,18 @@ def test_me_returns_scopes(client: TestClient, admin_headers: dict[str, str]) ->
 
 
 def test_refresh_issues_new_pair(client: TestClient) -> None:
-    login = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "admin"}).json()
+    login = client.post(
+        "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
+    ).json()
     response = client.post("/api/auth/refresh", json={"refresh_token": login["refresh_token"]})
     assert response.status_code == 200
     assert response.json()["access_token"]
 
 
 def test_refresh_rejects_access_token(client: TestClient) -> None:
-    login = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "admin"}).json()
+    login = client.post(
+        "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
+    ).json()
     response = client.post("/api/auth/refresh", json={"refresh_token": login["access_token"]})
     assert response.status_code == 401
 
@@ -51,7 +58,7 @@ def test_change_password_roundtrip(client: TestClient, admin_headers: dict[str, 
     response = client.post(
         "/api/auth/change-password",
         headers=admin_headers,
-        json={"current_password": "admin", "new_password": "new-password-1"},
+        json={"current_password": master_data.DEFAULT_ADMIN_PASSWORD, "new_password": "new-password-1"},
     )
     assert response.status_code == 200
     assert (
@@ -126,5 +133,7 @@ def test_inactive_user_cannot_login(client: TestClient, db_session: Session) -> 
     assert user is not None
     user.is_active = False
     db_session.commit()
-    response = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "admin"})
+    response = client.post(
+        "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
+    )
     assert response.status_code == 401

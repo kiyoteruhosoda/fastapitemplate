@@ -47,6 +47,42 @@ def test_user_crud_and_role_scope(client: TestClient, admin_headers: dict[str, s
     assert all(u["id"] != user_id for u in users)
 
 
+def test_admin_can_reset_another_users_password(client: TestClient, admin_headers: dict[str, str]) -> None:
+    """`user:manage` 保持者によるパスワード上書き。
+
+    メール送信が無効な環境で締め出されたときの復旧手段
+    （`docs/OPERATIONS.md`「管理者がパスワードを忘れてサインインできないとき」）。
+    """
+    created = client.post(
+        "/api/admin/users",
+        headers=admin_headers,
+        json={
+            "email": "locked-out@example.com",
+            "username": "locked-out",
+            "password": "forgotten-pass-1",
+            "roles": ["member"],
+        },
+    )
+    assert created.status_code == 201, created.text
+    user_id = created.json()["id"]
+
+    response = client.put(
+        f"/api/admin/users/{user_id}",
+        headers=admin_headers,
+        json={"password": "recovered-pass-1"},
+    )
+    assert response.status_code == 200, response.text
+
+    def login(password: str) -> int:
+        return client.post(
+            "/api/auth/login",
+            json={"email": "locked-out@example.com", "password": password},
+        ).status_code
+
+    assert login("recovered-pass-1") == 200
+    assert login("forgotten-pass-1") == 401
+
+
 def test_duplicate_email_rejected(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/api/admin/users",
