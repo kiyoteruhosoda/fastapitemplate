@@ -9,6 +9,8 @@
   "nav.config": "システム設定",
   "nav.logs": "システムログ",
   "nav.logout": "ログアウト",
+  "nav.menu": "メニュー",
+  "nav.closeMenu": "メニューを閉じる",
   "login.title": "ログイン",
   "login.email": "メールアドレス",
   "login.password": "パスワード",

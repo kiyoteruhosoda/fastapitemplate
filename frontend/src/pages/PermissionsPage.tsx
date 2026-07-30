@@ -19,24 +19,26 @@ export function PermissionsPage() {
   return (
     <div className="card">
       <h1>{t('permissions.title')}</h1>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Code</th>
-          </tr>
-        </thead>
-        <tbody>
-          {permissions.map((p) => (
-            <tr key={p.id}>
-              <td>{p.id}</td>
-              <td>
-                <code>{p.code}</code>
-              </td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Code</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {permissions.map((p) => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>
+                  <code>{p.code}</code>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

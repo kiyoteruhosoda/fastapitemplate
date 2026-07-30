@@ -83,8 +83,18 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
   padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  /* 長いタイトルでもメニューボタンを押し出さない。 */
+  min-width: 0;
 }
 
 .header-title {
@@ -96,6 +106,22 @@ select {
   display: flex;
   gap: 0.8rem;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.header-preferences {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+/* 開閉ボタン・オーバーレイ・ドロワー内の設定は狭い画面専用
+ * （下のメディアクエリで出す。広い画面ではサイドバーが常に見えている）。 */
+.nav-toggle,
+.nav-overlay,
+.sidebar-close,
+.sidebar-preferences {
+  display: none;
 }
 
 .layout-body {
@@ -126,6 +152,9 @@ select {
 .content {
   flex: 1;
   padding: 1.2rem;
+  /* flex 子要素の既定（min-width: auto）だと表の幅で本文が広がり、
+   * 画面全体が横スクロールしてしまう。縮めることを許して .table-scroll に任せる。 */
+  min-width: 0;
 }
 
 .footer {
@@ -220,6 +249,12 @@ select {
   border-radius: 0.4rem;
 }
 
+/* 表は必ずこのラッパーの中に置く。狭い画面では表だけが横スクロールする
+ * （ページ全体が横スクロールしないようにするため）。 */
+.table-scroll {
+  overflow-x: auto;
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
@@ -271,4 +306,169 @@ td {
 
 .toast-error {
   background: var(--danger);
+}
+
+/* ===================================================================
+ * スマートフォン・小さいタブレット（〜768px）
+ *
+ * 変えるのは 3 点だけに絞る。
+ *   1. サイドバーを画面外へ退避し、ヘッダーのボタンで開閉するドロワーにする
+ *      （開閉状態は AppLayout が nav[data-open] に書き込む）
+ *   2. 横幅に収まらない要素（表・フォーム・設定行）を縦に積む／横スクロールさせる
+ *   3. 指で押せる大きさ（2.75rem）と、iOS が自動拡大しない文字サイズ（16px）にする
+ * =================================================================== */
+@media (max-width: 48rem) {
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.35rem;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    width: min(15rem, 78vw);
+    min-width: 0;
+    padding: 1rem 0.75rem;
+    background: var(--surface);
+    box-shadow: 0 0 1.5rem rgb(0 0 0 / 25%);
+    overflow-y: auto;
+    /* 閉じているあいだは読み上げ・タブ移動の対象からも外す。 */
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 0.2s ease,
+      visibility 0.2s ease;
+  }
+
+  .sidebar[data-open='true'] {
+    visibility: visible;
+    transform: translateX(0);
+  }
+
+  .sidebar a {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+
+  /* ドロワーはヘッダーを覆うため、閉じる操作をドロワーの中にも置く。 */
+  .sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin-bottom: 0.2rem;
+    padding: 0.35rem;
+    line-height: 1;
+  }
+
+  /* 言語・テーマはヘッダーではなくドロワーの下端に置く
+   * （390px 幅ではヘッダーが 3 段に折り返してしまうため）。 */
+  .header-preferences {
+    display: none;
+  }
+
+  .sidebar-preferences {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgb(0 0 0 / 45%);
+  }
+
+  .header {
+    padding: 0.5rem 0.7rem;
+  }
+
+  .header-actions {
+    gap: 0.5rem;
+  }
+
+  .content {
+    padding: 0.9rem 0.8rem;
+  }
+
+  .card {
+    padding: 0.9rem;
+    border-radius: 0.5rem;
+  }
+
+  /* 指で押せる大きさを確保し、文字は 16px 以上にする
+   * （iOS Safari は 16px 未満の入力欄にフォーカスすると画面を自動拡大する）。
+   * チェックボックスは枠が伸びるだけで押しやすくならないので、対象から外して
+   * 目盛りそのものを大きくする。 */
+  button,
+  input:not([type='checkbox'], [type='radio']),
+  select {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1.5rem;
+    height: 1.5rem;
+    /* 縦積みの行（.config-row）で中央に伸びないよう左端に寄せる。 */
+    align-self: flex-start;
+  }
+
+  /* 横並びのフォームは縦に積み、入力欄を画面幅いっぱいにする。 */
+  .inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-form input,
+  .inline-form select,
+  .inline-form button,
+  .inline-form label {
+    width: 100%;
+  }
+
+  .config-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  /* 表は横スクロールに任せ、狭い画面で列が潰れないように下限を持たせる。 */
+  .table-scroll table {
+    min-width: 34rem;
+  }
+
+  .qr-code {
+    width: min(12rem, 62vw);
+    height: auto;
+  }
+
+  .toast-container {
+    left: 0.75rem;
+    right: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
 }

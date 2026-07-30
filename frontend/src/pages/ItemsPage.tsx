@@ -55,22 +55,24 @@ export function ItemsPage() {
           <button type="submit">{t('items.add')}</button>
         </form>
       )}
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>{t('items.name')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <td>{item.id}</td>
-              <td>{item.name}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>{t('items.name')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td>{item.id}</td>
+                <td>{item.name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
