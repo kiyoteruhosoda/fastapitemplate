@@ -132,6 +132,45 @@ docker compose up -d             # db / web / nginx が起動
 
 - アプリ: http://127.0.0.1:8080 （nginx 経由）
 
+ホストへ公開されるのは nginx だけ。`web` と `db` は Docker ネットワーク内部からのみ
+到達できる（ADR-0010）。
+
+## DB を操作したいとき（SQL を流す・ダンプを取る）
+
+`db` はホストにポートを持たないため、`docker compose exec` でコンテナ内から実行する。
+パスワードは `.env` の `MARIADB_ROOT_PASSWORD`（未設定なら compose の既定値）。
+
+```bash
+# 対話シェル
+docker compose exec db mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"
+
+# SQL ファイルを流す（-T でホストの標準入力を渡す）
+docker compose exec -T db \
+  mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" < some.sql
+
+# ダンプを取る（出力はホスト側のファイルへ）
+docker compose exec -T db \
+  mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE" > dump.sql
+```
+
+デプロイ先では compose プロジェクトが分かれているため、環境ディレクトリ
+（`<app>/stg/` など）で実行する。
+
+## DB へホストのツールから一時的につなぎたいとき
+
+GUI クライアントを使いたい場合だけ、その場限りのポートフォワード用コンテナを立てる。
+`docker-compose.yml` は変更しない（恒久的に開けないため。ADR-0010）。
+
+```bash
+# ネットワーク名は .env の DOCKER_NETWORK_NAME（既定 fastapitemplate）
+docker run --rm -it --network fastapitemplate \
+  -p 127.0.0.1:3307:3306 alpine/socat \
+  tcp-listen:3306,fork,reuseaddr tcp-connect:db:3306
+```
+
+`127.0.0.1:3307` へつなげば DB に到達する。**作業が終わったら Ctrl-C で止める**
+（コンテナを消すと公開ポートも消える）。
+
 ## デプロイしたいとき
 
 配置先サーバーの `<app>/<stg|prod>/` に `dist/` の中身をそのまま置いて実行する:
