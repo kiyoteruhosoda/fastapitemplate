@@ -1,4 +1,5 @@
 """パスキーの SQLAlchemy 実装。"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -33,17 +34,13 @@ class SqlPasskeyCredentialRepository:
 
     def find_by_credential_id(self, credential_id: str) -> PasskeyCredential | None:
         record = self.session.scalar(
-            select(PasskeyCredentialRecord).where(
-                PasskeyCredentialRecord.credential_id == credential_id
-            )
+            select(PasskeyCredentialRecord).where(PasskeyCredentialRecord.credential_id == credential_id)
         )
         return None if record is None else _to_entity(record)
 
     def add(self, credential: PasskeyCredential) -> PasskeyCredential:
         existing = self.session.scalar(
-            select(PasskeyCredentialRecord).where(
-                PasskeyCredentialRecord.credential_id == credential.credential_id
-            )
+            select(PasskeyCredentialRecord).where(PasskeyCredentialRecord.credential_id == credential.credential_id)
         )
         if existing is not None:
             if existing.user_id != credential.user_id:
@@ -51,9 +48,7 @@ class SqlPasskeyCredentialRepository:
             # 本人が同じ認証器を登録し直した場合は上書きする
             record = existing
         else:
-            record = PasskeyCredentialRecord(
-                user_id=credential.user_id, credential_id=credential.credential_id
-            )
+            record = PasskeyCredentialRecord(user_id=credential.user_id, credential_id=credential.credential_id)
             self.session.add(record)
 
         record.public_key = credential.public_key
@@ -69,9 +64,7 @@ class SqlPasskeyCredentialRepository:
 
     def update_usage(self, credential: PasskeyCredential) -> PasskeyCredential:
         record = self.session.scalar(
-            select(PasskeyCredentialRecord).where(
-                PasskeyCredentialRecord.credential_id == credential.credential_id
-            )
+            select(PasskeyCredentialRecord).where(PasskeyCredentialRecord.credential_id == credential.credential_id)
         )
         if record is None:
             raise PasskeyNotFoundError

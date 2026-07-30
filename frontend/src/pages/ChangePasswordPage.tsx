@@ -26,14 +26,21 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <form className="card" onSubmit={submit}>
+    <form
+      className="card"
+      onSubmit={(e) => {
+        void submit(e)
+      }}
+    >
       <h1>{t('changePassword.title')}</h1>
       <label>
         {t('changePassword.current')}
         <input
           type="password"
           value={current}
-          onChange={(e) => setCurrent(e.target.value)}
+          onChange={(e) => {
+            setCurrent(e.target.value)
+          }}
           required
         />
       </label>
@@ -42,7 +49,9 @@ export function ChangePasswordPage() {
         <input
           type="password"
           value={next}
-          onChange={(e) => setNext(e.target.value)}
+          onChange={(e) => {
+            setNext(e.target.value)
+          }}
           minLength={8}
           required
         />

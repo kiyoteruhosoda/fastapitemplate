@@ -8,6 +8,7 @@
 
 テストでは ``ApplicationSettings(env=...)`` を個別に生成して検証できる。
 """
+
 from __future__ import annotations
 
 import json

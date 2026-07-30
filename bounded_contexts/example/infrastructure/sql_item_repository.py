@@ -1,4 +1,5 @@
 """``IItemRepository`` の SQLAlchemy 実装。"""
+
 from __future__ import annotations
 
 from sqlalchemy import select

@@ -19,6 +19,21 @@ Presentation → Application → Domain ← Infrastructure
 依存方向は Presentation → Application → Domain。
 Infrastructure は Domain のインターフェースを実装する（依存性逆転）。
 
+この向きは `tests/unit/test_layer_dependencies.py` が AST で検証する。禁止するのは
+**逆流**で、次の向きは import した時点でテストが落ちる。
+
+| 層 | 依存できない先 |
+|---|---|
+| Domain | Application / Infrastructure / Presentation |
+| Application | Infrastructure / Presentation |
+| Infrastructure | Application / Presentation |
+
+Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等）を import
+することも同様に落ちる。
+
+`Presentation → Infrastructure` は**禁止しない**。最も外側の層が具体実装を組み立てて
+`Depends()` に渡すのは正しい向きで、DI の配線はどこかで行う必要がある（ADR-0006）。
+
 ## bounded_contexts と shared の使い分け
 
 - 機能は `bounded_contexts/<context>/` として追加する。1コンテキスト = 1業務領域。
@@ -97,6 +112,9 @@ Infrastructure は Domain のインターフェースを実装する（依存性
   利用者の選択は `localStorage` に持つ（ADR-0005）。
 - ビルド成果物（`frontend/dist`）は FastAPI の `routers/spa.py` が配信する。
   開発時は Vite dev server（`npm run dev`）から API へプロキシする。
+- テストは対象と同じ階層に `*.test.ts(x)` として置く（Vitest + jsdom +
+  Testing Library）。描画が例外を投げることの検証には
+  `src/test-support/renderErrors.ts` を使う。
 
 ## 命名規則
 

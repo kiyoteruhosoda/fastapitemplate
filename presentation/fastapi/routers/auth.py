@@ -1,4 +1,5 @@
 """認証 API（ログイン・トークン更新・パスワード変更／リセット）。"""
+
 from __future__ import annotations
 
 import logging
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from bounded_contexts.account_security.application.use_cases.verify_second_factor import (  # noqa: E501
+from bounded_contexts.account_security.application.use_cases.verify_second_factor import (
     VerifySecondFactor,
 )
 from bounded_contexts.account_security.domain.exceptions import (
@@ -43,9 +44,7 @@ logger = logging.getLogger(__name__)
 
 DbDep = Annotated[Session, Depends(get_db)]
 PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_current_principal)]
-SecondFactorDep = Annotated[
-    VerifySecondFactor, Depends(security.verify_second_factor)
-]
+SecondFactorDep = Annotated[VerifySecondFactor, Depends(security.verify_second_factor)]
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -62,11 +61,7 @@ async def login(
     いないため、コードを添えて再度ログインすればよい。
     """
     user = db.scalar(select(User).where(User.email == body.email))
-    if (
-        user is None
-        or not user.is_active
-        or not check_password_hash(user.password_hash, body.password)
-    ):
+    if user is None or not user.is_active or not check_password_hash(user.password_hash, body.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_credentials"},
@@ -117,9 +112,7 @@ async def me(principal: PrincipalDep) -> MeResponse:
 
 
 @router.post("/change-password", response_model=StatusResponse)
-async def change_password(
-    body: ChangePasswordRequest, principal: PrincipalDep, db: DbDep
-) -> StatusResponse:
+async def change_password(body: ChangePasswordRequest, principal: PrincipalDep, db: DbDep) -> StatusResponse:
     user = db.get(User, principal.user_id)
     if user is None or not check_password_hash(user.password_hash, body.current_password):
         raise HTTPException(

@@ -1,4 +1,5 @@
 """管理 API の Pydantic スキーマ。"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, EmailStr, Field

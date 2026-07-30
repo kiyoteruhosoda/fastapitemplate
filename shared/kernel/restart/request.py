@@ -13,13 +13,14 @@ socket をマウントせずに済む。
 ポーリング間隔（既定 10 秒）の内側に 2 件の要求が入ったとき、先の要求を読む前に
 後の要求で上書きされ、まだ読んでいないプロセスが自分宛の再起動を取りこぼす。
 """
+
 from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
@@ -104,13 +105,18 @@ def _decode_requests(payload: Any) -> dict[RestartScope, RestartRequest]:
 
 
 def _encode_requests(requests: Mapping[RestartScope, RestartRequest]) -> dict[str, Any]:
-    return {
-        "scopes": {
-            scope.value: requests[scope].to_payload()
-            for scope in ALL_RESTART_SCOPES
-            if scope in requests
-        }
-    }
+    return {"scopes": {scope.value: requests[scope].to_payload() for scope in ALL_RESTART_SCOPES if scope in requests}}
+
+
+class RestartRequestReader(Protocol):
+    """スコープ宛の再起動要求を 1 件読み出す。
+
+    :class:`~shared.kernel.restart.watcher.RestartWatcher` はこの口だけに依存する
+    （DIP）。DB を持たないテストダブルを差し替えられる。
+    """
+
+    def load(self, scope: RestartScope) -> RestartRequest | None:
+        """*scope* 宛の直近の要求を返す。無ければ ``None``。"""
 
 
 class RestartRequestStore:
@@ -170,11 +176,7 @@ class RestartRequestStore:
 
         payload = _encode_requests(requests)
         if record is None:
-            session.add(
-                SystemSetting(
-                    setting_key=RESTART_REQUEST_SETTING_KEY, setting_json=payload
-                )
-            )
+            session.add(SystemSetting(setting_key=RESTART_REQUEST_SETTING_KEY, setting_json=payload))
         else:
             record.setting_json = payload
         session.flush()
@@ -191,5 +193,6 @@ class RestartRequestStore:
 __all__ = [
     "RESTART_REQUEST_SETTING_KEY",
     "RestartRequest",
+    "RestartRequestReader",
     "RestartRequestStore",
 ]

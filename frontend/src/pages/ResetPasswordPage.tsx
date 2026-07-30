@@ -27,7 +27,12 @@ export function ResetPasswordPage() {
 
   return (
     <div className="auth-page">
-      <form className="card" onSubmit={submit}>
+      <form
+        className="card"
+        onSubmit={(e) => {
+          void submit(e)
+        }}
+      >
         <h1>{t('reset.title')}</h1>
         {error && <p className="error">{t(error)}</p>}
         <label>
@@ -35,7 +40,9 @@ export function ResetPasswordPage() {
           <input
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value)
+            }}
             minLength={8}
             required
           />

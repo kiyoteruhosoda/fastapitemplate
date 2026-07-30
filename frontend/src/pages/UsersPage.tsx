@@ -31,7 +31,12 @@ export function UsersPage() {
 
   useEffect(() => {
     void reload()
-    void api.get<Role[]>('/api/admin/roles').then(setRoles).catch(() => setRoles([]))
+    void api
+      .get<Role[]>('/api/admin/roles')
+      .then(setRoles)
+      .catch(() => {
+        setRoles([])
+      })
   }, [])
 
   const create = async (e: FormEvent) => {
@@ -66,29 +71,45 @@ export function UsersPage() {
   return (
     <div className="card">
       <h1>{t('users.title')}</h1>
-      <form className="inline-form" onSubmit={create}>
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          void create(e)
+        }}
+      >
         <input
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value)
+          }}
           placeholder={t('common.email')}
           required
         />
         <input
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => {
+            setUsername(e.target.value)
+          }}
           placeholder={t('common.username')}
           required
         />
         <input
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value)
+          }}
           placeholder={t('common.password')}
           minLength={8}
           required
         />
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
+        <select
+          value={role}
+          onChange={(e) => {
+            setRole(e.target.value)
+          }}
+        >
           {roles.map((r) => (
             <option key={r.id} value={r.name}>
               {r.name}
@@ -119,11 +140,19 @@ export function UsersPage() {
                 <input
                   type="checkbox"
                   checked={user.is_active}
-                  onChange={() => toggleActive(user)}
+                  onChange={() => {
+                    void toggleActive(user)
+                  }}
                 />
               </td>
               <td>
-                <button onClick={() => remove(user)}>{t('common.delete')}</button>
+                <button
+                  onClick={() => {
+                    void remove(user)
+                  }}
+                >
+                  {t('common.delete')}
+                </button>
               </td>
             </tr>
           ))}

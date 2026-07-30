@@ -3,10 +3,11 @@
 モデルは :class:`Base` を継承する。エンジンは ``settings.database_uri`` から
 遅延生成し、テストでは :func:`set_engine` で SQLite in-memory へ差し替える。
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
@@ -14,7 +15,7 @@ class Base(DeclarativeBase):
 
 
 _engine: sa.Engine | None = None
-_session_factory: sessionmaker | None = None
+_session_factory: sessionmaker[Session] | None = None
 
 
 def get_engine() -> sa.Engine:
@@ -24,9 +25,7 @@ def get_engine() -> sa.Engine:
 
         url = settings.database_uri
         if not url:
-            raise RuntimeError(
-                "DATABASE_URI が設定されていません。環境変数を確認してください。"
-            )
+            raise RuntimeError("DATABASE_URI が設定されていません。環境変数を確認してください。")
         kwargs: dict[str, object] = {}
         if not url.startswith("sqlite"):
             kwargs = {"pool_pre_ping": True, "pool_recycle": 3600}
@@ -41,7 +40,7 @@ def set_engine(engine: sa.Engine | None) -> None:
     _session_factory = None
 
 
-def get_session_factory() -> sessionmaker:
+def get_session_factory() -> sessionmaker[Session]:
     global _session_factory
     if _session_factory is None:
         _session_factory = sessionmaker(
@@ -53,4 +52,4 @@ def get_session_factory() -> sessionmaker:
     return _session_factory
 
 
-__all__ = ["Base", "get_engine", "set_engine", "get_session_factory"]
+__all__ = ["Base", "get_engine", "get_session_factory", "set_engine"]

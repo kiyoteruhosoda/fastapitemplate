@@ -49,7 +49,9 @@ export function SecurityPage() {
       api
         .get<TwoFactorStatus>('/api/account/security/two-factor')
         .then(setStatus)
-        .catch(() => setStatus(null)),
+        .catch(() => {
+          setStatus(null)
+        }),
     [],
   )
 
@@ -58,7 +60,9 @@ export function SecurityPage() {
       api
         .get<Passkey[]>('/api/account/security/passkeys')
         .then(setPasskeys)
-        .catch(() => setPasskeys([])),
+        .catch(() => {
+          setPasskeys([])
+        }),
     [],
   )
 
@@ -75,9 +79,7 @@ export function SecurityPage() {
   const startEnrollment = async () => {
     setTwoFactorError(null)
     try {
-      setEnrollment(
-        await api.post<TotpEnrollment>('/api/account/security/two-factor/enrollment'),
-      )
+      setEnrollment(await api.post<TotpEnrollment>('/api/account/security/two-factor/enrollment'))
       setCode('')
     } catch (err) {
       setTwoFactorError(errorMessageKey(err))
@@ -130,9 +132,7 @@ export function SecurityPage() {
       await reloadPasskeys()
       notify('success', t('security.passkeyRegistered'))
     } catch (err) {
-      setPasskeyError(
-        isPasskeyCancellation(err) ? 'error.passkey_cancelled' : errorMessageKey(err),
-      )
+      setPasskeyError(isPasskeyCancellation(err) ? 'error.passkey_cancelled' : errorMessageKey(err))
     } finally {
       setPasskeyBusy(false)
     }
@@ -158,7 +158,12 @@ export function SecurityPage() {
         {status === null ? (
           <p className="loading">{t('common.loading')}</p>
         ) : status.enabled ? (
-          <form className="inline-form" onSubmit={disableTwoFactor}>
+          <form
+            className="inline-form"
+            onSubmit={(e) => {
+              void disableTwoFactor(e)
+            }}
+          >
             <p>{t('security.twoFactorOn')}</p>
             <label>
               {t('security.code')}
@@ -166,14 +171,21 @@ export function SecurityPage() {
                 type="text"
                 inputMode="numeric"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  setCode(e.target.value)
+                }}
                 required
               />
             </label>
             <button type="submit">{t('security.disableTwoFactor')}</button>
           </form>
         ) : enrollment ? (
-          <form className="card-inset" onSubmit={confirmEnrollment}>
+          <form
+            className="card-inset"
+            onSubmit={(e) => {
+              void confirmEnrollment(e)
+            }}
+          >
             <p>{t('security.scanQr')}</p>
             <img className="qr-code" src={enrollment.qr_code} alt={t('security.qrAlt')} />
             <p>
@@ -185,7 +197,9 @@ export function SecurityPage() {
                 type="text"
                 inputMode="numeric"
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  setCode(e.target.value)
+                }}
                 autoFocus
                 required
               />
@@ -195,7 +209,12 @@ export function SecurityPage() {
         ) : (
           <>
             <p>{t('security.twoFactorOff')}</p>
-            <button type="button" onClick={startEnrollment}>
+            <button
+              type="button"
+              onClick={() => {
+                void startEnrollment()
+              }}
+            >
               {status.enrolling ? t('security.restartEnrollment') : t('security.enable')}
             </button>
           </>
@@ -216,11 +235,19 @@ export function SecurityPage() {
                 <input
                   type="text"
                   value={passkeyName}
-                  onChange={(e) => setPasskeyName(e.target.value)}
+                  onChange={(e) => {
+                    setPasskeyName(e.target.value)
+                  }}
                   placeholder={t('security.passkeyNamePlaceholder')}
                 />
               </label>
-              <button type="button" onClick={registerPasskey} disabled={passkeyBusy}>
+              <button
+                type="button"
+                onClick={() => {
+                  void registerPasskey()
+                }}
+                disabled={passkeyBusy}
+              >
                 {passkeyBusy ? t('common.loading') : t('security.addPasskey')}
               </button>
             </div>
@@ -245,7 +272,12 @@ export function SecurityPage() {
                   <td>{formatDate(passkey.created_at)}</td>
                   <td>{formatDate(passkey.last_used_at)}</td>
                   <td>
-                    <button type="button" onClick={() => removePasskey(passkey.id)}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void removePasskey(passkey.id)
+                      }}
+                    >
                       {t('common.delete')}
                     </button>
                   </td>

@@ -224,6 +224,48 @@ tests/
 
 時刻・乱数・UUID はテスト内で固定する（`unittest.mock.patch` で差し替え）。実環境の Clock クラスは存在しない。
 
+フロントエンドのテストは `frontend/src/**/*.test.ts(x)`（Vitest + jsdom + Testing Library）。
+
+---
+
+## 品質ゲート
+
+以下の 8 つを CI の**必須**ゲートとする（ADR-0006）。落ちたらマージしない。
+手元では `make check` で同じ順序・同じコマンドを流せる（`make format` で自動整形）。
+
+| 対象 | 順 | ゲート | コマンド |
+|---|---|---|---|
+| Backend | 1 | 整形 | `uv run ruff format --check .` |
+| Backend | 2 | 静的解析 | `uv run ruff check .` |
+| Backend | 3 | 型 | `uv run mypy`（strict。テストも対象） |
+| Backend | 4 | テスト | `uv run pytest` |
+| Frontend | 1 | 整形 | `npm run format:check`（Prettier） |
+| Frontend | 2 | 静的解析 | `npm run lint`（ESLint） |
+| Frontend | 3 | 型 | `npm run type-check`（`tsc --noEmit`） |
+| Frontend | 4 | テスト | `npm run test`（Vitest） |
+
+守るべき点:
+
+- **型注釈を省略しない。** MyPy は `strict` かつ `disallow_untyped_defs`。テストの
+  関数・フィクスチャも対象。`Any`・型引数なしのジェネリクス（`dict` / `Callable`）は不可。
+- **`any` を使わない。** TypeScript も `strict` + `noUncheckedIndexedAccess` +
+  `exactOptionalPropertyTypes`。
+- **Promise を放置しない。** async 関数をハンドラへそのまま渡さない。捨てるなら
+  `void handler(e)` と明示する（`no-floating-promises` / `no-misused-promises`）。
+- **依存方向を破らない。** `tests/unit/test_layer_dependencies.py` が AST で検証する。
+  Domain は Application / Infrastructure / Presentation を import できず、
+  フレームワーク・DB（FastAPI / SQLAlchemy 等）にも依存できない。
+
+設計品質の基準（レビュー観点。Backend は未だ機械検証していない → Progress T1）:
+
+| 項目 | 基準 |
+|---|---|
+| ネスト深度 | 最大 3 |
+| 関数長 | 30 行以下 |
+| 引数数 | 3 個以下 |
+| 複雑度 | 10 以下（推奨 5 以下） |
+| クラス長 | 200 行以下 |
+
 ---
 
 ## 動的呼び出しの制限

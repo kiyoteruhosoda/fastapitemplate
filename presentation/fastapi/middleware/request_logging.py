@@ -1,12 +1,12 @@
 """リクエスト単位の構造化ログ（``requestId`` の採番と伝播）。"""
+
 from __future__ import annotations
 
 import logging
 import time
 import uuid
-from collections.abc import Callable
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -16,7 +16,7 @@ access_logger = logging.getLogger("app.request")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         request_id = str(uuid.uuid4())
         request_id_var.set(request_id)
         user_id_hash_var.set(None)

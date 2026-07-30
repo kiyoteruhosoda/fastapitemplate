@@ -3,6 +3,7 @@
 コンテキスト固有のルーター・スキーマ・依存関数は presentation/ 配下に
 まとめる。認可は scope（``item:view`` / ``item:manage``）で宣言する。
 """
+
 from __future__ import annotations
 
 import logging

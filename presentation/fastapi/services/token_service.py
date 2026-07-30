@@ -3,9 +3,11 @@
 - scope クレームはユーザーの保有権限の範囲内。未指定・空 = 権限なし。
 - 検証結果は ``AuthenticatedPrincipal`` として返す。
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 from sqlalchemy.orm import Session
@@ -63,7 +65,7 @@ class TokenService:
         }
 
     @staticmethod
-    def _decode(token: str) -> tuple[dict | None, str | None]:
+    def _decode(token: str) -> tuple[dict[str, Any] | None, str | None]:
         try:
             claims = jwt.decode(
                 token,
@@ -110,7 +112,7 @@ class TokenService:
         return cls._load_active_user(claims, session)
 
     @staticmethod
-    def _load_active_user(claims: dict, session: Session) -> User | None:
+    def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
         try:
             user_id = int(claims.get("sub", ""))
         except ValueError:
@@ -121,4 +123,4 @@ class TokenService:
         return user
 
 
-__all__ = ["TokenService", "TYPE_ACCESS", "TYPE_REFRESH"]
+__all__ = ["TYPE_ACCESS", "TYPE_REFRESH", "TokenService"]

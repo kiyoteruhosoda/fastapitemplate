@@ -3,6 +3,7 @@
 ブラウザとやり取りする JSON は素の ``dict`` として扱い、WebAuthn ライブラリの
 型をドメイン・アプリケーション層へ持ち込まない。
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -50,16 +51,12 @@ class WebAuthnRelyingParty(Protocol):
     ) -> PublicKeyOptions:
         """パスキー登録用のオプションを組み立てる。"""
 
-    def verify_registration(
-        self, *, credential: Mapping[str, Any], expected_challenge: str
-    ) -> VerifiedRegistration:
+    def verify_registration(self, *, credential: Mapping[str, Any], expected_challenge: str) -> VerifiedRegistration:
         """登録レスポンスを検証する。失敗時は
         :class:`~bounded_contexts.account_security.domain.exceptions.PasskeyVerificationError`。
         """
 
-    def create_authentication_options(
-        self, *, allow_credential_ids: Sequence[str] = ()
-    ) -> PublicKeyOptions:
+    def create_authentication_options(self, *, allow_credential_ids: Sequence[str] = ()) -> PublicKeyOptions:
         """パスキー認証用のオプションを組み立てる。
 
         ``allow_credential_ids`` が空なら、認証器が自分で資格情報を選ぶ

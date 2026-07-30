@@ -3,6 +3,7 @@
 ミドルウェアが設定した値を ``contextvars`` で保持し、全ログレコードへ
 自動付与する（``logging_config.RequestContextFilter``）。
 """
+
 from __future__ import annotations
 
 from contextvars import ContextVar
@@ -20,8 +21,8 @@ def current_user_id_hash() -> str | None:
 
 
 __all__ = [
-    "request_id_var",
-    "user_id_hash_var",
     "current_request_id",
     "current_user_id_hash",
+    "request_id_var",
+    "user_id_hash_var",
 ]

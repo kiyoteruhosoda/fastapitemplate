@@ -3,6 +3,7 @@
 RFC 6238 の計算そのものはライブラリに任せる。ドメインが知るのは
 「共有鍵を作る」「認証アプリへ渡す URI を組み立てる」「コードを検証する」の 3 つ。
 """
+
 from __future__ import annotations
 
 from typing import Protocol

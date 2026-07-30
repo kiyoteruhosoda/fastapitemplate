@@ -12,12 +12,10 @@ export function Footer() {
     fetch('/info')
       .then((r) => (r.ok ? r.json() : null))
       .then(setInfo)
-      .catch(() => setInfo(null))
+      .catch(() => {
+        setInfo(null)
+      })
   }, [])
 
-  return (
-    <footer className="footer">
-      {info ? `v${info.version} (${info.git_sha})` : ''}
-    </footer>
-  )
+  return <footer className="footer">{info ? `v${info.version} (${info.git_sha})` : ''}</footer>
 }

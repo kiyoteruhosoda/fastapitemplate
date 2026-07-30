@@ -1,4 +1,5 @@
 """FastAPI アプリケーションファクトリ。"""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -43,7 +44,7 @@ from shared.kernel.version import load_build_info
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # 管理画面からの再起動要求を拾う（起動時にしか読まれない設定の反映用）
     start_restart_watcher(RestartScope.WEB)
     try:
@@ -69,9 +70,7 @@ def create_app() -> FastAPI:
     app.state.startup_time = datetime.now(UTC)
 
     # Prometheus metrics at /metrics
-    Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(
-        app, include_in_schema=False
-    )
+    Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(app, include_in_schema=False)
 
     app.add_middleware(RequestLoggingMiddleware)
     if settings.cors_allowed_origins:

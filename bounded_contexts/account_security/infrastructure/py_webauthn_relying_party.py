@@ -3,6 +3,7 @@
 ライブラリの型はこのモジュールの外へ出さない。オプションは JSON へ落として
 ``dict`` で返し、検証結果はドメインの値オブジェクトへ詰め替える。
 """
+
 from __future__ import annotations
 
 import json
@@ -77,9 +78,7 @@ class PyWebAuthnRelyingParty:
         )
         return _to_public_key_options(options)
 
-    def verify_registration(
-        self, *, credential: Mapping[str, Any], expected_challenge: str
-    ) -> VerifiedRegistration:
+    def verify_registration(self, *, credential: Mapping[str, Any], expected_challenge: str) -> VerifiedRegistration:
         try:
             verified = verify_registration_response(
                 credential=dict(credential),
@@ -106,9 +105,7 @@ class PyWebAuthnRelyingParty:
     # 認証
     # ------------------------------------------------------------------
 
-    def create_authentication_options(
-        self, *, allow_credential_ids: Sequence[str] = ()
-    ) -> PublicKeyOptions:
+    def create_authentication_options(self, *, allow_credential_ids: Sequence[str] = ()) -> PublicKeyOptions:
         options = generate_authentication_options(
             rp_id=self.rp_id,
             user_verification=UserVerificationRequirement.REQUIRED,
@@ -154,9 +151,7 @@ def _descriptors(
     descriptors: list[PublicKeyCredentialDescriptor] = []
     for credential_id in credential_ids:
         try:
-            descriptors.append(
-                PublicKeyCredentialDescriptor(id=base64url_to_bytes(credential_id))
-            )
+            descriptors.append(PublicKeyCredentialDescriptor(id=base64url_to_bytes(credential_id)))
         except Exception:
             # 壊れたレコードのために発行そのものを失敗させない
             logger.debug("資格情報 ID を復号できませんでした", exc_info=True)

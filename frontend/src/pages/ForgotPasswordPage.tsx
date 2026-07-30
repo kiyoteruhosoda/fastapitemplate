@@ -16,7 +16,12 @@ export function ForgotPasswordPage() {
 
   return (
     <div className="auth-page">
-      <form className="card" onSubmit={submit}>
+      <form
+        className="card"
+        onSubmit={(e) => {
+          void submit(e)
+        }}
+      >
         <h1>{t('forgot.title')}</h1>
         {sent ? (
           <p>{t('forgot.sent')}</p>
@@ -27,7 +32,9 @@ export function ForgotPasswordPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                }}
                 required
               />
             </label>

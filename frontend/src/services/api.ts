@@ -57,6 +57,12 @@ function extractErrorCode(body: unknown): string {
   return 'unknown_error'
 }
 
+/** ``/api/auth/refresh`` の応答。 */
+interface TokenPair {
+  access_token: string
+  refresh_token: string
+}
+
 async function tryRefresh(): Promise<boolean> {
   const refresh = localStorage.getItem(REFRESH_KEY)
   if (!refresh) return false
@@ -69,27 +75,21 @@ async function tryRefresh(): Promise<boolean> {
     clearTokens()
     return false
   }
-  const pair = await response.json()
+  const pair = (await response.json()) as TokenPair
   setTokens(pair.access_token, pair.refresh_token)
   return true
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-  retry = true,
-): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
   const headers: Record<string, string> = {}
   const access = localStorage.getItem(ACCESS_KEY)
   if (access) headers['Authorization'] = `Bearer ${access}`
   if (body !== undefined) headers['Content-Type'] = 'application/json'
 
-  const response = await fetch(path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  const init: RequestInit = { method, headers }
+  if (body !== undefined) init.body = JSON.stringify(body)
+
+  const response = await fetch(path, init)
 
   if (response.status === 401 && retry && (await tryRefresh())) {
     return request<T>(method, path, body, false)

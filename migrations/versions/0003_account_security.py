@@ -9,6 +9,7 @@ Revises: seed_master_data
 Create Date: 2026-07-29
 
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -52,12 +53,8 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=100), nullable=True),
         sa.Column("attestation_format", sa.String(length=64), nullable=True),
         sa.Column("aaguid", sa.String(length=64), nullable=True),
-        sa.Column(
-            "backup_eligible", sa.Boolean(), server_default=sa.false(), nullable=False
-        ),
-        sa.Column(
-            "backup_state", sa.Boolean(), server_default=sa.false(), nullable=False
-        ),
+        sa.Column("backup_eligible", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column("backup_state", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("last_used_at", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
@@ -65,9 +62,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("credential_id"),
     )
-    op.create_index(
-        "ix_passkey_credentials_user_id", "passkey_credentials", ["user_id"]
-    )
+    op.create_index("ix_passkey_credentials_user_id", "passkey_credentials", ["user_id"])
     op.create_table(
         "webauthn_challenges",
         sa.Column("challenge_id", sa.String(length=32), nullable=False),
@@ -79,15 +74,11 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("challenge_id"),
     )
-    op.create_index(
-        "ix_webauthn_challenges_expires_at", "webauthn_challenges", ["expires_at"]
-    )
+    op.create_index("ix_webauthn_challenges_expires_at", "webauthn_challenges", ["expires_at"])
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_webauthn_challenges_expires_at", table_name="webauthn_challenges"
-    )
+    op.drop_index("ix_webauthn_challenges_expires_at", table_name="webauthn_challenges")
     op.drop_table("webauthn_challenges")
     op.drop_index("ix_passkey_credentials_user_id", table_name="passkey_credentials")
     op.drop_table("passkey_credentials")

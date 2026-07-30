@@ -3,6 +3,7 @@
 Presentation 層はこれらを HTTP ステータス＋エラーコードへ変換する
 （表示文言への変換はフロントエンド。CLAUDE.md「国際化」参照）。
 """
+
 from __future__ import annotations
 
 

@@ -1,12 +1,14 @@
+from fastapi.testclient import TestClient
+
 from shared.kernel.settings.settings import settings
 
 
-def test_config_requires_permission(client) -> None:
+def test_config_requires_permission(client: TestClient) -> None:
     client.cookies.clear()
     assert client.get("/api/admin/config").status_code == 401
 
 
-def test_get_config_returns_definitions(client, admin_headers) -> None:
+def test_get_config_returns_definitions(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.get("/api/admin/config", headers=admin_headers)
     assert response.status_code == 200
     items = {item["key"]: item for item in response.json()}
@@ -16,7 +18,7 @@ def test_get_config_returns_definitions(client, admin_headers) -> None:
     assert items["MAIL_PASSWORD"]["value"] in (None, "", "********")
 
 
-def test_save_config_overrides_default(client, admin_headers) -> None:
+def test_save_config_overrides_default(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.put(
         "/api/admin/config",
         headers=admin_headers,
@@ -32,13 +34,11 @@ def test_save_config_overrides_default(client, admin_headers) -> None:
     assert items["MAIL_SERVER"]["stored"] is True
 
     # null で DB 上書きを削除しデフォルトへ戻す
-    client.put(
-        "/api/admin/config", headers=admin_headers, json={"values": {"MAIL_SERVER": None}}
-    )
+    client.put("/api/admin/config", headers=admin_headers, json={"values": {"MAIL_SERVER": None}})
     assert settings.mail_server == "smtp.example.com"
 
 
-def test_unknown_key_is_ignored(client, admin_headers) -> None:
+def test_unknown_key_is_ignored(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.put(
         "/api/admin/config",
         headers=admin_headers,

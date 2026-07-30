@@ -5,6 +5,7 @@
 自らを終了させる。復帰はコンテナの restart policy に任せる
 （:mod:`shared.kernel.restart`）。
 """
+
 from __future__ import annotations
 
 import logging
@@ -34,34 +35,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/system", tags=["admin"])
 
 DbDep = Annotated[Session, Depends(get_db)]
-SystemManagerDep = Annotated[
-    AuthenticatedPrincipal, Depends(require_permission("system:manage"))
-]
+SystemManagerDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("system:manage"))]
 
 
 def _to_response(request: RestartRequest) -> RestartRequestResponse:
     return RestartRequestResponse(
         scope=request.scope.value,
         token=request.token,
-        requested_at=(
-            request.requested_at.isoformat() if request.requested_at else None
-        ),
+        requested_at=(request.requested_at.isoformat() if request.requested_at else None),
         requested_by=request.requested_by,
         reason=request.reason,
     )
 
 
 @router.get("/restart", response_model=RestartStatusResponse)
-async def restart_status(principal: SystemManagerDep) -> RestartStatusResponse:
+async def restart_status(_principal: SystemManagerDep) -> RestartStatusResponse:
     """スコープごとの直近の再起動要求と、指定できるスコープの一覧を返す。"""
     stored = RestartRequestStore().load_all()
     return RestartStatusResponse(
         available_scopes=[scope.value for scope in ALL_RESTART_SCOPES],
-        last_requests=[
-            _to_response(stored[scope])
-            for scope in ALL_RESTART_SCOPES
-            if scope in stored
-        ],
+        last_requests=[_to_response(stored[scope]) for scope in ALL_RESTART_SCOPES if scope in stored],
     )
 
 
@@ -106,6 +99,4 @@ async def request_restart(
             detail={"error": "restart_request_failed"},
         ) from None
 
-    return RestartCommandResponse(
-        requested=True, requests=[_to_response(request) for request in requests]
-    )
+    return RestartCommandResponse(requested=True, requests=[_to_response(request) for request in requests])

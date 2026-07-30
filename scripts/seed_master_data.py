@@ -7,6 +7,7 @@
 値の正本は ``shared/domain/auth/master_data.py``、投入ロジックは
 ``shared/infrastructure/master_data_seeder.py``（マイグレーションと共用）。
 """
+
 from __future__ import annotations
 
 import os
@@ -26,9 +27,7 @@ def main() -> None:
 
     session = get_session_factory()()
     try:
-        seed_master_data(
-            session, admin_password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None
-        )
+        seed_master_data(session, admin_password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None)
         session.commit()
         print("Master data seeded.")
     except Exception:

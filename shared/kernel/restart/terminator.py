@@ -10,6 +10,7 @@
   落としてもアービターが同じ環境で作り直すため、コンテナは再起動しない。
 - 単体 Uvicorn（開発）: 監視スレッドが動いているメインプロセス自身。
 """
+
 from __future__ import annotations
 
 import logging

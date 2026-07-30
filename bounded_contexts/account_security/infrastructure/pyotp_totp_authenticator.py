@@ -1,4 +1,5 @@
 """TOTP の実装（``pyotp``）。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,9 +22,7 @@ class PyotpTotpAuthenticator:
         return pyotp.random_base32()
 
     def provisioning_uri(self, *, secret: str, account_name: str) -> str:
-        return pyotp.TOTP(secret).provisioning_uri(
-            name=account_name, issuer_name=self.issuer
-        )
+        return pyotp.TOTP(secret).provisioning_uri(name=account_name, issuer_name=self.issuer)
 
     def verify(self, *, secret: str, code: str) -> bool:
         normalised = code.strip().replace(" ", "")

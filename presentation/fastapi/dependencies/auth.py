@@ -3,9 +3,11 @@
 ``Depends()`` ベースで JWT を検証し、検証済みの ``AuthenticatedPrincipal`` を
 ルーターへ渡す。認可は :func:`require_permission`（scope ベース）で宣言する。
 """
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -40,6 +42,7 @@ def set_access_token_cookie(response: Response, token: str) -> None:
 
 def clear_access_token_cookie(response: Response) -> None:
     response.delete_cookie(ACCESS_TOKEN_COOKIE)
+
 
 # Authorization ヘッダー優先、無ければ Cookie フォールバック
 _bearer_scheme = HTTPBearer(auto_error=False)
@@ -84,7 +87,7 @@ async def get_current_principal(
     return principal
 
 
-def require_permission(*codes: str):
+def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
     """指定された権限を全て保持している場合のみアクセスを許可する依存関数ファクトリ。
 
     使用例::

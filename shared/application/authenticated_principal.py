@@ -3,6 +3,7 @@
 認可の判定は :meth:`can`（scope ベース）のみで行う。ロール名は保持しない
 （CLAUDE.md「権限管理」参照）。
 """
+
 from __future__ import annotations
 
 import hashlib

@@ -6,6 +6,7 @@
 
     uv run python main.py
 """
+
 import uvicorn
 from dotenv import load_dotenv
 

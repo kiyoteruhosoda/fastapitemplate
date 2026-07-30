@@ -6,11 +6,17 @@ on:
     tags-ignore: ["v*"]
   pull_request:
 
+# 品質ゲート（CLAUDE.md「テスト」／docs/OPERATIONS.md 参照）
+#   Backend : Ruff Format → Ruff Check → MyPy → PyTest
+#   Frontend: Prettier → ESLint → TypeScript → Vitest
+# いずれかが落ちたらマージできない。各ステップは前段が落ちても実行し、
+# 1 回の実行でまとめて指摘が出るようにする（`if: always()`）。
 jobs:
-  test:
-    name: Lint & Test (Python ${{ matrix.python-version }})
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.12"]
 
@@ -21,32 +27,64 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync
 
-      - name: Lint
+      - name: Ruff Format (コード整形)
+        run: uv run ruff format --check .
+
+      - name: Ruff Check (静的解析)
+        if: always()
         run: uv run ruff check .
 
-      - name: Test
+      - name: MyPy (型チェック)
+        if: always()
+        run: uv run mypy
+
+      - name: PyTest (テスト)
+        if: always()
         run: uv run pytest -v --tb=short
 
   frontend:
-    name: Frontend build (type-check + vite)
+    name: Frontend (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["24"]
+
     steps:
       - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        working-directory: frontend
         run: npm ci
 
-      - name: Build
-        working-directory: frontend
+      - name: Prettier (コード整形)
+        run: npm run format:check
+
+      - name: ESLint (静的解析)
+        if: always()
+        run: npm run lint
+
+      - name: TypeScript (型チェック)
+        if: always()
+        run: npm run type-check
+
+      - name: Vitest (テスト)
+        if: always()
+        run: npm run test
+
+      - name: Build (Vite)
+        if: always()
         run: npm run build

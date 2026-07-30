@@ -4,6 +4,7 @@
 （CLAUDE.md「設計方針」の依存注入）。設定値は ``settings`` の ``@property``
 経由でのみ読む。
 """
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -11,7 +12,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from bounded_contexts.account_security.application.use_cases.authenticate_with_passkey import (  # noqa: E501
+from bounded_contexts.account_security.application.use_cases.authenticate_with_passkey import (
     CompletePasskeyAuthentication,
     StartPasskeyAuthentication,
 )
@@ -29,7 +30,7 @@ from bounded_contexts.account_security.application.use_cases.register_passkey im
     CompletePasskeyRegistration,
     StartPasskeyRegistration,
 )
-from bounded_contexts.account_security.application.use_cases.verify_second_factor import (  # noqa: E501
+from bounded_contexts.account_security.application.use_cases.verify_second_factor import (
     VerifySecondFactor,
 )
 from bounded_contexts.account_security.domain.services.totp_authenticator import (
@@ -44,13 +45,13 @@ from bounded_contexts.account_security.infrastructure.py_webauthn_relying_party 
 from bounded_contexts.account_security.infrastructure.pyotp_totp_authenticator import (
     PyotpTotpAuthenticator,
 )
-from bounded_contexts.account_security.infrastructure.sql_passkey_credential_repository import (  # noqa: E501
+from bounded_contexts.account_security.infrastructure.sql_passkey_credential_repository import (
     SqlPasskeyCredentialRepository,
 )
 from bounded_contexts.account_security.infrastructure.sql_totp_secret_repository import (
     SqlTotpSecretRepository,
 )
-from bounded_contexts.account_security.infrastructure.sql_webauthn_challenge_repository import (  # noqa: E501
+from bounded_contexts.account_security.infrastructure.sql_webauthn_challenge_repository import (
     SqlWebAuthnChallengeRepository,
 )
 from shared.kernel.database.session import get_db
@@ -60,9 +61,7 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 
 def build_totp_authenticator() -> TotpAuthenticator:
-    return PyotpTotpAuthenticator(
-        issuer=settings.totp_issuer, valid_window=settings.totp_valid_window
-    )
+    return PyotpTotpAuthenticator(issuer=settings.totp_issuer, valid_window=settings.totp_valid_window)
 
 
 def build_relying_party() -> WebAuthnRelyingParty:
@@ -86,34 +85,20 @@ def get_two_factor_status(db: DbDep) -> GetTwoFactorStatus:
     return GetTwoFactorStatus(repository=SqlTotpSecretRepository(db))
 
 
-def start_totp_enrollment(
-    db: DbDep, authenticator: TotpAuthenticatorDep
-) -> StartTotpEnrollment:
-    return StartTotpEnrollment(
-        repository=SqlTotpSecretRepository(db), authenticator=authenticator
-    )
+def start_totp_enrollment(db: DbDep, authenticator: TotpAuthenticatorDep) -> StartTotpEnrollment:
+    return StartTotpEnrollment(repository=SqlTotpSecretRepository(db), authenticator=authenticator)
 
 
-def confirm_totp_enrollment(
-    db: DbDep, authenticator: TotpAuthenticatorDep
-) -> ConfirmTotpEnrollment:
-    return ConfirmTotpEnrollment(
-        repository=SqlTotpSecretRepository(db), authenticator=authenticator
-    )
+def confirm_totp_enrollment(db: DbDep, authenticator: TotpAuthenticatorDep) -> ConfirmTotpEnrollment:
+    return ConfirmTotpEnrollment(repository=SqlTotpSecretRepository(db), authenticator=authenticator)
 
 
 def disable_totp(db: DbDep, authenticator: TotpAuthenticatorDep) -> DisableTotp:
-    return DisableTotp(
-        repository=SqlTotpSecretRepository(db), authenticator=authenticator
-    )
+    return DisableTotp(repository=SqlTotpSecretRepository(db), authenticator=authenticator)
 
 
-def verify_second_factor(
-    db: DbDep, authenticator: TotpAuthenticatorDep
-) -> VerifySecondFactor:
-    return VerifySecondFactor(
-        repository=SqlTotpSecretRepository(db), authenticator=authenticator
-    )
+def verify_second_factor(db: DbDep, authenticator: TotpAuthenticatorDep) -> VerifySecondFactor:
+    return VerifySecondFactor(repository=SqlTotpSecretRepository(db), authenticator=authenticator)
 
 
 # --- パスキー -----------------------------------------------------------
@@ -127,9 +112,7 @@ def delete_passkey(db: DbDep) -> DeletePasskey:
     return DeletePasskey(repository=SqlPasskeyCredentialRepository(db))
 
 
-def start_passkey_registration(
-    db: DbDep, relying_party: RelyingPartyDep
-) -> StartPasskeyRegistration:
+def start_passkey_registration(db: DbDep, relying_party: RelyingPartyDep) -> StartPasskeyRegistration:
     return StartPasskeyRegistration(
         credentials=SqlPasskeyCredentialRepository(db),
         challenges=SqlWebAuthnChallengeRepository(db),
@@ -138,9 +121,7 @@ def start_passkey_registration(
     )
 
 
-def complete_passkey_registration(
-    db: DbDep, relying_party: RelyingPartyDep
-) -> CompletePasskeyRegistration:
+def complete_passkey_registration(db: DbDep, relying_party: RelyingPartyDep) -> CompletePasskeyRegistration:
     return CompletePasskeyRegistration(
         credentials=SqlPasskeyCredentialRepository(db),
         challenges=SqlWebAuthnChallengeRepository(db),
@@ -148,9 +129,7 @@ def complete_passkey_registration(
     )
 
 
-def start_passkey_authentication(
-    db: DbDep, relying_party: RelyingPartyDep
-) -> StartPasskeyAuthentication:
+def start_passkey_authentication(db: DbDep, relying_party: RelyingPartyDep) -> StartPasskeyAuthentication:
     return StartPasskeyAuthentication(
         challenges=SqlWebAuthnChallengeRepository(db),
         relying_party=relying_party,
@@ -158,9 +137,7 @@ def start_passkey_authentication(
     )
 
 
-def complete_passkey_authentication(
-    db: DbDep, relying_party: RelyingPartyDep
-) -> CompletePasskeyAuthentication:
+def complete_passkey_authentication(db: DbDep, relying_party: RelyingPartyDep) -> CompletePasskeyAuthentication:
     return CompletePasskeyAuthentication(
         credentials=SqlPasskeyCredentialRepository(db),
         challenges=SqlWebAuthnChallengeRepository(db),

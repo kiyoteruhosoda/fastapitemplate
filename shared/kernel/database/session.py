@@ -1,4 +1,5 @@
 """FastAPI の ``Depends()`` 用 DB セッション依存関数。"""
+
 from __future__ import annotations
 
 from collections.abc import Generator

@@ -1,10 +1,10 @@
-class DomainException(Exception):
+class DomainError(Exception):
     pass
 
 
-class ItemNotFoundError(DomainException):
+class ItemNotFoundError(DomainError):
     pass
 
 
-class ItemValidationError(DomainException):
+class ItemValidationError(DomainError):
     pass

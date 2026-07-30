@@ -1,9 +1,12 @@
 """WebAuthn チャレンジの SQLAlchemy 実装。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, cast
 
 from sqlalchemy import delete
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from bounded_contexts.account_security.domain.entities.webauthn_challenge import (
@@ -23,11 +26,7 @@ class SqlWebAuthnChallengeRepository:
     def issue(self, challenge: WebAuthnChallenge) -> WebAuthnChallenge:
         # 期限切れは放っておくと溜まり続けるため、発行のたびに掃除する。
         # 専用の定期ジョブを持たない構成でもテーブルが肥大しない。
-        self.session.execute(
-            delete(WebAuthnChallengeRecord).where(
-                WebAuthnChallengeRecord.expires_at < utcnow()
-            )
-        )
+        self.session.execute(delete(WebAuthnChallengeRecord).where(WebAuthnChallengeRecord.expires_at < utcnow()))
         self.session.add(
             WebAuthnChallengeRecord(
                 challenge_id=challenge.challenge_id,
@@ -57,13 +56,15 @@ class SqlWebAuthnChallengeRepository:
         # どちらの削除も確定する前に両方が読み終えてしまい、2 本ともトークンを
         # 得られる。消費は **削除の成否**（1 行消せたか）で決める。DELETE は
         # 行ロックを取るため、後続は先行のコミットを待ってから 0 行を返す。
-        deleted = self.session.execute(
-            delete(WebAuthnChallengeRecord).where(
-                WebAuthnChallengeRecord.challenge_id == challenge_id
+        result = cast(
+            "CursorResult[Any]",
+            self.session.execute(
+                delete(WebAuthnChallengeRecord).where(WebAuthnChallengeRecord.challenge_id == challenge_id),
+                # 同期方法を方言任せにせず、消えた行の後始末は expunge で明示する
+                execution_options={"synchronize_session": False},
             ),
-            # 同期方法を方言任せにせず、消えた行の後始末は expunge で明示する
-            execution_options={"synchronize_session": False},
-        ).rowcount
+        )
+        deleted = result.rowcount
         self.session.expunge(record)
         if deleted != 1:
             raise ChallengeNotFoundError

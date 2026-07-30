@@ -1,4 +1,5 @@
 """ユーザー・パスワードリセットトークンのモデル。"""
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -22,13 +23,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
     username: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     password_hash: Mapped[str] = mapped_column(sa.String(255), nullable=False)
-    is_active: Mapped[bool] = mapped_column(
-        sa.Boolean(), nullable=False, default=True, server_default=sa.true()
-    )
+    is_active: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=True, server_default=sa.true())
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
-    updated_at = mapped_column(
-        sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow
-    )
+    updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
     roles = relationship("Role", secondary=user_roles, lazy="selectin")
 
@@ -42,13 +39,11 @@ class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        BigIntPk, sa.ForeignKey("users.id"), nullable=False, index=True
-    )
+    user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
     expires_at = mapped_column(sa.DateTime(), nullable=False)
     used_at = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
-__all__ = ["User", "PasswordResetToken", "user_roles"]
+__all__ = ["PasswordResetToken", "User", "user_roles"]

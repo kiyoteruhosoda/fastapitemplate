@@ -38,10 +38,17 @@ export function ItemsPage() {
     <div className="card">
       <h1>{t('items.title')}</h1>
       {hasScope('item:manage') && (
-        <form className="inline-form" onSubmit={submit}>
+        <form
+          className="inline-form"
+          onSubmit={(e) => {
+            void submit(e)
+          }}
+        >
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value)
+            }}
             placeholder={t('items.name')}
             required
           />

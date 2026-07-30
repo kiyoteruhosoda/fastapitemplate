@@ -29,7 +29,9 @@ export function RolesPage() {
     void api
       .get<Permission[]>('/api/admin/permissions')
       .then(setPermissions)
-      .catch(() => setPermissions([]))
+      .catch(() => {
+        setPermissions([])
+      })
   }, [])
 
   const create = async () => {
@@ -60,8 +62,20 @@ export function RolesPage() {
     <div className="card">
       <h1>{t('roles.title')}</h1>
       <div className="inline-form">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="name" />
-        <button onClick={create}>{t('roles.add')}</button>
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+          }}
+          placeholder="name"
+        />
+        <button
+          onClick={() => {
+            void create()
+          }}
+        >
+          {t('roles.add')}
+        </button>
       </div>
       <table>
         <thead>
@@ -84,12 +98,20 @@ export function RolesPage() {
                   <input
                     type="checkbox"
                     checked={role.permissions.includes(p.code)}
-                    onChange={() => togglePermission(role, p.code)}
+                    onChange={() => {
+                      void togglePermission(role, p.code)
+                    }}
                   />
                 </td>
               ))}
               <td>
-                <button onClick={() => remove(role)}>{t('common.delete')}</button>
+                <button
+                  onClick={() => {
+                    void remove(role)
+                  }}
+                >
+                  {t('common.delete')}
+                </button>
               </td>
             </tr>
           ))}

@@ -2,6 +2,7 @@
 
 PII を含めない。ユーザー識別子は ``user_id_hash`` のみ。traceback は例外時のみ。
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -15,9 +16,7 @@ class Log(Base):
     __tablename__ = "log"
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
-    created_at = mapped_column(
-        sa.DateTime(), nullable=False, default=utcnow, index=True
-    )
+    created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, index=True)
     level: Mapped[str] = mapped_column(sa.String(20), nullable=False)
     logger: Mapped[str] = mapped_column(sa.String(120), nullable=False)
     message = mapped_column(sa.Text(), nullable=False)

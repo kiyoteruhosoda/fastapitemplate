@@ -5,9 +5,12 @@
 オリジン）からチャレンジ発行・署名検証・トークン発行までが一続きで動くことを
 確認する。
 """
+
 from __future__ import annotations
 
+import httpx
 import pytest
+from fastapi.testclient import TestClient
 
 from tests.integration.api.software_authenticator import SoftwareAuthenticator
 
@@ -21,10 +24,13 @@ def authenticator() -> SoftwareAuthenticator:
     return SoftwareAuthenticator(rp_id=RP_ID, origin=ORIGIN)
 
 
-def _register(client, headers, authenticator: SoftwareAuthenticator, name: str | None):
-    challenge = client.post(
-        "/api/account/security/passkeys/registration", headers=headers
-    )
+def _register(
+    client: TestClient,
+    headers: dict[str, str],
+    authenticator: SoftwareAuthenticator,
+    name: str | None,
+) -> httpx.Response:
+    challenge = client.post("/api/account/security/passkeys/registration", headers=headers)
     assert challenge.status_code == 200, challenge.text
     body = challenge.json()
     return client.post(
@@ -39,7 +45,7 @@ def _register(client, headers, authenticator: SoftwareAuthenticator, name: str |
 
 
 def test_register_then_sign_in_with_a_real_signature(
-    client, admin_headers, authenticator
+    client: TestClient, admin_headers: dict[str, str], authenticator: SoftwareAuthenticator
 ) -> None:
     registration = _register(client, admin_headers, authenticator, "Test key")
     assert registration.status_code == 201, registration.text
@@ -63,7 +69,9 @@ def test_register_then_sign_in_with_a_real_signature(
     assert me.json()["email"] == "admin@example.com"
 
 
-def test_signing_in_records_the_usage(client, admin_headers, authenticator) -> None:
+def test_signing_in_records_the_usage(
+    client: TestClient, admin_headers: dict[str, str], authenticator: SoftwareAuthenticator
+) -> None:
     """署名カウンタと最終使用日時が更新される（資格情報の複製検出の土台）。"""
     from bounded_contexts.account_security.infrastructure.account_security_models import (
         PasskeyCredentialRecord,
@@ -79,9 +87,7 @@ def test_signing_in_records_the_usage(client, admin_headers, authenticator) -> N
             "/api/auth/passkey/login",
             json={
                 "challenge_id": challenge["challenge_id"],
-                "credential": authenticator.authenticate(
-                    challenge["public_key"]["challenge"]
-                ),
+                "credential": authenticator.authenticate(challenge["public_key"]["challenge"]),
             },
         ).status_code
         == 200
@@ -98,7 +104,7 @@ def test_signing_in_records_the_usage(client, admin_headers, authenticator) -> N
         assert record.sign_count == authenticator.sign_count
 
 
-def test_a_signature_for_another_origin_is_rejected(client, admin_headers) -> None:
+def test_a_signature_for_another_origin_is_rejected(client: TestClient, admin_headers: dict[str, str]) -> None:
     """フィッシングサイトからの署名は通らない（オリジンが検証される）。"""
     attacker = SoftwareAuthenticator(rp_id=RP_ID, origin="https://phishing.example")
     response = _register(client, admin_headers, attacker, None)
@@ -106,7 +112,9 @@ def test_a_signature_for_another_origin_is_rejected(client, admin_headers) -> No
     assert response.json()["detail"]["error"] == "passkey_verification_failed"
 
 
-def test_a_replayed_challenge_is_rejected(client, admin_headers, authenticator) -> None:
+def test_a_replayed_challenge_is_rejected(
+    client: TestClient, admin_headers: dict[str, str], authenticator: SoftwareAuthenticator
+) -> None:
     """同じチャレンジで 2 度ログインできない。"""
     assert _register(client, admin_headers, authenticator, None).status_code == 201
 
@@ -124,7 +132,7 @@ def test_a_replayed_challenge_is_rejected(client, admin_headers, authenticator) 
 
 
 def test_a_signature_for_a_different_challenge_is_rejected(
-    client, admin_headers, authenticator
+    client: TestClient, admin_headers: dict[str, str], authenticator: SoftwareAuthenticator
 ) -> None:
     assert _register(client, admin_headers, authenticator, None).status_code == 201
 

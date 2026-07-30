@@ -26,6 +26,8 @@ export type Locale = 'en' | 'ja'
 
 const DICTIONARIES: Record<Locale, Record<string, string>> = { en, ja }
 const STORAGE_KEY = 'locale'
+/** 何も選べないときに必ず使える言語（en.json が翻訳の基準）。 */
+const FALLBACK_LOCALE: Locale = 'en'
 
 export const LOCALE_LABELS: Record<Locale, string> = {
   en: 'English',
@@ -51,7 +53,7 @@ function isLocale(value: unknown): value is Locale {
 
 function availableLocales(settings: UiSettings): Locale[] {
   const configured = settings.languages.filter(isLocale)
-  return configured.length > 0 ? configured : ['en']
+  return configured.length > 0 ? configured : [FALLBACK_LOCALE]
 }
 
 function initialLocale(locales: Locale[], settings: UiSettings): Locale {
@@ -63,7 +65,7 @@ function initialLocale(locales: Locale[], settings: UiSettings): Locale {
 
   const fromServer = settings.default_locale
   if (isLocale(fromServer) && locales.includes(fromServer)) return fromServer
-  return locales[0]
+  return locales[0] ?? FALLBACK_LOCALE
 }
 
 function interpolate(template: string, params?: TranslationParams): string {
@@ -81,9 +83,7 @@ export function I18nProvider({
   children: ReactNode
 }) {
   const locales = useMemo(() => availableLocales(settings), [settings])
-  const [locale, setLocaleState] = useState<Locale>(() =>
-    initialLocale(locales, settings),
-  )
+  const [locale, setLocaleState] = useState<Locale>(() => initialLocale(locales, settings))
 
   // <html lang> を合わせる。読み上げソフトやブラウザの翻訳が正しく働く。
   useEffect(() => {
@@ -101,10 +101,7 @@ export function I18nProvider({
     [locale],
   )
 
-  const value = useMemo(
-    () => ({ locale, locales, setLocale, t }),
-    [locale, locales, setLocale, t],
-  )
+  const value = useMemo(() => ({ locale, locales, setLocale, t }), [locale, locales, setLocale, t])
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 

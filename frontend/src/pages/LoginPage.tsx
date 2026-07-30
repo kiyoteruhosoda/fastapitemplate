@@ -65,7 +65,12 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
-      <form className="card" onSubmit={submit}>
+      <form
+        className="card"
+        onSubmit={(e) => {
+          void submit(e)
+        }}
+      >
         <h1>{step === 'totp' ? t('login.totpTitle') : t('login.title')}</h1>
         {error && <p className="error">{t(error)}</p>}
 
@@ -77,7 +82,9 @@ export function LoginPage() {
                 type="email"
                 autoComplete="username webauthn"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                }}
                 required
               />
             </label>
@@ -87,13 +94,21 @@ export function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                }}
                 required
               />
             </label>
             <button type="submit">{t('login.submit')}</button>
             {isPasskeySupported() && (
-              <button type="button" onClick={signInWithPasskey} disabled={passkeyBusy}>
+              <button
+                type="button"
+                onClick={() => {
+                  void signInWithPasskey()
+                }}
+                disabled={passkeyBusy}
+              >
                 {passkeyBusy ? t('common.loading') : t('login.withPasskey')}
               </button>
             )}
@@ -110,7 +125,9 @@ export function LoginPage() {
                 autoComplete="one-time-code"
                 pattern="[0-9]*"
                 value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
+                onChange={(e) => {
+                  setTotpCode(e.target.value)
+                }}
                 autoFocus
                 required
               />

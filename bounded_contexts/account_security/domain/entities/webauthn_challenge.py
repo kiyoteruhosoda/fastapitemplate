@@ -5,6 +5,7 @@
 動く）ため、プロセスのメモリではなく DB に置く。利用者へは ``challenge_id``
 だけを返し、チャレンジそのものは往復させない。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

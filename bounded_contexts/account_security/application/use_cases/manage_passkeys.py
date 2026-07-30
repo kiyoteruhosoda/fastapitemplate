@@ -1,4 +1,5 @@
 """登録済みパスキーの一覧・削除。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,7 +7,7 @@ from dataclasses import dataclass
 from bounded_contexts.account_security.application.dto.account_security_dto import (
     PasskeySummaryDto,
 )
-from bounded_contexts.account_security.domain.repositories.passkey_credential_repository import (  # noqa: E501
+from bounded_contexts.account_security.domain.repositories.passkey_credential_repository import (
     PasskeyCredentialRepository,
 )
 
