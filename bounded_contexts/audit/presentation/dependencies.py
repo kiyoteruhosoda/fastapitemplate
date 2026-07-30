@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import Depends
@@ -43,6 +44,8 @@ from shared.kernel.logging.request_context import (
     current_user_agent,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def current_audit_context() -> AuditRequestContext:
     """処理中のリクエストの追跡情報を値オブジェクトへ束ねる。"""
@@ -60,12 +63,16 @@ def record_audit_event() -> RecordAuditEvent:
     :class:`~bounded_contexts.audit.presentation.middleware.AuditRecordingMiddleware`
     が行う（ADR-0010）。DB セッションを受け取らないのはそのため。
 
-    ミドルウェアの外から呼ばれた場合（テストが依存を直接呼ぶ等）は、書き込む相手が
-    いないので捨て先の控えを渡す。イベントを積めずに例外を投げるより、本処理を
-    通す方を選ぶ。
+    控えが無い（ミドルウェアが外れている）ときは捨て先を渡して本処理は通し、
+    警告を残す。監査が黙って止まる方が、記録できないことで機能が落ちるより悪い
+    ——が、黙って止まったことに気付けないのはもっと悪いため。
     """
+    pending = current_pending_events()
+    if pending is None:
+        logger.warning("audit_recording_middleware_missing")
+        pending = PendingAuditEvents()
     return RecordAuditEvent(
-        collector=current_pending_events() or PendingAuditEvents(),
+        collector=pending,
         context=current_audit_context(),
         actor_user_id=current_actor_user_id(),
     )
