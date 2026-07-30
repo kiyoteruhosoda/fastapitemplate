@@ -97,6 +97,11 @@ select = [
     "RET",  # flake8-return: return 改善
     "PTH",  # flake8-use-pathlib: pathlib 利用推奨
     "RUF",  # Ruff 独自ルール
+    # 設計品質の定量基準（ADR-0012）。閾値は下の mccabe / pylint セクション。
+    "C901",    # mccabe: 循環複雑度
+    "PLR0912", # 分岐の数
+    "PLR0913", # 引数の数
+    "PLR0915", # 文の数（関数の長さ）
 ]
 
 ignore = [
@@ -109,7 +114,20 @@ ignore = [
     "RUF003",
 ]
 
+[tool.ruff.lint.mccabe]
+# 開発標準どおり 10（推奨は 5 だが、それを下回るかはレビューで見る。ADR-0012）
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+# 引数 3 個以下という標準に対し、機械検証は 4 で行う。Ruff は `Depends()` による
+# 依存注入とキーワード専用の任意引数も 1 個として数えるため（ADR-0012）。
+max-args = 4
+max-branches = 8
+# 関数の長さは行数ではなく文の数で見る（30 行以下 ≒ 文 30 個以下。ADR-0012）
+max-statements = 30
+
 [tool.ruff.lint.per-file-ignores]
 # ARG001: pytest フィクスチャは引数として受け取るだけで参照しないことがある
 # ARG002: テストダブルはインターフェースを満たすために使わない引数も宣言する
-"tests/*" = ["ARG001", "ARG002"]
+# PLR0913: テスト関数の引数はフィクスチャの注入であり、設計上の引数の多さではない
+"tests/*" = ["ARG001", "ARG002", "PLR0913"]
