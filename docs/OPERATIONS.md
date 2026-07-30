@@ -200,6 +200,32 @@ docker run --rm -it --network fastapitemplate \
 環境（stg / prod）は配置ディレクトリ名から自動判定される。
 `.env` が無ければ初回実行時にテンプレートが自動生成される。
 
+## デプロイが「container name is already in use」で失敗したとき
+
+同じ名前のコンテナの残骸は `deploy.sh` が自動で消してやり直すため、通常この手順は
+要らない。次の 2 つのときだけ手を動かす（判断の理由は ADR-0014）。
+
+**別の compose プロジェクトが名前を握っている場合**（`belongs to another compose
+project` と出る）。stg と prod でコンテナ名が重複している。名前の持ち主を確認する:
+
+```bash
+docker ps -a --filter name=<出力に出たコンテナ名> \
+  --format '{{.ID}}  {{.Names}}  {{.State}}  project={{.Label "com.docker.compose.project"}}'
+```
+
+各環境ディレクトリの `.env` の `DB_CONTAINER_NAME` を環境ごとに別の値にし
+（例: prod は `fastapitemplate-mariadb`、stg は `fastapitemplate-mariadb-stg`）、
+再デプロイする。
+
+**削除できない残骸が名前を握っている場合**（`Could not remove the leftover
+container` と出て、`docker ps -a` にも出ない）。Docker が名前だけ掴んだまま
+解放していない。デーモンを再起動してから再デプロイする:
+
+```bash
+sudo systemctl restart docker    # Synology DSM: パッケージセンターから Container Manager を停止 → 起動
+./deploy.sh app
+```
+
 ## デプロイ先に git が無いホスト（Synology 等）で一括デプロイしたいとき
 
 `scripts/build-remote-container.sh` をデプロイ先の `<app>/<stg|prod>/` に一度だけ手で置き、

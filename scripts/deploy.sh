@@ -44,11 +44,15 @@ case "$ENV_NAME" in
     ENV_KIND=stg
     PROJECT="${APP_NAME}-stg"
     DEFAULT_WEB_HOST_PORT=8081
+    DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb-stg"
+    DEFAULT_NETWORK="${APP_NAME}-stg"
     ;;
   prod | production | *-prod | *-production)
     ENV_KIND=prod
     PROJECT="${APP_NAME}"
     DEFAULT_WEB_HOST_PORT=8080
+    DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb"
+    DEFAULT_NETWORK="${APP_NAME}-prod"
     ;;
   *)
     echo "[deploy][error] このスクリプトは ${APP_NAME}/<stg|prod>/ 配下に配置して実行してください。" >&2
@@ -70,6 +74,9 @@ is_valid_web_port() {
 
 APP_IMAGE="${APP_NAME}:$ENV_NAME"
 DB_IMAGE="${APP_NAME}-db:$ENV_NAME"
+# `.env` を読む前の暫定値（診断がこれより前で走っても未定義にならないようにする）。
+# `.env` 生成後に compose と同じ規則で解き直す。
+DB_CONTAINER_NAME="$DEFAULT_DB_CONTAINER"
 IMAGE_TAR="$BASE_DIR/image.tar"
 IMAGE_DB_TAR="$BASE_DIR/image-db.tar"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
@@ -179,10 +186,35 @@ esac
 # ===== エラー時診断: 失敗したモジュールのログを出して終了する =====
 ALL_SERVICES=(init-paths db web nginx)
 
+# このデプロイが作るコンテナ名。compose の既定（`<プロジェクト>-<サービス>-1`）と
+# docker-compose.yml で `container_name` を指定している db だけ別扱いにする。
+expected_container_names() {
+  local svc
+  for svc in "${ALL_SERVICES[@]}"; do
+    case "$svc" in
+      db) echo "$DB_CONTAINER_NAME" ;;
+      *)  echo "${PROJECT}-${svc}-1" ;;
+    esac
+  done
+}
+
+# `$COMPOSE ps` はこのプロジェクトのラベルを持つコンテナしか映さない。名前だけを
+# 握っている残骸は映らないので、名前で引いた実体も併せて出す。
+dump_container_name_holders() {
+  local name
+  echo "$TAG ---- containers holding this project's names ----" >&2
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    docker ps -a --filter "name=^/${name}$" \
+      --format '{{.ID}}  {{.Names}}  {{.State}}  project={{.Label "com.docker.compose.project"}}' >&2 || true
+  done < <(expected_container_names)
+}
+
 dump_module_logs() { # 引数: サービス名...
   echo "" >&2
   echo "----- diagnostics ($TAG) -----" >&2
   $COMPOSE ps -a >&2 || true
+  dump_container_name_holders
   local svc
   for svc in "$@"; do
     echo "" >&2
@@ -301,13 +333,6 @@ fi
 # APP_WEB_HOST_PORT）が書き込まれる。以後この `.env` が正本になる（ADR-0008）。
 if [ ! -f "$ENV_FILE" ]; then
   warn "$ENV_FILE not found; generating a default template."
-  if [ "$ENV_KIND" = "stg" ]; then
-    DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb-stg"
-    DEFAULT_NETWORK="${APP_NAME}-stg"
-  else
-    DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb"
-    DEFAULT_NETWORK="${APP_NAME}-prod"
-  fi
   cat > "$ENV_FILE" <<ENVEOF
 # 自動生成された .env（deploy スクリプトが作成。環境: $ENV_NAME）。
 # 既定の資格情報は開発向け。外部公開する場合は必ず上書きして再デプロイする。
@@ -333,6 +358,12 @@ DOCKER_NETWORK_NAME=$DEFAULT_NETWORK
 ENVEOF
 fi
 
+# DB コンテナ名を compose と同じ規則で解き直す（`.env` の値 ＞ docker-compose.yml の
+# `${DB_CONTAINER_NAME:-fastapitemplate-mariadb}`）。名前の衝突を調べるとき、compose が
+# 実際に使う名前と一致していないと見落とすため、環境ごとの既定値では代用しない。
+DB_CONTAINER_NAME="$(env_file_value DB_CONTAINER_NAME)"
+DB_CONTAINER_NAME="${DB_CONTAINER_NAME:-${APP_NAME}-mariadb}"
+
 # ===== Ensure DB image is available under the env-specific tag =====
 ensure_db_image() {
   if docker image inspect "$DB_IMAGE" >/dev/null 2>&1; then
@@ -353,8 +384,75 @@ ensure_db_image() {
 }
 
 # ===== Stop running containers =====
+# --remove-orphans を付けるのは、過去の compose ファイルにしか無いサービス
+# （リネーム・削除されたもの）のコンテナがプロジェクトに残り、次の up で名前を
+# 取り合うのを防ぐため。
 log "docker compose down"
-$COMPOSE down || true
+$COMPOSE down --remove-orphans || true
+
+# ===== コンテナ名の衝突を解消する =====
+# `docker compose down` が消すのは「このプロジェクトのラベルを持つコンテナ」だけで、
+# 同じ名前を握った残骸までは面倒を見ない。残骸が残る経路は主に 2 つある。
+#   1. compose 管理外で作られた（ラベルが無い）コンテナ
+#   2. 削除処理が途中で止まり、実体は無いのに名前だけ Docker が掴んでいる
+# どちらも `docker compose ps` には映らないまま、次の up が
+# `Conflict. The container name "/…" is already in use` で落ちる。
+#
+# 消してよいかはラベル `com.docker.compose.project` だけで判定する:
+#   このプロジェクト / ラベル無し / inspect もできない → 残骸なので消す
+#   別プロジェクト → stg など別環境が稼働中かもしれないので、消さずに中断する
+container_project_label() { # 引数: <コンテナ名または ID>
+  docker inspect -f '{{if .Config.Labels}}{{index .Config.Labels "com.docker.compose.project"}}{{end}}' "$1" 2>/dev/null
+}
+
+remove_leftover_container() { # 引数: <コンテナ名または ID>
+  local ref="$1" project
+  project="$(container_project_label "$ref" || true)"
+  if [ -n "$project" ] && [ "$project" != "$PROJECT" ]; then
+    err "Container '$ref' belongs to another compose project ('$project') and holds a name this deploy needs."
+    echo "  別環境が稼働中の可能性があるため自動では消しません。コンテナ名の重複" >&2
+    echo "  （各環境の .env の DB_CONTAINER_NAME・環境ディレクトリ名）を見直してください。" >&2
+    return 1
+  fi
+  warn "Removing leftover container holding a name this deploy needs: $ref"
+  if ! docker rm -f "$ref" >/dev/null 2>&1; then
+    err "Could not remove the leftover container: $ref"
+    echo "  実体が無いまま名前だけ掴まれている場合（docker ps -a に出ない）は、" >&2
+    echo "  Docker デーモンの再起動で解消します。" >&2
+    return 1
+  fi
+  return 0
+}
+
+# up の前に、このデプロイが作る名前を先回りして空ける。
+clear_leftover_containers() {
+  local name found=0
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    docker container inspect "$name" >/dev/null 2>&1 || continue
+    found=1
+    remove_leftover_container "$name" || return 1
+  done < <(expected_container_names)
+  [ "$found" = 0 ] || log "Cleared leftover containers before starting"
+  return 0
+}
+
+# 名前だけ掴まれている残骸は inspect でも ps でも見えない。up の失敗メッセージには
+# 衝突相手のコンテナ ID が入るので、そこから拾って消す。
+conflicting_container_ids() { # 引数: <up の出力ファイル>
+  sed -n 's/.*already in use by container "\([0-9a-f]\{6,\}\)".*/\1/p' "$1" | sort -u
+}
+
+clear_conflicts_from_output() { # 引数: <up の出力ファイル>
+  local ids id
+  ids="$(conflicting_container_ids "$1")"
+  [ -n "$ids" ] || return 1
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    remove_leftover_container "$id" || return 1
+  done <<< "$ids"
+  return 0
+}
 
 # ===== Reset mode: clear data =====
 if [ "$MODE" = "reset" ]; then
@@ -379,18 +477,22 @@ ensure_db_image
 log "Ensuring host mount root exists: $HOST_DATA_ROOT"
 mkdir -p "$HOST_DATA_ROOT" || fail "Could not create host mount root: $HOST_DATA_ROOT"
 
+clear_leftover_containers || fail "Could not free the container names this deploy needs"
+
 # ===== Start containers =====
-log "docker compose up -d"
 UP_OUTPUT="$(mktemp)"
-if ! $COMPOSE up -d --remove-orphans 2>&1 | tee "$UP_OUTPUT"; then
-  err "docker compose up failed"
-  cat "$UP_OUTPUT" >&2
-  rm -f "$UP_OUTPUT"
-  dump_module_logs "${ALL_SERVICES[@]}"
-  err "Deploy failed (mode: $MODE, env: $ENV_NAME)"
-  exit 1
+trap 'rm -f "$UP_OUTPUT"' EXIT
+
+# 出力は失敗時に衝突相手の ID を取り出すので、tee で見せつつファイルにも残す。
+compose_up() { $COMPOSE up -d --remove-orphans 2>&1 | tee "$UP_OUTPUT"; }
+
+log "docker compose up -d"
+if ! compose_up; then
+  # 名前衝突なら相手を消して 1 度だけやり直す。それ以外の失敗はそのまま診断へ回す。
+  clear_conflicts_from_output "$UP_OUTPUT" || fail "docker compose up failed" "${ALL_SERVICES[@]}"
+  log "Retrying docker compose up after clearing the conflicting container(s)"
+  compose_up || fail "docker compose up failed" "${ALL_SERVICES[@]}"
 fi
-rm -f "$UP_OUTPUT"
 
 # ===== Schema sync =====
 run_migrations_with_retry() {
