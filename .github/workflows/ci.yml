@@ -1,10 +1,19 @@
 name: CI
 
+# トリガーは push（main のみ）と pull_request の 2 つ。push を全ブランチ対象にすると、
+# PR のあるブランチでは同じコミットが push 側と pull_request 側で 2 回検証され、
+# CI 時間が丸ごと二重になる（ADR-0009）。
+# ※ `branches` を指定しているのでタグ push はこのワークフローに一致しない（`v*` は release.yml）。
 on:
   push:
-    branches: ["**"]
-    tags-ignore: ["v*"]
+    branches: [main]
   pull_request:
+
+# 同じ PR（push は同じブランチ）への連続 push では、古い実行を止めて最新だけを検証する。
+# main は「どのコミットが緑だったか」の記録を残したいのでキャンセルしない。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # 品質ゲート（CLAUDE.md「テスト」／docs/OPERATIONS.md 参照）
 #   Backend : Ruff Format → Ruff Check → MyPy → PyTest
