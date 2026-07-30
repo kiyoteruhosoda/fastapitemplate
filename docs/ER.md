@@ -153,7 +153,7 @@ erDiagram
 - `log` はユーザーへ FK を張らない。PII を持たず `user_id_hash` だけを記録する方針のため
   （CLAUDE.md「ログ」）。ユーザーを消してもログは残る。
 - `audit_log` も FK を張らない。追記専用の記録で、ユーザーを削除しても「誰が何をしたか」の
-  行を残さなければならないため（ADR-0008）。`actor_user_id` は `users.id` と同じ値だが
+  行を残さなければならないため（ADR-0010）。`actor_user_id` は `users.id` と同じ値だが
   参照整合は取らない。
 - `log.request_id` と `audit_log.request_id` は同じ値が入る。片方で見つけた ID をもう一方の
   絞り込みに入れると、1 リクエストの記録を両側から突き合わせられる。
@@ -198,7 +198,7 @@ erDiagram
 | `audit_log` | 監査ログ（誰が何をしたか）。ログイン・ユーザー／ロール管理・設定変更・再起動要求・MFA の変更を記録する | `bounded_contexts/audit/infrastructure/audit_log_model.py` |
 | `items` | example コンテキストのサンプルテーブル | `bounded_contexts/example/infrastructure/item_model.py` |
 
-`log` と `audit_log` の使い分け（ADR-0008）:
+`log` と `audit_log` の使い分け（ADR-0010）:
 
 | | `log` | `audit_log` |
 |---|---|---|
@@ -208,7 +208,7 @@ erDiagram
 | 閲覧 scope | `log:view` | `audit:view` |
 
 `audit_log.actor_user_id` は不可逆ハッシュではなく内部 ID を持つ。監査は操作を主体へ
-帰属させるための記録で、後から誰か特定できなければ目的を果たさないため（ADR-0008）。
+帰属させるための記録で、後から誰か特定できなければ目的を果たさないため（ADR-0010）。
 メールアドレス・ユーザー名・パスワード・設定値そのものは記録しない。
 
 ---
@@ -231,7 +231,7 @@ erDiagram
 - **PII を保存しない列**は `*_hash` とする（`log.user_id_hash`、
   `password_reset_tokens.token_hash`）。監査ログのように「後から主体を特定できなければ
   意味がない」記録は例外で、内部 ID（`audit_log.actor_user_id`）を持つ。
-  いずれの場合もメールアドレス・氏名・パスワード等の PII 自体は保存しない（ADR-0008）。
+  いずれの場合もメールアドレス・氏名・パスワード等の PII 自体は保存しない（ADR-0010）。
 
 ## テーブルを追加・変更するとき
 

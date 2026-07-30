@@ -82,7 +82,7 @@ def create_app() -> FastAPI:
     Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(app, include_in_schema=False)
 
     # ログ・監査の DB 書き込みは、リクエストの DB セッションが閉じた後に行う
-    # （途中で書くと SQLite でロックが競合する。ADR-0008）。
+    # （途中で書くと SQLite でロックが競合する。ADR-0010）。
     #
     # 後から追加したものが外側になる。外側から
     # DeferredLogWrite → RequestLogging → AuditRecording の順で、

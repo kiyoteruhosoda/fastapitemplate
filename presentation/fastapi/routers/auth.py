@@ -2,7 +2,7 @@
 
 認証の結果は監査ログ（``audit_log``）へも残す。失敗したログイン試行は
 ``result=failure`` で記録され、``reason`` に「なぜ失敗したか」の分類が入る
-（パスワード・メールアドレスそのものは記録しない。ADR-0008）。
+（パスワード・メールアドレスそのものは記録しない。ADR-0010）。
 
 ログアウトは記録しない。Cookie を落とすだけの未認証エンドポイントで、操作した
 利用者を特定できないため。
@@ -76,7 +76,7 @@ def _reject_login(audit: RecordAuditEvent, user: User | None, reason: str) -> No
 
     相手のアカウントは**実行者ではなく対象**として記録する。認証に失敗した時点で
     「誰が試したか」は分かっておらず、実行者に据えるとアカウントの持ち主が自分で
-    やったように読めてしまう（ADR-0008）。
+    やったように読めてしまう（ADR-0010）。
     """
     audit.execute(
         AuditEventType.LOGIN_FAILED,
@@ -193,7 +193,7 @@ async def forgot_password(body: ForgotPasswordRequest, db: DbDep, audit: AuditRe
 
     未認証のエンドポイントなので、監査ログでは要求されたアカウントを**対象**として
     記録し、実行者は空のままにする。メールアドレスを知っていれば誰でも叩けるため、
-    アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0008）。
+    アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0010）。
     """
     # ユーザーの存在有無に関わらず同じ応答を返す（列挙攻撃対策）
     user_id = PasswordResetService().request_reset(db, body.email)

@@ -245,7 +245,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **使用 API**: `GET /api/admin/audit-logs`, `GET /api/admin/audit-logs/filters`
 - **備考**:
   - 実行者・対象は**内部 ID** で表示する。監査ログにメールアドレス等の PII を保存しない
-    ため（`docs/decisions/ADR-0008-audit-log.md`）。ID から利用者を辿るときは
+    ため（`docs/decisions/ADR-0010-audit-log.md`）。ID から利用者を辿るときは
     ユーザー管理（S9）を見る。
   - 「詳細」列には失敗の分類（`invalid_password` 等）や変更した項目名
     （`fields=is_active`・`keys=LOG_LEVEL`）が入る。**値そのものは入らない**。

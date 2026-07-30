@@ -58,7 +58,7 @@ def record_audit_event() -> RecordAuditEvent:
 
     積む先はリクエストの控え。実際の書き込みは処理が終わってから
     :class:`~bounded_contexts.audit.presentation.middleware.AuditRecordingMiddleware`
-    が行う（ADR-0008）。DB セッションを受け取らないのはそのため。
+    が行う（ADR-0010）。DB セッションを受け取らないのはそのため。
 
     ミドルウェアの外から呼ばれた場合（テストが依存を直接呼ぶ等）は、書き込む相手が
     いないので捨て先の控えを渡す。イベントを積めずに例外を投げるより、本処理を

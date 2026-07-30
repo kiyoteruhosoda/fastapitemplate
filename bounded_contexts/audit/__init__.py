@@ -15,5 +15,5 @@
 - アプリログ: 横断的関心事なので :mod:`shared.kernel.logging` の ``DbLogHandler``
   が書く。本コンテキストは**読むだけ**。
 
-どちらも PII を含めない。詳細は ``docs/decisions/ADR-0008-audit-log.md``。
+どちらも PII を含めない。詳細は ``docs/decisions/ADR-0010-audit-log.md``。
 """

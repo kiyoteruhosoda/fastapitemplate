@@ -1,6 +1,6 @@
 """``RecordAuditEvent`` の組み立てと、``WriteAuditEvents`` の失敗時のふるまい。
 
-記録は 2 段階に分かれている（ADR-0008）。
+記録は 2 段階に分かれている（ADR-0010）。
 
 - 処理の途中: :class:`RecordAuditEvent` が組み立てて控えに積む（I/O なし・失敗しない）
 - 処理の後: :class:`WriteAuditEvents` がまとめて書く（失敗しても呼び出し元を落とさない）

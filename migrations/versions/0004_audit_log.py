@@ -6,7 +6,7 @@
 ``shared/infrastructure/models/log.py``。
 
 ``audit_log`` は追記専用の記録なので外部キーを張らない（ユーザーを削除しても
-「誰が何をしたか」の行を残すため。ADR-0008）。
+「誰が何をしたか」の行を残すため。ADR-0010）。
 
 Revision ID: audit_log
 Revises: account_security

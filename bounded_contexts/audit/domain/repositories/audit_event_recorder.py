@@ -7,7 +7,7 @@
 分けたもう 1 つの理由は SQLite（ADR-0001 で開発・テストの DB として使う）。処理の
 途中で別コネクションから書こうとすると、リクエストのセッションが持つ書き込みロック
 と衝突して `database is locked` になる。書き込みをリクエストの外へ出すことで、
-ロックの競合そのものを無くしている（ADR-0008）。
+ロックの競合そのものを無くしている（ADR-0010）。
 
 読み取りは :mod:`~bounded_contexts.audit.domain.repositories.audit_log_query`。
 """
