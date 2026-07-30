@@ -46,6 +46,9 @@ cd frontend && npm run test      # Vitest
 
 CI と同じ順序・同じコマンドを流す。落ちたらマージできない（ADR-0006）。
 
+**CI が走るのは PR に対してと `main` への push だけ**（ADR-0009）。PR を作る前の
+ブランチ push では走らないので、手元で `make check` を流して確認する。
+
 ```bash
 make check                       # Backend + Frontend を全部
 make check-backend               # Backend だけ
