@@ -19,6 +19,7 @@ from sqlalchemy.pool import StaticPool
 import bounded_contexts.account_security.infrastructure.account_security_models
 import bounded_contexts.example.infrastructure.item_model  # noqa: F401 — メタデータ登録
 import shared.infrastructure.models  # noqa: F401 — メタデータ登録
+from shared.domain.auth import master_data
 from shared.infrastructure.master_data_seeder import seed_master_data
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
@@ -68,7 +69,7 @@ def client(app: FastAPI) -> Iterator[TestClient]:
 def admin_headers(client: TestClient) -> dict[str, str]:
     response = client.post(
         "/api/auth/login",
-        json={"email": "admin@example.com", "password": "admin"},
+        json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": master_data.DEFAULT_ADMIN_PASSWORD},
     )
     assert response.status_code == 200, response.text
     token = response.json()["access_token"]

@@ -34,7 +34,7 @@ uv run python main.py                # http://127.0.0.1:8000
 ```
 
 - Swagger UI: http://127.0.0.1:8000/docs
-- 初期管理者: `admin@example.com` / `admin`（`ADMIN_INITIAL_PASSWORD` で上書き可）
+- 初期管理者: `admin@example.com` / `admin@example.com`（`ADMIN_INITIAL_PASSWORD` で上書き可）
 
 フロントエンド:
 
@@ -81,9 +81,11 @@ docker compose up -d            # ローカルで db / web / nginx を起動（�
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | 設計ルール・制約事項・ドキュメント運用（作業テンプレ） |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | レイヤー構成・DDD パターン解説 |
+| [docs/ER.md](docs/ER.md) | ER 図・テーブル定義 |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作手順書 |
 | [docs/Progress.md](docs/Progress.md) | 進行中タスク |
 | [docs/decisions/](docs/decisions/) | 設計判断（ADR） |
+| [frontend/README.md](frontend/README.md) | 画面遷移図・画面仕様・操作マニュアル |
 
 ## ライセンス
 

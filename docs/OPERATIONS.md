@@ -18,7 +18,7 @@ uv run alembic upgrade head
 uv run python scripts/seed_master_data.py
 ```
 
-- 初期管理者: `admin@example.com` / `admin`
+- 初期管理者: `admin@example.com` / `admin@example.com`
   （`ADMIN_INITIAL_PASSWORD` 環境変数で上書き可。本番では必ず変更する）
 
 ## フロントエンドを開発したいとき

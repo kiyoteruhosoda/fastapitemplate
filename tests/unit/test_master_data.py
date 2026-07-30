@@ -1,5 +1,7 @@
 """マスタデータの整合性（正本ファイル内のドリフト検出）。"""
 
+from werkzeug.security import check_password_hash
+
 from shared.domain.auth import master_data
 
 
@@ -21,3 +23,8 @@ def test_admin_role_has_all_permissions() -> None:
 
 def test_default_admin_role_exists() -> None:
     assert master_data.DEFAULT_ADMIN_ROLE in {name for _, name in master_data.ROLES}
+
+
+def test_default_admin_password_hash_matches_documented_password() -> None:
+    """事前計算ハッシュと平文の対応を固定する（Domain は werkzeug を import できない）。"""
+    assert check_password_hash(master_data.DEFAULT_ADMIN_PASSWORD_HASH, master_data.DEFAULT_ADMIN_PASSWORD)
