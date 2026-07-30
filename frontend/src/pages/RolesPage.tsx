@@ -77,46 +77,48 @@ export function RolesPage() {
           {t('roles.add')}
         </button>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Role</th>
-            {permissions.map((p) => (
-              <th key={p.id} className="vertical">
-                <code>{p.code}</code>
-              </th>
-            ))}
-            <th>{t('common.actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {roles.map((role) => (
-            <tr key={role.id}>
-              <td>{role.name}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
               {permissions.map((p) => (
-                <td key={p.id}>
-                  <input
-                    type="checkbox"
-                    checked={role.permissions.includes(p.code)}
-                    onChange={() => {
-                      void togglePermission(role, p.code)
-                    }}
-                  />
-                </td>
+                <th key={p.id} className="vertical">
+                  <code>{p.code}</code>
+                </th>
               ))}
-              <td>
-                <button
-                  onClick={() => {
-                    void remove(role)
-                  }}
-                >
-                  {t('common.delete')}
-                </button>
-              </td>
+              <th>{t('common.actions')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {roles.map((role) => (
+              <tr key={role.id}>
+                <td>{role.name}</td>
+                {permissions.map((p) => (
+                  <td key={p.id}>
+                    <input
+                      type="checkbox"
+                      checked={role.permissions.includes(p.code)}
+                      onChange={() => {
+                        void togglePermission(role, p.code)
+                      }}
+                    />
+                  </td>
+                ))}
+                <td>
+                  <button
+                    onClick={() => {
+                      void remove(role)
+                    }}
+                  >
+                    {t('common.delete')}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

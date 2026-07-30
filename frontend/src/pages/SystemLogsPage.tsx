@@ -38,34 +38,36 @@ export function SystemLogsPage() {
         <option value="WARNING">WARNING</option>
         <option value="ERROR">ERROR</option>
       </select>
-      <table>
-        <thead>
-          <tr>
-            <th>Time (UTC)</th>
-            <th>Level</th>
-            <th>Logger</th>
-            <th>Message</th>
-            <th>requestId</th>
-            <th>Path</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map((log) => (
-            <tr key={log.id}>
-              <td>{log.created_at}</td>
-              <td>{log.level}</td>
-              <td>{log.logger}</td>
-              <td>{log.message}</td>
-              <td>
-                <code>{log.request_id}</code>
-              </td>
-              <td>{log.path}</td>
-              <td>{log.status_code}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Time (UTC)</th>
+              <th>Level</th>
+              <th>Logger</th>
+              <th>Message</th>
+              <th>requestId</th>
+              <th>Path</th>
+              <th>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {logs.map((log) => (
+              <tr key={log.id}>
+                <td>{log.created_at}</td>
+                <td>{log.level}</td>
+                <td>{log.logger}</td>
+                <td>{log.message}</td>
+                <td>
+                  <code>{log.request_id}</code>
+                </td>
+                <td>{log.path}</td>
+                <td>{log.status_code}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

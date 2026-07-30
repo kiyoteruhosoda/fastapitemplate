@@ -9,6 +9,8 @@
   "nav.config": "System settings",
   "nav.logs": "System logs",
   "nav.logout": "Logout",
+  "nav.menu": "Menu",
+  "nav.closeMenu": "Close menu",
   "login.title": "Sign in",
   "login.email": "Email",
   "login.password": "Password",

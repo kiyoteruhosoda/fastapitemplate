@@ -118,46 +118,48 @@ export function UsersPage() {
         </select>
         <button type="submit">{t('users.add')}</button>
       </form>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>{t('common.email')}</th>
-            <th>{t('common.username')}</th>
-            <th>Roles</th>
-            <th>{t('common.active')}</th>
-            <th>{t('common.actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
-            <tr key={user.id}>
-              <td>{user.id}</td>
-              <td>{user.email}</td>
-              <td>{user.username}</td>
-              <td>{user.roles.join(', ')}</td>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={user.is_active}
-                  onChange={() => {
-                    void toggleActive(user)
-                  }}
-                />
-              </td>
-              <td>
-                <button
-                  onClick={() => {
-                    void remove(user)
-                  }}
-                >
-                  {t('common.delete')}
-                </button>
-              </td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>{t('common.email')}</th>
+              <th>{t('common.username')}</th>
+              <th>Roles</th>
+              <th>{t('common.active')}</th>
+              <th>{t('common.actions')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id}>
+                <td>{user.id}</td>
+                <td>{user.email}</td>
+                <td>{user.username}</td>
+                <td>{user.roles.join(', ')}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={user.is_active}
+                    onChange={() => {
+                      void toggleActive(user)
+                    }}
+                  />
+                </td>
+                <td>
+                  <button
+                    onClick={() => {
+                      void remove(user)
+                    }}
+                  >
+                    {t('common.delete')}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
