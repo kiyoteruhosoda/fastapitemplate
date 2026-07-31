@@ -228,8 +228,21 @@ echo 'APP_NAME=rewardpointsweb' >> /volume1/docker/<app>/prod/.env
 
 名前を変えると、旧名の compose プロジェクトは次のデプロイで 1 度だけ自動的に畳まれ、
 自動生成された `.env` の `DB_CONTAINER_NAME` / `DOCKER_NETWORK_NAME` も書き換わる。
-**DB のデータは `mnt/db_data`（ホスト側）に残るため引き継がれる。**
-`.env` で自分で値を選んでいる場合は自動では変わらないので、必要なら手で直す。
+ディレクトリごと移動した場合は `HOST_DATA_ROOT`（移動前の絶対パスが書かれている）も
+現在地へ直る。**DB のデータは `mnt/db_data` ごと移動するため引き継がれる。**
+
+自動で直るのは deploy が生成した既定値だけ。次の場合は手で直す。
+
+- `.env` の値を自分で選んでいる場合（例: `HOST_DATA_ROOT` を別ディスクにしている、
+  `DB_CONTAINER_NAME` を独自の名前にしている）。
+- 移動先が元と別の親ディレクトリの場合（例 `/volume1/docker/…` → `/volume2/apps/…`）。
+  旧コンテナが自分のものだと判定できないため、`… にこの環境ディレクトリ以外のコンテナが
+  含まれるため畳みません` と出て畳まれない。出力された `working_dir=` が自分の旧デプロイの
+  ものだと確認できたら、手で畳んでから再デプロイする:
+
+  ```bash
+  docker compose -p fastapitemplate down --remove-orphans
+  ```
 
 ## デプロイが「container name is already in use」で失敗したとき
 

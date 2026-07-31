@@ -132,6 +132,15 @@ else
 fi
 log "Deploy name: $APP_NAME (source: $APP_NAME_SOURCE, env: $ENV_NAME)"
 
+# 正規化は多対一（`foo.bar` も `foo--bar` も `foo-bar` になる）。名前が変換されたときは、
+# 変換後の名前で他のアプリと重ならないことを確かめられるよう、必ず見せる。
+APP_NAME_RAW="${APP_NAME_FROM_ENV:-$(basename "$(dirname "$BASE_DIR")")}"
+if [ "$APP_NAME" != "$APP_NAME_RAW" ]; then
+  warn "デプロイの名前を docker の識別子へ正規化しました: '$APP_NAME_RAW' → '$APP_NAME'"
+  warn "  同じホストの他のアプリと**正規化後の名前**が重ならないようにしてください（重なると"
+  warn "  compose プロジェクト・コンテナ名・ネットワークを共有してしまいます）。"
+fi
+
 # テンプレートの名前のままではデプロイさせない。同じテンプレートから作った別プロジェクトが
 # 同じホストにいると、container_name とホストポートを丸ごと取り合うため（ADR-0015）。
 if [ "$APP_NAME" = "$TEMPLATE_APP_NAME" ]; then
@@ -160,6 +169,12 @@ else
   LEGACY_DB_CONTAINER="${TEMPLATE_APP_NAME}-mariadb"
   LEGACY_NETWORK="${TEMPLATE_APP_NAME}-prod"
 fi
+
+# 旧名のまま置かれていたときの環境ディレクトリ（`<親の親>/fastapitemplate/<env>`）。
+# `docs/OPERATIONS.md` の手順どおりディレクトリごと改名して移行すると、旧コンテナの
+# `com.docker.compose.project.working_dir` ラベルと `.env` の `HOST_DATA_ROOT` は移動前の
+# パスを指したまま残る。それを見分けるために使う（実在確認付き。下記 migrate_from_legacy_name）。
+LEGACY_BASE_DIR="$(dirname "$(dirname "$BASE_DIR")")/$TEMPLATE_APP_NAME/$ENV_NAME"
 
 APP_IMAGE="${APP_NAME}:$ENV_NAME"
 DB_IMAGE="${APP_NAME}-db:$ENV_NAME"
@@ -207,10 +222,15 @@ image_matches_manifest() { # 引数: <イメージ参照> <期待イメージID>
 }
 
 # マウントルート。既定は環境ディレクトリ配下の mnt/（.env の HOST_DATA_ROOT で上書き可）。
-HOST_DATA_ROOT="$(env_file_value HOST_DATA_ROOT)"
-HOST_DATA_ROOT="${HOST_DATA_ROOT:-$BASE_DIR/mnt}"
-DATA_PATH="$HOST_DATA_ROOT/data"
-DB_PATH="$HOST_DATA_ROOT/db_data"
+# `.env` は後から（生成・旧名からの移行で）変わりうるので、解決は関数にして解き直せるようにする。
+resolve_host_data_root() {
+  HOST_DATA_ROOT="$(env_file_value HOST_DATA_ROOT)"
+  HOST_DATA_ROOT="${HOST_DATA_ROOT:-$BASE_DIR/mnt}"
+  DATA_PATH="$HOST_DATA_ROOT/data"
+  DB_PATH="$HOST_DATA_ROOT/db_data"
+  export HOST_DATA_ROOT
+}
+resolve_host_data_root
 
 # WEB 公開ポート。優先順位は `.env` ＞ APP_WEB_HOST_PORT（build-remote-container.env からの
 # 引き継ぎ）＞ 環境ディレクトリ名由来の既定値（ADR-0008）。
@@ -465,11 +485,25 @@ container_working_dir() { # 引数: <コンテナ ID または名前>
     "$1" 2>/dev/null
 }
 
+# ディレクトリごと改名して移行した場合（OPERATIONS の手順）、旧コンテナのラベルは
+# **移動前のパス**を指したまま残る。移動前のパスは分かる（LEGACY_BASE_DIR）ので突き合わせに
+# 使えるが、そこにまだディレクトリがあるなら別のデプロイが現役でいるということなので、
+# その場合は自分のものとみなさない（消してよいのは、置き場所ごと無くなった旧デプロイだけ）。
+legacy_base_dir_was_moved_here() {
+  [ "$LEGACY_BASE_DIR" != "$BASE_DIR" ] && [ ! -e "$LEGACY_BASE_DIR" ]
+}
+
 legacy_containers_are_ours() { # 引数: <コンテナ ID...>
   local id dir
   for id in "$@"; do
     dir="$(container_working_dir "$id" || true)"
-    [ "$dir" = "$BASE_DIR" ] || [ "$dir" = "$BASE_DIR_PHYS" ] || return 1
+    if [ "$dir" = "$BASE_DIR" ] || [ "$dir" = "$BASE_DIR_PHYS" ]; then
+      continue
+    fi
+    if [ "$dir" = "$LEGACY_BASE_DIR" ] && legacy_base_dir_was_moved_here; then
+      continue
+    fi
+    return 1
   done
   return 0
 }
@@ -510,6 +544,36 @@ rewrite_env_value() { # 引数: <キー> <旧値> <新値>
   log "Renamed in $ENV_FILE: ${key} ${old} -> ${new}"
 }
 
+# 自動生成された `.env` の `HOST_DATA_ROOT` は絶対パス（`<環境ディレクトリ>/mnt`）なので、
+# ディレクトリごと改名して移行すると**移動前のパスを指したまま**になる。そのままだと
+# `mkdir -p` が消えたパスを作り直し、空の DB で MariaDB が初期化される（移動したデータは
+# 使われない）。移動前のパスちょうどを指していて、そこが実在しないときだけ現在地へ直す。
+# 別のディスク・共有フォルダを指している値には触れない（一時的に見えていないだけの可能性
+# があり、勝手に付け替えると空の DB で起動してしまう）。
+migrate_host_data_root() {
+  local current
+  current="$(env_file_value HOST_DATA_ROOT)"
+  [ -n "$current" ] || return 0
+  [ "$current" = "$LEGACY_BASE_DIR/mnt" ] || return 0
+  legacy_base_dir_was_moved_here || return 0
+  rewrite_env_value HOST_DATA_ROOT "$current" "$BASE_DIR/mnt"
+  warn "マウントルートが移動前のパスを指していたため、現在地へ直しました（$current → $BASE_DIR/mnt）。"
+  warn "  データを別の場所へ置いている場合は、$ENV_FILE の HOST_DATA_ROOT を手で直してください。"
+}
+
+report_unfoldable_legacy_project() { # 引数: <コンテナ ID...>
+  local id
+  warn "compose プロジェクト '$LEGACY_PROJECT' にこの環境ディレクトリ以外のコンテナが含まれるため畳みません。"
+  for id in "$@"; do
+    warn "  $id  working_dir=$(container_working_dir "$id" || true)"
+  done
+  warn "  この環境: $BASE_DIR（ディレクトリごと改名した場合の移動前の想定: $LEGACY_BASE_DIR）"
+  warn "  旧名のまま動いている別のアプリがある可能性があります。名前が衝突する場合は、"
+  warn "  そちらの配置ディレクトリ名か .env の APP_NAME を見直してください。"
+  warn "  この環境の旧デプロイだと分かっている場合は、手で畳んでから再実行してください:"
+  warn "    docker compose -p $LEGACY_PROJECT down --remove-orphans"
+}
+
 migrate_from_legacy_name() {
   local ids
   ids="$(legacy_container_ids)"
@@ -519,17 +583,20 @@ migrate_from_legacy_name() {
     if legacy_containers_are_ours $ids; then
       fold_legacy_project
     else
-      warn "compose プロジェクト '$LEGACY_PROJECT' にこの環境ディレクトリ以外のコンテナが含まれるため畳みません。"
-      warn "  旧名のまま動いている別のアプリがある可能性があります（$BASE_DIR 以外の working_dir）。"
-      warn "  名前が衝突する場合は、そちらの配置ディレクトリ名か .env の APP_NAME を見直してください。"
+      # shellcheck disable=SC2086
+      report_unfoldable_legacy_project $ids
     fi
   fi
   rewrite_env_value DB_CONTAINER_NAME "$LEGACY_DB_CONTAINER" "$DEFAULT_DB_CONTAINER"
   rewrite_env_value DB_CONTAINER_NAME "${TEMPLATE_APP_NAME}-mariadb" "$DEFAULT_DB_CONTAINER"
   rewrite_env_value DOCKER_NETWORK_NAME "$LEGACY_NETWORK" "$DEFAULT_NETWORK"
   rewrite_env_value DOCKER_NETWORK_NAME "$TEMPLATE_APP_NAME" "$DEFAULT_NETWORK"
+  migrate_host_data_root
 }
 migrate_from_legacy_name
+# マウントルートは `.env` の書き換えで変わりうるので解き直す（この後の mkdir・reset の削除・
+# compose へ渡す値を、書き換え後の 1 つの値で揃える）。
+resolve_host_data_root
 
 # DB コンテナ名とネットワーク名を解き直す（`.env` の値 ＞ デプロイの名前から導いた既定値）。
 # 解決した値は WEB_HOST_PORT と同じ理由で export する: docker-compose.yml 側の既定値
