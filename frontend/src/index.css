@@ -233,6 +233,19 @@ select {
   gap: 0.2rem;
 }
 
+/* 入力欄を `<label>` で囲めない欄（見出しと `for` / `id` で結ぶ）。
+ * 囲めないのは、表示切り替えボタンを持つパスワード欄のように labelable な要素が
+ * 2 つ入る場合。見た目は上の `.card label` と同じ縦積みにする。 */
+.card .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.card .field > label {
+  display: block;
+}
+
 .inline-form {
   display: flex;
   gap: 0.5rem;
@@ -246,6 +259,12 @@ select {
   align-items: center;
   gap: 1rem;
   padding: 0.3rem 0;
+}
+
+/* 行の見出しは 1 行のテキストとして流す（`.card label` の縦積みを打ち消す）。
+ * 行そのものは `<div>`（入力欄とは `for` / `id` で結ぶ）。 */
+.config-row > label {
+  display: block;
 }
 
 .notice {

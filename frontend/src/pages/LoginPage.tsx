@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { PasswordInput } from '../components/PasswordInput'
@@ -20,6 +20,9 @@ export function LoginPage() {
   const [totpCode, setTotpCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [passkeyBusy, setPasskeyBusy] = useState(false)
+  // パスワード欄は表示切り替えボタンを持つため `<label>` で囲まず `for` で結ぶ
+  // （labelable な要素を 2 つ入れると対応付けが曖昧になる）。
+  const passwordId = useId()
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -89,9 +92,10 @@ export function LoginPage() {
                 required
               />
             </label>
-            <label>
-              {t('login.password')}
+            <div className="field">
+              <label htmlFor={passwordId}>{t('login.password')}</label>
               <PasswordInput
+                id={passwordId}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => {
@@ -99,7 +103,7 @@ export function LoginPage() {
                 }}
                 required
               />
-            </label>
+            </div>
             <button type="submit">{t('login.submit')}</button>
             {isPasskeySupported() && (
               <button

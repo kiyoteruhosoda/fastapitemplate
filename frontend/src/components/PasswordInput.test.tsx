@@ -21,10 +21,10 @@ const SETTINGS: UiSettings = {
 function renderInput(props: ComponentProps<typeof PasswordInput> = {}) {
   return render(
     <I18nProvider settings={SETTINGS}>
-      <label>
-        Password
-        <PasswordInput {...props} />
-      </label>
+      {/* 表示切り替えボタンを持つため `<label>` では囲まず、`for` / `id` で結ぶ
+       * （利用側の書き方と揃える）。 */}
+      <label htmlFor="test-password">Password</label>
+      <PasswordInput id="test-password" {...props} />
     </I18nProvider>,
   )
 }
