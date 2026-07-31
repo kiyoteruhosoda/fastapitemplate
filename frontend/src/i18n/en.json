@@ -161,6 +161,8 @@
   "common.email": "Email",
   "common.username": "Username",
   "common.password": "Password",
+  "common.showPassword": "Show password",
+  "common.hidePassword": "Hide password",
   "common.active": "Active",
   "common.actions": "Actions",
   "common.delete": "Delete",

@@ -73,6 +73,29 @@ select {
   border-radius: 0.3rem;
 }
 
+/* パスワード欄（PasswordInput）。入力欄と表示切り替えボタンを横に並べる。
+ * 枠線は上の input / button の指定（var(--border)）をそのまま使い、ここでは
+ * 色を足さない（欄ごとに枠色がずれないようにするため）。 */
+.password-field {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+
+.password-field input {
+  /* 親の幅に収める（min-width の既定 auto だと縮まずにはみ出す）。 */
+  flex: 1;
+  min-width: 0;
+}
+
+.password-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.5rem;
+  color: var(--text-muted);
+}
+
 .layout {
   min-height: 100vh;
   display: flex;
@@ -210,6 +233,19 @@ select {
   gap: 0.2rem;
 }
 
+/* 入力欄を `<label>` で囲めない欄（見出しと `for` / `id` で結ぶ）。
+ * 囲めないのは、表示切り替えボタンを持つパスワード欄のように labelable な要素が
+ * 2 つ入る場合。見た目は上の `.card label` と同じ縦積みにする。 */
+.card .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.card .field > label {
+  display: block;
+}
+
 .inline-form {
   display: flex;
   gap: 0.5rem;
@@ -223,6 +259,12 @@ select {
   align-items: center;
   gap: 1rem;
   padding: 0.3rem 0;
+}
+
+/* 行の見出しは 1 行のテキストとして流す（`.card label` の縦積みを打ち消す）。
+ * 行そのものは `<div>`（入力欄とは `for` / `id` で結ぶ）。 */
+.config-row > label {
+  display: block;
 }
 
 .notice {
@@ -540,8 +582,15 @@ td {
   .inline-form input,
   .inline-form select,
   .inline-form button,
-  .inline-form label {
+  .inline-form label,
+  .inline-form .password-field {
     width: 100%;
+  }
+
+  /* 表示切り替えボタンはアイコン 1 個分のまま（上の 100% を打ち消す）。 */
+  .password-field .password-toggle {
+    flex: none;
+    width: auto;
   }
 
   .config-row {

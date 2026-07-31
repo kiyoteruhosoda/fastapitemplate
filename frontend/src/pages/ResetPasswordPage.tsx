@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 
@@ -10,6 +11,8 @@ export function ResetPasswordPage() {
   const [params] = useSearchParams()
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // 表示切り替えボタンを持つ欄は `<label>` で囲まず `for` で結ぶ（LoginPage 参照）。
+  const passwordId = useId()
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -35,10 +38,11 @@ export function ResetPasswordPage() {
       >
         <h1>{t('reset.title')}</h1>
         {error && <p className="error">{t(error)}</p>}
-        <label>
-          {t('reset.newPassword')}
-          <input
-            type="password"
+        <div className="field">
+          <label htmlFor={passwordId}>{t('reset.newPassword')}</label>
+          <PasswordInput
+            id={passwordId}
+            autoComplete="new-password"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value)
@@ -46,7 +50,7 @@ export function ResetPasswordPage() {
             minLength={8}
             required
           />
-        </label>
+        </div>
         <button type="submit">{t('reset.submit')}</button>
       </form>
     </div>

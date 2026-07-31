@@ -1,6 +1,7 @@
 /** システム設定画面（環境変数 > DB > デフォルトの解決結果を編集する）。 */
 import { useEffect, useState } from 'react'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
@@ -133,14 +134,18 @@ export function ConfigPage() {
           {items
             .filter((item) => item.category === category)
             .map((item) => (
-              <label key={item.key} className="config-row">
-                <span>
+              <div key={item.key} className="config-row">
+                {/* 見出しと入力欄は `for` / `id` で結ぶ。パスワード欄は入力欄に加えて
+                 * 表示切り替えボタンを持ち、`<label>` で囲むと labelable な要素が
+                 * 2 つ入って対応付けが曖昧になるため（HTML の label の内容モデル）。 */}
+                <label htmlFor={`config-${item.key}`}>
                   {labelFor(item)} <code>{item.key}</code>
                   {item.env_locked && <em> ({t('config.envLocked')})</em>}
                   {item.restart_scopes.length > 0 && <em> ({t('config.needsRestart')})</em>}
-                </span>
+                </label>
                 {item.value_type === 'boolean' ? (
                   <input
+                    id={`config-${item.key}`}
                     type="checkbox"
                     disabled={item.env_locked}
                     checked={Boolean(currentValue(item))}
@@ -150,6 +155,7 @@ export function ConfigPage() {
                   />
                 ) : item.choices ? (
                   <select
+                    id={`config-${item.key}`}
                     disabled={item.env_locked}
                     value={asText(currentValue(item))}
                     onChange={(e) => {
@@ -162,11 +168,19 @@ export function ConfigPage() {
                       </option>
                     ))}
                   </select>
+                ) : item.secret ? (
+                  <PasswordInput
+                    id={`config-${item.key}`}
+                    disabled={item.env_locked}
+                    value={asText(currentValue(item))}
+                    onChange={(e) => {
+                      setValue(item.key, parseValue(item, e.target.value))
+                    }}
+                  />
                 ) : (
                   <input
-                    type={
-                      item.secret ? 'password' : item.value_type === 'integer' ? 'number' : 'text'
-                    }
+                    id={`config-${item.key}`}
+                    type={item.value_type === 'integer' ? 'number' : 'text'}
                     disabled={item.env_locked}
                     value={asText(currentValue(item))}
                     onChange={(e) => {
@@ -174,7 +188,7 @@ export function ConfigPage() {
                     }}
                   />
                 )}
-              </label>
+              </div>
             ))}
         </section>
       ))}

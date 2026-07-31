@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
@@ -94,8 +95,8 @@ export function UsersPage() {
           placeholder={t('common.username')}
           required
         />
-        <input
-          type="password"
+        <PasswordInput
+          autoComplete="new-password"
           value={password}
           onChange={(e) => {
             setPassword(e.target.value)

@@ -161,6 +161,8 @@
   "common.email": "メールアドレス",
   "common.username": "ユーザー名",
   "common.password": "パスワード",
+  "common.showPassword": "パスワードを表示",
+  "common.hidePassword": "パスワードを非表示",
   "common.active": "有効",
   "common.actions": "操作",
   "common.delete": "削除",
