@@ -36,6 +36,9 @@ esac
 
 command -v docker >/dev/null 2>&1 || die "docker が見つかりません。"
 
+# image.tar の中でイメージをどう tag するかを決める名前。デプロイ先での名前
+# （compose プロジェクト名・コンテナ名等）はこれではなく deploy.sh が配置場所から決める
+# （ADR-0015）。ここを変えるときは deploy.sh の BUILD_APP_NAME も揃える。
 app_name="fastapitemplate"
 git_commit="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
 git_commit_short="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)"

@@ -1,9 +1,9 @@
 #!/bin/bash
-# デプロイスクリプト（stg / prod 共通・配置ディレクトリから環境を自動判定）
+# デプロイスクリプト（stg / prod 共通・配置ディレクトリからデプロイの名前と環境を自動判定）
 #
 # 配置想定（環境ごとに自己完結したディレクトリ。<app>/ 配下に stg/ と prod/ を置き、
 # scripts/build.sh が出力した dist/ の中身をそのまま展開する）:
-#   <app>/
+#   <app>/                 # ← このディレクトリ名がデプロイの名前（アプリ名）になる
 #     stg/
 #       image.tar          # ビルド済みアプリイメージ
 #       image-db.tar       # DB イメージ（reset 時のみ使用）
@@ -20,6 +20,16 @@
 #   ./deploy.sh migrate  # DDL更新時（新しい Alembic migration を追加した場合）
 #   ./deploy.sh reset    # 完全初期化（DB・データ消去。破壊的）
 #
+# デプロイの名前（アプリ名）は次の優先順位で決める。イメージタグ・compose プロジェクト名・
+# DB コンテナ名・ネットワーク名はすべてこの名前から導かれる（ADR-0015）:
+#   1. `.env` の APP_NAME
+#   2. 親ディレクトリ名（例 /volume1/docker/rewardpointsweb/prod → rewardpointsweb）
+#   3. BUILD_APP_NAME（下記の既定値）
+# 別のアプリは別のディレクトリに置かれる以上、この決め方なら名前は構造的に衝突しない。
+# 実際に使った名前とその出所は起動時に 1 行で出力する。
+# **テンプレートの名前のままではデプロイできない**（ディレクトリ名を変えるか APP_NAME を
+# 設定する。理由は ADR-0015）。
+#
 # 環境変数（任意）:
 #   APP_WEB_HOST_PORT  WEB 公開ポートの既定値。`.env` を新規生成するときの WEB_HOST_PORT に
 #                      なる（既存の `.env` の値が正本なのでそちらが優先。ADR-0008）。
@@ -30,11 +40,21 @@
 
 set -Eeuo pipefail
 
-APP_NAME="fastapitemplate"
+# このテンプレート自身の名前。テンプレートから作ったプロジェクトはこの名前を名乗っては
+# ならない（名乗ると別プロジェクトと container_name・ホストポートを取り合う。ADR-0015）。
+# 旧名からの移行では、畳む対象の compose プロジェクト名としても使う。
+TEMPLATE_APP_NAME="fastapitemplate"
+
+# image.tar の中身がどう tag されているか（= scripts/build.sh の app_name）。
+# 「デプロイの名前」ではない。manifest.env が無いときの docker load 後の参照先にだけ使う。
+BUILD_APP_NAME="fastapitemplate"
 
 # 配置は dist/ をそのまま展開した形（<env>/deploy.sh）のみ。環境ディレクトリ直下で動く。
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="$(basename "$BASE_DIR")"
+# compose が付けるラベル（com.docker.compose.project.working_dir）はシンボリックリンクを
+# 解決した実体パスなので、突き合わせ用に物理パスも持っておく。
+BASE_DIR_PHYS="$(cd "$BASE_DIR" && pwd -P)"
 
 # ===== 環境判定（配置ディレクトリ名で stg / prod を切り替える） =====
 # ENV_KIND（stg / prod）が分類の正。以降の分岐は ENV_NAME の字面ではなく ENV_KIND で行う
@@ -42,20 +62,14 @@ ENV_NAME="$(basename "$BASE_DIR")"
 case "$ENV_NAME" in
   stg | staging | *-stg | *-staging)
     ENV_KIND=stg
-    PROJECT="${APP_NAME}-stg"
     DEFAULT_WEB_HOST_PORT=8081
-    DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb-stg"
-    DEFAULT_NETWORK="${APP_NAME}-stg"
     ;;
   prod | production | *-prod | *-production)
     ENV_KIND=prod
-    PROJECT="${APP_NAME}"
     DEFAULT_WEB_HOST_PORT=8080
-    DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb"
-    DEFAULT_NETWORK="${APP_NAME}-prod"
     ;;
   *)
-    echo "[deploy][error] このスクリプトは ${APP_NAME}/<stg|prod>/ 配下に配置して実行してください。" >&2
+    echo "[deploy][error] このスクリプトは <app>/<stg|prod>/ 配下に配置して実行してください。" >&2
     echo "  現在の配置: $BASE_DIR（環境ディレクトリ名 '$ENV_NAME' が stg / prod 系ではありません）" >&2
     exit 1
     ;;
@@ -72,11 +86,6 @@ is_valid_web_port() {
   [[ "$1" =~ ^[1-9][0-9]{0,4}$ ]] && (($1 <= 65535))
 }
 
-APP_IMAGE="${APP_NAME}:$ENV_NAME"
-DB_IMAGE="${APP_NAME}-db:$ENV_NAME"
-# `.env` を読む前の暫定値（診断がこれより前で走っても未定義にならないようにする）。
-# `.env` 生成後に compose と同じ規則で解き直す。
-DB_CONTAINER_NAME="$DEFAULT_DB_CONTAINER"
 IMAGE_TAR="$BASE_DIR/image.tar"
 IMAGE_DB_TAR="$BASE_DIR/image-db.tar"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
@@ -84,10 +93,86 @@ ENV_FILE="$BASE_DIR/.env"
 MANIFEST_ENV="$BASE_DIR/manifest.env"
 MANIFEST_SHA="$BASE_DIR/manifest.sha256"
 
+# ===== .env の値を読む（compose interpolation と同じく「最後の定義」を採用） =====
+# CR と前後の空白は必ず除去する（CR が残るとバインドマウント失敗の原因になる）。
+# デプロイの名前を決めるのにも使うため、他の解決より先に定義する。
+env_file_value() {
+  local key="$1"
+  [ -f "$ENV_FILE" ] || return 0
+  grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d'=' -f2- \
+    | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true
+}
+
+# ===== デプロイの名前（アプリ名）を決める =====
+# docker の識別子（イメージタグ・compose プロジェクト名・コンテナ名・ネットワーク名）に
+# そのまま使うため、小文字英数と `-` `_` だけへ正規化する（例 "RewardPoints Web" →
+# rewardpoints-web）。先頭は英数でなければならないので前後の記号も落とす。
+normalize_app_name() {
+  local name
+  name="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
+  printf '%s' "$name" | sed -e 's/--*/-/g' -e 's/^[-_]*//' -e 's/[-_]*$//'
+}
+
+APP_NAME_FROM_ENV="$(env_file_value APP_NAME)"
+APP_NAME_FROM_DIR="$(normalize_app_name "$(basename "$(dirname "$BASE_DIR")")")"
+if [ -n "$APP_NAME_FROM_ENV" ]; then
+  APP_NAME="$(normalize_app_name "$APP_NAME_FROM_ENV")"
+  APP_NAME_SOURCE=".env の APP_NAME"
+  if [ -z "$APP_NAME" ]; then
+    err "$ENV_FILE の APP_NAME に docker の識別子として使える文字がありません: $APP_NAME_FROM_ENV"
+    echo "  小文字英数・'-'・'_' で指定してください（大文字と空白は自動で変換されます）。" >&2
+    exit 1
+  fi
+elif [ -n "$APP_NAME_FROM_DIR" ]; then
+  APP_NAME="$APP_NAME_FROM_DIR"
+  APP_NAME_SOURCE="親ディレクトリ名（$(dirname "$BASE_DIR")）"
+else
+  APP_NAME="$BUILD_APP_NAME"
+  APP_NAME_SOURCE="BUILD_APP_NAME（親ディレクトリから決められませんでした）"
+fi
+log "Deploy name: $APP_NAME (source: $APP_NAME_SOURCE, env: $ENV_NAME)"
+
+# テンプレートの名前のままではデプロイさせない。同じテンプレートから作った別プロジェクトが
+# 同じホストにいると、container_name とホストポートを丸ごと取り合うため（ADR-0015）。
+if [ "$APP_NAME" = "$TEMPLATE_APP_NAME" ]; then
+  err "デプロイの名前がテンプレートのまま（$TEMPLATE_APP_NAME）です。プロジェクト固有の名前へ変えてください。"
+  echo "  次のどちらかで直します:" >&2
+  echo "    - 環境ディレクトリの親ディレクトリ名を変える（例 .../rewardpointsweb/$ENV_NAME/）" >&2
+  echo "    - $ENV_FILE に APP_NAME=<プロジェクト名> を書く" >&2
+  echo "  この名前からイメージタグ・compose プロジェクト名・DB コンテナ名・ネットワーク名が" >&2
+  echo "  決まるため、テンプレート由来の別プロジェクトと同じホストで衝突します（ADR-0015）。" >&2
+  exit 1
+fi
+
+# ===== 名前から導く値（環境ごとの既定値） =====
+if [ "$ENV_KIND" = stg ]; then
+  PROJECT="${APP_NAME}-stg"
+  DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb-stg"
+  DEFAULT_NETWORK="${APP_NAME}-stg"
+  LEGACY_PROJECT="${TEMPLATE_APP_NAME}-stg"
+  LEGACY_DB_CONTAINER="${TEMPLATE_APP_NAME}-mariadb-stg"
+  LEGACY_NETWORK="${TEMPLATE_APP_NAME}-stg"
+else
+  PROJECT="$APP_NAME"
+  DEFAULT_DB_CONTAINER="${APP_NAME}-mariadb"
+  DEFAULT_NETWORK="${APP_NAME}-prod"
+  LEGACY_PROJECT="$TEMPLATE_APP_NAME"
+  LEGACY_DB_CONTAINER="${TEMPLATE_APP_NAME}-mariadb"
+  LEGACY_NETWORK="${TEMPLATE_APP_NAME}-prod"
+fi
+
+APP_IMAGE="${APP_NAME}:$ENV_NAME"
+DB_IMAGE="${APP_NAME}-db:$ENV_NAME"
+# `.env` を読む前の暫定値（診断がこれより前で走っても未定義にならないようにする）。
+# `.env` 生成後に compose と同じ規則で解き直す。
+DB_CONTAINER_NAME="$DEFAULT_DB_CONTAINER"
+
 # ===== manifest（build.sh の出力メタデータ。無ければ従来どおり動く） =====
 # ロード時タグ・イメージ ID・commit を manifest から取り、配置物とビルド成果の齟齬を検出する。
-LOADED_APP_REF="${APP_NAME}:latest"
-LOADED_DB_REF="${APP_NAME}-db:latest"
+# 既定値が BUILD_APP_NAME 由来なのは、これが「image.tar の中でどう tag されているか」だから。
+# デプロイの名前（APP_NAME）とは無関係で、ロードした後に APP_IMAGE へ付け替える。
+LOADED_APP_REF="${BUILD_APP_NAME}:latest"
+LOADED_DB_REF="${BUILD_APP_NAME}-db:latest"
 MANIFEST_APP_IMAGE_ID=""
 MANIFEST_DB_IMAGE_ID=""
 MANIFEST_COMMIT=""
@@ -119,15 +204,6 @@ image_matches_manifest() { # 引数: <イメージ参照> <期待イメージID>
   [ -n "$expected" ] || return 1
   actual="$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null || true)"
   [ -n "$actual" ] && [ "$actual" = "$expected" ]
-}
-
-# ===== .env の値を読む（compose interpolation と同じく「最後の定義」を採用） =====
-# CR と前後の空白は必ず除去する（CR が残るとバインドマウント失敗の原因になる）。
-env_file_value() {
-  local key="$1"
-  [ -f "$ENV_FILE" ] || return 0
-  grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d'=' -f2- \
-    | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true
 }
 
 # マウントルート。既定は環境ディレクトリ配下の mnt/（.env の HOST_DATA_ROOT で上書き可）。
@@ -346,8 +422,11 @@ if [ ! -f "$ENV_FILE" ]; then
 # すべての項目は .env.example を参照。
 
 # --- 環境固有の実値（この環境ディレクトリに閉じた値に固定する）---
-# DB はホストへポートを公開しない（ADR-0013）。stg / prod を同一ホストで動かしても
+# DB はホストへポートを公開しない（ADR-0010）。stg / prod を同一ホストで動かしても
 # 衝突しないのはコンテナ名とネットワーク名を環境ごとに分けているため。
+# 下記の名前は「デプロイの名前」$APP_NAME から導いた既定値（ADR-0015）。既定では配置場所
+# （親ディレクトリ名）から決まる。ディレクトリ名と無関係に固定したいときだけ次の行を有効にする。
+# APP_NAME=$APP_NAME
 HOST_DATA_ROOT=$BASE_DIR/mnt
 WEB_HOST_PORT=$WEB_HOST_PORT
 DB_CONTAINER_NAME=$DEFAULT_DB_CONTAINER
@@ -365,11 +444,104 @@ DOCKER_NETWORK_NAME=$DEFAULT_NETWORK
 ENVEOF
 fi
 
-# DB コンテナ名を compose と同じ規則で解き直す（`.env` の値 ＞ docker-compose.yml の
-# `${DB_CONTAINER_NAME:-fastapitemplate-mariadb}`）。名前の衝突を調べるとき、compose が
-# 実際に使う名前と一致していないと見落とすため、環境ごとの既定値では代用しない。
+# ===== 旧名（テンプレート名）からの移行: 一度だけ旧プロジェクトを畳む =====
+# テンプレートの名前のままデプロイしていた環境には、旧名の compose プロジェクトと
+# コンテナが残っている。新しい名前で up しても旧名のコンテナは**別プロジェクトとして
+# 動き続ける**ため、同じホストポートを握ったままになる。そこで先に畳む。
+#
+# 畳むのは「この環境ディレクトリのコンテナだけで構成されている」と確認できたときに限る。
+# `com.docker.compose.project` ラベルでの絞り込みは docker デーモン全体を見るので、それだけを
+# 根拠にすると、同じ旧名を使う**別のアプリ**を停止・削除してしまう。そこで全件について
+# `com.docker.compose.project.working_dir` がこの環境ディレクトリと一致することを確かめる。
+# 永続データはホスト側の HOST_DATA_ROOT にあるため、畳んでも消えない。
+legacy_container_ids() {
+  docker ps -a --filter "label=com.docker.compose.project=$LEGACY_PROJECT" \
+    --format '{{.ID}}' 2>/dev/null || true
+}
+
+container_working_dir() { # 引数: <コンテナ ID または名前>
+  docker inspect \
+    -f '{{if .Config.Labels}}{{index .Config.Labels "com.docker.compose.project.working_dir"}}{{end}}' \
+    "$1" 2>/dev/null
+}
+
+legacy_containers_are_ours() { # 引数: <コンテナ ID...>
+  local id dir
+  for id in "$@"; do
+    dir="$(container_working_dir "$id" || true)"
+    [ "$dir" = "$BASE_DIR" ] || [ "$dir" = "$BASE_DIR_PHYS" ] || return 1
+  done
+  return 0
+}
+
+fold_legacy_project() {
+  local network
+  # 旧プロジェクトが使っていたネットワーク名を明示して渡す。compose はファイル中の
+  # `${DOCKER_NETWORK_NAME}` を `.env`／環境変数で解決するため、新しい名前のまま down すると
+  # 畳むべき旧ネットワークが対象から外れる（この時点の `.env` はまだ旧名のまま）。
+  network="$(env_file_value DOCKER_NETWORK_NAME)"
+  network="${network:-$LEGACY_NETWORK}"
+  log "Folding the legacy compose project '$LEGACY_PROJECT' (this deploy is now '$PROJECT')"
+  DOCKER_NETWORK_NAME="$network" \
+    docker compose -p "$LEGACY_PROJECT" -f "$COMPOSE_FILE" --env-file "$ENV_FILE" \
+      down --remove-orphans \
+    || warn "Could not fold the legacy project '$LEGACY_PROJECT'（残った名前は衝突として検出されます）"
+}
+
+# `.env` の値が「旧名で自動生成された既定値」と完全に一致するときだけ書き換える。
+# 運用者が選んだ値には触れない（一致しなければ何もしない）。
+rewrite_env_value() { # 引数: <キー> <旧値> <新値>
+  local key="$1" old="$2" new="$3" tmp
+  [ -f "$ENV_FILE" ] || return 0
+  [ "$old" != "$new" ] || return 0
+  tmp="$(mktemp "${ENV_FILE}.XXXXXX")" || return 0
+  if ! awk -v key="$key" -v old="$old" -v new="$new" '
+        { line = $0; sub(/\r$/, "", line) }
+        line == key "=" old { print key "=" new; hit = 1; next }
+        { print }
+        END { exit(hit ? 0 : 1) }
+      ' "$ENV_FILE" > "$tmp"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  # 権限と所有者を保つため、ファイルは作り直さず中身だけ差し替える。
+  cat "$tmp" > "$ENV_FILE"
+  rm -f "$tmp"
+  log "Renamed in $ENV_FILE: ${key} ${old} -> ${new}"
+}
+
+migrate_from_legacy_name() {
+  local ids
+  ids="$(legacy_container_ids)"
+  if [ -n "$ids" ]; then
+    # ID に空白は含まれないので、そのまま引数へ分割してよい。
+    # shellcheck disable=SC2086
+    if legacy_containers_are_ours $ids; then
+      fold_legacy_project
+    else
+      warn "compose プロジェクト '$LEGACY_PROJECT' にこの環境ディレクトリ以外のコンテナが含まれるため畳みません。"
+      warn "  旧名のまま動いている別のアプリがある可能性があります（$BASE_DIR 以外の working_dir）。"
+      warn "  名前が衝突する場合は、そちらの配置ディレクトリ名か .env の APP_NAME を見直してください。"
+    fi
+  fi
+  rewrite_env_value DB_CONTAINER_NAME "$LEGACY_DB_CONTAINER" "$DEFAULT_DB_CONTAINER"
+  rewrite_env_value DB_CONTAINER_NAME "${TEMPLATE_APP_NAME}-mariadb" "$DEFAULT_DB_CONTAINER"
+  rewrite_env_value DOCKER_NETWORK_NAME "$LEGACY_NETWORK" "$DEFAULT_NETWORK"
+  rewrite_env_value DOCKER_NETWORK_NAME "$TEMPLATE_APP_NAME" "$DEFAULT_NETWORK"
+}
+migrate_from_legacy_name
+
+# DB コンテナ名とネットワーク名を解き直す（`.env` の値 ＞ デプロイの名前から導いた既定値）。
+# 解決した値は WEB_HOST_PORT と同じ理由で export する: docker-compose.yml 側の既定値
+# （`${DB_CONTAINER_NAME:-fastapitemplate-mariadb}` 等）はテンプレートの名前のままなので、
+# `.env` に行が無い環境ではそれだけが効き、衝突を調べるときに見る名前と compose が実際に
+# 作る名前がずれてしまう。ここで解決した 1 つの値を両者で使う。
 DB_CONTAINER_NAME="$(env_file_value DB_CONTAINER_NAME)"
-DB_CONTAINER_NAME="${DB_CONTAINER_NAME:-${APP_NAME}-mariadb}"
+DB_CONTAINER_NAME="${DB_CONTAINER_NAME:-$DEFAULT_DB_CONTAINER}"
+DOCKER_NETWORK_NAME="$(env_file_value DOCKER_NETWORK_NAME)"
+DOCKER_NETWORK_NAME="${DOCKER_NETWORK_NAME:-$DEFAULT_NETWORK}"
+export DB_CONTAINER_NAME
+export DOCKER_NETWORK_NAME
 
 # ===== Ensure DB image is available under the env-specific tag =====
 ensure_db_image() {

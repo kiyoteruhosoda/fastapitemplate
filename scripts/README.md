@@ -8,16 +8,37 @@
 | `generate_pwa_icons.py` | `frontend/public/` のアイコン（`favicon.svg`・`pwa-192x192.png`・`pwa-512x512.png`・`pwa-maskable-512x512.png`・`apple-touch-icon.png`）を生成する。配色と図形の正本はこのスクリプトで、出力物は生成結果としてコミットする。PNG の書き出しは標準ライブラリ（`zlib` / `struct`）だけで行うため追加の依存は要らない。`maskable` 用は OS の切り抜きに備えてセーフゾーンを取った別画像、`apple-touch-icon.png` は iOS が独自に角丸へ切るため透明な角を持たない。 |
 | `generate_version.sh` | `shared/kernel/version.json` を Git 情報から生成する（ローカル確認用。Docker ビルドでは Dockerfile の ARG から生成される）。 |
 | `build.sh` | ソース側でのビルド。アプリ + DB イメージをビルドし、`dist/` にデプロイバンドル（`image.tar`・`image-db.tar`・`deploy.sh`・`.env.example`・`manifest.env`・`manifest.sha256`）を書き出す。`make build` はこれを呼ぶだけ。`PLATFORM=linux/amd64` でクロスビルド（要 buildx）。 |
-| `deploy.sh` | 配置先サーバーでのデプロイ。配置ディレクトリ名（`stg` / `prod` 系）から環境を自動判定し、`app` / `migrate` / `reset` の3モードを持つ。`.env` が無ければテンプレートを自動生成する。compose と nginx 設定はロードしたイメージ内のコピーへ常に同期される。 |
+| `deploy.sh` | 配置先サーバーでのデプロイ。配置場所からデプロイの名前（親ディレクトリ名）と環境（自分のディレクトリ名。`stg` / `prod` 系）を自動判定し、`app` / `migrate` / `reset` の3モードを持つ。`.env` が無ければテンプレートを自動生成する。compose と nginx 設定はロードしたイメージ内のコピーへ常に同期される。 |
 | `build-remote-container.sh` | git 非搭載のデプロイ先向けの一括デプロイ（SYNC → BUILD → PICK → DEPLOY）。同一ホスト上の dev コンテナ内で git pull と `build.sh` を実行し、生成された `dist/` をデプロイ先へ取り込んで `deploy.sh` を実行する。手置きのブートストラップだが、実行のたびに dev コンテナ内の最新版と比較して自分自身を自動更新する。設定はスクリプトと同じ場所の `build-remote-container.env`（雛形: `build-remote-container.env.example`）。`APP_WEB_HOST_PORT` を書くと、初回デプロイで生成される `.env` の `WEB_HOST_PORT` へ転記される。 |
 
 ## deploy.sh の挙動
 
 - 配置は `dist/` の中身をそのまま `<app>/<stg|prod>/` へ展開した形のみ
   （`deploy.sh` が環境ディレクトリ直下にある前提で動く）。
+- **デプロイの名前（アプリ名）は配置場所から決まる。** 優先順位は `.env` の `APP_NAME`
+  ＞ 親ディレクトリ名 ＞ `BUILD_APP_NAME`（ADR-0015）。イメージタグ・compose プロジェクト
+  名・DB コンテナ名・ネットワーク名はすべてこの名前から導かれる。
+  - ディレクトリ名は docker の識別子として使うため、小文字英数と `-` `_` へ正規化する
+    （`RewardPoints Web` → `rewardpoints-web`）。
+  - 実際に使われた名前と出所は起動時に 1 行で出力する
+    （`Deploy name: rewardpointsweb (source: 親ディレクトリ名（…）, env: prod)`）。
+  - 解決した名前がテンプレートの名前（`fastapitemplate`）のままなら、何もせず中断する。
+  - `BUILD_APP_NAME` は「デプロイの名前」ではなく「`image.tar` の中身がどう tag されて
+    いるか」（`build.sh` の `app_name`）で、`manifest.env` が無いときの `docker load` 後の
+    参照先にだけ使う。
+- 旧名（テンプレート名）で動いていた環境からの移行として、旧アプリ名の compose
+  プロジェクトを一度だけ畳み、自動生成した `.env` の旧既定名（`DB_CONTAINER_NAME` /
+  `DOCKER_NETWORK_NAME`）を新しい名前へ書き換える。畳むのは、そのプロジェクトのコンテナが
+  `com.docker.compose.project.working_dir` ラベルでこの環境ディレクトリと一致するものだけ
+  で構成されているときに限る（プロジェクト名ラベルだけを根拠にすると、同じ旧名を使う別の
+  アプリを停止・削除してしまうため）。`.env` は旧既定値と完全一致する行だけを書き換える。
+  永続データはホスト側の `HOST_DATA_ROOT` にあるため消えない。
 - イメージは `image.tar`（`scripts/build.sh` の成果物）を `docker load` し、
-  環境別タグ（`fastapitemplate:stg` 等）を付け直す。stg / prod を同一ホストで
+  環境別タグ（`<app>:stg` 等）を付け直す。stg / prod を同一ホストで
   運用してもイメージを取り合わない。
+- `DB_CONTAINER_NAME` / `DOCKER_NETWORK_NAME` は `.env` の値 ＞ 名前から導いた既定値の順で
+  解決し、`WEB_HOST_PORT` と同じく compose へ `export` する（`docker-compose.yml` 側の
+  既定値だけが効いて、衝突を調べる名前と実際に作られる名前がずれるのを防ぐ）。
 - `manifest.env` / `manifest.sha256` があれば、tar の checksum 検証（転送破損検出）と
   ロード済みイメージ ID の照合（一致すれば `docker load` を省略）を行う。無ければ
   従来どおり動く。

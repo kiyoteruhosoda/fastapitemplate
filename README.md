@@ -77,6 +77,16 @@ docker compose up -d            # ローカルで db / web / nginx を起動（�
 `scripts/build-remote-container.sh`（一括デプロイ）が使えます。
 詳細な手順は [docs/OPERATIONS.md](docs/OPERATIONS.md) を参照してください。
 
+**このテンプレートから作ったプロジェクトは名前を変えてください。** デプロイの名前
+（アプリ名）は `deploy.sh` の**配置場所**から決まり（`.env` の `APP_NAME` ＞ 親ディレクトリ名）、
+そこからイメージタグ・compose プロジェクト名・DB コンテナ名・ネットワーク名が導かれます。
+テンプレートの名前（`fastapitemplate`）のままではデプロイは中断します
+（[ADR-0015](docs/decisions/ADR-0015-deploy-name-from-path.md)）。
+
+```
+/volume1/docker/rewardpointsweb/prod/deploy.sh   → アプリ名 rewardpointsweb・環境 prod
+```
+
 ## ドキュメント
 
 | ファイル | 内容 |
