@@ -178,8 +178,9 @@ GUI クライアントを使いたい場合だけ、その場限りのポート�
 `docker-compose.yml` は変更しない（恒久的に開けないため。ADR-0010）。
 
 ```bash
-# ネットワーク名は .env の DOCKER_NETWORK_NAME（既定 fastapitemplate）
-docker run --rm -it --network fastapitemplate \
+# ネットワーク名は .env の DOCKER_NETWORK_NAME（デプロイ先の既定は <app>-prod / <app>-stg。
+# リポジトリ直下でのローカル起動は docker-compose.yml の既定値）
+docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1 | cut -d= -f2-)" \
   -p 127.0.0.1:3307:3306 alpine/socat \
   tcp-listen:3306,fork,reuseaddr tcp-connect:db:3306
 ```
@@ -197,8 +198,51 @@ docker run --rm -it --network fastapitemplate \
 ./deploy.sh reset        # 完全初期化（DB 消去。破壊的）
 ```
 
-環境（stg / prod）は配置ディレクトリ名から自動判定される。
-`.env` が無ければ初回実行時にテンプレートが自動生成される。
+環境（stg / prod）は配置ディレクトリ名から、**デプロイの名前（アプリ名）は親ディレクトリ名
+から**自動判定される（ADR-0015）。`.env` が無ければ初回実行時にテンプレートが自動生成される。
+
+```
+/volume1/docker/rewardpointsweb/prod/deploy.sh   → アプリ名 rewardpointsweb・環境 prod
+/volume1/docker/kaimono/stg/deploy.sh            → アプリ名 kaimono・環境 stg
+```
+
+実際に使われた名前と出所は起動時に 1 行出力される:
+
+```
+[deploy:prod] Deploy name: rewardpointsweb (source: 親ディレクトリ名（/volume1/docker/rewardpointsweb）, env: prod)
+```
+
+## デプロイの名前を変えたい・テンプレート名のままで止まったとき
+
+`デプロイの名前がテンプレートのまま（fastapitemplate）です` で中断した場合、
+次のどちらかで直して再デプロイする（このテンプレートから作ったプロジェクトが
+元テンプレートと同じコンテナ名・ホストポートを取り合わないための制約。ADR-0015）。
+
+```bash
+# 1. 配置場所を変える（推奨。ディレクトリ名がそのままアプリ名になる）
+mv /volume1/docker/fastapitemplate /volume1/docker/rewardpointsweb
+
+# 2. ディレクトリ名と無関係に固定したいときは .env に書く
+echo 'APP_NAME=rewardpointsweb' >> /volume1/docker/<app>/prod/.env
+```
+
+名前を変えると、旧名の compose プロジェクトは次のデプロイで 1 度だけ自動的に畳まれ、
+自動生成された `.env` の `DB_CONTAINER_NAME` / `DOCKER_NETWORK_NAME` も書き換わる。
+ディレクトリごと移動した場合は `HOST_DATA_ROOT`（移動前の絶対パスが書かれている）も
+現在地へ直る。**DB のデータは `mnt/db_data` ごと移動するため引き継がれる。**
+
+自動で直るのは deploy が生成した既定値だけ。次の場合は手で直す。
+
+- `.env` の値を自分で選んでいる場合（例: `HOST_DATA_ROOT` を別ディスクにしている、
+  `DB_CONTAINER_NAME` を独自の名前にしている）。
+- 移動先が元と別の親ディレクトリの場合（例 `/volume1/docker/…` → `/volume2/apps/…`）。
+  旧コンテナが自分のものだと判定できないため、`… にこの環境ディレクトリ以外のコンテナが
+  含まれるため畳みません` と出て畳まれない。出力された `working_dir=` が自分の旧デプロイの
+  ものだと確認できたら、手で畳んでから再デプロイする:
+
+  ```bash
+  docker compose -p fastapitemplate down --remove-orphans
+  ```
 
 ## デプロイが「container name is already in use」で失敗したとき
 
@@ -213,9 +257,11 @@ docker ps -a --filter name=<出力に出たコンテナ名> \
   --format '{{.ID}}  {{.Names}}  {{.State}}  project={{.Label "com.docker.compose.project"}}'
 ```
 
-各環境ディレクトリの `.env` の `DB_CONTAINER_NAME` を環境ごとに別の値にし
-（例: prod は `fastapitemplate-mariadb`、stg は `fastapitemplate-mariadb-stg`）、
-再デプロイする。
+アプリごと・環境ごとの名前は配置場所から決まるため（ADR-0015）、通常この状態にはならない。
+出たときは、同じ名前を使う別のアプリが同じホストにいる（配置ディレクトリ名が同じ、または
+`.env` の `APP_NAME` / `DB_CONTAINER_NAME` を手で同じ値にしている）。各環境ディレクトリの
+`.env` の `DB_CONTAINER_NAME` を別の値にし（例: prod は `<app>-mariadb`、stg は
+`<app>-mariadb-stg`）、再デプロイする。
 
 **実体の無い名前を Docker が握っている場合**（`Docker still holds the container
 name, but no container is behind it` と出て、`docker ps -a` にも `docker inspect`
