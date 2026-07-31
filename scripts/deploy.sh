@@ -201,13 +201,20 @@ expected_container_names() {
 # `$COMPOSE ps` はこのプロジェクトのラベルを持つコンテナしか映さない。名前だけを
 # 握っている残骸は映らないので、名前で引いた実体も併せて出す。
 dump_container_name_holders() {
-  local name
+  local name holders found=0
   echo "$TAG ---- containers holding this project's names ----" >&2
   while IFS= read -r name; do
     [ -n "$name" ] || continue
-    docker ps -a --filter "name=^/${name}$" \
-      --format '{{.ID}}  {{.Names}}  {{.State}}  project={{.Label "com.docker.compose.project"}}' >&2 || true
+    # 先頭の `/` の有無は Docker のバージョンで変わるため `^/?` で両方に当てる
+    # （`^/name$` だけだと新しい Docker で 1 件も引けず、診断が空になる）。
+    holders="$(docker ps -a --filter "name=^/?${name}$" \
+      --format '{{.ID}}  {{.Names}}  {{.State}}  project={{.Label "com.docker.compose.project"}}' 2>/dev/null || true)"
+    [ -n "$holders" ] || continue
+    found=1
+    echo "$holders" >&2
   done < <(expected_container_names)
+  # 「1 件も無い」こと自体が手掛かりになる（名前だけ握られている状態）ので明示する。
+  [ "$found" = 1 ] || echo "  (none — 名前を握っているコンテナの実体は無い)" >&2
 }
 
 dump_module_logs() { # 引数: サービス名...
@@ -401,12 +408,28 @@ $COMPOSE down --remove-orphans || true
 # 消してよいかはラベル `com.docker.compose.project` だけで判定する:
 #   このプロジェクト / ラベル無し / inspect もできない → 残骸なので消す
 #   別プロジェクト → stg など別環境が稼働中かもしれないので、消さずに中断する
+#
+# 掃除の結果は 3 通りある。呼び出し側は終了コードで区別する:
+#   0 … 名前を空けた（実体のあるコンテナを消した）
+#   1 … 別プロジェクトが持ち主。運用者が `.env` を直すまで解消しない
+#   2 … 実体が無いまま Docker が名前を握っている。デーモンの再起動が要る
 container_project_label() { # 引数: <コンテナ名または ID>
   docker inspect -f '{{if .Config.Labels}}{{index .Config.Labels "com.docker.compose.project"}}{{end}}' "$1" 2>/dev/null
 }
 
+# 実体の無い名前を握られている状態の診断。ここまで来るとスクリプトでは解消できない。
+# デーモンの再起動はホスト全体に影響するため、デプロイスクリプトからは行わない（ADR-0014）。
+report_phantom_name_holder() { # 引数: <コンテナ ID または名前>
+  err "Docker still holds the container name, but no container is behind it: $1"
+  echo "  実体が無いまま名前だけ掴まれているため、削除でも解消しません" >&2
+  echo "  （docker ps -a にも docker inspect にも出ません）。" >&2
+  echo "  Docker デーモンを再起動してから、もう一度デプロイしてください:" >&2
+  echo "    sudo systemctl restart docker" >&2
+  echo "    # Synology DSM: Container Manager を停止 → 起動" >&2
+}
+
 remove_leftover_container() { # 引数: <コンテナ名または ID>
-  local ref="$1" project
+  local ref="$1" project rm_output rm_status=0
   project="$(container_project_label "$ref" || true)"
   if [ -n "$project" ] && [ "$project" != "$PROJECT" ]; then
     err "Container '$ref' belongs to another compose project ('$project') and holds a name this deploy needs."
@@ -415,10 +438,27 @@ remove_leftover_container() { # 引数: <コンテナ名または ID>
     return 1
   fi
   warn "Removing leftover container holding a name this deploy needs: $ref"
-  if ! docker rm -f "$ref" >/dev/null 2>&1; then
+  rm_output="$(docker rm -f "$ref" 2>&1)" || rm_status=$?
+
+  # `docker rm -f` は「そもそもコンテナが無い」とき、その旨を標準エラーへ出したうえで
+  # 成功（終了コード 0）を返す（docker/cli の force かつ NotFound の経路。古い Docker は
+  # 終了コードも非 0 になるが、どちらも同じメッセージを出す）。実体が無いまま名前だけ
+  # 握られている残骸はまさにこれに当たるので、終了コードを信じると「消せた」と誤認し、
+  # 同じ相手との衝突でもう一度落ちる。
+  # デーモンの再起動を促すのは、この「実体が無い」と分かったときだけにする。
+  if echo "$rm_output" | grep -qi 'no such container'; then
+    report_phantom_name_holder "$ref"
+    return 2
+  fi
+
+  # それ以外の削除失敗（認可プラグインによる拒否・ストレージやデーモンの一時的な
+  # エラー等）は原因がまったく別なので、再起動を促さずに実際のメッセージを見せる。
+  # 呼び出し側は通常どおりモジュールログ付きの診断へ回す。
+  if [ "$rm_status" != 0 ]; then
     err "Could not remove the leftover container: $ref"
-    echo "  実体が無いまま名前だけ掴まれている場合（docker ps -a に出ない）は、" >&2
-    echo "  Docker デーモンの再起動で解消します。" >&2
+    if [ -n "$rm_output" ]; then
+      echo "  $rm_output" >&2
+    fi
     return 1
   fi
   return 0
@@ -426,12 +466,13 @@ remove_leftover_container() { # 引数: <コンテナ名または ID>
 
 # up の前に、このデプロイが作る名前を先回りして空ける。
 clear_leftover_containers() {
-  local name found=0
+  local name found=0 status
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     docker container inspect "$name" >/dev/null 2>&1 || continue
     found=1
-    remove_leftover_container "$name" || return 1
+    remove_leftover_container "$name" && status=0 || status=$?
+    [ "$status" = 0 ] || return "$status"
   done < <(expected_container_names)
   [ "$found" = 0 ] || log "Cleared leftover containers before starting"
   return 0
@@ -443,13 +484,16 @@ conflicting_container_ids() { # 引数: <up の出力ファイル>
   sed -n 's/.*already in use by container "\([0-9a-f]\{6,\}\)".*/\1/p' "$1" | sort -u
 }
 
+# 終了コードは remove_leftover_container と同じ（0 / 1 / 2）。
+# ただし「そもそも名前衝突ではない」場合も 1 を返す（診断はいつもどおり出す）。
 clear_conflicts_from_output() { # 引数: <up の出力ファイル>
-  local ids id
+  local ids id status
   ids="$(conflicting_container_ids "$1")"
   [ -n "$ids" ] || return 1
   while IFS= read -r id; do
     [ -n "$id" ] || continue
-    remove_leftover_container "$id" || return 1
+    remove_leftover_container "$id" && status=0 || status=$?
+    [ "$status" = 0 ] || return "$status"
   done <<< "$ids"
   return 0
 }
@@ -489,9 +533,28 @@ compose_up() { $COMPOSE up -d --remove-orphans 2>&1 | tee "$UP_OUTPUT"; }
 log "docker compose up -d"
 if ! compose_up; then
   # 名前衝突なら相手を消して 1 度だけやり直す。それ以外の失敗はそのまま診断へ回す。
-  clear_conflicts_from_output "$UP_OUTPUT" || fail "docker compose up failed" "${ALL_SERVICES[@]}"
+  first_conflicts="$(conflicting_container_ids "$UP_OUTPUT")"
+  clear_conflicts_from_output "$UP_OUTPUT" && clear_status=0 || clear_status=$?
+  # 実体の無い名前を握られている場合（2）は、コンテナが 1 つも無いのでモジュール
+  # ログを出しても空になる。診断は report_phantom_name_holder が出し切っている。
+  if [ "$clear_status" = 2 ]; then
+    fail "Could not free the container names this deploy needs"
+  fi
+  if [ "$clear_status" != 0 ]; then
+    fail "docker compose up failed" "${ALL_SERVICES[@]}"
+  fi
+
   log "Retrying docker compose up after clearing the conflicting container(s)"
-  compose_up || fail "docker compose up failed" "${ALL_SERVICES[@]}"
+  if ! compose_up; then
+    # 同じ相手ともう一度衝突したなら、消したつもりの名前が解放されていない。
+    # `docker rm -f` が成功を返しても名前が空いていないケースがここに落ちる。
+    retry_conflicts="$(conflicting_container_ids "$UP_OUTPUT")"
+    if [ -n "$retry_conflicts" ] && [ "$retry_conflicts" = "$first_conflicts" ]; then
+      report_phantom_name_holder "$retry_conflicts"
+      fail "Could not free the container names this deploy needs"
+    fi
+    fail "docker compose up failed" "${ALL_SERVICES[@]}"
+  fi
 fi
 
 # ===== Schema sync =====
