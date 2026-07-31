@@ -429,7 +429,7 @@ report_phantom_name_holder() { # 引数: <コンテナ ID または名前>
 }
 
 remove_leftover_container() { # 引数: <コンテナ名または ID>
-  local ref="$1" project rm_output
+  local ref="$1" project rm_output rm_status=0
   project="$(container_project_label "$ref" || true)"
   if [ -n "$project" ] && [ "$project" != "$PROJECT" ]; then
     err "Container '$ref' belongs to another compose project ('$project') and holds a name this deploy needs."
@@ -438,20 +438,28 @@ remove_leftover_container() { # 引数: <コンテナ名または ID>
     return 1
   fi
   warn "Removing leftover container holding a name this deploy needs: $ref"
-  # `docker rm -f` は「そもそもコンテナが無い」ときも成功（終了コード 0）で返す。
-  # 実体が無いまま名前だけ握られている残骸はまさにこれに当たるので、終了コードを
-  # 信じると「消せた」と誤認し、同じ相手との衝突でもう一度落ちる。出力で見分ける。
-  if ! rm_output="$(docker rm -f "$ref" 2>&1)"; then
+  rm_output="$(docker rm -f "$ref" 2>&1)" || rm_status=$?
+
+  # `docker rm -f` は「そもそもコンテナが無い」とき、その旨を標準エラーへ出したうえで
+  # 成功（終了コード 0）を返す（docker/cli の force かつ NotFound の経路。古い Docker は
+  # 終了コードも非 0 になるが、どちらも同じメッセージを出す）。実体が無いまま名前だけ
+  # 握られている残骸はまさにこれに当たるので、終了コードを信じると「消せた」と誤認し、
+  # 同じ相手との衝突でもう一度落ちる。
+  # デーモンの再起動を促すのは、この「実体が無い」と分かったときだけにする。
+  if echo "$rm_output" | grep -qi 'no such container'; then
+    report_phantom_name_holder "$ref"
+    return 2
+  fi
+
+  # それ以外の削除失敗（認可プラグインによる拒否・ストレージやデーモンの一時的な
+  # エラー等）は原因がまったく別なので、再起動を促さずに実際のメッセージを見せる。
+  # 呼び出し側は通常どおりモジュールログ付きの診断へ回す。
+  if [ "$rm_status" != 0 ]; then
     err "Could not remove the leftover container: $ref"
     if [ -n "$rm_output" ]; then
       echo "  $rm_output" >&2
     fi
-    report_phantom_name_holder "$ref"
-    return 2
-  fi
-  if echo "$rm_output" | grep -qi 'no such container'; then
-    report_phantom_name_holder "$ref"
-    return 2
+    return 1
   fi
   return 0
 }
