@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
@@ -90,8 +91,7 @@ export function LoginPage() {
             </label>
             <label>
               {t('login.password')}
-              <input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => {

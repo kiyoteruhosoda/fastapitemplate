@@ -1,6 +1,7 @@
 /** システム設定画面（環境変数 > DB > デフォルトの解決結果を編集する）。 */
 import { useEffect, useState } from 'react'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
@@ -162,11 +163,17 @@ export function ConfigPage() {
                       </option>
                     ))}
                   </select>
+                ) : item.secret ? (
+                  <PasswordInput
+                    disabled={item.env_locked}
+                    value={asText(currentValue(item))}
+                    onChange={(e) => {
+                      setValue(item.key, parseValue(item, e.target.value))
+                    }}
+                  />
                 ) : (
                   <input
-                    type={
-                      item.secret ? 'password' : item.value_type === 'integer' ? 'number' : 'text'
-                    }
+                    type={item.value_type === 'integer' ? 'number' : 'text'}
                     disabled={item.env_locked}
                     value={asText(currentValue(item))}
                     onChange={(e) => {

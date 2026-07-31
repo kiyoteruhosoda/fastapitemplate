@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
@@ -35,8 +36,8 @@ export function ChangePasswordPage() {
       <h1>{t('changePassword.title')}</h1>
       <label>
         {t('changePassword.current')}
-        <input
-          type="password"
+        <PasswordInput
+          autoComplete="current-password"
           value={current}
           onChange={(e) => {
             setCurrent(e.target.value)
@@ -46,8 +47,8 @@ export function ChangePasswordPage() {
       </label>
       <label>
         {t('changePassword.new')}
-        <input
-          type="password"
+        <PasswordInput
+          autoComplete="new-password"
           value={next}
           onChange={(e) => {
             setNext(e.target.value)

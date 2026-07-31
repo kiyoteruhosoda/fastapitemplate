@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import { PasswordInput } from '../components/PasswordInput'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 
@@ -37,8 +38,8 @@ export function ResetPasswordPage() {
         {error && <p className="error">{t(error)}</p>}
         <label>
           {t('reset.newPassword')}
-          <input
-            type="password"
+          <PasswordInput
+            autoComplete="new-password"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value)
