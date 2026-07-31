@@ -217,9 +217,10 @@ docker ps -a --filter name=<出力に出たコンテナ名> \
 （例: prod は `fastapitemplate-mariadb`、stg は `fastapitemplate-mariadb-stg`）、
 再デプロイする。
 
-**削除できない残骸が名前を握っている場合**（`Could not remove the leftover
-container` と出て、`docker ps -a` にも出ない）。Docker が名前だけ掴んだまま
-解放していない。デーモンを再起動してから再デプロイする:
+**実体の無い名前を Docker が握っている場合**（`Docker still holds the container
+name, but no container is behind it` と出て、`docker ps -a` にも `docker inspect`
+にも出ない）。Docker が名前だけ掴んだまま解放していない。削除では解消しないので、
+デーモンを再起動してから再デプロイする:
 
 ```bash
 sudo systemctl restart docker    # Synology DSM: パッケージセンターから Container Manager を停止 → 起動
