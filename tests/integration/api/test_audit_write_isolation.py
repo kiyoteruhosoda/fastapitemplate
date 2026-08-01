@@ -147,12 +147,16 @@ def test_a_log_line_emitted_after_a_write_is_stored(file_client: TestClient, fil
 
 
 def test_the_access_log_line_is_stored(file_client: TestClient, file_engine: sa.Engine) -> None:
-    """アクセスログ（リクエストごとの 1 行）も残ること。"""
-    assert file_client.get("/healthz").status_code == 200
+    """アクセスログ（リクエストごとの 1 行）も残ること。
+
+    死活監視のパス（``/healthz`` 等）はアクセスログに残さないので、ここでは
+    通常の API を叩く（:mod:`presentation.fastapi.middleware.request_logging`）。
+    """
+    assert file_client.get("/info").status_code == 200
 
     with file_engine.connect() as connection:
         stored = list(connection.execute(sa.text("SELECT path, status_code FROM log WHERE logger = 'app.request'")))
-    assert ("/healthz", 200) in [(row[0], row[1]) for row in stored]
+    assert ("/info", 200) in [(row[0], row[1]) for row in stored]
 
 
 def test_multiple_events_in_one_request_are_all_recorded(
@@ -173,3 +177,19 @@ def test_multiple_events_in_one_request_are_all_recorded(
         assert created.status_code == 201, created.text
 
     assert len(_audit_rows(file_engine, "user.created")) == 3
+
+
+def test_the_error_code_reaches_the_log_table(file_client: TestClient, file_engine: sa.Engine) -> None:
+    """失敗の記録が「何が起きたか」ごと DB に残ること。
+
+    ``log`` テーブルへ入るのは列にある項目だけで、``extra`` の残りは stdout の
+    JSON にしか出ない。エラーコードを本文にも入れているのはこのため——管理画面
+    （`/admin/logs`）から読めなければ、記録した意味がない。
+    """
+    assert file_client.get("/api/admin/users", headers={"Authorization": "Bearer nope"}).status_code == 401
+
+    with file_engine.connect() as connection:
+        stored = list(
+            connection.execute(sa.text("SELECT message, status_code FROM log WHERE message LIKE 'request_failed%'"))
+        )
+    assert ("request_failed: invalid_token", 401) in [(row[0], row[1]) for row in stored]

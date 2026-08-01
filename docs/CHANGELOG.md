@@ -2,6 +2,29 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
+## 2026-08 アプリログの強化 — 失敗を残し、死活監視を残さない
+
+- **失敗が記録されるようになった**（ADR-0019）。`HTTPException`・入力検証エラー・
+  ドメイン例外はルーターを抜けた先で応答へ変わるため、これまではアクセスログの
+  1 行（ステータスコードだけ）しか残らなかった。記録を
+  `presentation/fastapi/error_handling.py` に集約し、`request_failed`（エラーコード
+  付き）・`request_validation_failed`（落ちた項目名と理由。**入力値は入れない**）を
+  残すようにした。
+- **想定外の例外の受け皿を入れた。** `Exception` ハンドラが未登録で、500 は
+  Starlette の `ServerErrorMiddleware`（全ミドルウェアの外側）が処理していた。
+  traceback は DB に残らず、アクセスログにも 500 の行が出ず、ログのまとめ書きも
+  飛ばされてそのリクエストのログ行ごと消えていた。`InternalErrorMiddleware`
+  （最も内側）で応答へ変え、`{"detail": {"error": "internal_error"}}` の JSON と
+  `X-Request-Id` を返すようにした（別オリジンからも本文を読める）。
+- **ログのレベルをステータスコードで決めるようにした。** 5xx → ERROR、4xx →
+  WARNING、401 と成功 → INFO。WARNING 以上で絞れば失敗だけが残る。
+- **死活監視のパスをアクセスログから外した。** `/healthz` `/readyz` `/api/health`
+  `/metrics` の成功は残さない（Docker の healthcheck が数十秒おきに叩き、`log` の
+  大半を占めていた）。**失敗（4xx/5xx）は残す。**
+- **ログ基盤自身の失敗が見えるようになった。** `DbLogHandler` は書き込み失敗を
+  `handleError()`（stderr）で知らせる（従来は `pass`）。設定の DB 読み取りが
+  できない状態も、状態が変わったときに 1 行だけ警告する（`system_settings_unreadable`）。
+
 ## 2026-08 ロールの切り替え（複数ロールの使い分け）と画面デザインの刷新
 
 - **アクティブロールを導入**（ADR-0017）。ユーザーは以前から複数ロールを持てたが、

@@ -406,6 +406,10 @@ RP ID にはドメイン名しか指定できない（IP アドレス不可）�
 入れると、1 リクエストの記録を両側から突き合わせられる。画面ごとの絞り込み手順は
 `frontend/README.md`「操作マニュアル」を参照。
 
+エラーだけを見たいときは `/admin/logs` のレベルで絞る（**5xx は ERROR、4xx は
+WARNING**、401 は INFO）。`/healthz`・`/readyz`・`/api/health`・`/metrics` の成功した
+アクセスは記録されない（失敗したときは記録される）。
+
 API から直接引くときは Swagger UI（`/docs`）の `GET /api/admin/logs` /
 `GET /api/admin/audit-logs` を使う。
 
