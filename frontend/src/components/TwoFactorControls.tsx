@@ -109,7 +109,7 @@ export function TwoFactorControls() {
   if (status.enabled) {
     return (
       <form
-        className="profile-form"
+        className="settings-form"
         onSubmit={onSubmit(
           '/api/account/security/two-factor/removal',
           'security.twoFactorDisabled',

@@ -12,6 +12,7 @@ import { PermissionsPage } from './pages/PermissionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RolesPage } from './pages/RolesPage'
+import { SecurityPage } from './pages/SecurityPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
 import { SystemStatusPage } from './pages/SystemStatusPage'
 import { UsersPage } from './pages/UsersPage'
@@ -39,10 +40,12 @@ export default function App() {
         <Route path="/" element={<AdminDashboardPage />} />
         <Route path="/items" element={<ItemsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        {/* パスワード変更・セキュリティはプロフィールの区画になった（ADR-0020）。
-            旧 URL のブックマークが行き止まりにならないよう転送する。 */}
-        <Route path="/change-password" element={<Navigate to="/profile" replace />} />
-        <Route path="/security" element={<Navigate to="/profile" replace />} />
+        <Route path="/profile/security" element={<SecurityPage />} />
+        {/* パスワード変更はセキュリティの区画になり、セキュリティはプロフィールの
+            下の画面へ移った（ADR-0020）。旧 URL のブックマークが行き止まりに
+            ならないよう転送する。 */}
+        <Route path="/change-password" element={<Navigate to="/profile/security" replace />} />
+        <Route path="/security" element={<Navigate to="/profile/security" replace />} />
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/roles" element={<RolesPage />} />
         <Route path="/admin/permissions" element={<PermissionsPage />} />

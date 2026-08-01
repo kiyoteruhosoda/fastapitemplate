@@ -36,7 +36,7 @@ export function PasswordChangeForm() {
 
   return (
     <form
-      className="profile-form"
+      className="settings-form"
       onSubmit={(e) => {
         void submit(e)
       }}

@@ -1,17 +1,16 @@
 /**
- * プロフィール（本人のアカウント情報・サインインの手段・表示設定）。
+ * プロフィール（本人のアカウント情報と表示設定。ADR-0016）。
  *
  * - メールアドレス・表示名はここから本人が変更できる（PUT /api/auth/me）。
- * - パスワードの変更・二要素認証・パスキーもこのページに集約する（ADR-0020）。
- * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0005 / ADR-0016）。
+ * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0005）。
+ * - サインインの手段（パスワード・二要素認証・パスキー）は別画面
+ *   （`/profile/security`）。ここからは入口だけを出す（ADR-0020）。
  */
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 
-import { PasskeyControls } from '../components/PasskeyControls'
-import { PasswordChangeForm } from '../components/PasswordChangeForm'
 import { PreferenceControls } from '../components/PreferenceControls'
 import { useToast } from '../components/ToastNotification'
-import { TwoFactorControls } from '../components/TwoFactorControls'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
@@ -39,10 +38,10 @@ export function ProfilePage() {
     <div className="card">
       <h1>{t('profile.title')}</h1>
 
-      <section className="profile-section">
+      <section className="settings-section">
         <h2>{t('profile.account')}</h2>
         <form
-          className="profile-form"
+          className="settings-form"
           onSubmit={(e) => {
             void submit(e)
           }}
@@ -76,27 +75,18 @@ export function ProfilePage() {
         </form>
       </section>
 
-      <section className="profile-section">
-        <h2>{t('changePassword.title')}</h2>
-        <PasswordChangeForm />
+      <section className="settings-section">
+        <h2>{t('security.title')}</h2>
+        <p className="hint">{t('security.hint')}</p>
+        <Link to="/profile/security">{t('security.open')}</Link>
       </section>
 
-      <section className="profile-section">
-        <h2>{t('security.twoFactor')}</h2>
-        <TwoFactorControls />
-      </section>
-
-      <section className="profile-section">
-        <h2>{t('security.passkeys')}</h2>
-        <PasskeyControls />
-      </section>
-
-      <section className="profile-section">
+      <section className="settings-section">
         <h2>{t('profile.preferences')}</h2>
         <PreferenceControls />
       </section>
 
-      <section className="profile-section">
+      <section className="settings-section">
         <h2>{t('profile.roles')}</h2>
         <p className="hint">{t('profile.rolesHint')}</p>
         <ul className="chip-list">
@@ -114,7 +104,7 @@ export function ProfilePage() {
         </ul>
       </section>
 
-      <section className="profile-section">
+      <section className="settings-section">
         <h2>{t('profile.scopes')}</h2>
         <p className="hint">{t('profile.scopesHint')}</p>
         <ul className="chip-list">

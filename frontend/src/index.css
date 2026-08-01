@@ -863,7 +863,7 @@ tbody tr:hover {
 
 /* プロフィールの区画（アカウント・パスワード・二要素認証・パスキー・表示設定・
  * ロール・scope）。 */
-.profile-section {
+.settings-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -871,13 +871,13 @@ tbody tr:hover {
 }
 
 /* 区切り線は「区画と区画のあいだ」だけに引く（先頭の区画には付けない）。 */
-.profile-section + .profile-section {
+.settings-section + .settings-section {
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
 }
 
 /* 区画の中のフォーム（見出しは区画側が持つ）。区画と同じ縦積みにする。 */
-.profile-form {
+.settings-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -886,8 +886,8 @@ tbody tr:hover {
 
 /* 表・入れ子カードは区画の幅いっぱいに広げる（align-items: flex-start で
  * 内容の幅まで縮むと、表の横スクロールが効かなくなるため）。 */
-.profile-section > .table-scroll,
-.profile-section > .card-inset {
+.settings-section > .table-scroll,
+.settings-section > .card-inset {
   align-self: stretch;
 }
 

@@ -2,15 +2,20 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
-## 2026-08 本人の設定をプロフィールへ集約し、狭い画面のはみ出しを直した
+## 2026-08 本人の設定を 2 画面に整理し、狭い画面のはみ出しを直した
 
-- **パスワード変更・セキュリティをプロフィールの区画にした**（ADR-0020）。
-  `/change-password`（旧 S7）・`/security`（旧 S8）は独立した画面をやめ、
-  プロフィール（S6）に「パスワード変更」「二要素認証」「パスキー」として並べる。
-  旧 URL は `/profile` へ転送する。中身は `components/PasswordChangeForm.tsx`・
-  `TwoFactorControls.tsx`・`PasskeyControls.tsx` に分け、区画の見出しは
-  呼び出し側が持つ（`PreferenceControls` と同じ形）。画面一覧の採番が繰り上がった
-  （旧 S9〜S15 → S7〜S13）。
+- **本人の設定をプロフィールとセキュリティの 2 画面にした**（ADR-0020）。
+  以前は「プロフィール」「パスワード変更」「セキュリティ」の 3 画面に分かれ、
+  後ろ 2 つはプロフィール下端のリンクからしか辿れなかった。パスワード変更は
+  独立した画面をやめ、二要素認証・パスキーと同じ「サインインの手段」として
+  セキュリティ（`/profile/security`。旧 S8 → S7）へまとめた。プロフィールには
+  その入口（見出し・説明・リンク）だけを置く。旧 URL の `/change-password`・
+  `/security` は `/profile/security` へ転送する。
+  - 区画の中身は `components/PasswordChangeForm.tsx`・`TwoFactorControls.tsx`・
+    `PasskeyControls.tsx` に分け、区画の見出しと枠は画面側が持つ
+    （`PreferenceControls` と同じ形）。CSS クラスは 2 画面で共有するため
+    `.profile-section` / `.profile-form` → `.settings-section` / `.settings-form`。
+  - 画面が 1 つ減り、画面一覧の採番が繰り上がった（旧 S9〜S15 → S8〜S14）。
 - **ロールの切り替えメニューが画面の外へ開いていたのを直した。** 狭い画面では
   ヘッダーが折り返して切り替えボタンが行の左端へ回り込むことがあり、そこから
   右寄せ（`right: 0`）で開くメニューが画面の左外へはみ出して選べなかった。
