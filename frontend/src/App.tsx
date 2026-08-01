@@ -4,7 +4,6 @@ import { AppLayout } from './components/AppLayout'
 import { useI18n } from './i18n'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AuditLogsPage } from './pages/AuditLogsPage'
-import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { ConfigPage } from './pages/ConfigPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ItemsPage } from './pages/ItemsPage'
@@ -13,7 +12,6 @@ import { PermissionsPage } from './pages/PermissionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RolesPage } from './pages/RolesPage'
-import { SecurityPage } from './pages/SecurityPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
 import { SystemStatusPage } from './pages/SystemStatusPage'
 import { UsersPage } from './pages/UsersPage'
@@ -41,8 +39,10 @@ export default function App() {
         <Route path="/" element={<AdminDashboardPage />} />
         <Route path="/items" element={<ItemsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/change-password" element={<ChangePasswordPage />} />
-        <Route path="/security" element={<SecurityPage />} />
+        {/* パスワード変更・セキュリティはプロフィールの区画になった（ADR-0020）。
+            旧 URL のブックマークが行き止まりにならないよう転送する。 */}
+        <Route path="/change-password" element={<Navigate to="/profile" replace />} />
+        <Route path="/security" element={<Navigate to="/profile" replace />} />
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/roles" element={<RolesPage />} />
         <Route path="/admin/permissions" element={<PermissionsPage />} />

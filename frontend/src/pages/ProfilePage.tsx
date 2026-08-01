@@ -1,14 +1,17 @@
 /**
- * プロフィール（本人のアカウント情報と表示設定。ADR-0016）。
+ * プロフィール（本人のアカウント情報・サインインの手段・表示設定）。
  *
  * - メールアドレス・表示名はここから本人が変更できる（PUT /api/auth/me）。
- * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0005）。
+ * - パスワードの変更・二要素認証・パスキーもこのページに集約する（ADR-0020）。
+ * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0005 / ADR-0016）。
  */
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 
+import { PasskeyControls } from '../components/PasskeyControls'
+import { PasswordChangeForm } from '../components/PasswordChangeForm'
 import { PreferenceControls } from '../components/PreferenceControls'
 import { useToast } from '../components/ToastNotification'
+import { TwoFactorControls } from '../components/TwoFactorControls'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
@@ -36,42 +39,57 @@ export function ProfilePage() {
     <div className="card">
       <h1>{t('profile.title')}</h1>
 
-      <form
-        className="profile-section"
-        onSubmit={(e) => {
-          void submit(e)
-        }}
-      >
+      <section className="profile-section">
         <h2>{t('profile.account')}</h2>
-        <label>
-          {t('common.email')}
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value)
-            }}
-            required
-          />
-        </label>
-        <label>
-          {t('common.username')}
-          <input
-            type="text"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => {
-              setUsername(e.target.value)
-            }}
-            maxLength={100}
-            required
-          />
-        </label>
-        <div>
+        <form
+          className="profile-form"
+          onSubmit={(e) => {
+            void submit(e)
+          }}
+        >
+          <label>
+            {t('common.email')}
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+              }}
+              required
+            />
+          </label>
+          <label>
+            {t('common.username')}
+            <input
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value)
+              }}
+              maxLength={100}
+              required
+            />
+          </label>
           <button type="submit">{t('common.save')}</button>
-        </div>
-      </form>
+        </form>
+      </section>
+
+      <section className="profile-section">
+        <h2>{t('changePassword.title')}</h2>
+        <PasswordChangeForm />
+      </section>
+
+      <section className="profile-section">
+        <h2>{t('security.twoFactor')}</h2>
+        <TwoFactorControls />
+      </section>
+
+      <section className="profile-section">
+        <h2>{t('security.passkeys')}</h2>
+        <PasskeyControls />
+      </section>
 
       <section className="profile-section">
         <h2>{t('profile.preferences')}</h2>
@@ -107,11 +125,6 @@ export function ProfilePage() {
           ))}
         </ul>
       </section>
-
-      <div className="inline-form">
-        <Link to="/change-password">{t('changePassword.title')}</Link>
-        <Link to="/security">{t('security.title')}</Link>
-      </div>
     </div>
   )
 }

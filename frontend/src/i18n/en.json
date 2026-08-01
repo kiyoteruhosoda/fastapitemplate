@@ -48,7 +48,6 @@
   "role.hint": "Only the selected role's permissions apply.",
   "role.activeMark": "in use",
   "role.switched": "Now acting as {role}.",
-  "security.title": "Security",
   "security.twoFactor": "Two-factor authentication",
   "security.twoFactorOn": "Two-factor authentication is on. Enter a current code to turn it off.",
   "security.twoFactorOff": "Two-factor authentication is off.",

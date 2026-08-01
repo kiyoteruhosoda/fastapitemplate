@@ -1,8 +1,9 @@
 /**
- * プロフィールの自己編集（メールアドレス・表示名）と表示設定の配置。
+ * プロフィールの自己編集（メールアドレス・表示名）と、統合した区画の配置。
  *
  * 保存が PUT /api/auth/me に飛ぶこと、成功でトーストが出て /me を引き直すこと、
- * 言語・テーマの選択がこのページに出ることを確認する（ADR-0016）。
+ * 言語・テーマの選択（ADR-0016）とパスワード変更・二要素認証・パスキー
+ * （ADR-0020）がこのページに出ることを確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -31,18 +32,34 @@ const ME: Me = {
   active_role: 'member',
 }
 
-const { apiGet, apiPut } = vi.hoisted(() => ({
-  apiGet: vi.fn(() => Promise.resolve(ME)),
-  apiPut: vi.fn(() => Promise.resolve(ME)),
+const { apiGet, apiPut, apiPost, apiDelete } = vi.hoisted(() => ({
+  apiGet: vi.fn(),
+  apiPut: vi.fn(),
+  apiPost: vi.fn(),
+  apiDelete: vi.fn(),
 }))
 
 vi.mock('../services/api', () => ({
-  api: { get: apiGet, put: apiPut },
+  api: { get: apiGet, put: apiPut, post: apiPost, delete: apiDelete },
   hasTokens: () => true,
   setTokens: vi.fn(),
   clearTokens: vi.fn(),
   errorMessageKey: () => 'error.unknown_error',
 }))
+
+vi.mock('../services/webauthn', () => ({
+  createPasskey: vi.fn(),
+  isPasskeyCancellation: () => false,
+  isPasskeySupported: () => true,
+}))
+
+/** ページが最初に引く 3 本（/me・二要素認証の状態・パスキーの一覧）を返す。 */
+function respondToGet(path: string) {
+  if (path === '/api/account/security/two-factor')
+    return Promise.resolve({ enabled: false, enrolling: false })
+  if (path === '/api/account/security/passkeys') return Promise.resolve([])
+  return Promise.resolve(ME)
+}
 
 const SETTINGS = { languages: ['en'], default_locale: 'en', default_theme: 'light' }
 
@@ -68,6 +85,9 @@ async function renderPage() {
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    apiGet.mockImplementation(respondToGet)
+    apiPut.mockResolvedValue(ME)
+    apiPost.mockResolvedValue({})
     // jsdom は matchMedia を持たない（ThemeProvider が OS の配色を見る）。
     vi.stubGlobal(
       'matchMedia',
@@ -112,5 +132,51 @@ describe('ProfilePage', () => {
 
     expect(screen.getByLabelText('Language')).toBeInTheDocument()
     expect(screen.getByLabelText('Theme')).toBeInTheDocument()
+  })
+
+  it('パスワード変更・二要素認証・パスキーの区画がこのページに出る', async () => {
+    await renderPage()
+
+    expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Two-factor authentication is off.')).toBeInTheDocument()
+    })
+    expect(screen.getByRole('heading', { name: 'Passkeys' })).toBeInTheDocument()
+    expect(screen.getByText('No passkeys registered yet.')).toBeInTheDocument()
+  })
+
+  it('パスワードを変更すると POST /api/auth/change-password が飛ぶ', async () => {
+    await renderPage()
+
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-secret' } })
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+
+    await waitFor(() => {
+      expect(apiPost).toHaveBeenCalledWith('/api/auth/change-password', {
+        current_password: 'old-secret',
+        new_password: 'new-secret',
+      })
+    })
+    expect(screen.getByText('Saved.')).toBeInTheDocument()
+  })
+
+  it('二要素認証を設定すると QR と確認コードの入力欄が出る', async () => {
+    await renderPage()
+    apiPost.mockResolvedValueOnce({
+      secret: 'ABCDEF',
+      otpauth_uri: 'otpauth://totp/x',
+      qr_code: 'data:image/svg+xml;base64,AAA',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Set up' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
+
+    await waitFor(() => {
+      expect(screen.getByAltText('Setup QR code for your authenticator app')).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Verification code')).toBeInTheDocument()
   })
 })
