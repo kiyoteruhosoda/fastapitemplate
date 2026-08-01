@@ -18,6 +18,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -126,6 +127,14 @@ async def update_me(
     )
     user.email = body.email
     user.username = body.username
+    try:
+        # 事前の SELECT は同時更新の相手が見えない（TOCTOU）。一意制約の違反を
+        # ここで確定させてから成功の監査を積む（積んだ後に失敗すると、更新は
+        # ロールバックされたのに監査だけ success で残ってしまう）。
+        db.flush()
+    except IntegrityError:
+        audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"}) from None
     audit.execute(AuditEventType.PROFILE_UPDATED, reason=f"fields={','.join(changed) if changed else 'none'}")
     return MeResponse(
         user_id=user.id,
