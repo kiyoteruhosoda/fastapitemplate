@@ -1,39 +1,86 @@
-/* 最小限のスケルトン用スタイル。プロダクトでは好みの UI ライブラリへ置き換える。
+/* 画面全体のスタイル。プロダクトでは好みの UI ライブラリへ置き換えてよい。
  *
- * 配色は CSS 変数で持ち、`<html data-theme>`（ThemeProvider が書き込む）で
- * 切り替える。色を直に書かないことで、テーマの追加は :root[data-theme=...] を
- * 1 ブロック足すだけで済む。
+ * 見た目の値は CSS 変数に集約し、`<html data-theme>`（ThemeProvider が書き込む）で
+ * 配色を切り替える。色・角丸・影・間隔を直に書かないことで、テーマの追加は
+ * :root[data-theme=...] を 1 ブロック足すだけで済む。
+ *
+ * 変数は 3 系統に分ける。
+ *   1. 配色（--surface / --text / --accent …）— テーマごとに変わる
+ *   2. 形（--radius-* / --shadow-*）— テーマ間で共通
+ *   3. 間隔（--space-*）— テーマ間で共通
  */
 :root,
 :root[data-theme='light'] {
   --surface: #ffffff;
-  --surface-raised: #f5f6f8;
-  --text: #1b1f24;
+  /* 画面の地。カード（--surface）を一段浮かせて見せるための背景 */
+  --surface-sunken: #f4f6fa;
+  --surface-raised: #f2f4f8;
+  --surface-hover: #eceff5;
+  --text: #10151c;
   --text-muted: #5a6472;
-  --border: #d5d9e0;
+  --border: #e2e6ee;
+  --border-strong: #cbd2de;
   --accent: #4f46e5;
-  --danger: #c0392b;
-  --success: #2e7d32;
+  --accent-hover: #4338ca;
+  --accent-contrast: #ffffff;
+  /* アクセントの淡色（選択中の項目・強調の下地）。alpha 付きで重ねる */
+  --accent-soft: rgb(79 70 229 / 10%);
+  --accent-ring: rgb(79 70 229 / 35%);
+  --danger: #c62f2f;
+  --danger-soft: rgb(198 47 47 / 10%);
+  --success: #17803d;
+  --success-soft: rgb(23 128 61 / 12%);
+  --shadow-sm: 0 1px 2px rgb(16 21 28 / 6%);
+  --shadow-md: 0 6px 20px -8px rgb(16 21 28 / 18%);
+  --shadow-lg: 0 20px 45px -20px rgb(16 21 28 / 35%);
+  color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --surface: #16181d;
-  --surface-raised: #1f2229;
-  --text: #e6e8eb;
-  --text-muted: #a0a8b4;
-  --border: #333944;
+  --surface: #171a21;
+  --surface-sunken: #0f1116;
+  --surface-raised: #21252e;
+  --surface-hover: #272c37;
+  --text: #e8eaee;
+  --text-muted: #9aa3b2;
+  --border: #2c313c;
+  --border-strong: #3c4351;
   --accent: #8b83ff;
-  --danger: #ff6b5b;
-  --success: #5cb85c;
+  --accent-hover: #a09aff;
+  --accent-contrast: #14121f;
+  --accent-soft: rgb(139 131 255 / 16%);
+  --accent-ring: rgb(139 131 255 / 45%);
+  --danger: #ff7a6b;
+  --danger-soft: rgb(255 122 107 / 14%);
+  --success: #5fc27e;
+  --success-soft: rgb(95 194 126 / 14%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 6px 20px -8px rgb(0 0 0 / 55%);
+  --shadow-lg: 0 20px 45px -20px rgb(0 0 0 / 70%);
+  color-scheme: dark;
 }
 
 :root {
+  --radius-sm: 0.4rem;
+  --radius-md: 0.6rem;
+  --radius-lg: 0.9rem;
+  --radius-pill: 999px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
   font-family:
     system-ui,
     -apple-system,
     'Segoe UI',
+    'Noto Sans JP',
     sans-serif;
-  line-height: 1.5;
+  line-height: 1.55;
+  /* 見出しと本文の字面を揃える（既定のヒンティングだと太字がにじむ環境がある） */
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -42,44 +89,140 @@
 
 body {
   margin: 0;
-  background: var(--surface);
+  background: var(--surface-sunken);
   color: var(--text);
+  font-size: 0.95rem;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
 }
 
 a {
   color: inherit;
 }
 
+/* キーボード操作の現在地は常に同じリングで示す（マウス操作では出さない）。 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- 操作要素 -------------------------------------------------------------
+ * 既定は控えめな枠線ボタン。主要な操作は .button-primary、破壊的な操作は
+ * .button-danger、装飾を落としたい場所は .button-ghost を足す。 */
 button {
   cursor: pointer;
-  padding: 0.35rem 0.8rem;
-  background: var(--surface-raised);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.45rem 0.9rem;
+  background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 button:disabled {
   cursor: default;
   opacity: 0.5;
+  box-shadow: none;
+}
+
+/* フォームの送信ボタンはその画面の主要な操作なので、既定でアクセント色にする
+ * （新しい画面でクラスを付け忘れても主従が崩れない）。送信を伴わない主要操作には
+ * .button-primary を付ける。 */
+.button-primary,
+button[type='submit'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.button-primary:hover:not(:disabled),
+button[type='submit']:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-contrast);
+}
+
+.button-danger {
+  color: var(--danger);
+  border-color: var(--border-strong);
+}
+
+.button-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.button-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.button-ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: transparent;
+  color: var(--text);
 }
 
 input,
-select {
-  padding: 0.35rem 0.5rem;
+select,
+textarea {
+  padding: 0.45rem 0.6rem;
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 0.3rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
 }
 
 /* パスワード欄（PasswordInput）。入力欄と表示切り替えボタンを横に並べる。
- * 枠線は上の input / button の指定（var(--border)）をそのまま使い、ここでは
- * 色を足さない（欄ごとに枠色がずれないようにするため）。 */
+ * 枠線は上の input / button の指定をそのまま使い、ここでは色を足さない
+ * （欄ごとに枠色がずれないようにするため）。 */
 .password-field {
   display: flex;
   align-items: stretch;
-  gap: 0.3rem;
+  gap: var(--space-1);
 }
 
 .password-field input {
@@ -92,10 +235,11 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.55rem;
   color: var(--text-muted);
 }
 
+/* --- 外枠 ---------------------------------------------------------------- */
 .layout {
   min-height: 100vh;
   display: flex;
@@ -103,33 +247,156 @@ select {
 }
 
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 25;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-3);
   flex-wrap: wrap;
-  padding: 0.6rem 1rem;
+  padding: var(--space-3) var(--space-5);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  /* 本文がヘッダーの下を通り抜けるので、透けた背景をぼかして文字を読みやすくする */
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 
 .header-brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-3);
   /* 長いタイトルでもメニューボタンを押し出さない。 */
   min-width: 0;
 }
 
 .header-title {
   font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
   text-decoration: none;
 }
 
 .header-actions {
   display: flex;
-  gap: 0.8rem;
+  gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* ヘッダーのユーザー（頭文字のアバター + 表示名でプロフィールへ） */
+.header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.header-user:hover {
+  background: var(--surface-hover);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.header-username {
+  font-weight: 500;
+}
+
+/* --- ロールの切り替え（ADR-0017） ---------------------------------------- */
+.role-switcher {
+  position: relative;
+}
+
+.role-switcher-toggle {
+  gap: var(--space-2);
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.role-switcher-toggle:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.role-switcher-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.role-switcher-value {
+  font-weight: 600;
+}
+
+.role-switcher-caret {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.role-switcher-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 14rem;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.role-switcher-hint {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.role-switcher-option {
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: 0.4rem var(--space-2);
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  text-align: left;
+}
+
+.role-switcher-option:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: transparent;
+}
+
+.role-switcher-option[aria-checked='true'] {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.role-switcher-check {
+  width: 1rem;
+  color: var(--accent);
 }
 
 /* 開閉ボタン・オーバーレイ・ドロワー内の閉じるボタンは狭い画面専用
@@ -148,103 +415,144 @@ select {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  min-width: 12rem;
-  padding: 1rem 0.5rem;
+  gap: 0.15rem;
+  min-width: 14rem;
+  padding: var(--space-4) var(--space-3);
   border-right: 1px solid var(--border);
 }
 
 .sidebar a {
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
+  position: relative;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-weight: 500;
   text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.sidebar a:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .sidebar a.active {
-  background: var(--surface-raised);
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 600;
+}
+
+/* 選択中の項目は左端の縦線でも示す（色だけに頼らない）。 */
+.sidebar a.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.4rem;
+  bottom: 0.4rem;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
 
 /* 階層メニュー。グループは見出し + 少し字下げしたリンクの束。 */
 .sidebar-group {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  margin-top: 0.6rem;
+  gap: 0.15rem;
+  margin-top: var(--space-4);
 }
 
 .sidebar-group-label {
-  margin: 0;
-  padding: 0 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-1);
+  padding: 0 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
 .sidebar-group a {
-  margin-left: 0.5rem;
+  margin-left: var(--space-2);
 }
 
 .content {
   flex: 1;
-  padding: 1.2rem;
+  padding: var(--space-5);
   /* flex 子要素の既定（min-width: auto）だと表の幅で本文が広がり、
    * 画面全体が横スクロールしてしまう。縮めることを許して .table-scroll に任せる。 */
   min-width: 0;
 }
 
 .footer {
-  padding: 0.4rem 1rem;
+  padding: var(--space-3) var(--space-5);
   font-size: 0.8rem;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
 }
 
+/* --- カード -------------------------------------------------------------- */
 .card {
-  max-width: 60rem;
-  padding: 1.2rem;
+  max-width: 62rem;
+  padding: var(--space-5);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0.6rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: var(--space-4);
 }
 
 .card h1 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.35rem;
 }
 
 .card h2 {
-  font-size: 1.05rem;
-  margin: 0.4rem 0;
+  font-size: 1rem;
+  margin: var(--space-2) 0 0;
 }
 
 .card-inset {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--space-3);
   align-items: flex-start;
-  padding: 0.8rem;
+  padding: var(--space-4);
   background: var(--surface-raised);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
 }
 
 .auth-page {
   min-height: 100vh;
   display: grid;
   place-items: center;
+  padding: var(--space-4);
+  /* サインイン前の画面だけ、アクセントを淡く敷いて他と区別する。 */
+  background:
+    radial-gradient(60rem 30rem at 50% -10%, var(--accent-soft), transparent), var(--surface-sunken);
 }
 
 .auth-page .card {
-  width: min(22rem, 90vw);
+  width: min(24rem, 100%);
+  box-shadow: var(--shadow-lg);
 }
 
 .card label {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.card label input,
+.card label select {
+  color: var(--text);
+  font-size: 0.95rem;
 }
 
 /* 入力欄を `<label>` で囲めない欄（見出しと `for` / `id` で結ぶ）。
@@ -253,7 +561,7 @@ select {
 .card .field {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 
 .card .field > label {
@@ -262,7 +570,7 @@ select {
 
 .inline-form {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-3);
   flex-wrap: wrap;
   align-items: flex-end;
 }
@@ -271,25 +579,33 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
-  padding: 0.3rem 0;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.config-row:last-of-type {
+  border-bottom: none;
 }
 
 /* 行の見出しは 1 行のテキストとして流す（`.card label` の縦積みを打ち消す）。
  * 行そのものは `<div>`（入力欄とは `for` / `id` で結ぶ）。 */
 .config-row > label {
   display: block;
+  color: var(--text);
+  font-size: 0.95rem;
 }
 
 .notice {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: flex-start;
-  padding: 0.8rem;
-  border: 1px solid var(--accent);
-  border-radius: 0.5rem;
-  background: var(--surface-raised);
+  padding: var(--space-4);
+  border: 1px solid transparent;
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
 }
 
 .notice p {
@@ -301,14 +617,97 @@ select {
   height: 12rem;
   /* QR は黒い線の SVG。ダークテーマでも読み取れるよう常に白地に載せる。 */
   background: #ffffff;
-  padding: 0.5rem;
-  border-radius: 0.4rem;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
 }
 
-/* 表は必ずこのラッパーの中に置く。狭い画面では表だけが横スクロールする
- * （ページ全体が横スクロールしないようにするため）。 */
+/* --- チップ（ロール・scope のような短い値の並び） ------------------------- */
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.2rem 0.65rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+}
+
+.chip[data-active='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.chip-note {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chip-code {
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+}
+
+/* 複数選択（チェックボックスをチップの形で並べる） */
+.chip-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.chip-choice legend {
+  padding: 0 var(--space-1);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* `.card label` の縦積みを打ち消すため、チップ側は 2 クラスで指定する。 */
+.chip-choice .chip-option {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.15rem 0.6rem 0.15rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip-choice .chip-option:hover {
+  border-color: var(--accent);
+}
+
+.chip-choice .chip-option:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* --- 表 -----------------------------------------------------------------
+ * 罫線は行の区切りだけに絞り、見出しは地の色で示す（格子を描かない）。 */
 .table-scroll {
   overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 table {
@@ -318,31 +717,50 @@ table {
 
 th,
 td {
-  border: 1px solid var(--border);
-  padding: 0.4rem 0.6rem;
+  padding: 0.55rem 0.75rem;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+thead th {
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background: var(--surface-raised);
 }
 
 /* ログ検索の絞り込みフォーム（項目数が多いので折り返して並べる） */
 .filter-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem 0.8rem;
+  gap: var(--space-3) var(--space-4);
   align-items: flex-end;
-  padding: 0.8rem;
+  padding: var(--space-4);
   background: var(--surface-raised);
-  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .filter-form label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 .filter-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .hint {
@@ -359,10 +777,10 @@ td {
 
 .pager {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
-/* ログの一覧は列が多いので、カードの上限（60rem）を外して広い画面を使い切る。
+/* ログの一覧は列が多いので、カードの上限（62rem）を外して広い画面を使い切る。
  * はみ出す分の横スクロールはカードではなく .table-scroll が受け持つ
  * （カードごと流れるとフォームとページャまで一緒に動いてしまうため）。 */
 .card:has(.filter-form) {
@@ -397,44 +815,55 @@ td {
 
 /* 例外のスタックトレース（既定では畳んでおき、必要なときだけ開く） */
 .trace {
-  margin: 0.4rem 0 0;
-  padding: 0.5rem;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
   max-height: 16rem;
   overflow: auto;
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
   font-size: 0.75rem;
-  background: var(--surface-raised);
-  border-radius: 0.3rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   white-space: pre-wrap;
 }
 
 .link-button {
-  margin-left: 0.4rem;
-  padding: 0 0.2rem;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--accent);
   text-decoration: underline;
   font-size: 0.8rem;
 }
 
-.scope-list {
-  margin: 0;
-  padding-left: 1.2rem;
+.link-button:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+  color: var(--accent-hover);
 }
 
-/* プロフィールの区画（アカウント・表示設定・scope）。 */
+/* プロフィールの区画（アカウント・表示設定・ロール・scope）。 */
 .profile-section {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--space-3);
   align-items: flex-start;
+}
+
+/* 区切り線は「区画と区画のあいだ」だけに引く（先頭の区画には付けない。
+ * 先頭が form・後続が section と要素が混ざるため :first-of-type は使わない）。 */
+.profile-section + .profile-section {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
 }
 
 /* システムステータスの項目一覧（名前と値の 2 列）。 */
 .status-list {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.3rem 1.2rem;
+  gap: var(--space-2) var(--space-5);
   margin: 0;
 }
 
@@ -451,34 +880,39 @@ td {
 }
 
 .loading {
-  padding: 2rem;
+  padding: var(--space-6);
   text-align: center;
   color: var(--text-muted);
 }
 
 .toast-container {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  right: var(--space-4);
+  bottom: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   z-index: 100;
 }
 
 .toast {
-  padding: 0.6rem 1rem;
-  border-radius: 0.4rem;
-  color: #fff;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
 }
 
 .toast-success {
-  background: var(--success);
+  border-left-color: var(--success);
+  background: color-mix(in srgb, var(--success-soft), var(--surface));
 }
 
 .toast-error {
-  background: var(--danger);
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger-soft), var(--surface));
 }
 
 /* ===================================================================
@@ -508,11 +942,11 @@ td {
     bottom: 0;
     left: 0;
     z-index: 30;
-    width: min(15rem, 78vw);
+    width: min(16rem, 80vw);
     min-width: 0;
-    padding: 1rem 0.75rem;
+    padding: var(--space-4) var(--space-3);
     background: var(--surface);
-    box-shadow: 0 0 1.5rem rgb(0 0 0 / 25%);
+    box-shadow: var(--shadow-lg);
     overflow-y: auto;
     /* 閉じているあいだは読み上げ・タブ移動の対象からも外す。 */
     visibility: hidden;
@@ -561,20 +995,39 @@ td {
   }
 
   .header {
-    padding: 0.5rem 0.7rem;
+    padding: var(--space-2) var(--space-3);
   }
 
   .header-actions {
-    gap: 0.5rem;
+    gap: var(--space-1);
+  }
+
+  /* 狭い画面では表示名を出さず、アバターだけにする（1 行に収めるため）。 */
+  .header-username {
+    display: none;
+  }
+
+  .header-user {
+    padding: 0.3rem;
+  }
+
+  /* ロールの切り替えは見出しを落として値だけにする。 */
+  .role-switcher-label {
+    display: none;
+  }
+
+  .role-switcher-menu {
+    /* 画面右端からはみ出させない（ヘッダーの右側に開くため）。 */
+    min-width: min(16rem, 78vw);
   }
 
   .content {
-    padding: 0.9rem 0.8rem;
+    padding: var(--space-3);
   }
 
   .card {
-    padding: 0.9rem;
-    border-radius: 0.5rem;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
   }
 
   /* 指で押せる大きさを確保し、文字は 16px 以上にする
@@ -586,6 +1039,16 @@ td {
   select {
     min-height: 2.75rem;
     font-size: 1rem;
+  }
+
+  /* ヘッダーの中の操作は行の高さを崩さない（1 行に収める）。 */
+  .header .role-switcher-toggle,
+  .header .button-ghost {
+    min-height: 2.25rem;
+  }
+
+  .role-switcher-option {
+    min-height: 2.75rem;
   }
 
   input[type='checkbox'],
@@ -606,8 +1069,15 @@ td {
   .inline-form select,
   .inline-form button,
   .inline-form label,
+  .inline-form fieldset,
   .inline-form .password-field {
     width: 100%;
+  }
+
+  /* チェックボックスのチップは横並びのまま（幅いっぱいにすると縦に伸びる）。 */
+  .inline-form .chip-option,
+  .inline-form .chip-option input {
+    width: auto;
   }
 
   /* 表示切り替えボタンはアイコン 1 個分のまま（上の 100% を打ち消す）。 */
@@ -619,7 +1089,7 @@ td {
   .config-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.4rem;
+    gap: var(--space-2);
   }
 
   /* ログの絞り込みも縦に積む。項目が 6〜8 個あるので、横並びのままだと
@@ -639,7 +1109,7 @@ td {
   .filter-actions,
   .pager {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
   }
 
   .filter-actions button,
@@ -658,8 +1128,8 @@ td {
   }
 
   .toast-container {
-    left: 0.75rem;
-    right: 0.75rem;
+    left: var(--space-3);
+    right: var(--space-3);
   }
 }
 
@@ -669,5 +1139,12 @@ td {
   .sidebar,
   .sidebar[data-open='true'] {
     transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

@@ -193,6 +193,8 @@ export function ConfigPage() {
         </section>
       ))}
       <button
+        type="button"
+        className="button-primary"
         onClick={() => {
           void save()
         }}

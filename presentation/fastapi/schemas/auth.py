@@ -27,7 +27,18 @@ class MeResponse(BaseModel):
     user_id: int
     email: str
     username: str
+    # いま有効な scope（アクティブロールで絞り込まれた後の権限）
     scopes: list[str]
+    # 付与されている全ロール = 切り替えられる先の一覧（ADR-0017）
+    roles: list[str]
+    # None = すべてのロール（保有権限の和集合）で操作している
+    active_role: str | None = None
+
+
+class RoleSwitchRequest(BaseModel):
+    """アクティブロールの切り替え要求。``None`` ですべてのロールへ戻す。"""
+
+    role: str | None = None
 
 
 class ProfileUpdateRequest(BaseModel):

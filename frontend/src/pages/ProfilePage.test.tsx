@@ -27,6 +27,8 @@ const ME: Me = {
   email: 'admin@example.com',
   username: 'admin',
   scopes: ['dashboard:view'],
+  roles: ['manager', 'member'],
+  active_role: 'member',
 }
 
 const { apiGet, apiPut } = vi.hoisted(() => ({
