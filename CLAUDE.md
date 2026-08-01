@@ -214,7 +214,9 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - `AuthenticatedPrincipal.active_role` は表示・切り替え用。**認可の分岐に使わない**
   （絞り込みの結果は `permissions` に既に反映されている）。
 - 各エンドポイントに `Depends(require_permission("scope_name"))` を付ける
-  （`presentation/fastapi/dependencies/auth.py`）。
+  （`presentation/fastapi/dependencies/auth.py`）。複数の職掌が同じ資源を**読む**
+  場合に限り `require_any_permission(...)`（いずれか 1 つ）を使う。書き込みには
+  使わない（ADR-0018）。
 - 権限の検証は依存関数で行い、ルーター本体には検証済みの
   `AuthenticatedPrincipal` のみ渡す。
 - JWT 発行時の scope はユーザーの保有権限の範囲内で指定。未指定・空 = 権限なし。

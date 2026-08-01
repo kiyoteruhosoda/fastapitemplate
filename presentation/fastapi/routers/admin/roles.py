@@ -1,4 +1,7 @@
-"""ロール管理 API（要 ``role:manage``）。
+"""ロール管理 API（作成・更新・削除は要 ``role:manage``）。
+
+一覧の取得だけは ``user:manage`` でも通す。ユーザーへロールを割り当てる画面が
+「どんなロールがあるか」を知る必要があるため（ADR-0018）。
 
 ロールへの権限（scope）付与は実質的な権限変更なので、作成・更新・削除を監査ログ
 へ残す。更新時の ``reason`` には**付与後の権限コード**を入れる（誰が何の権限を
@@ -19,7 +22,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
     AuditTargetType,
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
-from presentation.fastapi.dependencies.auth import require_permission
+from presentation.fastapi.dependencies.auth import require_any_permission, require_permission
 from presentation.fastapi.schemas.admin import (
     RoleCreateRequest,
     RoleResponse,
@@ -28,11 +31,11 @@ from presentation.fastapi.schemas.admin import (
 from shared.infrastructure.models import Permission, Role
 from shared.kernel.database.session import get_db
 
-router = APIRouter(
-    prefix="/api/admin/roles",
-    tags=["admin"],
-    dependencies=[Depends(require_permission("role:manage"))],
-)
+router = APIRouter(prefix="/api/admin/roles", tags=["admin"])
+
+# ロールを変える操作は role:manage。読むだけなら user:manage でも通す（ADR-0018）。
+_MANAGE_ROLES = Depends(require_permission("role:manage"))
+_READ_ROLES = Depends(require_any_permission("role:manage", "user:manage"))
 
 DbDep = Annotated[Session, Depends(get_db)]
 
@@ -60,13 +63,18 @@ def _granted_scopes(role: Role) -> str:
     return f"scopes={','.join(sorted(p.code for p in role.permissions))}"[:_MAX_REASON_LENGTH]
 
 
-@router.get("", response_model=list[RoleResponse])
+@router.get("", response_model=list[RoleResponse], dependencies=[_READ_ROLES])
 async def list_roles(db: DbDep) -> list[RoleResponse]:
     roles = db.scalars(select(Role).order_by(Role.id)).all()
     return [_to_response(r) for r in roles]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=RoleResponse)
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RoleResponse,
+    dependencies=[_MANAGE_ROLES],
+)
 async def create_role(body: RoleCreateRequest, db: DbDep, audit: AuditRecorderDep) -> RoleResponse:
     if db.scalar(select(Role).where(Role.name == body.name)):
         raise HTTPException(
@@ -85,7 +93,7 @@ async def create_role(body: RoleCreateRequest, db: DbDep, audit: AuditRecorderDe
     return _to_response(role)
 
 
-@router.put("/{role_id}", response_model=RoleResponse)
+@router.put("/{role_id}", response_model=RoleResponse, dependencies=[_MANAGE_ROLES])
 async def update_role(
     role_id: int,
     body: RoleUpdateRequest,
@@ -108,7 +116,7 @@ async def update_role(
     return _to_response(role)
 
 
-@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MANAGE_ROLES])
 async def delete_role(role_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
     role = db.get(Role, role_id)
     if role is None:

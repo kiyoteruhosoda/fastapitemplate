@@ -136,11 +136,36 @@ def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrin
     return _check
 
 
+def require_any_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
+    """指定された権限を **いずれか 1 つでも** 保持していればアクセスを許可する。
+
+    ある資源を読む理由が複数の職掌にまたがるとき（ロールの一覧は「ロールを管理
+    する」ためにも「ユーザーへロールを割り当てる」ためにも要る。ADR-0018）に使う。
+    **書き込みには使わない** — 権限を足す側は 1 つの scope で明示する。
+    """
+
+    async def _check(
+        principal: AuthenticatedPrincipal = Depends(get_current_principal),
+    ) -> AuthenticatedPrincipal:
+        if not any(principal.can(code) for code in codes):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "forbidden",
+                    "message": f"Required one of: {', '.join(codes)}",
+                },
+            )
+        return principal
+
+    return _check
+
+
 __all__ = [
     "ACCESS_TOKEN_COOKIE",
     "clear_access_token_cookie",
     "get_current_principal",
     "get_current_user",
+    "require_any_permission",
     "require_permission",
     "set_access_token_cookie",
 ]

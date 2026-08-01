@@ -61,7 +61,9 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
     未指定（`null`）ならユーザーの全ロールが持つ権限の和集合、ロールを 1 つ選んで
     いればそのロール 1 つ分の権限（ADR-0017）。切り替えは
     `POST /api/auth/switch-role` によるトークンの再発行で行う。
-  - エンドポイントでは `Depends(require_permission("user:manage"))` のように宣言する。
+  - エンドポイントでは `Depends(require_permission("user:manage"))` のように宣言する
+    （指定した scope を**すべて**要求する）。読み取りが複数の職掌にまたがる資源だけ
+    `require_any_permission(...)`（いずれか 1 つ）を使う（ADR-0018）。
   - 検証済みの主体は `AuthenticatedPrincipal`（`shared/application/`）として渡る。
     `active_role` も持つが、これは表示・切り替えのためで認可には使わない。
 - ロール・権限コード・初期管理者は `shared/domain/auth/master_data.py` で一元管理し、

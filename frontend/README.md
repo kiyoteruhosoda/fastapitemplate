@@ -104,7 +104,7 @@ flowchart TD
 | S7  | パスワード変更         | `/change-password`        | 必要 | —                                                   | —          |
 | S8  | セキュリティ           | `/security`               | 必要 | —                                                   | —          |
 | S9  | ユーザー管理           | `/admin/users`            | 必要 | `user:manage`                                       | ✅         |
-| S10 | ロール管理             | `/admin/roles`            | 必要 | `role:manage`                                       | ✅         |
+| S10 | ロール管理             | `/admin/roles`            | 必要 | `role:manage`（一覧の取得のみ `user:manage` も可）  | ✅         |
 | S11 | 権限一覧               | `/admin/permissions`      | 必要 | `permission:manage`                                 | ✅         |
 | S12 | システム設定           | `/admin/config`           | 必要 | `admin:system-settings`（再起動は `system:manage`） | ✅         |
 | S13 | システムログ           | `/admin/logs`             | 必要 | `log:view`                                          | ✅         |
@@ -216,9 +216,14 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
      権限はそのぶん減る。
   3. 一時的に止めるときは「有効」を切り替える。
 - **使用 API**: `GET|POST /api/admin/users`, `PUT|DELETE /api/admin/users/{id}`,
-  `GET /api/admin/roles`
-- **備考**: 複数ロールを持つ利用者は、**どのロールで操作するか**を自分でヘッダーから
-  切り替える（ADR-0017）。管理者が選ぶのは「何を持たせるか」だけ。
+  `GET /api/admin/roles`（`user:manage` でも読める。ADR-0018）
+- **備考**:
+  - 複数ロールを持つ利用者は、**どのロールで操作するか**を自分でヘッダーから
+    切り替える（ADR-0017）。管理者が選ぶのは「何を持たせるか」だけ。
+  - ロール一覧を取得できない場合でも、既に割り当てられているロールは列に残る
+    （割り当ての表示を失わないため）。
+  - 更新中の行は操作を受け付けない（続けて押すと、後の更新が前の更新を
+    打ち消してしまうため）。
 
 ### S10 ロール管理（`/admin/roles`）
 
