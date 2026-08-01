@@ -1,11 +1,16 @@
+/**
+ * パスワードの変更。プロフィールページの「パスワード変更」区画に出す（ADR-0020）。
+ *
+ * 見出しと区画の枠は呼び出し側（ProfilePage）が持ち、ここは中身だけを描く。
+ */
 import { useId, useState, type FormEvent } from 'react'
 
-import { PasswordInput } from '../components/PasswordInput'
-import { useToast } from '../components/ToastNotification'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
+import { PasswordInput } from './PasswordInput'
+import { useToast } from './ToastNotification'
 
-export function ChangePasswordPage() {
+export function PasswordChangeForm() {
   const { t } = useI18n()
   const { notify } = useToast()
   const [current, setCurrent] = useState('')
@@ -31,12 +36,11 @@ export function ChangePasswordPage() {
 
   return (
     <form
-      className="card"
+      className="settings-form"
       onSubmit={(e) => {
         void submit(e)
       }}
     >
-      <h1>{t('changePassword.title')}</h1>
       <div className="field">
         <label htmlFor={currentId}>{t('changePassword.current')}</label>
         <PasswordInput

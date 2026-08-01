@@ -3,6 +3,8 @@
  *
  * - メールアドレス・表示名はここから本人が変更できる（PUT /api/auth/me）。
  * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0005）。
+ * - サインインの手段（パスワード・二要素認証・パスキー）は別画面
+ *   （`/profile/security`）。ここからは入口だけを出す（ADR-0020）。
  */
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
@@ -36,49 +38,57 @@ export function ProfilePage() {
     <div className="card">
       <h1>{t('profile.title')}</h1>
 
-      <form
-        className="profile-section"
-        onSubmit={(e) => {
-          void submit(e)
-        }}
-      >
+      <section className="settings-section">
         <h2>{t('profile.account')}</h2>
-        <label>
-          {t('common.email')}
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value)
-            }}
-            required
-          />
-        </label>
-        <label>
-          {t('common.username')}
-          <input
-            type="text"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => {
-              setUsername(e.target.value)
-            }}
-            maxLength={100}
-            required
-          />
-        </label>
-        <div>
+        <form
+          className="settings-form"
+          onSubmit={(e) => {
+            void submit(e)
+          }}
+        >
+          <label>
+            {t('common.email')}
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+              }}
+              required
+            />
+          </label>
+          <label>
+            {t('common.username')}
+            <input
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value)
+              }}
+              maxLength={100}
+              required
+            />
+          </label>
           <button type="submit">{t('common.save')}</button>
-        </div>
-      </form>
+        </form>
+      </section>
 
-      <section className="profile-section">
+      <section className="settings-section">
+        <h2>{t('security.title')}</h2>
+        <p className="hint">{t('security.hint')}</p>
+        <Link to="/profile/security" className="button-link">
+          {t('security.open')}
+        </Link>
+      </section>
+
+      <section className="settings-section">
         <h2>{t('profile.preferences')}</h2>
         <PreferenceControls />
       </section>
 
-      <section className="profile-section">
+      <section className="settings-section">
         <h2>{t('profile.roles')}</h2>
         <p className="hint">{t('profile.rolesHint')}</p>
         <ul className="chip-list">
@@ -96,7 +106,7 @@ export function ProfilePage() {
         </ul>
       </section>
 
-      <section className="profile-section">
+      <section className="settings-section">
         <h2>{t('profile.scopes')}</h2>
         <p className="hint">{t('profile.scopesHint')}</p>
         <ul className="chip-list">
@@ -107,11 +117,6 @@ export function ProfilePage() {
           ))}
         </ul>
       </section>
-
-      <div className="inline-form">
-        <Link to="/change-password">{t('changePassword.title')}</Link>
-        <Link to="/security">{t('security.title')}</Link>
-      </div>
     </div>
   )
 }

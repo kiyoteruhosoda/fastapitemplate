@@ -2,7 +2,8 @@
  * プロフィールの自己編集（メールアドレス・表示名）と表示設定の配置。
  *
  * 保存が PUT /api/auth/me に飛ぶこと、成功でトーストが出て /me を引き直すこと、
- * 言語・テーマの選択がこのページに出ることを確認する（ADR-0016）。
+ * 言語・テーマの選択がこのページに出ること（ADR-0016）、サインインの手段は
+ * 別画面で入口だけがあること（ADR-0020）を確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -32,8 +33,8 @@ const ME: Me = {
 }
 
 const { apiGet, apiPut } = vi.hoisted(() => ({
-  apiGet: vi.fn(() => Promise.resolve(ME)),
-  apiPut: vi.fn(() => Promise.resolve(ME)),
+  apiGet: vi.fn(),
+  apiPut: vi.fn(),
 }))
 
 vi.mock('../services/api', () => ({
@@ -68,6 +69,8 @@ async function renderPage() {
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    apiGet.mockResolvedValue(ME)
+    apiPut.mockResolvedValue(ME)
     // jsdom は matchMedia を持たない（ThemeProvider が OS の配色を見る）。
     vi.stubGlobal(
       'matchMedia',
@@ -112,5 +115,15 @@ describe('ProfilePage', () => {
 
     expect(screen.getByLabelText('Language')).toBeInTheDocument()
     expect(screen.getByLabelText('Theme')).toBeInTheDocument()
+  })
+
+  it('サインインの手段は別画面で、入口だけが出る', async () => {
+    await renderPage()
+
+    expect(screen.getByRole('link', { name: 'Open security settings' })).toHaveAttribute(
+      'href',
+      '/profile/security',
+    )
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
   })
 })

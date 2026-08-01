@@ -112,8 +112,13 @@ a {
 
 /* --- 操作要素 -------------------------------------------------------------
  * 既定は控えめな枠線ボタン。主要な操作は .button-primary、破壊的な操作は
- * .button-danger、装飾を落としたい場所は .button-ghost を足す。 */
-button {
+ * .button-danger、装飾を落としたい場所は .button-ghost を足す。
+ *
+ * 遷移をボタンの見た目で見せたいときは `<a>`（`<Link>`）に .button-link を付ける。
+ * 要素は `<a>` のままにする（別タブで開く・リンクをコピーするといった、
+ * 遷移に対してブラウザが用意している操作を失わないため）。 */
+button,
+.button-link {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -134,12 +139,18 @@ button {
     transform 0.1s ease;
 }
 
-button:hover:not(:disabled) {
+.button-link {
+  text-decoration: none;
+}
+
+button:hover:not(:disabled),
+.button-link:hover {
   background: var(--surface-hover);
   border-color: var(--accent);
 }
 
-button:active:not(:disabled) {
+button:active:not(:disabled),
+.button-link:active {
   transform: translateY(1px);
 }
 
@@ -282,6 +293,9 @@ input[type='radio'] {
   gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
+  /* 収まらないときに中身（ロール名）を縮められるようにする（既定の auto だと
+   * 内容の幅より狭くならない）。 */
+  min-width: 0;
 }
 
 /* ヘッダーのユーザー（頭文字のアバター + 表示名でプロフィールへ） */
@@ -319,6 +333,7 @@ input[type='radio'] {
 /* --- ロールの切り替え（ADR-0017） ---------------------------------------- */
 .role-switcher {
   position: relative;
+  min-width: 0;
 }
 
 .role-switcher-toggle {
@@ -328,6 +343,9 @@ input[type='radio'] {
   background: var(--accent-soft);
   border-color: transparent;
   box-shadow: none;
+  /* 長いロール名でボタンが伸び続けないようにする（値の側を省略する）。 */
+  min-width: 0;
+  max-width: 16rem;
 }
 
 .role-switcher-toggle:hover:not(:disabled) {
@@ -339,15 +357,23 @@ input[type='radio'] {
   color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .role-switcher-value {
   font-weight: 600;
+  /* 収まらないロール名は省略する（ヘッダーを折り返させないため）。 */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .role-switcher-caret {
   color: var(--text-muted);
   font-size: 0.7rem;
+  /* 値が省略されても記号は残す（押せる場所だと分かるように）。 */
+  flex: none;
 }
 
 .role-switcher-menu {
@@ -359,6 +385,8 @@ input[type='radio'] {
   flex-direction: column;
   gap: 0.15rem;
   min-width: 14rem;
+  /* 画面より広くしない（切り替えボタンが右端に無い配置でもはみ出させない）。 */
+  max-width: calc(100vw - 2 * var(--space-5));
   padding: var(--space-2);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -844,25 +872,42 @@ tbody tr:hover {
   color: var(--accent-hover);
 }
 
-/* プロフィールの区画（アカウント・表示設定・ロール・scope）。 */
-.profile-section {
+/* プロフィールの区画（アカウント・パスワード・二要素認証・パスキー・表示設定・
+ * ロール・scope）。 */
+.settings-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   align-items: flex-start;
 }
 
-/* 区切り線は「区画と区画のあいだ」だけに引く（先頭の区画には付けない。
- * 先頭が form・後続が section と要素が混ざるため :first-of-type は使わない）。 */
-.profile-section + .profile-section {
+/* 区切り線は「区画と区画のあいだ」だけに引く（先頭の区画には付けない）。 */
+.settings-section + .settings-section {
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
 }
 
-/* システムステータスの項目一覧（名前と値の 2 列）。 */
+/* 区画の中のフォーム（見出しは区画側が持つ）。区画と同じ縦積みにする。 */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+/* 表・入れ子カードは区画の幅いっぱいに広げる（align-items: flex-start で
+ * 内容の幅まで縮むと、表の横スクロールが効かなくなるため）。 */
+.settings-section > .table-scroll,
+.settings-section > .card-inset {
+  align-self: stretch;
+}
+
+/* システムステータスの項目一覧（名前と値の 2 列）。
+ * 値の列は minmax(0, 1fr)（= 内容より狭くなれる）。1fr のままだと ISO 形式の
+ * 時刻のように分割できない値が列を押し広げ、カードの外へはみ出す。 */
 .status-list {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--space-2) var(--space-5);
   margin: 0;
 }
@@ -873,6 +918,13 @@ tbody tr:hover {
 
 .status-list dd {
   margin: 0;
+  /* 区切りの無い長い値（コミットハッシュ・時刻）も枠の中で折り返す。 */
+  overflow-wrap: anywhere;
+}
+
+/* 一覧の中の時刻は折り返してよい（表と違い、行の高さを揃える必要が無い）。 */
+.status-list .timestamp {
+  white-space: normal;
 }
 
 .error {
@@ -998,8 +1050,27 @@ tbody tr:hover {
     padding: var(--space-2) var(--space-3);
   }
 
+  /* 狭い画面では、収まらない分をまずタイトルの省略で吸収する。 */
+  .header-brand {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .header-title {
+    /* min-width の既定（auto）だと単語 1 つ分より狭くならず、ヘッダーが
+     * 折り返してしまう。縮めたうえで末尾を省略する。 */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .header-actions {
     gap: var(--space-1);
+    /* 操作どうしは折り返さず、収まらないぶんはロール名の省略で吸収する。 */
+    flex-wrap: nowrap;
+    /* ヘッダーが折り返しても左端へ回り込ませない（右寄せのまま下の行へ）。 */
+    margin-left: auto;
   }
 
   /* 狭い画面では表示名を出さず、アバターだけにする（1 行に収めるため）。 */
@@ -1016,9 +1087,37 @@ tbody tr:hover {
     display: none;
   }
 
+  /* 幅が足りないときに縮めるのはロールの切り替えだけにする。他を縮めると
+   * ボタンの文字が折り返してヘッダーの高さが伸びる。 */
+  .header-actions > * {
+    flex: none;
+  }
+
+  .header-actions > .role-switcher {
+    flex: 0 1 auto;
+  }
+
+  .header .button-ghost {
+    white-space: nowrap;
+  }
+
+  .role-switcher-toggle {
+    max-width: 12rem;
+  }
+
+  /* メニューの位置の基準をヘッダー（position: sticky）へ移す。切り替えボタンの
+   * 位置に関係なくヘッダーの下に開くので、ボタンが右端に無いとき（ヘッダーが
+   * 折り返したとき）でも画面の外へ出ない。 */
+  .role-switcher {
+    position: static;
+  }
+
   .role-switcher-menu {
-    /* 画面右端からはみ出させない（ヘッダーの右側に開くため）。 */
-    min-width: min(16rem, 78vw);
+    /* ヘッダーの左右の余白に合わせて画面幅いっぱいに開く。 */
+    left: var(--space-3);
+    right: var(--space-3);
+    min-width: 0;
+    max-width: none;
   }
 
   .content {
@@ -1035,6 +1134,7 @@ tbody tr:hover {
    * チェックボックスは枠が伸びるだけで押しやすくならないので、対象から外して
    * 目盛りそのものを大きくする。 */
   button,
+  .button-link,
   input:not([type='checkbox'], [type='radio']),
   select {
     min-height: 2.75rem;
@@ -1120,6 +1220,17 @@ tbody tr:hover {
   /* 表は横スクロールに任せ、狭い画面で列が潰れないように下限を持たせる。 */
   .table-scroll table {
     min-width: 34rem;
+  }
+
+  /* 名前と値を縦に積む。2 列のままだと日本語のラベルが幅を取り、残った幅に
+   * 収まらない値（ISO 形式の時刻）が途中で折り返されて読みにくくなる。 */
+  .status-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .status-list dd + dt {
+    margin-top: var(--space-3);
   }
 
   .qr-code {
