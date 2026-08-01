@@ -78,7 +78,9 @@ export function ProfilePage() {
       <section className="settings-section">
         <h2>{t('security.title')}</h2>
         <p className="hint">{t('security.hint')}</p>
-        <Link to="/profile/security">{t('security.open')}</Link>
+        <Link to="/profile/security" className="button-link">
+          {t('security.open')}
+        </Link>
       </section>
 
       <section className="settings-section">

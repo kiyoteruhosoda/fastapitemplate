@@ -112,8 +112,13 @@ a {
 
 /* --- 操作要素 -------------------------------------------------------------
  * 既定は控えめな枠線ボタン。主要な操作は .button-primary、破壊的な操作は
- * .button-danger、装飾を落としたい場所は .button-ghost を足す。 */
-button {
+ * .button-danger、装飾を落としたい場所は .button-ghost を足す。
+ *
+ * 遷移をボタンの見た目で見せたいときは `<a>`（`<Link>`）に .button-link を付ける。
+ * 要素は `<a>` のままにする（別タブで開く・リンクをコピーするといった、
+ * 遷移に対してブラウザが用意している操作を失わないため）。 */
+button,
+.button-link {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -134,12 +139,18 @@ button {
     transform 0.1s ease;
 }
 
-button:hover:not(:disabled) {
+.button-link {
+  text-decoration: none;
+}
+
+button:hover:not(:disabled),
+.button-link:hover {
   background: var(--surface-hover);
   border-color: var(--accent);
 }
 
-button:active:not(:disabled) {
+button:active:not(:disabled),
+.button-link:active {
   transform: translateY(1px);
 }
 
@@ -1123,6 +1134,7 @@ tbody tr:hover {
    * チェックボックスは枠が伸びるだけで押しやすくならないので、対象から外して
    * 目盛りそのものを大きくする。 */
   button,
+  .button-link,
   input:not([type='checkbox'], [type='radio']),
   select {
     min-height: 2.75rem;
