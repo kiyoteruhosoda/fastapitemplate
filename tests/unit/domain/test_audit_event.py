@@ -22,6 +22,7 @@ _EXPECTED_EVENT_TYPES = {
     "password.changed",
     "password_reset.requested",
     "password_reset.completed",
+    "role.switched",
     "two_factor.enabled",
     "two_factor.disabled",
     "passkey.registered",

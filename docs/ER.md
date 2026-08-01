@@ -175,7 +175,10 @@ erDiagram
 | `role_permissions` | ロール ⇔ 権限（多対多） | `role.py` |
 | `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ | `user.py` |
 
-有効 scope は**ユーザーが持つ全ロールの権限の和集合**（`User.permission_codes`）。
+保有権限は**ユーザーが持つ全ロールの権限の和集合**（`User.permission_codes`）。
+実際に有効な scope はアクティブロールで決まり、ロールを 1 つ選んでいるあいだは
+そのロール分だけになる（`User.permission_codes_of`。ADR-0017）。アクティブロールは
+JWT のクレームでありテーブルには持たない（セッションごとの状態のため）。
 認可はロール名ではなく scope で判定する（ADR-0002）。
 
 ### アカウントセキュリティ（`bounded_contexts/account_security/infrastructure/`）

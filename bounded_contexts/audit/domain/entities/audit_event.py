@@ -31,6 +31,10 @@ class AuditEventType(StrEnum):
     PASSWORD_CHANGED = "password.changed"
     PASSWORD_RESET_REQUESTED = "password_reset.requested"
     PASSWORD_RESET_COMPLETED = "password_reset.completed"
+    # 本人によるアクティブロールの切り替え（ADR-0017）。どの権限で操作していたかを
+    # 後から辿れるように記録する。``reason`` には切り替え先のロール名が入る
+    # （ロール名は個人情報ではない）。
+    ROLE_SWITCHED = "role.switched"
     # --- 二要素認証・パスキー ---
     TWO_FACTOR_ENABLED = "two_factor.enabled"
     TWO_FACTOR_DISABLED = "two_factor.disabled"

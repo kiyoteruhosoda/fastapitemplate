@@ -31,8 +31,24 @@ class User(Base):
 
     @property
     def permission_codes(self) -> frozenset[str]:
-        """有効 scope = 全ロールが持つ権限の和集合。"""
+        """保有権限 = 全ロールが持つ権限の和集合。"""
         return frozenset(p.code for r in self.roles for p in r.permissions)
+
+    @property
+    def role_names(self) -> tuple[str, ...]:
+        """付与されているロール名。切り替えの選択肢の提示に使う（認可には使わない）。"""
+        return tuple(sorted(r.name for r in self.roles))
+
+    def permission_codes_of(self, role_name: str | None) -> frozenset[str]:
+        """アクティブロール 1 つ分の権限（ADR-0017）。
+
+        ``role_name`` が ``None`` なら「すべてのロール」＝保有権限の和集合。
+        付与されていないロール名は空集合になる（切り替えた後にそのロールを
+        外されても、権限が残らないようにするため）。
+        """
+        if role_name is None:
+            return self.permission_codes
+        return frozenset(p.code for r in self.roles if r.name == role_name for p in r.permissions)
 
 
 class PasswordResetToken(Base):

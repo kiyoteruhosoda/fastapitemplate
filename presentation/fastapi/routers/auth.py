@@ -34,6 +34,7 @@ from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import (
     clear_access_token_cookie,
     get_current_principal,
+    get_current_user,
     set_access_token_cookie,
 )
 from presentation.fastapi.dependencies.login import LoginServiceDep
@@ -45,6 +46,7 @@ from presentation.fastapi.schemas.auth import (
     ProfileUpdateRequest,
     RefreshRequest,
     ResetPasswordRequest,
+    RoleSwitchRequest,
     StatusResponse,
     TokenResponse,
 )
@@ -59,6 +61,19 @@ logger = logging.getLogger(__name__)
 
 DbDep = Annotated[Session, Depends(get_db)]
 PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_current_principal)]
+CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
+    """本人の情報。scope は「いま有効なもの」、roles は「切り替えられる先」。"""
+    return MeResponse(
+        user_id=user.id,
+        email=user.email,
+        username=user.username,
+        scopes=sorted(principal.permissions),
+        roles=list(user.role_names),
+        active_role=principal.active_role,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -73,13 +88,15 @@ async def login(body: LoginRequest, response: Response, login_service: LoginServ
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(body: RefreshRequest, response: Response, db: DbDep) -> TokenResponse:
-    user = TokenService.verify_refresh_token(body.refresh_token, session=db)
-    if user is None:
+    """トークンを更新する。アクティブロール（ADR-0017）は引き継ぐ。"""
+    refreshed = TokenService.verify_refresh_token(body.refresh_token, session=db)
+    if refreshed is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
-    pair = TokenService.create_token_pair(user)
+    user, active_role = refreshed
+    pair = TokenService.create_token_pair(user, active_role=active_role)
     set_access_token_cookie(response, str(pair["access_token"]))
     return TokenResponse(**pair)  # type: ignore[arg-type]
 
@@ -91,13 +108,31 @@ async def logout(response: Response) -> StatusResponse:
 
 
 @router.get("/me", response_model=MeResponse)
-async def me(principal: PrincipalDep) -> MeResponse:
-    return MeResponse(
-        user_id=principal.user_id,
-        email=principal.email,
-        username=principal.username,
-        scopes=sorted(principal.permissions),
-    )
+async def me(principal: PrincipalDep, user: CurrentUserDep) -> MeResponse:
+    return _me_response(user, principal)
+
+
+@router.post("/switch-role", response_model=TokenResponse)
+async def switch_role(
+    body: RoleSwitchRequest,
+    response: Response,
+    user: CurrentUserDep,
+    audit: AuditRecorderDep,
+) -> TokenResponse:
+    """アクティブロールを切り替え、新しいトークンを発行する（ADR-0017）。
+
+    ``role`` が ``null`` なら「すべてのロール」（保有権限の和集合）に戻す。
+    保有していないロールへは切り替えられない（権限は増えない）。
+    """
+    if body.role is not None and body.role not in user.role_names:
+        audit.execute(AuditEventType.ROLE_SWITCHED, AuditResult.FAILURE, reason="role_not_granted")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "role_not_granted"})
+
+    pair = TokenService.create_token_pair(user, active_role=body.role)
+    set_access_token_cookie(response, str(pair["access_token"]))
+    audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
+    logger.info("active_role_switched")
+    return TokenResponse(**pair)  # type: ignore[arg-type]
 
 
 @router.put("/me", response_model=MeResponse)
@@ -136,12 +171,7 @@ async def update_me(
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"}) from None
     audit.execute(AuditEventType.PROFILE_UPDATED, reason=f"fields={','.join(changed) if changed else 'none'}")
-    return MeResponse(
-        user_id=user.id,
-        email=user.email,
-        username=user.username,
-        scopes=sorted(principal.permissions),
-    )
+    return _me_response(user, principal)
 
 
 @router.post("/change-password", response_model=StatusResponse)

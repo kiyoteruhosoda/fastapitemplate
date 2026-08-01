@@ -57,9 +57,13 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
   `presentation/fastapi/services/login_service.py`。失敗の応答はどの理由でも
   `invalid_credentials` に揃え、どこで落ちたかは監査ログの `reason` にだけ残す。
 - 認可は **scope（権限コード値）** ベース。ロール名で分岐しない。
-  - 有効 scope = ユーザーの全ロールが持つ権限の和集合。
+  - 有効 scope は**アクティブロール**（JWT の `active_role` クレーム）が決める。
+    未指定（`null`）ならユーザーの全ロールが持つ権限の和集合、ロールを 1 つ選んで
+    いればそのロール 1 つ分の権限（ADR-0017）。切り替えは
+    `POST /api/auth/switch-role` によるトークンの再発行で行う。
   - エンドポイントでは `Depends(require_permission("user:manage"))` のように宣言する。
   - 検証済みの主体は `AuthenticatedPrincipal`（`shared/application/`）として渡る。
+    `active_role` も持つが、これは表示・切り替えのためで認可には使わない。
 - ロール・権限コード・初期管理者は `shared/domain/auth/master_data.py` で一元管理し、
   マイグレーションのシードと `scripts/seed_master_data.py` が参照する。
 

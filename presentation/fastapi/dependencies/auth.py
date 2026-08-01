@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from shared.application.authenticated_principal import AuthenticatedPrincipal
+from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
 from shared.kernel.logging.request_context import actor_user_id_var, user_id_hash_var
 from shared.kernel.settings.settings import settings
@@ -89,6 +90,24 @@ async def get_current_principal(
     return principal
 
 
+async def get_current_user(
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+    db: Session = Depends(get_db),
+) -> User:
+    """認証済み主体に対応する ``User`` 行を返す。
+
+    ロールの一覧のように「トークンに載っていない現在の状態」が要るときだけ使う
+    （認可の判定は :func:`require_permission` の scope で行う）。
+    """
+    user = db.get(User, principal.user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token"},
+        )
+    return user
+
+
 def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
     """指定された権限を全て保持している場合のみアクセスを許可する依存関数ファクトリ。
 
@@ -121,6 +140,7 @@ __all__ = [
     "ACCESS_TOKEN_COOKIE",
     "clear_access_token_cookie",
     "get_current_principal",
+    "get_current_user",
     "require_permission",
     "set_access_token_cookie",
 ]

@@ -8,7 +8,12 @@ export interface Me {
   user_id: number
   email: string
   username: string
+  /** いま有効な scope（アクティブロールで絞り込まれた後の権限）。 */
   scopes: string[]
+  /** 付与されている全ロール = 切り替えられる先（ADR-0017）。 */
+  roles: string[]
+  /** null は「すべてのロール」（保有権限の和集合）。 */
+  active_role: string | null
 }
 
 interface TokenPair {
@@ -24,6 +29,8 @@ interface AuthValue {
   loginWithPasskey: () => Promise<void>
   logout: () => void
   refreshMe: () => Promise<void>
+  /** アクティブロールを切り替える（null ですべてのロールへ戻す。ADR-0017）。 */
+  switchRole: (role: string | null) => Promise<void>
   hasScope: (...codes: string[]) => boolean
 }
 
@@ -73,6 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refreshMe()
   }
 
+  /**
+   * 切り替えはトークンの再発行で行う（サーバー側が scope を絞り直す）。
+   * 新しいトークンに差し替えてから /me を引き直すので、画面に出る scope と
+   * これから送るトークンの scope が食い違わない。
+   */
+  const switchRole = async (role: string | null) => {
+    const pair = await api.post<TokenPair>('/api/auth/switch-role', { role })
+    setTokens(pair.access_token, pair.refresh_token)
+    await refreshMe()
+  }
+
   const logout = () => {
     void api.post('/api/auth/logout').catch(() => undefined)
     clearTokens()
@@ -84,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, loginWithPasskey, logout, refreshMe, hasScope }}
+      value={{ user, loading, login, loginWithPasskey, logout, refreshMe, switchRole, hasScope }}
     >
       {children}
     </AuthContext.Provider>

@@ -205,7 +205,14 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 ## 権限管理
 
 - 認可は **ロールではなく scope（権限コード値）** で行う。ロール名での分岐禁止。
-- 有効な scope = ユーザーの全ロールが持つ権限の和集合。
+- ユーザーは複数ロールを持てる。**アクティブロール**（JWT の `active_role`
+  クレーム）が有効 scope を決める（ADR-0017）。
+  - `null`（既定）= 全ロールが持つ権限の和集合。
+  - ロール名を指定 = そのロール 1 つ分の権限だけ。
+  - 切り替えは `POST /api/auth/switch-role` によるトークンの再発行。保有していない
+    ロールへは切り替えられない（権限は増えない）。
+- `AuthenticatedPrincipal.active_role` は表示・切り替え用。**認可の分岐に使わない**
+  （絞り込みの結果は `permissions` に既に反映されている）。
 - 各エンドポイントに `Depends(require_permission("scope_name"))` を付ける
   （`presentation/fastapi/dependencies/auth.py`）。
 - 権限の検証は依存関数で行い、ルーター本体には検証済みの

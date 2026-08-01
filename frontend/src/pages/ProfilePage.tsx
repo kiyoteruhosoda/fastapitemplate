@@ -79,11 +79,30 @@ export function ProfilePage() {
       </section>
 
       <section className="profile-section">
+        <h2>{t('profile.roles')}</h2>
+        <p className="hint">{t('profile.rolesHint')}</p>
+        <ul className="chip-list">
+          {user.roles.map((role) => (
+            <li key={role}>
+              <span className="chip" data-active={role === user.active_role ? 'true' : 'false'}>
+                {role}
+                {role === user.active_role && (
+                  <span className="chip-note">{t('role.activeMark')}</span>
+                )}
+              </span>
+            </li>
+          ))}
+          {user.roles.length === 0 && <li className="hint">{t('profile.noRoles')}</li>}
+        </ul>
+      </section>
+
+      <section className="profile-section">
         <h2>{t('profile.scopes')}</h2>
-        <ul className="scope-list">
+        <p className="hint">{t('profile.scopesHint')}</p>
+        <ul className="chip-list">
           {user.scopes.map((scope) => (
             <li key={scope}>
-              <code>{scope}</code>
+              <code className="chip chip-code">{scope}</code>
             </li>
           ))}
         </ul>

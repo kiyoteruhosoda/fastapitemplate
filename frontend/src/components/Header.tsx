@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
 import { useAuth } from '../store/AuthContext'
+import { RoleSwitcher } from './RoleSwitcher'
 
 export function Header({
   navOpen,
@@ -42,8 +43,17 @@ export function Header({
         {/* 言語・テーマの切り替えはプロフィールページにある（ADR-0016）。 */}
         {user && (
           <>
-            <Link to="/profile">{user.username}</Link>
-            <button onClick={logout}>{t('nav.logout')}</button>
+            {/* ロールの切り替え（複数ロールを持つ利用者にだけ出る。ADR-0017） */}
+            <RoleSwitcher />
+            <Link to="/profile" className="header-user">
+              <span aria-hidden="true" className="avatar">
+                {user.username.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="header-username">{user.username}</span>
+            </Link>
+            <button type="button" className="button-ghost" onClick={logout}>
+              {t('nav.logout')}
+            </button>
           </>
         )}
       </div>

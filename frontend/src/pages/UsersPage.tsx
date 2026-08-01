@@ -1,3 +1,10 @@
+/**
+ * ユーザー管理（要 `user:manage`）。
+ *
+ * ロールは 1 人に複数割り当てられる。追加フォームでは複数選択でき、一覧では
+ * ロールごとの列のチェックで付け外しする（ロール × ユーザーの対応表）。
+ * 利用者自身がどのロールで操作するかはヘッダーで切り替える（ADR-0017）。
+ */
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { PasswordInput } from '../components/PasswordInput'
@@ -26,7 +33,7 @@ export function UsersPage() {
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('member')
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
 
   const reload = () => api.get<User[]>('/api/admin/users').then(setUsers)
 
@@ -40,20 +47,35 @@ export function UsersPage() {
       })
   }, [])
 
+  const toggleSelected = (name: string) => {
+    setSelectedRoles((current) =>
+      current.includes(name) ? current.filter((r) => r !== name) : [...current, name],
+    )
+  }
+
   const create = async (e: FormEvent) => {
     e.preventDefault()
     try {
-      await api.post('/api/admin/users', {
-        email,
-        username,
-        password,
-        roles: [role],
-      })
+      await api.post('/api/admin/users', { email, username, password, roles: selectedRoles })
       setEmail('')
       setUsername('')
       setPassword('')
+      setSelectedRoles([])
       await reload()
       notify('success', t('common.saved'))
+    } catch (err) {
+      notify('error', t(errorMessageKey(err)))
+    }
+  }
+
+  /** 1 人のロールの付け外し。複数ロールを許す（外すと権限は減る）。 */
+  const toggleRole = async (user: User, name: string) => {
+    const next = user.roles.includes(name)
+      ? user.roles.filter((r) => r !== name)
+      : [...user.roles, name]
+    try {
+      await api.put(`/api/admin/users/${user.id}`, { roles: next })
+      await reload()
     } catch (err) {
       notify('error', t(errorMessageKey(err)))
     }
@@ -105,20 +127,24 @@ export function UsersPage() {
           minLength={8}
           required
         />
-        <select
-          value={role}
-          onChange={(e) => {
-            setRole(e.target.value)
-          }}
-        >
+        <fieldset className="chip-choice">
+          <legend>{t('users.roles')}</legend>
           {roles.map((r) => (
-            <option key={r.id} value={r.name}>
+            <label key={r.id} className="chip-option">
+              <input
+                type="checkbox"
+                checked={selectedRoles.includes(r.name)}
+                onChange={() => {
+                  toggleSelected(r.name)
+                }}
+              />
               {r.name}
-            </option>
+            </label>
           ))}
-        </select>
+        </fieldset>
         <button type="submit">{t('users.add')}</button>
       </form>
+      <p className="hint">{t('users.rolesHint')}</p>
       <div className="table-scroll">
         <table>
           <thead>
@@ -126,7 +152,9 @@ export function UsersPage() {
               <th>ID</th>
               <th>{t('common.email')}</th>
               <th>{t('common.username')}</th>
-              <th>Roles</th>
+              {roles.map((r) => (
+                <th key={r.id}>{r.name}</th>
+              ))}
               <th>{t('common.active')}</th>
               <th>{t('common.actions')}</th>
             </tr>
@@ -137,10 +165,22 @@ export function UsersPage() {
                 <td>{user.id}</td>
                 <td>{user.email}</td>
                 <td>{user.username}</td>
-                <td>{user.roles.join(', ')}</td>
+                {roles.map((r) => (
+                  <td key={r.id}>
+                    <input
+                      type="checkbox"
+                      aria-label={`${user.username}: ${r.name}`}
+                      checked={user.roles.includes(r.name)}
+                      onChange={() => {
+                        void toggleRole(user, r.name)
+                      }}
+                    />
+                  </td>
+                ))}
                 <td>
                   <input
                     type="checkbox"
+                    aria-label={`${user.username}: ${t('common.active')}`}
                     checked={user.is_active}
                     onChange={() => {
                       void toggleActive(user)
@@ -149,6 +189,8 @@ export function UsersPage() {
                 </td>
                 <td>
                   <button
+                    type="button"
+                    className="button-danger"
                     onClick={() => {
                       void remove(user)
                     }}

@@ -15,12 +15,15 @@ import type { Me } from '../store/AuthContext'
 import { AuthProvider } from '../store/AuthContext'
 import { ThemeProvider } from '../theme'
 import { AppLayout } from './AppLayout'
+import { ToastProvider } from './ToastNotification'
 
 const ME: Me = {
   user_id: 1,
   email: 'admin@example.com',
   username: 'admin',
   scopes: ['dashboard:view', 'item:view'],
+  roles: ['member'],
+  active_role: null,
 }
 
 vi.mock('../services/api', () => ({
@@ -42,9 +45,13 @@ function renderLayout() {
       <I18nProvider settings={SETTINGS}>
         <ThemeProvider settings={SETTINGS}>
           <AuthProvider>
-            <AppLayout>
-              <p>content</p>
-            </AppLayout>
+            {/* ヘッダーのロール切り替えが切り替え結果をトーストで知らせる。
+                main.tsx と同じく AppLayout の外側に置く。 */}
+            <ToastProvider>
+              <AppLayout>
+                <p>content</p>
+              </AppLayout>
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </I18nProvider>
