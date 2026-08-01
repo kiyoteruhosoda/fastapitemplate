@@ -27,9 +27,11 @@ from bounded_contexts.audit.presentation.router import (
     audit_log_router as admin_audit_logs_router,
 )
 from bounded_contexts.example.presentation.router import router as items_router
+from presentation.fastapi.error_handling import register_error_handling
 from presentation.fastapi.middleware.deferred_log_writes import (
     DeferredLogWriteMiddleware,
 )
+from presentation.fastapi.middleware.internal_error import InternalErrorMiddleware
 from presentation.fastapi.middleware.request_logging import RequestLoggingMiddleware
 from presentation.fastapi.routers import spa
 from presentation.fastapi.routers.admin.config import router as admin_config_router
@@ -85,9 +87,14 @@ def create_app() -> FastAPI:
     # （途中で書くと SQLite でロックが競合する。ADR-0013）。
     #
     # 後から追加したものが外側になる。外側から
-    # DeferredLogWrite → RequestLogging → AuditRecording の順で、
+    # DeferredLogWrite → RequestLogging → AuditRecording → InternalError の順で、
     # アクセスログ（RequestLogging が出す）もログのまとめ書きに載る
     # ＝ 1 リクエストあたりの INSERT は 2 回（log と audit_log）に収まる。
+    #
+    # 想定外の例外を応答へ変える層は最も内側に置く。ここで受け止めないと例外は
+    # 全ミドルウェアを飛び越え、アクセスログの 500 の行も、そのリクエストで出た
+    # ログ行のまとめ書きも失われる。
+    app.add_middleware(InternalErrorMiddleware)
     app.add_middleware(AuditRecordingMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(DeferredLogWriteMiddleware)
@@ -100,6 +107,9 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
+    # 失敗の記録（4xx・入力検証）と、ミドルウェアより外側で落ちたとき用の保険。
+    # 個別のドメイン例外ハンドラが優先される。
+    register_error_handling(app)
     register_account_security_error_handler(app)
 
     app.include_router(health_router)
