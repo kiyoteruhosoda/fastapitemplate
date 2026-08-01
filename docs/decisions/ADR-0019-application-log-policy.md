@@ -35,7 +35,8 @@
    5xx → ERROR、4xx → WARNING、401 と成功 → INFO。アクセスログと失敗の記録が
    同じ関数を使う。
 3. **想定外の例外は `InternalErrorMiddleware`（最も内側）で応答へ変える。**
-   `Exception` ハンドラは保険として残す。
+   `Exception` ハンドラは保険として残す。このミドルウェアは**素の ASGI** で書く
+   （`BaseHTTPMiddleware` を使わない）。
 4. **死活監視・メトリクスのパス（`/healthz` `/readyz` `/api/health` `/metrics`）は
    アクセスログに残さない。ただし 4xx・5xx は残す。**
 5. **ログ基盤の失敗は黙らない。** `DbLogHandler` は `handleError()`（stderr）で
@@ -59,6 +60,11 @@
   「なぜこのパスが消えているのか」を設定値まで追う必要が出る。
 - **入力検証の記録には項目名と理由だけを入れる**（`body.email:missing`）。`ctx` や
   `input` を入れるとメールアドレス・パスワードがログへ移る（CLAUDE.md「ログ」）。
+- **`InternalErrorMiddleware` を素の ASGI で書く**のは、`BaseHTTPMiddleware` が
+  下流を**別のタスク**で走らせ、そこで設定された `contextvars` が `dispatch` 側へ
+  伝わらないため。認証依存関数が設定する `user_id_hash` がまさにそれで、
+  `BaseHTTPMiddleware` のままだと 500 のログ行だけ「誰のリクエストか」が空になる
+  （まとめ書きのミドルウェアを素の ASGI で書いているのと同じ事情。ADR-0013）。
 
 ## 影響
 

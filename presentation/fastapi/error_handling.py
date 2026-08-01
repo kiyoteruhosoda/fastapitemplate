@@ -113,12 +113,8 @@ def log_failed_request(request: Request, status_code: int, error_code: str | Non
     )
 
 
-def internal_error_response(request: Request, error: Exception) -> JSONResponse:
-    """例外を記録し、エラーコードだけを返す 500 応答を組み立てる。
-
-    例外の中身は応答に出さない（内部構造の露出を避ける）。追跡は ``requestId``
-    で行う。
-    """
+def log_unhandled_exception(request: Request, error: Exception) -> None:
+    """想定外の例外を traceback つきで記録する（``log`` の ``trace`` 列へ入る）。"""
     logger.exception(
         "unhandled_exception",
         extra={
@@ -128,6 +124,15 @@ def internal_error_response(request: Request, error: Exception) -> JSONResponse:
         },
         exc_info=error,
     )
+
+
+def internal_error_response(request: Request, error: Exception) -> JSONResponse:
+    """例外を記録し、エラーコードだけを返す 500 応答を組み立てる。
+
+    例外の中身は応答に出さない（内部構造の露出を避ける）。追跡は ``requestId``
+    で行う。
+    """
+    log_unhandled_exception(request, error)
     request_id = current_request_id()
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -186,5 +191,6 @@ __all__ = [
     "internal_error_response",
     "log_failed_request",
     "log_level_for_status",
+    "log_unhandled_exception",
     "register_error_handling",
 ]
