@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from bounded_contexts.audit.domain.entities.audit_event import (
@@ -31,6 +33,7 @@ from presentation.fastapi.schemas.admin import (
     RestartCommandResponse,
     RestartRequestResponse,
     RestartStatusResponse,
+    SystemStatusResponse,
 )
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.kernel.database.session import get_db
@@ -56,6 +59,32 @@ def _to_response(request: RestartRequest) -> RestartRequestResponse:
         requested_at=(request.requested_at.isoformat() if request.requested_at else None),
         requested_by=request.requested_by,
         reason=request.reason,
+    )
+
+
+@router.get("/status", response_model=SystemStatusResponse)
+async def system_status(request: Request, _principal: SystemManagerDep, db: DbDep) -> SystemStatusResponse:
+    """ビルド情報と各コンポーネント（API・DB）の状態を返す。
+
+    このハンドラーまで到達した時点で API 自体は応答できているため ``api`` は
+    常に ``ok``。DB は ``/readyz`` と同じ ``SELECT 1`` で確かめる。
+    """
+    now = datetime.now(UTC)
+    build_info = request.app.state.build_info
+    try:
+        db.execute(text("SELECT 1"))
+        database = "ok"
+    except Exception:
+        database = "ng"
+    return SystemStatusResponse(
+        version=build_info.version,
+        git_sha=build_info.git_sha,
+        branch=build_info.branch,
+        build_time=build_info.build_time,
+        environment=build_info.environment,
+        components={"api": "ok", "database": database},
+        uptime_seconds=(now - request.app.state.startup_time).total_seconds(),
+        timestamp_utc=now.isoformat(),
     )
 
 

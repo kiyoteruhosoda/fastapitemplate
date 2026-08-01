@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
 import { useAuth } from '../store/AuthContext'
-import { PreferenceControls } from './PreferenceControls'
 
 export function Header({
   navOpen,
@@ -40,10 +39,7 @@ export function Header({
         </Link>
       </div>
       <div className="header-actions">
-        {/* 言語・テーマは狭い画面ではドロワー側（.sidebar-preferences）に出る。 */}
-        <div className="header-preferences">
-          <PreferenceControls />
-        </div>
+        {/* 言語・テーマの切り替えはプロフィールページにある（ADR-0016）。 */}
         {user && (
           <>
             <Link to="/profile">{user.username}</Link>

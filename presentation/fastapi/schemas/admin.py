@@ -48,6 +48,18 @@ class PermissionResponse(BaseModel):
     code: str
 
 
+class SystemStatusResponse(BaseModel):
+    version: str
+    git_sha: str
+    branch: str
+    build_time: str
+    environment: str
+    # key = コンポーネント名（api / database）, value = "ok" | "ng"
+    components: dict[str, str]
+    uptime_seconds: float
+    timestamp_utc: str
+
+
 class SystemSettingItemResponse(BaseModel):
     key: str
     category: str

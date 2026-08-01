@@ -54,6 +54,63 @@ def test_refresh_rejects_access_token(client: TestClient) -> None:
     assert response.status_code == 401
 
 
+def test_update_me_changes_email_and_username(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.put(
+        "/api/auth/me",
+        headers=admin_headers,
+        json={"email": "renamed@example.com", "username": "renamed"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "renamed@example.com"
+    assert data["username"] == "renamed"
+    # scope は変わらない
+    assert "user:manage" in data["scopes"]
+    # 既存トークンは user_id で引き直すため変更後も有効で、/me に反映される
+    me = client.get("/api/auth/me", headers=admin_headers).json()
+    assert me["email"] == "renamed@example.com"
+    # 次回のログインは新しいメールアドレスで行う
+    assert (
+        client.post(
+            "/api/auth/login",
+            json={"email": "renamed@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD},
+        ).status_code
+        == 200
+    )
+
+
+def test_update_me_rejects_taken_email(client: TestClient, admin_headers: dict[str, str]) -> None:
+    created = client.post(
+        "/api/admin/users",
+        headers=admin_headers,
+        json={"email": "other@example.com", "username": "other", "password": "password-123", "roles": ["member"]},
+    )
+    assert created.status_code == 201
+    response = client.put(
+        "/api/auth/me",
+        headers=admin_headers,
+        json={"email": "other@example.com", "username": "admin"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["error"] == "email_already_exists"
+
+
+def test_update_me_keeping_own_email_is_allowed(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.put(
+        "/api/auth/me",
+        headers=admin_headers,
+        json={"email": master_data.DEFAULT_ADMIN_EMAIL, "username": "display-name"},
+    )
+    assert response.status_code == 200
+    assert response.json()["username"] == "display-name"
+
+
+def test_update_me_requires_authentication(client: TestClient) -> None:
+    client.cookies.clear()
+    response = client.put("/api/auth/me", json={"email": "a@example.com", "username": "a"})
+    assert response.status_code == 401
+
+
 def test_change_password_roundtrip(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/api/auth/change-password",

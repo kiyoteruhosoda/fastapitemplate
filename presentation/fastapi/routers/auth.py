@@ -17,6 +17,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -40,6 +41,7 @@ from presentation.fastapi.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     MeResponse,
+    ProfileUpdateRequest,
     RefreshRequest,
     ResetPasswordRequest,
     StatusResponse,
@@ -93,6 +95,42 @@ async def me(principal: PrincipalDep) -> MeResponse:
         user_id=principal.user_id,
         email=principal.email,
         username=principal.username,
+        scopes=sorted(principal.permissions),
+    )
+
+
+@router.put("/me", response_model=MeResponse)
+async def update_me(
+    body: ProfileUpdateRequest,
+    principal: PrincipalDep,
+    db: DbDep,
+    audit: AuditRecorderDep,
+) -> MeResponse:
+    """本人のメールアドレス・表示名を変更する（ADR-0016）。
+
+    監査ログの ``reason`` には変更した項目名だけを入れ、値そのもの
+    （メールアドレス・表示名）は記録しない（ADR-0013）。
+    """
+    user = db.get(User, principal.user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
+    taken = db.scalar(select(User).where(User.email == body.email, User.id != user.id))
+    if taken is not None:
+        audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"})
+
+    changed = sorted(
+        name
+        for name, new, old in (("email", body.email, user.email), ("username", body.username, user.username))
+        if new != old
+    )
+    user.email = body.email
+    user.username = body.username
+    audit.execute(AuditEventType.PROFILE_UPDATED, reason=f"fields={','.join(changed) if changed else 'none'}")
+    return MeResponse(
+        user_id=user.id,
+        email=user.email,
+        username=user.username,
         scopes=sorted(principal.permissions),
     )
 
