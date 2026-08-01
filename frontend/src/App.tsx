@@ -15,6 +15,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RolesPage } from './pages/RolesPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
+import { SystemStatusPage } from './pages/SystemStatusPage'
 import { UsersPage } from './pages/UsersPage'
 import { useAuth } from './store/AuthContext'
 
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/admin/config" element={<ConfigPage />} />
         <Route path="/admin/logs" element={<SystemLogsPage />} />
         <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
+        <Route path="/admin/system-status" element={<SystemStatusPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

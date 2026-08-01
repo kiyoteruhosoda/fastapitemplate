@@ -46,6 +46,8 @@ class AuditEventType(StrEnum):
     # --- システム運用 ---
     SYSTEM_SETTINGS_UPDATED = "system_settings.updated"
     SERVICE_RESTART_REQUESTED = "service.restart_requested"
+    # --- プロフィール（本人によるメールアドレス・表示名の変更。ADR-0016） ---
+    PROFILE_UPDATED = "profile.updated"
 
 
 class AuditResult(StrEnum):

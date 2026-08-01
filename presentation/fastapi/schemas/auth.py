@@ -30,6 +30,11 @@ class MeResponse(BaseModel):
     scopes: list[str]
 
 
+class ProfileUpdateRequest(BaseModel):
+    email: EmailStr
+    username: str = Field(min_length=1, max_length=100)
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8)

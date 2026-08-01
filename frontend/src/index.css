@@ -132,18 +132,11 @@ select {
   flex-wrap: wrap;
 }
 
-.header-preferences {
-  display: flex;
-  gap: 0.8rem;
-  align-items: center;
-}
-
-/* 開閉ボタン・オーバーレイ・ドロワー内の設定は狭い画面専用
+/* 開閉ボタン・オーバーレイ・ドロワー内の閉じるボタンは狭い画面専用
  * （下のメディアクエリで出す。広い画面ではサイドバーが常に見えている）。 */
 .nav-toggle,
 .nav-overlay,
-.sidebar-close,
-.sidebar-preferences {
+.sidebar-close {
   display: none;
 }
 
@@ -170,6 +163,27 @@ select {
 .sidebar a.active {
   background: var(--surface-raised);
   font-weight: 600;
+}
+
+/* 階層メニュー。グループは見出し + 少し字下げしたリンクの束。 */
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.6rem;
+}
+
+.sidebar-group-label {
+  margin: 0;
+  padding: 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.sidebar-group a {
+  margin-left: 0.5rem;
 }
 
 .content {
@@ -408,6 +422,30 @@ td {
   padding-left: 1.2rem;
 }
 
+/* プロフィールの区画（アカウント・表示設定・scope）。 */
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+/* システムステータスの項目一覧（名前と値の 2 列）。 */
+.status-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.2rem;
+  margin: 0;
+}
+
+.status-list dt {
+  color: var(--text-muted);
+}
+
+.status-list dd {
+  margin: 0;
+}
+
 .error {
   color: var(--danger);
 }
@@ -512,21 +550,6 @@ td {
     margin-bottom: 0.2rem;
     padding: 0.35rem;
     line-height: 1;
-  }
-
-  /* 言語・テーマはヘッダーではなくドロワーの下端に置く
-   * （390px 幅ではヘッダーが 3 段に折り返してしまうため）。 */
-  .header-preferences {
-    display: none;
-  }
-
-  .sidebar-preferences {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: auto;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
   }
 
   .nav-overlay {
