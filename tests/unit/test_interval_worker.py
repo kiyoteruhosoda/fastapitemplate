@@ -1,4 +1,8 @@
-"""定期実行スレッド（失敗しても止まらないこと・テスト中は動かないこと）。"""
+"""定期実行スレッド（失敗しても止まらないこと・テスト中は動かないこと）。
+
+スレッド名はテストごとに変える。停止を要求したスレッドが実際に消えるまでには
+わずかな間があり、名前を共有すると前のテストの残りを数えてしまうため。
+"""
 
 from __future__ import annotations
 
@@ -13,8 +17,6 @@ from shared.kernel.scheduling import (
     stop_interval_workers,
 )
 
-_WORKER_NAME = "test-interval-worker"
-
 
 @pytest.fixture(autouse=True)
 def _stop_workers() -> Iterator[None]:
@@ -23,14 +25,14 @@ def _stop_workers() -> Iterator[None]:
     stop_interval_workers()
 
 
-def _live_worker_threads() -> int:
-    return sum(1 for thread in threading.enumerate() if thread.name == _WORKER_NAME)
+def _live_threads_named(name: str) -> int:
+    return sum(1 for thread in threading.enumerate() if thread.name == name)
 
 
 def test_run_once_calls_the_job() -> None:
     calls: list[int] = []
 
-    IntervalWorker(_WORKER_NAME, lambda: calls.append(1), 60.0).run_once()
+    IntervalWorker("worker-run-once", lambda: calls.append(1), 60.0).run_once()
 
     assert calls == [1]
 
@@ -41,13 +43,13 @@ def test_a_failing_job_does_not_escape() -> None:
     def failing() -> None:
         raise RuntimeError("DB が一時的に落ちている")
 
-    IntervalWorker(_WORKER_NAME, failing, 60.0).run_once()
+    IntervalWorker("worker-failing", failing, 60.0).run_once()
 
 
 def test_the_thread_runs_the_job_right_after_starting() -> None:
     """間隔を待たずに 1 回走ること（起動し直せばすぐ実行できる）。"""
     ran = threading.Event()
-    worker = IntervalWorker(_WORKER_NAME, ran.set, 60.0)
+    worker = IntervalWorker("worker-immediate", ran.set, 60.0)
 
     worker.start()
     try:
@@ -58,12 +60,13 @@ def test_the_thread_runs_the_job_right_after_starting() -> None:
 
 def test_starting_twice_keeps_a_single_thread() -> None:
     """二重に開始しても 1 本だけ動くこと（プロセス内で重複させない）。"""
-    worker = IntervalWorker(_WORKER_NAME, lambda: None, 60.0)
+    name = "worker-started-twice"
+    worker = IntervalWorker(name, lambda: None, 60.0)
 
     worker.start()
     worker.start()
     try:
-        assert _live_worker_threads() == 1
+        assert _live_threads_named(name) == 1
     finally:
         worker.stop()
 
@@ -74,7 +77,9 @@ def test_no_worker_starts_while_testing() -> None:
     テストが知らないうちに DB を触るスレッドが走ると、後始末したエンジンへ
     書きに行って別のテストが落ちる。
     """
-    started = start_interval_worker(_WORKER_NAME, lambda: None, 60.0)
+    name = "worker-under-testing"
+
+    started = start_interval_worker(name, lambda: None, 60.0)
 
     assert started is None
-    assert _live_worker_threads() == 0
+    assert _live_threads_named(name) == 0

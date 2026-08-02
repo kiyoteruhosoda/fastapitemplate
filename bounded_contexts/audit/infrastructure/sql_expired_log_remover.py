@@ -52,10 +52,18 @@ def _delete_in_chunks(
     delete_by_ids: Callable[[Sequence[int]], sa.Delete],
     chunk_size: int,
 ) -> int:
-    """対象が尽きるまで *chunk_size* 件ずつ削除し、削除した総数を返す。
+    """対象が尽きるまで *chunk_size* 件ずつ削除し、**実際に消えた**行数を返す。
 
     1 塊ごとにトランザクションを閉じる。取得件数が *chunk_size* に満たなければ
     それが最後の塊（次を問い合わせずに終える）。
+
+    数えるのは選んだ ID の数ではなく ``DELETE`` が消した行数。複数ワーカーが同時に
+    走ると同じ ID を選び得る（排他を持たない。ADR-0021）。先に消した方が実際の
+    削除者で、後から来た方の ``DELETE`` は 0 行になる。選んだ数で数えると、両方が
+    同じ行を「消した」と報告して運用ログの件数が実態より膨らむ。
+
+    続けるかどうかは**選んだ件数**で判断する。消せた数で判断すると、他のワーカーに
+    先を越された塊で「もう対象が無い」と誤って打ち切ってしまう。
     """
     limited = expired_ids.limit(chunk_size)
     deleted = 0
@@ -63,8 +71,7 @@ def _delete_in_chunks(
         with get_engine().begin() as connection:
             ids = list(connection.scalars(limited))
             if ids:
-                connection.execute(delete_by_ids(ids))
-        deleted += len(ids)
+                deleted += connection.execute(delete_by_ids(ids)).rowcount
         if len(ids) < chunk_size:
             return deleted
 
