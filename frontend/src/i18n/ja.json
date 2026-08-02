@@ -127,6 +127,8 @@
   "config.field.LOG_LEVEL": "ログレベル",
   "config.field.LOG_TO_DATABASE": "ログを DB に書く",
   "config.field.LOG_DB_MIN_LEVEL": "DB へ書く下限レベル",
+  "config.field.LOG_RETENTION_DAYS": "アプリログの保持日数（0 で削除しない）",
+  "config.field.AUDIT_LOG_RETENTION_DAYS": "監査ログの保持日数（0 で削除しない）",
   "config.choice.DEFAULT_THEME.system": "OS の設定に従う",
   "config.choice.DEFAULT_THEME.light": "ライト",
   "config.choice.DEFAULT_THEME.dark": "ダーク",

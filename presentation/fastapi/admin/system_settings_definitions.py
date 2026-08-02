@@ -141,6 +141,19 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
             ["CRITICAL", "CRITICAL"],
         ],
     },
+    {
+        # 掃除のたびに読み直すため restart_scopes は付けない（ADR-0021）。
+        "key": "LOG_RETENTION_DAYS",
+        "category": "logging",
+        "label": "Keep application logs for (days, 0 = forever)",
+        "value_type": "integer",
+    },
+    {
+        "key": "AUDIT_LOG_RETENTION_DAYS",
+        "category": "logging",
+        "label": "Keep audit logs for (days, 0 = forever)",
+        "value_type": "integer",
+    },
 ]
 
 SYSTEM_SETTING_DEFINITIONS_BY_KEY: dict[str, dict[str, object]] = {

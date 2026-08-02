@@ -329,6 +329,16 @@ class ApplicationSettings:
         """DB（``log`` テーブル）へ書くレコードの下限レベル。"""
         return str(self._get("LOG_DB_MIN_LEVEL"))
 
+    @property
+    def log_retention_days(self) -> int:
+        """``log`` を残す日数。``0`` は削除しない（ADR-0021）。"""
+        return self.get_int("LOG_RETENTION_DAYS", 0)
+
+    @property
+    def audit_log_retention_days(self) -> int:
+        """``audit_log`` を残す日数。``0`` は削除しない（ADR-0021）。"""
+        return self.get_int("AUDIT_LOG_RETENTION_DAYS", 0)
+
 
 settings = ApplicationSettings()
 

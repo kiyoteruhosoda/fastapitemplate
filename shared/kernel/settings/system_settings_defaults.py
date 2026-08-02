@@ -53,6 +53,12 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # DB へ書くレコードの下限レベル（stdout は LOG_LEVEL のまま全量出す）。
     # ログ量が問題になったら WARNING へ上げて DB の増え方だけを抑える。
     "LOG_DB_MIN_LEVEL": "INFO",
+    # 保持期間（日）。0 は「削除しない」。既定ではどちらも消さない——保持期間は
+    # 運用・監査の要件で決まるもので、テンプレートが勝手に消し始めてよいものでは
+    # ないため。日数を入れた時点で定期的な掃除が働く（ADR-0021）。
+    "LOG_RETENTION_DAYS": 0,
+    # 監査ログはアプリログと分けて持つ（少量・長命で、間引いてよい行が無い）。
+    "AUDIT_LOG_RETENTION_DAYS": 0,
 }
 
 __all__ = ["DEFAULT_APPLICATION_SETTINGS"]
