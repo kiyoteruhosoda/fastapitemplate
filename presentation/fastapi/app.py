@@ -19,6 +19,9 @@ from bounded_contexts.account_security.presentation.passkey_login_router import 
 from bounded_contexts.account_security.presentation.router import (
     router as account_security_router,
 )
+from bounded_contexts.audit.presentation.log_retention import (
+    start_log_retention_worker,
+)
 from bounded_contexts.audit.presentation.middleware import AuditRecordingMiddleware
 from bounded_contexts.audit.presentation.router import (
     application_log_router as admin_logs_router,
@@ -50,6 +53,7 @@ from shared.kernel.restart import (
     start_restart_watcher,
     stop_restart_watchers,
 )
+from shared.kernel.scheduling import stop_interval_workers
 from shared.kernel.settings.settings import settings
 from shared.kernel.version import load_build_info
 
@@ -58,9 +62,12 @@ from shared.kernel.version import load_build_info
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # 管理画面からの再起動要求を拾う（起動時にしか読まれない設定の反映用）
     start_restart_watcher(RestartScope.WEB)
+    # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0021）
+    start_log_retention_worker()
     try:
         yield
     finally:
+        stop_interval_workers()
         stop_restart_watchers()
 
 

@@ -127,6 +127,8 @@
   "config.field.LOG_LEVEL": "Log level",
   "config.field.LOG_TO_DATABASE": "Write logs to database",
   "config.field.LOG_DB_MIN_LEVEL": "Minimum level written to the database",
+  "config.field.LOG_RETENTION_DAYS": "Keep application logs for (days, 0 = forever)",
+  "config.field.AUDIT_LOG_RETENTION_DAYS": "Keep audit logs for (days, 0 = forever)",
   "config.choice.DEFAULT_THEME.system": "Follow the OS",
   "config.choice.DEFAULT_THEME.light": "Light",
   "config.choice.DEFAULT_THEME.dark": "Dark",

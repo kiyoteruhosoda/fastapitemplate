@@ -44,8 +44,8 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
   - `shared/domain/auth/` — 認可マスタデータ（`master_data.py` が唯一の出所）
   - `shared/infrastructure/models/` — 共有 SQLAlchemy モデル（User / Role / Permission /
     SystemSetting / Log / PasswordResetToken）
-  - `shared/kernel/` — settings / logging / database / restart / timestamps
-    （技術基盤。ドメイン知識を持たない）
+  - `shared/kernel/` — settings / logging / database / restart / scheduling /
+    timestamps（技術基盤。ドメイン知識を持たない）
 - `presentation/fastapi/` はコンテキスト横断の API（認証・管理系）と
   アプリケーションファクトリ（`app.py`）を持つ。
 
@@ -127,6 +127,26 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 要求を DB 経由にするのは、管理 API を処理したプロセスと再起動すべきプロセスが
 別だから（Gunicorn は複数ワーカー）。判定を時刻ではなく token の変化で行うのは、
 時計のずれで再起動ループに陥らないようにするため（ADR-0004）。
+
+## 定期実行の設計
+
+一定間隔で繰り返す仕事は `shared/kernel/scheduling` の `IntervalWorker` に載せる。
+スケジューラのライブラリは入れていない（ADR-0021）。
+
+```python
+start_interval_worker("log-retention", purge_expired_logs_once, 6 * 60 * 60)
+```
+
+- 仕事の中身は知らない。何を繰り返すかは呼び出し側が渡す。
+- **渡す仕事は冪等でなければならない。** Gunicorn は複数ワーカーで動くので、同じ仕事が
+  プロセスの数だけ走る。排他の仕組みは持たない。
+- 起動直後に 1 回走り、以後は間隔ごとに走る。1 回の失敗ではスレッドを止めない
+  （止まると以降が黙って動かなくなる）。
+- `TESTING` のときは起動しない。
+
+組み立て（ユースケース + Infrastructure の実装）は最も外側の層で行う。
+Infrastructure は Application を import できないため
+（例: `bounded_contexts/audit/presentation/log_retention.py`）。
 
 ## 設定管理の設計
 
