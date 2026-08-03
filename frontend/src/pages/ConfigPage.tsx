@@ -1,8 +1,10 @@
 /** システム設定画面（環境変数 > DB > デフォルトの解決結果を編集する）。 */
 import { useEffect, useState } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
 import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
 import { useAuth } from '../store/AuthContext'
@@ -50,21 +52,21 @@ export function ConfigPage() {
     void reload()
   }, [])
 
-  const save = async () => {
+  const [save, saving] = usePendingAction(async () => {
     const result = await api.put<SaveResult>('/api/admin/config', { values: edits })
     await reload()
     notify('success', t('common.saved'))
     setPendingRestart(result.restart_required)
-  }
+  })
 
-  const requestRestart = async () => {
+  const [requestRestart, restarting] = usePendingAction(async () => {
     await api.post('/api/admin/system/restart', {
       scopes: pendingRestart?.scopes ?? null,
       reason: 'system settings changed',
     })
     setPendingRestart(null)
     notify('success', t('config.restartRequested'))
-  }
+  })
 
   const setValue = (key: string, value: unknown) => {
     setEdits((prev) => ({ ...prev, [key]: value }))
@@ -114,14 +116,9 @@ export function ConfigPage() {
         <div className="notice">
           <p>{t('config.restartRequired', { keys: pendingRestart.keys.join(', ') })}</p>
           {hasScope('system:manage') ? (
-            <button
-              type="button"
-              onClick={() => {
-                void requestRestart()
-              }}
-            >
+            <ActionButton type="button" pending={restarting} onClick={requestRestart}>
               {t('config.restartNow')}
-            </button>
+            </ActionButton>
           ) : (
             <p>{t('config.restartNeedsPermission')}</p>
           )}
@@ -192,16 +189,15 @@ export function ConfigPage() {
             ))}
         </section>
       ))}
-      <button
+      <ActionButton
         type="button"
         className="button-primary"
-        onClick={() => {
-          void save()
-        }}
+        pending={saving}
+        onClick={save}
         disabled={Object.keys(edits).length === 0}
       >
         {t('config.save')}
-      </button>
+      </ActionButton>
     </div>
   )
 }

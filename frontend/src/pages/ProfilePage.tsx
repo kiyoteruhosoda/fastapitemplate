@@ -9,8 +9,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
+import { ActionButton } from '../components/ActionButton'
 import { PreferenceControls } from '../components/PreferenceControls'
 import { useToast } from '../components/ToastNotification'
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
@@ -21,9 +23,8 @@ export function ProfilePage() {
   const { user, refreshMe } = useAuth()
   const [email, setEmail] = useState(user?.email ?? '')
   const [username, setUsername] = useState(user?.username ?? '')
-  if (!user) return null
 
-  const submit = async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     try {
       await api.put('/api/auth/me', { email, username })
@@ -32,7 +33,9 @@ export function ProfilePage() {
     } catch (err) {
       notify('error', t(errorMessageKey(err)))
     }
-  }
+  })
+
+  if (!user) return null
 
   return (
     <div className="card">
@@ -40,12 +43,7 @@ export function ProfilePage() {
 
       <section className="settings-section">
         <h2>{t('profile.account')}</h2>
-        <form
-          className="settings-form"
-          onSubmit={(e) => {
-            void submit(e)
-          }}
-        >
+        <form className="settings-form" onSubmit={submit}>
           <label>
             {t('common.email')}
             <input
@@ -71,7 +69,9 @@ export function ProfilePage() {
               required
             />
           </label>
-          <button type="submit">{t('common.save')}</button>
+          <ActionButton type="submit" pending={submitting}>
+            {t('common.save')}
+          </ActionButton>
         </form>
       </section>
 

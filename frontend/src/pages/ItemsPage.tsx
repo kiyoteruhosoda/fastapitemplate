@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
 import { useToast } from '../components/ToastNotification'
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
 import { useAuth } from '../store/AuthContext'
@@ -23,7 +25,7 @@ export function ItemsPage() {
     void reload()
   }, [])
 
-  const submit = async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     try {
       await api.post('/api/items', { name })
@@ -32,18 +34,13 @@ export function ItemsPage() {
     } catch {
       notify('error', t('error.unknown_error'))
     }
-  }
+  })
 
   return (
     <div className="card">
       <h1>{t('items.title')}</h1>
       {hasScope('item:manage') && (
-        <form
-          className="inline-form"
-          onSubmit={(e) => {
-            void submit(e)
-          }}
-        >
+        <form className="inline-form" onSubmit={submit}>
           <input
             value={name}
             onChange={(e) => {
@@ -52,7 +49,9 @@ export function ItemsPage() {
             placeholder={t('items.name')}
             required
           />
-          <button type="submit">{t('items.add')}</button>
+          <ActionButton type="submit" pending={submitting}>
+            {t('items.add')}
+          </ActionButton>
         </form>
       )}
       <div className="table-scroll">

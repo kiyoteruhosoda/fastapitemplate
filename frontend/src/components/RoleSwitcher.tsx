@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n'
 import { errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
+import { ActionButton } from './ActionButton'
 import { useToast } from './ToastNotification'
 
 export function RoleSwitcher() {
@@ -21,7 +22,9 @@ export function RoleSwitcher() {
   const { notify } = useToast()
   const { user, switchRole } = useAuth()
   const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
+  // 切り替え中の選択（押した項目にだけスピナーを出す）。「すべてのロール」は
+  // `role: null` なので、選んでいない状態と区別できるよう入れ物ごと持つ。
+  const [switchingTo, setSwitchingTo] = useState<{ role: string | null } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -64,7 +67,8 @@ export function RoleSwitcher() {
       close(true)
       return
     }
-    setBusy(true)
+    if (switchingTo) return
+    setSwitchingTo({ role })
     try {
       await switchRole(role)
       notify('success', t('role.switched', { role: role ?? t('role.all') }))
@@ -72,7 +76,7 @@ export function RoleSwitcher() {
     } catch (error) {
       notify('error', t(errorMessageKey(error)))
     } finally {
-      setBusy(false)
+      setSwitchingTo(null)
     }
   }
 
@@ -80,13 +84,14 @@ export function RoleSwitcher() {
     const label = role ?? t('role.all')
     const current = role === user.active_role
     return (
-      <button
+      <ActionButton
         key={label}
         type="button"
         role="menuitemradio"
         aria-checked={current}
         className="role-switcher-option"
-        disabled={busy}
+        pending={switchingTo !== null && switchingTo.role === role}
+        disabled={switchingTo !== null}
         onClick={() => {
           void select(role)
         }}
@@ -95,7 +100,7 @@ export function RoleSwitcher() {
           {current ? '✓' : ''}
         </span>
         {label}
-      </button>
+      </ActionButton>
     )
   }
 

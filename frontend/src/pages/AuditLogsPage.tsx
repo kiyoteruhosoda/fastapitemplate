@@ -10,16 +10,16 @@
  */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
+import { useLogSearch } from '../hooks/useLogSearch'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
 import {
-  buildLogQuery,
   formatUtcTimestamp,
   hasNextPage,
   orEmpty,
   pageRange,
   type LogFilters,
-  type LogSearchResult,
 } from '../services/logSearch'
 
 interface AuditLogEntry {
@@ -61,8 +61,8 @@ export function AuditLogsPage() {
   const [form, setForm] = useState<LogFilters>(EMPTY_FILTERS)
   const [applied, setApplied] = useState<LogFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
-  const [result, setResult] = useState<LogSearchResult<AuditLogEntry>>({ total: 0, entries: [] })
   const [options, setOptions] = useState<FilterOptions>(NO_OPTIONS)
+  const { result, searching } = useLogSearch<AuditLogEntry>('/api/admin/audit-logs', applied, page)
 
   useEffect(() => {
     void api
@@ -72,12 +72,6 @@ export function AuditLogsPage() {
         setOptions(NO_OPTIONS)
       })
   }, [])
-
-  useEffect(() => {
-    void api
-      .get<LogSearchResult<AuditLogEntry>>(`/api/admin/audit-logs${buildLogQuery(applied, page)}`)
-      .then(setResult)
-  }, [applied, page])
 
   const update = useCallback((key: string, value: string) => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -209,11 +203,13 @@ export function AuditLogsPage() {
           />
         </label>
         <div className="filter-actions">
-          <button type="submit">{t('audit.search')}</button>
-          <button type="button" onClick={showFailuresOnly}>
+          <ActionButton type="submit" pending={searching}>
+            {t('audit.search')}
+          </ActionButton>
+          <button type="button" onClick={showFailuresOnly} disabled={searching}>
             {t('audit.failuresOnly')}
           </button>
-          <button type="button" onClick={reset}>
+          <button type="button" onClick={reset} disabled={searching}>
             {t('audit.reset')}
           </button>
         </div>
@@ -271,7 +267,7 @@ export function AuditLogsPage() {
       <div className="pager">
         <button
           type="button"
-          disabled={page === 0}
+          disabled={page === 0 || searching}
           onClick={() => {
             setPage(page - 1)
           }}
@@ -280,13 +276,17 @@ export function AuditLogsPage() {
         </button>
         <button
           type="button"
-          disabled={!hasNextPage(result.total, page)}
+          disabled={!hasNextPage(result.total, page) || searching}
           onClick={() => {
             setPage(page + 1)
           }}
         >
           {t('audit.next')}
         </button>
+        {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので目印を出す。 */}
+        {searching && (
+          <span className="spinner" role="status" aria-label={t('common.processing')} />
+        )}
       </div>
     </div>
   )

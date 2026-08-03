@@ -10,16 +10,16 @@
  */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
+import { useLogSearch } from '../hooks/useLogSearch'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
 import {
-  buildLogQuery,
   formatUtcTimestamp,
   hasNextPage,
   orEmpty,
   pageRange,
   type LogFilters,
-  type LogSearchResult,
 } from '../services/logSearch'
 
 interface LogEntry {
@@ -57,9 +57,9 @@ export function SystemLogsPage() {
   const [form, setForm] = useState<LogFilters>(EMPTY_FILTERS)
   const [applied, setApplied] = useState<LogFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
-  const [result, setResult] = useState<LogSearchResult<LogEntry>>({ total: 0, entries: [] })
   const [levels, setLevels] = useState<string[]>([])
   const [expanded, setExpanded] = useState<number | null>(null)
+  const { result, searching } = useLogSearch<LogEntry>('/api/admin/logs', applied, page)
 
   useEffect(() => {
     void api
@@ -71,12 +71,6 @@ export function SystemLogsPage() {
         setLevels([])
       })
   }, [])
-
-  useEffect(() => {
-    void api
-      .get<LogSearchResult<LogEntry>>(`/api/admin/logs${buildLogQuery(applied, page)}`)
-      .then(setResult)
-  }, [applied, page])
 
   const update = useCallback((key: string, value: string) => {
     setForm((current) => ({ ...current, [key]: value }))
@@ -167,8 +161,10 @@ export function SystemLogsPage() {
           />
         </label>
         <div className="filter-actions">
-          <button type="submit">{t('logs.search')}</button>
-          <button type="button" onClick={reset}>
+          <ActionButton type="submit" pending={searching}>
+            {t('logs.search')}
+          </ActionButton>
+          <button type="button" onClick={reset} disabled={searching}>
             {t('logs.reset')}
           </button>
         </div>
@@ -236,7 +232,7 @@ export function SystemLogsPage() {
       <div className="pager">
         <button
           type="button"
-          disabled={page === 0}
+          disabled={page === 0 || searching}
           onClick={() => {
             setPage(page - 1)
           }}
@@ -245,13 +241,17 @@ export function SystemLogsPage() {
         </button>
         <button
           type="button"
-          disabled={!hasNextPage(result.total, page)}
+          disabled={!hasNextPage(result.total, page) || searching}
           onClick={() => {
             setPage(page + 1)
           }}
         >
           {t('logs.next')}
         </button>
+        {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので目印を出す。 */}
+        {searching && (
+          <span className="spinner" role="status" aria-label={t('common.processing')} />
+        )}
       </div>
     </div>
   )

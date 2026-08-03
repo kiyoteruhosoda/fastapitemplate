@@ -6,6 +6,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 
@@ -59,6 +61,8 @@ export function SystemStatusPage() {
     }
   }, [])
 
+  const [reload, reloading] = usePendingAction(load)
+
   useEffect(() => {
     void load()
   }, [load])
@@ -107,14 +111,9 @@ export function SystemStatusPage() {
         </>
       )}
       <div>
-        <button
-          type="button"
-          onClick={() => {
-            void load()
-          }}
-        >
+        <ActionButton type="button" pending={reloading} onClick={reload}>
           {t('status.reload')}
-        </button>
+        </ActionButton>
       </div>
     </div>
   )
