@@ -5,8 +5,10 @@
  */
 import { useId, useState, type FormEvent } from 'react'
 
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
+import { ActionButton } from './ActionButton'
 import { PasswordInput } from './PasswordInput'
 import { useToast } from './ToastNotification'
 
@@ -19,7 +21,7 @@ export function PasswordChangeForm() {
   const currentId = useId()
   const nextId = useId()
 
-  const submit = async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     try {
       await api.post('/api/auth/change-password', {
@@ -32,15 +34,10 @@ export function PasswordChangeForm() {
     } catch (err) {
       notify('error', t(errorMessageKey(err)))
     }
-  }
+  })
 
   return (
-    <form
-      className="settings-form"
-      onSubmit={(e) => {
-        void submit(e)
-      }}
-    >
+    <form className="settings-form" onSubmit={submit}>
       <div className="field">
         <label htmlFor={currentId}>{t('changePassword.current')}</label>
         <PasswordInput
@@ -66,7 +63,9 @@ export function PasswordChangeForm() {
           required
         />
       </div>
-      <button type="submit">{t('changePassword.submit')}</button>
+      <ActionButton type="submit" pending={submitting}>
+        {t('changePassword.submit')}
+      </ActionButton>
     </form>
   )
 }

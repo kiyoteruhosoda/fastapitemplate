@@ -200,6 +200,64 @@ button[type='submit']:hover:not(:disabled) {
   color: var(--text);
 }
 
+/* 実行中の目印（ActionButton）。大きさは em 指定にしてラベルの字面に合わせる。 */
+.spinner {
+  /* ボタンの外（表のセル等）にも単独で置くので、行の中に収まる指定にしておく。 */
+  display: inline-block;
+  vertical-align: -0.1em;
+  flex: none;
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  /* 一周のうち一箇所を抜いて、回っていることを見せる。 */
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spinner-rotate 0.7s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 表のセルでボタンと並べるときの間隔。 */
+td > .spinner {
+  margin-left: var(--space-2);
+}
+
+/* 実行中でもボタンの幅を変えない。スピナーを差し込むとその分だけ横に伸び、隣の
+ * ボタンが動いて押し間違いの元になる。ラベルは場所を占めたまま隠し、スピナーを
+ * その上に重ねる。 */
+.action-button {
+  position: relative;
+}
+
+.action-button[aria-busy='true'] .action-button-label {
+  visibility: hidden;
+}
+
+.action-button-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 自分の半分だけ戻して中央に置く（大きさは .spinner の 0.9em）。 */
+  margin: -0.45em 0 0 -0.45em;
+}
+
+/* 画面には出さず読み上げにだけ残す文言。 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 input,
 select,
 textarea {
@@ -1257,5 +1315,11 @@ tbody tr:hover {
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+
+  /* スピナーは装飾ではなく「実行中」を伝える唯一の目印なので、止めずに遅くする
+   * （上の一括指定より後に書いて上書きする）。 */
+  .spinner {
+    animation-duration: 1.6s !important;
   }
 }

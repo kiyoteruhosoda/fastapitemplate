@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
 
@@ -8,20 +10,15 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
 
-  const submit = async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     await api.post('/api/auth/forgot-password', { email })
     setSent(true)
-  }
+  })
 
   return (
     <div className="auth-page">
-      <form
-        className="card"
-        onSubmit={(e) => {
-          void submit(e)
-        }}
-      >
+      <form className="card" onSubmit={submit}>
         <h1>{t('forgot.title')}</h1>
         {sent ? (
           <p>{t('forgot.sent')}</p>
@@ -38,7 +35,9 @@ export function ForgotPasswordPage() {
                 required
               />
             </label>
-            <button type="submit">{t('forgot.submit')}</button>
+            <ActionButton type="submit" pending={submitting}>
+              {t('forgot.submit')}
+            </ActionButton>
           </>
         )}
       </form>

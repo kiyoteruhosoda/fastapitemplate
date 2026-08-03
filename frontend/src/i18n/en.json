@@ -208,6 +208,7 @@
   "common.back": "Back",
   "common.language": "Language",
   "common.theme": "Theme",
+  "common.processing": "Processing...",
   "common.loading": "Loading...",
   "common.saved": "Saved.",
   "error.invalid_credentials": "Invalid email or password.",

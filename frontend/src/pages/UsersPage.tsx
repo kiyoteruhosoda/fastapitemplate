@@ -8,10 +8,13 @@
  * 更新は 1 行ずつ直列に行う。ロールの更新はリスト全体の置き換えなので、同じ行へ
  * 続けてチェックを入れると、2 つ目が古い `roles` から差分を作って 1 つ目を打ち消す。
  */
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
 import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
+import { usePendingAction } from '../hooks/usePendingAction'
+import { usePendingRows } from '../hooks/usePendingRows'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 
@@ -28,6 +31,9 @@ interface Role {
   name: string
 }
 
+/** 行の中で実行しうる操作（実行中の目印をどこに出すかが変わる）。 */
+type RowAction = 'update' | 'removal'
+
 export function UsersPage() {
   const { t } = useI18n()
   const { notify } = useToast()
@@ -37,9 +43,7 @@ export function UsersPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
-  // 更新中の行（同じ行への同時更新を防ぐ）。ref は判定用、state は描画用。
-  const pendingRef = useRef<Set<number>>(new Set())
-  const [pending, setPending] = useState<number[]>([])
+  const { pendingActionOf, runForRow } = usePendingRows<RowAction>()
 
   const reload = () => api.get<User[]>('/api/admin/users').then(setUsers)
 
@@ -73,7 +77,7 @@ export function UsersPage() {
     )
   }
 
-  const create = async (e: FormEvent) => {
+  const [create, creating] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     try {
       await api.post('/api/admin/users', { email, username, password, roles: selectedRoles })
@@ -86,31 +90,21 @@ export function UsersPage() {
     } catch (err) {
       notify('error', t(errorMessageKey(err)))
     }
-  }
+  })
 
-  /**
-   * 1 行分の更新。終わるまでその行の次の操作を受け付けない。
-   *
-   * 判定は ref で行う（描画を待つ `disabled` だけに任せると、同じフレームで
-   * 続けて押された 2 つ目を止められない）。
-   */
-  const runExclusively = async (userId: number, action: () => Promise<unknown>) => {
-    if (pendingRef.current.has(userId)) return
-    pendingRef.current.add(userId)
-    setPending([...pendingRef.current])
-    try {
-      await action()
-      await reload()
-    } catch (err) {
-      notify('error', t(errorMessageKey(err)))
-    } finally {
-      pendingRef.current.delete(userId)
-      setPending([...pendingRef.current])
-    }
-  }
+  /** 1 行分の更新。終わるまでその行の次の操作を受け付けない。 */
+  const runExclusively = (userId: number, action: RowAction, request: () => Promise<unknown>) =>
+    runForRow(userId, action, async () => {
+      try {
+        await request()
+        await reload()
+      } catch (err) {
+        notify('error', t(errorMessageKey(err)))
+      }
+    })
 
   const update = (user: User, changes: Partial<Pick<User, 'roles' | 'is_active'>>) =>
-    runExclusively(user.id, () => api.put(`/api/admin/users/${user.id}`, changes))
+    runExclusively(user.id, 'update', () => api.put(`/api/admin/users/${user.id}`, changes))
 
   /** ロールの付け外し。複数ロールを許す（外すと権限は減る）。 */
   const toggleRole = (user: User, name: string) =>
@@ -121,17 +115,12 @@ export function UsersPage() {
     })
 
   const remove = (user: User) =>
-    runExclusively(user.id, () => api.delete(`/api/admin/users/${user.id}`))
+    runExclusively(user.id, 'removal', () => api.delete(`/api/admin/users/${user.id}`))
 
   return (
     <div className="card">
       <h1>{t('users.title')}</h1>
-      <form
-        className="inline-form"
-        onSubmit={(e) => {
-          void create(e)
-        }}
-      >
+      <form className="inline-form" onSubmit={create}>
         <input
           type="email"
           value={email}
@@ -174,7 +163,9 @@ export function UsersPage() {
             </label>
           ))}
         </fieldset>
-        <button type="submit">{t('users.add')}</button>
+        <ActionButton type="submit" pending={creating}>
+          {t('users.add')}
+        </ActionButton>
       </form>
       <p className="hint">{t('users.rolesHint')}</p>
       <div className="table-scroll">
@@ -193,7 +184,8 @@ export function UsersPage() {
           </thead>
           <tbody>
             {users.map((user) => {
-              const busy = pending.includes(user.id)
+              const rowAction = pendingActionOf(user.id)
+              const busy = rowAction !== null
               return (
                 <tr key={user.id}>
                   <td>{user.id}</td>
@@ -224,16 +216,21 @@ export function UsersPage() {
                     />
                   </td>
                   <td>
-                    <button
+                    <ActionButton
                       type="button"
                       className="button-danger"
+                      pending={rowAction === 'removal'}
                       disabled={busy}
                       onClick={() => {
                         void remove(user)
                       }}
                     >
                       {t('common.delete')}
-                    </button>
+                    </ActionButton>
+                    {/* チェックの付け外しは押しても表示が変わらないので、行に目印を出す。 */}
+                    {rowAction === 'update' && (
+                      <span className="spinner" role="status" aria-label={t('common.processing')} />
+                    )}
                   </td>
                 </tr>
               )

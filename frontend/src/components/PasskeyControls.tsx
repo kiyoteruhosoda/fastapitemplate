@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import {
@@ -13,6 +14,7 @@ import {
   isPasskeySupported,
   type PasskeyChallenge,
 } from '../services/webauthn'
+import { ActionButton } from './ActionButton'
 import { useToast } from './ToastNotification'
 
 interface Passkey {
@@ -27,9 +29,12 @@ interface Passkey {
 function PasskeyTable({
   passkeys,
   onRemove,
+  removingId,
 }: {
   passkeys: Passkey[]
   onRemove: (id: number) => void
+  /** 削除中のパスキー（その行だけスピナーを出す）。 */
+  removingId: number | null
 }) {
   const { t, locale } = useI18n()
   const formatDate = (value: string | null) =>
@@ -53,14 +58,16 @@ function PasskeyTable({
               <td>{formatDate(passkey.created_at)}</td>
               <td>{formatDate(passkey.last_used_at)}</td>
               <td>
-                <button
+                <ActionButton
                   type="button"
+                  pending={removingId === passkey.id}
+                  disabled={removingId !== null}
                   onClick={() => {
                     onRemove(passkey.id)
                   }}
                 >
                   {t('common.delete')}
-                </button>
+                </ActionButton>
               </td>
             </tr>
           ))}
@@ -75,7 +82,7 @@ export function PasskeyControls() {
   const { notify } = useToast()
   const [passkeys, setPasskeys] = useState<Passkey[]>([])
   const [name, setName] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [removingId, setRemovingId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(
@@ -93,9 +100,8 @@ export function PasskeyControls() {
     void reload()
   }, [reload])
 
-  const register = async () => {
+  const [register, registering] = usePendingAction(async () => {
     setError(null)
-    setBusy(true)
     try {
       const challenge = await api.post<PasskeyChallenge>(
         '/api/account/security/passkeys/registration',
@@ -111,18 +117,19 @@ export function PasskeyControls() {
       notify('success', t('security.passkeyRegistered'))
     } catch (err) {
       setError(isPasskeyCancellation(err) ? 'error.passkey_cancelled' : errorMessageKey(err))
-    } finally {
-      setBusy(false)
     }
-  }
+  })
 
   const remove = async (id: number) => {
     setError(null)
+    setRemovingId(id)
     try {
       await api.delete(`/api/account/security/passkeys/${id}`)
       await reload()
     } catch (err) {
       setError(errorMessageKey(err))
+    } finally {
+      setRemovingId(null)
     }
   }
 
@@ -146,15 +153,9 @@ export function PasskeyControls() {
                 placeholder={t('security.passkeyNamePlaceholder')}
               />
             </label>
-            <button
-              type="button"
-              onClick={() => {
-                void register()
-              }}
-              disabled={busy}
-            >
-              {busy ? t('common.loading') : t('security.addPasskey')}
-            </button>
+            <ActionButton type="button" pending={registering} onClick={register}>
+              {t('security.addPasskey')}
+            </ActionButton>
           </div>
         </>
       )}
@@ -163,6 +164,7 @@ export function PasskeyControls() {
       ) : (
         <PasskeyTable
           passkeys={passkeys}
+          removingId={removingId}
           onRemove={(id) => {
             void remove(id)
           }}

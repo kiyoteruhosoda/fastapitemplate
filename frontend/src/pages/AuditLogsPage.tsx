@@ -10,16 +10,16 @@
  */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
+import { ActionButton } from '../components/ActionButton'
+import { useLogSearch } from '../hooks/useLogSearch'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
 import {
-  buildLogQuery,
   formatUtcTimestamp,
   hasNextPage,
   orEmpty,
   pageRange,
   type LogFilters,
-  type LogSearchResult,
 } from '../services/logSearch'
 
 interface AuditLogEntry {
@@ -55,14 +55,20 @@ const EMPTY_FILTERS: LogFilters = {
 
 const NO_OPTIONS: FilterOptions = { event_types: [], results: [], target_types: [] }
 
+/** どの操作が検索を起こしたか。押した操作にだけ実行中の目印を出すために持つ。 */
+type SearchTrigger = 'search' | 'failuresOnly' | 'reset' | 'previous' | 'next'
+
 export function AuditLogsPage() {
   const { t } = useI18n()
   // 入力中の値（form）と検索済みの値（applied）を分ける（ページ送りで条件を保つ）
   const [form, setForm] = useState<LogFilters>(EMPTY_FILTERS)
   const [applied, setApplied] = useState<LogFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
-  const [result, setResult] = useState<LogSearchResult<AuditLogEntry>>({ total: 0, entries: [] })
   const [options, setOptions] = useState<FilterOptions>(NO_OPTIONS)
+  const [trigger, setTrigger] = useState<SearchTrigger | null>(null)
+  const { result, searching } = useLogSearch<AuditLogEntry>('/api/admin/audit-logs', applied, page)
+  // 取得していないあいだは目印を出さない（初回の読み込みは誰も押していない）。
+  const pendingTrigger = searching ? trigger : null
 
   useEffect(() => {
     void api
@@ -73,23 +79,19 @@ export function AuditLogsPage() {
       })
   }, [])
 
-  useEffect(() => {
-    void api
-      .get<LogSearchResult<AuditLogEntry>>(`/api/admin/audit-logs${buildLogQuery(applied, page)}`)
-      .then(setResult)
-  }, [applied, page])
-
   const update = useCallback((key: string, value: string) => {
     setForm((current) => ({ ...current, [key]: value }))
   }, [])
 
   const search = (e: FormEvent) => {
     e.preventDefault()
+    setTrigger('search')
     setPage(0)
     setApplied(form)
   }
 
   const reset = () => {
+    setTrigger('reset')
     setPage(0)
     setForm(EMPTY_FILTERS)
     setApplied(EMPTY_FILTERS)
@@ -98,9 +100,15 @@ export function AuditLogsPage() {
   /** 「失敗だけ」は最頻の絞り込みなので 1 クリックで出せるようにする。 */
   const showFailuresOnly = () => {
     const failuresOnly = { ...EMPTY_FILTERS, result: 'failure' }
+    setTrigger('failuresOnly')
     setPage(0)
     setForm(failuresOnly)
     setApplied(failuresOnly)
+  }
+
+  const goToPage = (next: number, from: SearchTrigger) => {
+    setTrigger(from)
+    setPage(next)
   }
 
   const range = pageRange(result.total, page, result.entries.length)
@@ -209,13 +217,25 @@ export function AuditLogsPage() {
           />
         </label>
         <div className="filter-actions">
-          <button type="submit">{t('audit.search')}</button>
-          <button type="button" onClick={showFailuresOnly}>
+          <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
+            {t('audit.search')}
+          </ActionButton>
+          <ActionButton
+            type="button"
+            pending={pendingTrigger === 'failuresOnly'}
+            disabled={searching}
+            onClick={showFailuresOnly}
+          >
             {t('audit.failuresOnly')}
-          </button>
-          <button type="button" onClick={reset}>
+          </ActionButton>
+          <ActionButton
+            type="button"
+            pending={pendingTrigger === 'reset'}
+            disabled={searching}
+            onClick={reset}
+          >
             {t('audit.reset')}
-          </button>
+          </ActionButton>
         </div>
       </form>
 
@@ -268,25 +288,28 @@ export function AuditLogsPage() {
         </div>
       )}
 
+      {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので、押した側に目印を出す。 */}
       <div className="pager">
-        <button
+        <ActionButton
           type="button"
-          disabled={page === 0}
+          pending={pendingTrigger === 'previous'}
+          disabled={page === 0 || searching}
           onClick={() => {
-            setPage(page - 1)
+            goToPage(page - 1, 'previous')
           }}
         >
           {t('audit.previous')}
-        </button>
-        <button
+        </ActionButton>
+        <ActionButton
           type="button"
-          disabled={!hasNextPage(result.total, page)}
+          pending={pendingTrigger === 'next'}
+          disabled={!hasNextPage(result.total, page) || searching}
           onClick={() => {
-            setPage(page + 1)
+            goToPage(page + 1, 'next')
           }}
         >
           {t('audit.next')}
-        </button>
+        </ActionButton>
       </div>
     </div>
   )

@@ -9,8 +9,10 @@
  */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
+import { ActionButton } from './ActionButton'
 import { useToast } from './ToastNotification'
 
 interface TwoFactorStatus {
@@ -75,7 +77,7 @@ export function TwoFactorControls() {
     void reloadStatus()
   }, [reloadStatus])
 
-  const startEnrollment = async () => {
+  const [startEnrollment, starting] = usePendingAction(async () => {
     setError(null)
     try {
       setEnrollment(await api.post<TotpEnrollment>('/api/account/security/two-factor/enrollment'))
@@ -83,25 +85,30 @@ export function TwoFactorControls() {
     } catch (err) {
       setError(errorMessageKey(err))
     }
-  }
+  })
 
-  /** 有効化の確認・無効化はどちらも「コードを送って状態を引き直す」だけ違う。 */
-  const submitCode = async (path: string, successKey: string) => {
-    setError(null)
-    try {
-      await api.post(path, { code })
-      setEnrollment(null)
-      setCode('')
-      await reloadStatus()
-      notify('success', t(successKey))
-    } catch (err) {
-      setError(errorMessageKey(err))
-    }
-  }
+  /**
+   * 有効化の確認・無効化はどちらも「コードを送って状態を引き直す」だけ違う。
+   * 画面には一度に片方しか出ないので、実行中かどうかも 1 つで足りる。
+   */
+  const [submitCode, submitting] = usePendingAction(
+    async (e: FormEvent, path: string, successKey: string) => {
+      e.preventDefault()
+      setError(null)
+      try {
+        await api.post(path, { code })
+        setEnrollment(null)
+        setCode('')
+        await reloadStatus()
+        notify('success', t(successKey))
+      } catch (err) {
+        setError(errorMessageKey(err))
+      }
+    },
+  )
 
   const onSubmit = (path: string, successKey: string) => (e: FormEvent) => {
-    e.preventDefault()
-    void submitCode(path, successKey)
+    submitCode(e, path, successKey)
   }
 
   if (status === null) return <p className="loading">{t('common.loading')}</p>
@@ -118,7 +125,9 @@ export function TwoFactorControls() {
         {error && <p className="error">{t(error)}</p>}
         <p>{t('security.twoFactorOn')}</p>
         <CodeField value={code} onChange={setCode} />
-        <button type="submit">{t('security.disableTwoFactor')}</button>
+        <ActionButton type="submit" pending={submitting}>
+          {t('security.disableTwoFactor')}
+        </ActionButton>
       </form>
     )
   }
@@ -139,7 +148,9 @@ export function TwoFactorControls() {
           {t('security.manualSecret')} <code>{enrollment.secret}</code>
         </p>
         <CodeField value={code} onChange={setCode} autoFocus />
-        <button type="submit">{t('security.confirm')}</button>
+        <ActionButton type="submit" pending={submitting}>
+          {t('security.confirm')}
+        </ActionButton>
       </form>
     )
   }
@@ -148,14 +159,9 @@ export function TwoFactorControls() {
     <>
       {error && <p className="error">{t(error)}</p>}
       <p>{t('security.twoFactorOff')}</p>
-      <button
-        type="button"
-        onClick={() => {
-          void startEnrollment()
-        }}
-      >
+      <ActionButton type="button" pending={starting} onClick={startEnrollment}>
         {status.enrolling ? t('security.restartEnrollment') : t('security.enable')}
-      </button>
+      </ActionButton>
     </>
   )
 }

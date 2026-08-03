@@ -1,7 +1,9 @@
 import { useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { ActionButton } from '../components/ActionButton'
 import { PasswordInput } from '../components/PasswordInput'
+import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
@@ -19,12 +21,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [passkeyBusy, setPasskeyBusy] = useState(false)
   // パスワード欄は表示切り替えボタンを持つため `<label>` で囲まず `for` で結ぶ
   // （labelable な要素を 2 つ入れると対応付けが曖昧になる）。
   const passwordId = useId()
 
-  const submit = async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     try {
@@ -42,11 +43,10 @@ export function LoginPage() {
       if (code === 'invalid_totp') setTotpCode('')
       setError(errorMessageKey(err))
     }
-  }
+  })
 
-  const signInWithPasskey = async () => {
+  const [signInWithPasskey, passkeyPending] = usePendingAction(async () => {
     setError(null)
-    setPasskeyBusy(true)
     try {
       await loginWithPasskey()
       navigate('/')
@@ -56,10 +56,8 @@ export function LoginPage() {
       } else {
         setError(errorMessageKey(err))
       }
-    } finally {
-      setPasskeyBusy(false)
     }
-  }
+  })
 
   const backToCredentials = () => {
     setStep('credentials')
@@ -69,12 +67,7 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
-      <form
-        className="card"
-        onSubmit={(e) => {
-          void submit(e)
-        }}
-      >
+      <form className="card" onSubmit={submit}>
         <h1>{step === 'totp' ? t('login.totpTitle') : t('login.title')}</h1>
         {error && <p className="error">{t(error)}</p>}
 
@@ -104,17 +97,13 @@ export function LoginPage() {
                 required
               />
             </div>
-            <button type="submit">{t('login.submit')}</button>
+            <ActionButton type="submit" pending={submitting}>
+              {t('login.submit')}
+            </ActionButton>
             {isPasskeySupported() && (
-              <button
-                type="button"
-                onClick={() => {
-                  void signInWithPasskey()
-                }}
-                disabled={passkeyBusy}
-              >
-                {passkeyBusy ? t('common.loading') : t('login.withPasskey')}
-              </button>
+              <ActionButton type="button" pending={passkeyPending} onClick={signInWithPasskey}>
+                {t('login.withPasskey')}
+              </ActionButton>
             )}
             <Link to="/forgot-password">{t('login.forgot')}</Link>
           </>
@@ -136,7 +125,9 @@ export function LoginPage() {
                 required
               />
             </label>
-            <button type="submit">{t('login.submit')}</button>
+            <ActionButton type="submit" pending={submitting}>
+              {t('login.submit')}
+            </ActionButton>
             <button type="button" onClick={backToCredentials}>
               {t('common.back')}
             </button>
