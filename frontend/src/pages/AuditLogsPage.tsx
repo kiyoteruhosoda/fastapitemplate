@@ -55,6 +55,9 @@ const EMPTY_FILTERS: LogFilters = {
 
 const NO_OPTIONS: FilterOptions = { event_types: [], results: [], target_types: [] }
 
+/** どの操作が検索を起こしたか。押した操作にだけ実行中の目印を出すために持つ。 */
+type SearchTrigger = 'search' | 'failuresOnly' | 'reset' | 'previous' | 'next'
+
 export function AuditLogsPage() {
   const { t } = useI18n()
   // 入力中の値（form）と検索済みの値（applied）を分ける（ページ送りで条件を保つ）
@@ -62,7 +65,10 @@ export function AuditLogsPage() {
   const [applied, setApplied] = useState<LogFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
   const [options, setOptions] = useState<FilterOptions>(NO_OPTIONS)
+  const [trigger, setTrigger] = useState<SearchTrigger | null>(null)
   const { result, searching } = useLogSearch<AuditLogEntry>('/api/admin/audit-logs', applied, page)
+  // 取得していないあいだは目印を出さない（初回の読み込みは誰も押していない）。
+  const pendingTrigger = searching ? trigger : null
 
   useEffect(() => {
     void api
@@ -79,11 +85,13 @@ export function AuditLogsPage() {
 
   const search = (e: FormEvent) => {
     e.preventDefault()
+    setTrigger('search')
     setPage(0)
     setApplied(form)
   }
 
   const reset = () => {
+    setTrigger('reset')
     setPage(0)
     setForm(EMPTY_FILTERS)
     setApplied(EMPTY_FILTERS)
@@ -92,9 +100,15 @@ export function AuditLogsPage() {
   /** 「失敗だけ」は最頻の絞り込みなので 1 クリックで出せるようにする。 */
   const showFailuresOnly = () => {
     const failuresOnly = { ...EMPTY_FILTERS, result: 'failure' }
+    setTrigger('failuresOnly')
     setPage(0)
     setForm(failuresOnly)
     setApplied(failuresOnly)
+  }
+
+  const goToPage = (next: number, from: SearchTrigger) => {
+    setTrigger(from)
+    setPage(next)
   }
 
   const range = pageRange(result.total, page, result.entries.length)
@@ -203,15 +217,25 @@ export function AuditLogsPage() {
           />
         </label>
         <div className="filter-actions">
-          <ActionButton type="submit" pending={searching}>
+          <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
             {t('audit.search')}
           </ActionButton>
-          <button type="button" onClick={showFailuresOnly} disabled={searching}>
+          <ActionButton
+            type="button"
+            pending={pendingTrigger === 'failuresOnly'}
+            disabled={searching}
+            onClick={showFailuresOnly}
+          >
             {t('audit.failuresOnly')}
-          </button>
-          <button type="button" onClick={reset} disabled={searching}>
+          </ActionButton>
+          <ActionButton
+            type="button"
+            pending={pendingTrigger === 'reset'}
+            disabled={searching}
+            onClick={reset}
+          >
             {t('audit.reset')}
-          </button>
+          </ActionButton>
         </div>
       </form>
 
@@ -264,29 +288,28 @@ export function AuditLogsPage() {
         </div>
       )}
 
+      {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので、押した側に目印を出す。 */}
       <div className="pager">
-        <button
+        <ActionButton
           type="button"
+          pending={pendingTrigger === 'previous'}
           disabled={page === 0 || searching}
           onClick={() => {
-            setPage(page - 1)
+            goToPage(page - 1, 'previous')
           }}
         >
           {t('audit.previous')}
-        </button>
-        <button
+        </ActionButton>
+        <ActionButton
           type="button"
+          pending={pendingTrigger === 'next'}
           disabled={!hasNextPage(result.total, page) || searching}
           onClick={() => {
-            setPage(page + 1)
+            goToPage(page + 1, 'next')
           }}
         >
           {t('audit.next')}
-        </button>
-        {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので目印を出す。 */}
-        {searching && (
-          <span className="spinner" role="status" aria-label={t('common.processing')} />
-        )}
+        </ActionButton>
       </div>
     </div>
   )

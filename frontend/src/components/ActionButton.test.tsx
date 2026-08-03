@@ -4,6 +4,9 @@
  * 検証するのは「押してから終わるまでスピナーが出て押せなくなる」「終われば元に
  * 戻る」「実行中に続けて押しても 2 度目は走らない」の 3 点。回る見た目そのものは
  * CSS が担うのでここでは見ない。
+ *
+ * ラベルが実行中も要素として残ること（＝ボタンの幅が変わらないこと）もここで守る。
+ * 隠すのは CSS の役目だが、ラベルを差し替える実装に戻ると幅が動いてしまう。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -55,6 +58,8 @@ describe('ActionButton', () => {
     expect(button).toHaveAttribute('aria-busy', 'true')
     expect(button).toBeDisabled()
     expect(screen.getByText('Processing...')).toBeInTheDocument()
+    // ラベルは place holder として残る（差し替えるとボタンの幅が動く）。
+    expect(screen.getByText('Save')).toBeInTheDocument()
 
     finish()
 

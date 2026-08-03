@@ -200,8 +200,7 @@ button[type='submit']:hover:not(:disabled) {
   color: var(--text);
 }
 
-/* 実行中の目印（ActionButton）。ボタンは inline-flex + gap なので、ラベルの前に
- * 置くだけで間隔が付く。大きさは em 指定にしてラベルの字面に合わせる。 */
+/* 実行中の目印（ActionButton）。大きさは em 指定にしてラベルの字面に合わせる。 */
 .spinner {
   /* ボタンの外（表のセル等）にも単独で置くので、行の中に収まる指定にしておく。 */
   display: inline-block;
@@ -222,9 +221,28 @@ button[type='submit']:hover:not(:disabled) {
   }
 }
 
-/* 表のセルでボタンと並べるときの間隔（ボタンの中は gap が効くので不要）。 */
+/* 表のセルでボタンと並べるときの間隔。 */
 td > .spinner {
   margin-left: var(--space-2);
+}
+
+/* 実行中でもボタンの幅を変えない。スピナーを差し込むとその分だけ横に伸び、隣の
+ * ボタンが動いて押し間違いの元になる。ラベルは場所を占めたまま隠し、スピナーを
+ * その上に重ねる。 */
+.action-button {
+  position: relative;
+}
+
+.action-button[aria-busy='true'] .action-button-label {
+  visibility: hidden;
+}
+
+.action-button-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* 自分の半分だけ戻して中央に置く（大きさは .spinner の 0.9em）。 */
+  margin: -0.45em 0 0 -0.45em;
 }
 
 /* 画面には出さず読み上げにだけ残す文言。 */

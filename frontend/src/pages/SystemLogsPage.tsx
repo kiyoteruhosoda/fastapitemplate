@@ -41,6 +41,9 @@ interface FilterOptions {
   levels: string[]
 }
 
+/** どの操作が検索を起こしたか。押した操作にだけ実行中の目印を出すために持つ。 */
+type SearchTrigger = 'search' | 'reset' | 'previous' | 'next'
+
 const EMPTY_FILTERS: LogFilters = {
   level: '',
   logger: '',
@@ -59,7 +62,10 @@ export function SystemLogsPage() {
   const [page, setPage] = useState(0)
   const [levels, setLevels] = useState<string[]>([])
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [trigger, setTrigger] = useState<SearchTrigger | null>(null)
   const { result, searching } = useLogSearch<LogEntry>('/api/admin/logs', applied, page)
+  // 取得していないあいだは目印を出さない（初回の読み込みは誰も押していない）。
+  const pendingTrigger = searching ? trigger : null
 
   useEffect(() => {
     void api
@@ -78,14 +84,21 @@ export function SystemLogsPage() {
 
   const search = (e: FormEvent) => {
     e.preventDefault()
+    setTrigger('search')
     setPage(0)
     setApplied(form)
   }
 
   const reset = () => {
+    setTrigger('reset')
     setPage(0)
     setForm(EMPTY_FILTERS)
     setApplied(EMPTY_FILTERS)
+  }
+
+  const goToPage = (next: number, from: SearchTrigger) => {
+    setTrigger(from)
+    setPage(next)
   }
 
   const range = pageRange(result.total, page, result.entries.length)
@@ -161,12 +174,17 @@ export function SystemLogsPage() {
           />
         </label>
         <div className="filter-actions">
-          <ActionButton type="submit" pending={searching}>
+          <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
             {t('logs.search')}
           </ActionButton>
-          <button type="button" onClick={reset} disabled={searching}>
+          <ActionButton
+            type="button"
+            pending={pendingTrigger === 'reset'}
+            disabled={searching}
+            onClick={reset}
+          >
             {t('logs.reset')}
-          </button>
+          </ActionButton>
         </div>
       </form>
 
@@ -229,29 +247,28 @@ export function SystemLogsPage() {
         </div>
       )}
 
+      {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので、押した側に目印を出す。 */}
       <div className="pager">
-        <button
+        <ActionButton
           type="button"
+          pending={pendingTrigger === 'previous'}
           disabled={page === 0 || searching}
           onClick={() => {
-            setPage(page - 1)
+            goToPage(page - 1, 'previous')
           }}
         >
           {t('logs.previous')}
-        </button>
-        <button
+        </ActionButton>
+        <ActionButton
           type="button"
+          pending={pendingTrigger === 'next'}
           disabled={!hasNextPage(result.total, page) || searching}
           onClick={() => {
-            setPage(page + 1)
+            goToPage(page + 1, 'next')
           }}
         >
           {t('logs.next')}
-        </button>
-        {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので目印を出す。 */}
-        {searching && (
-          <span className="spinner" role="status" aria-label={t('common.processing')} />
-        )}
+        </ActionButton>
       </div>
     </div>
   )
