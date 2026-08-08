@@ -77,10 +77,14 @@ admin ロールを外す、のいずれでも**誰も管理画面に入れない
 JWT は完全にステートレスで、失効の手段が「有効期限切れを待つ」しか無い。
 
 - `/api/auth/logout` は Cookie を消すだけ。手元に控えたトークンはそのまま使える。
-- パスワードを変えても、無効化（`is_active=false`）しても、既発行の **access
-  トークンは寿命（既定 15 分）まで有効**。refresh は既定 14 日で、こちらは
-  `_load_active_user` が毎回ユーザーを見るため無効化は効く。
+- **パスワードを変えても既発行のトークンは無効にならない。** access は寿命（既定
+  15 分）まで、refresh は既定 14 日まで通る。パスワードを変える動機の多くは
+  「漏れたかもしれない」なので、ここが効かないのは痛い。
 - refresh トークンのローテーションが無く、同じ refresh を何度でも使い回せる。
+
+無効化（`is_active=false`）は例外で、既に即時に効く。access・refresh のどちらも
+検証のたびに `_load_active_user` がユーザーを引き直し、`is_active` が落ちていれば
+弾くため（`token_service.py`）。この仕組みに何を載せるかが設計の出発点になる。
 
 `jti` + 失効リスト、あるいはユーザーごとのトークン世代（password_changed_at 等）を
 検証に混ぜる方式を決めて入れる。方式は ADR に残す。
@@ -152,5 +156,3 @@ CLAUDE.md・README・ADR-0015・OPERATIONS.md がかなりの分量を使って�
 （直近の完了分の要約は `CHANGELOG.md`、設計判断は `decisions/`（ADR）を参照。
 テンプレート刷新の経緯は `history/2026-07-template-refresh.md`、
 品質ゲート導入の経緯は `history/2026-07-quality-gates.md`）
-</content>
-</invoke>
