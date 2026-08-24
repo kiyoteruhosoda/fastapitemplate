@@ -1,0 +1,42 @@
+# リバースプロキシ。通常のリクエストをすべてアプリ（Gunicorn + UvicornWorker）へ渡す。
+# 大容量配信やキャッシュが必要になったら、ここに location を追加する。
+#
+# nginx 公式イメージの envsubst テンプレート（/etc/nginx/templates/*.template）として
+# 使う。置換されるのは **環境変数として定義されている名前だけ**なので、$host や
+# $remote_addr のような nginx 変数はそのまま残る。
+#
+# ⚠ このファイルはローカル開発（docker-compose.yml）と Komodo のスタック
+#   （deploy/komodo/compose.yaml）の**両方が同じものをマウントする**。片方だけ直すと
+#   「手元では動くのに本番で 502」になるので、複製せず 1 つを共有している。
+
+# Docker 組み込み DNS。valid=10s で再解決させる。IPv6 はこの環境では未使用。
+# ⚠ この resolver と下の変数経由 proxy_pass はセット。upstream ブロックに戻すと
+#   nginx が起動時に一度だけ解決してキャッシュし、アプリが作り直されるたびに
+#   502 を返し続ける（deploy-repo docs/new-stack.md §4-3。2026-08-24 に実際に落ちた）。
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+server {
+    listen 80;
+    server_name _;
+
+    client_max_body_size 100m;
+
+    location / {
+        # ⚠ 変数経由にして毎リクエスト解決させる（上の resolver とセット）。
+        #    値にパスを含めないこと。含めると URI 置換の挙動に変わる。
+        # ⚠ 引く名前は `app` のような一般名ではなく、スタック固有の別名
+        #    （${APP_WEB_ALIAS}）。edge ネットワークはホスト全体で共有されるため、
+        #    一般名を引くと他スタックのコンテナを掴む。
+        set $app_upstream http://${APP_WEB_ALIAS}:8000;
+        proxy_pass $app_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+}

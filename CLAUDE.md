@@ -6,23 +6,40 @@
 
 このリポジトリは**テンプレート**である。ここから作ったプロジェクトは、
 **元テンプレートの名前（`fastapitemplate`）を名乗ってはならない。**
-イメージタグ・compose プロジェクト名・DB コンテナ名（`container_name`）・
-ネットワーク名はすべてこの名前から導かれるため、名乗ったままだとテンプレート由来の
-別プロジェクトと同じホストでコンテナ名とホストポートを取り合う（ADR-0015）。
+デプロイの名前からはイメージ名・スタック名（＝ compose プロジェクト名）・
+ネットワーク別名・データディレクトリが導かれるため、名乗ったままだとテンプレート由来の
+別プロジェクトと同じホストでそれらを取り合う（ADR-0023）。
 
-- **デプロイの名前は `deploy.sh` の配置場所から決まる**（`.env` の `APP_NAME` ＞
-  親ディレクトリ名 ＞ `BUILD_APP_NAME`）。`/volume1/docker/<app>/<stg|prod>/` に置けば
-  アプリ名は `<app>` になる。**`deploy.sh` の定数を書き換えて名前を変えない**
-  （`deploy.sh` は `dist/` 経由で毎回上書きされるため、書き換えは次のビルドで失われる）。
-- 解決した名前がテンプレート名のままなら `deploy.sh` はデプロイを中断する。
-- ローカル開発（リポジトリ直下の `docker compose up`）でも名前を分けたい場合は、
-  `docker-compose.yml` の `${DB_CONTAINER_NAME:-…}` / `${DOCKER_NETWORK_NAME:-…}` /
-  イメージ名の既定値と、`scripts/build.sh` の `app_name`（＝ `deploy.sh` の
-  `BUILD_APP_NAME`）を新しいプロジェクト名へ揃える。
+- **名前を決めるのは deploy-repo のスタック定義**（`resources/stacks.toml` の
+  `APP_STACK_NAME` / `APP_WEB_IMAGE` / `APP_WEB_ALIAS` / `APP_DATA_DIR`）。
+  雛形は `deploy/komodo/stack.toml`。
+- **⚠ 名前を間違えても自動では止まらない。** 以前は `deploy.sh` が配置場所から名前を
+  決めてテンプレート名なら中断していたが（旧 ADR-0015）、その仕組みごと撤去した。
+  スタックを定義する人が名前を揃える。
+- ローカル開発（リポジトリ直下の `docker compose up`）で名前を分けたい場合は、
+  `.env` の `DOCKER_NETWORK_NAME` / `WEB_IMAGE` / `APP_WEB_ALIAS` と `Makefile` の
+  `IMAGE` を新しいプロジェクト名へ揃える。
 
-新しい名前を導入するときは、この 4 つ（イメージタグ・compose プロジェクト名・
-コンテナ名・ネットワーク名）が 1 つの名前から導かれる構造を崩さない。個別に名前を
-足すと、次に衝突したとき「どれを直せばよいか」が分からなくなる。
+**サービス名に一般名を使わない。** compose はサービス名を、参加する全ネットワークの
+別名にする。デプロイ先の `edge` ネットワークはホスト全体で共有されるため、`web` /
+`api` / `nginx` / `proxy` / `db` を撒くと他スタックのコンテナを掴む・掴まれる
+（実際に他プロジェクトの本番が全断している）。このテンプレートは `app` / `front` を使い、
+upstream は `APP_WEB_ALIAS`（スタック固有名）で引く。
+
+## ビルドとデプロイ
+
+**成果物はコンテナイメージ 1 つ**で、Komodo（nolumialab）が焼いてレジストリ
+`hub.nolumia.com:5000/komodo/<app>` へ push する（ADR-0023）。定義の雛形と手順は
+`deploy/komodo/`。
+
+- **バージョン情報はビルドの前に生成する。** `scripts/generate_version.sh` が
+  `shared/kernel/version.json` を作る。Komodo Build の `pre_build` に**必ず**書くこと。
+  無いとイメージが `version=dev` を名乗る（ビルドは緑のまま気付けない）。
+- **`--build-arg` でビルド情報を渡さない。** 渡す側ごとに名前がずれて壊れた実績がある。
+- **生成物 `shared/kernel/version.json` をコミットしない**（`.gitignore` 済み）。
+- **イメージと compose は対で合わせる。** 実行ユーザーの UID（`Dockerfile` の
+  `ARG APP_UID`）とデータディレクトリの所有者（compose の `init-paths`）、
+  マイグレーション所要時間と healthcheck の `start_period` は片方だけ変えると壊れる。
 
 ## ドキュメント運用
 

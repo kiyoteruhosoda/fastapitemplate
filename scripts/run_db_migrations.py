@@ -1,7 +1,7 @@
 """DB マイグレーション適用（``alembic upgrade head``）。
 
-entrypoint.sh・deploy.sh から共用する。プロジェクトルートへ chdir してから
-実行するため、どこから呼んでも動く。
+entrypoint.sh から使う。プロジェクトルートへ chdir してから実行するため、
+どこから呼んでも動く。
 """
 
 from __future__ import annotations

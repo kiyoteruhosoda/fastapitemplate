@@ -2,6 +2,48 @@
 
 新しいものを上に追記する。細かな進捗は書かない（Progress.md 完了時に要約を移す）。
 
+## 2026-08 ビルドとデプロイを Komodo へ一本化した
+
+- **成果物をコンテナイメージ 1 つにした**（ADR-0023）。Komodo（nolumialab）が GitHub から
+  クローンして焼き、`hub.nolumia.com:5000/komodo/<app>` へ push する。
+  `latest` / `<コミット>` / `0.0.N` のタグが付き、戻すときはコミットのタグを指定する。
+  - 手元でイメージの tar を作って配置先へ転送する方式（`scripts/build.sh` +
+    `scripts/deploy.sh` + `scripts/build-remote-container.sh`、約 1,000 行）を撤去した。
+    その大半は「配置場所から名前を決める」「コンテナ名を握った残骸を片付ける」
+    「`.env` を壊さずに生成する」という、compose プロジェクトを人手で並べるがゆえの
+    問題への対処で、Komodo では問題自体が無くなる。
+  - GHCR へ push する `release.yml` も削除した。**そもそも通っていなかった**
+    （`ruff check src/` — このリポジトリに `src/` は無い）。
+  - ADR-0008 / ADR-0014 / ADR-0015 は ADR-0023 で置き換え（廃止）。
+- **Komodo で焼くとイメージが版を名乗れなくなる問題を直した。** Komodo はコミット情報を
+  `--build-arg` で渡さず、`.dockerignore` が `.git` を除いているので Dockerfile の中から
+  git も引けない。**ビルドは緑のまま `/info` が `version=dev` を返し続ける**という、
+  気付きにくい壊れ方をしていた。
+  - `scripts/generate_version.sh` を Komodo Build の `pre_build` で走らせ、
+    `shared/kernel/version.json` を作ってから `docker build` に入る形にした。
+    build-arg は廃止（渡す側ごとに名前がずれる。`release.yml` は実際にずれていた）。
+  - 優先順位は **git > 既にある version.json > dev**。Komodo はビルドディレクトリを
+    使い回すため「既存を優先」にすると 2 回目以降が初回の版を名乗り続ける。逆に
+    イメージ内で上書きにすると `pre_build` の結果が dev に潰れる。
+  - CI（`image.yml`）で「焼いたイメージの `commit_hash` が HEAD と一致すること」を
+    検証する。ここが dev に戻る変更は落ちる。
+- **nginx の upstream を resolver + 変数経由にした。** `upstream { server web:8000; }` は
+  起動時に 1 度だけ名前を解決してキャッシュするため、アプリのコンテナが作り直されると
+  **消えた IP へ繋ぎ続けて 502 を返し続ける**。テンプレート由来の別プロジェクトが
+  実際にこれで本番を落としている。設定ファイルはローカル開発とデプロイで共有する
+  （`docker/nginx/default.conf.template`）。
+- **サービス名を `web` → `app`、`nginx` → `front` に変えた。** compose はサービス名を
+  参加する全ネットワークの別名にする。デプロイ先の `edge` はホスト全体で共有なので、
+  一般名を撒くと他スタックのコンテナを掴む・掴まれる。upstream はスタック固有の別名
+  （`APP_WEB_ALIAS`）で引く。
+- **デプロイ定義の雛形を同梱した**（`deploy/komodo/`）。compose・Build 定義・Stack 定義を
+  deploy-repo へ複製して使う。実行ユーザーの UID とデータディレクトリの所有者、
+  マイグレーションと `start_period` のように**イメージと compose の両方が合っていないと
+  動かない**取り決めを、イメージと一緒に配るため。
+  - ついでに `db/Dockerfile` を廃止した（素の MariaDB + TZ 設定なので compose で与える）。
+  - 実行ユーザー（UID 5678）とデータディレクトリの所有者が食い違っていたのも直した
+    （`init-paths` が 1000 に chown していた）。
+
 ## 2026-08 押したボタンが実行中だと分かるようにした
 
 - **サーバーへ問い合わせるボタンは、押した直後からスピナーが出て押せなくなる**

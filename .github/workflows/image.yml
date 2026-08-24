@@ -1,0 +1,68 @@
+name: Image
+
+# Dockerfile まわりを触った PR / main への push だけで動く。
+# 本番のビルドは Komodo（nolumialab）が行い、成果物はレジストリのイメージ（ADR-0023）。
+# ここで焼くイメージは **push しない**。目的は「Komodo に着く前に壊れているかを知る」こと。
+on:
+  push:
+    branches: [main]
+    # ⚠ GitHub Actions の YAML は アンカー/エイリアス（&x / *x）を解釈しない。
+    #   同じ一覧を pull_request 側にも書く必要がある。片方だけ足すと動かない。
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - ".github/workflows/image.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/**"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - ".github/workflows/image.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Komodo Build の pre_build と同じ手順。ここを省くとイメージが版を名乗れない。
+      - name: バージョン情報を生成
+        run: bash scripts/generate_version.sh
+        env:
+          BRANCH_OVERRIDE: ${{ github.head_ref || github.ref_name }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build（push はしない）
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: fastapitemplate:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 版の刻印が効いていることの回帰テスト。ここが dev に戻ると、ビルドは緑のまま
+      # 「どのコミットが動いているか答えられない」イメージが出続ける。
+      - name: version.json が dev になっていないことを確認
+        run: |
+          set -eu
+          json=$(docker run --rm --entrypoint cat fastapitemplate:ci /app/shared/kernel/version.json)
+          echo "$json"
+          echo "$json" | grep -q "\"commit_hash\": \"$(git rev-parse --short HEAD)\""
