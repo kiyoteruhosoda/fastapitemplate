@@ -8,8 +8,14 @@
 # ⚠ 値に空白を入れない。Komodo が .env として書き出すので値が途中で切れる。
 # ⚠ ポートは採番表から計算する（空き番号を勝手に取らない）。
 #      ポート = 10000 + プロジェクト×100 + 環境×10 + 種別×1
-#      プロジェクト: IDP=0 / WBS=1 / Photonest=2 / DevCon=3 / rewardpointsweb=4 / その他=9
 #      環境: Prod=0 / Stg=1 / Dev=2 / Test-E2E=3     種別: Web-Nginx=0 / API=1 / ...
+#   プロジェクト番号の一覧は deploy-repo の README（正本は Port シート）。
+#
+# ⚠ **継続して動かすものを「その他」= 9 に置かない。** 10900 番台の中で先着と衝突する。
+#   このテンプレート自身が 2026-08-24 にこれを踏んだ（「その他」で stg=10910 を取ったが、
+#   prod にあたる 10900 を dl-prod が既に使っていて prod を作れなくなった）。
+#   専用のプロジェクト番号 5 を起こして 10500/10510 へ移している。
+#   **新しいアプリは Port シートで自分のプロジェクト番号を先に起こすこと。**
 
 [[stack]]
 name = "<app>-stg"
@@ -27,7 +33,8 @@ file_paths = ["compose.yaml"]
 ignore_services = ["init-paths"]
 environment = """
 APP_STACK_NAME  = <app>-stg
-APP_WEB_PORT    = 109x0
+# 下の x を自分のプロジェクト番号に置き換える（stg の Web-Nginx なので下 2 桁は 10）。
+APP_WEB_PORT    = 10x10
 APP_DATA_DIR    = /srv/appdata/<app>-stg
 APP_EDGE_ALIAS  = <app>-stg
 # ⚠ front が upstream を引く名前。edge に出さないスタック固有名にすること。
