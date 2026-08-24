@@ -1,0 +1,72 @@
+# Komodo Stack 定義の雛形。
+#
+# deploy-repo の `resources/stacks.toml` へ追記して使う（`<app>` を置き換える）。
+# compose の実体は deploy/komodo/compose.yaml を deploy-repo の
+# `stacks/<app>/compose.yaml` へ複製したもの。
+#
+# ⚠ 秘密は書かない。Komodo の Variable / Secret に登録し、ここには [[NAME]] 参照だけを置く。
+# ⚠ 値に空白を入れない。Komodo が .env として書き出すので値が途中で切れる。
+# ⚠ ポートは採番表から計算する（空き番号を勝手に取らない）。
+#      ポート = 10000 + プロジェクト×100 + 環境×10 + 種別×1
+#      プロジェクト: IDP=0 / WBS=1 / Photonest=2 / DevCon=3 / rewardpointsweb=4 / その他=9
+#      環境: Prod=0 / Stg=1 / Dev=2 / Test-E2E=3     種別: Web-Nginx=0 / API=1 / ...
+
+[[stack]]
+name = "<app>-stg"
+tags = ["managed", "stg"]
+[stack.config]
+server = "nolumialab"
+repo = "kiyoteruhosoda/deploy-repo"
+git_provider = "github.com"
+git_account = "kiyoteruhosoda"
+branch = "main"
+run_directory = "stacks/<app>"
+file_paths = ["compose.yaml"]
+# init-paths は ExitCode=0 で正常終了する使い捨てコンテナ。除外しないとスタックが
+# 永久に unhealthy 表示になり、本当の異常が埋もれる（4 回踏んだ）。
+ignore_services = ["init-paths"]
+environment = """
+APP_STACK_NAME  = <app>-stg
+APP_WEB_PORT    = 109x0
+APP_DATA_DIR    = /srv/appdata/<app>-stg
+APP_EDGE_ALIAS  = <app>-stg
+# ⚠ front が upstream を引く名前。edge に出さないスタック固有名にすること。
+APP_WEB_ALIAS   = <app>-app
+APP_DISPLAY_NAME = <App>
+
+# --- イメージ ---
+APP_WEB_IMAGE   = hub.nolumia.com:5000/komodo/<app>
+# latest は「最後に成功したビルド」。特定の版に固定したいときはコミットのタグを指定する
+# （Komodo は latest / <コミット> / 0.0.N を打つ）。prod は固定するほうが戻しやすい。
+APP_IMAGE_TAG   = latest
+# ⚠ サードパーティは digest で固定する。更新するときは `docker pull <tag>` して
+#   RepoDigests を貼り直す。
+APP_DB_IMAGE    = mariadb:10.11@sha256:8020e05c4c498d06c87f0a1db010eb79bd6f8fb30e9b763d4690c34ce1e61008
+APP_PROXY_IMAGE = nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+APP_INIT_IMAGE  = alpine:3@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+
+# --- 実行ユーザー（イメージの appuser と揃える。Dockerfile の ARG APP_UID）---
+APP_UID = 5678
+APP_GID = 5678
+
+# --- アプリケーション ---
+APP_ENV = staging
+APP_BASE_URL = https://<app>stg.nolumia.com
+APP_CORS_ALLOWED_ORIGINS = ["https://<app>stg.nolumia.com"]
+APP_SESSION_COOKIE_SECURE = true
+# ⚠ パスキーの RP ID。変えると登録済みのパスキーが全部無効になる。
+APP_WEBAUTHN_RP_ID  = <app>stg.nolumia.com
+APP_WEBAUTHN_ORIGIN = https://<app>stg.nolumia.com
+APP_LOG_LEVEL = INFO
+
+# --- DB ---
+APP_MARIADB_USER     = web_user
+APP_MARIADB_DATABASE = appdb
+
+# --- 秘密（Komodo の Variable に登録する。ここには参照だけ）---
+APP_MARIADB_ROOT_PASSWORD = [[<APP>_MARIADB_ROOT_PASSWORD]]
+APP_MARIADB_PASSWORD      = [[<APP>_MARIADB_PASSWORD]]
+APP_JWT_SECRET_KEY        = [[<APP>_JWT_SECRET_KEY]]
+APP_SECRET_KEY            = [[<APP>_SECRET_KEY]]
+APP_ADMIN_INITIAL_PASSWORD = [[<APP>_ADMIN_INITIAL_PASSWORD]]
+"""

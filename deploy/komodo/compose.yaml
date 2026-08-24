@@ -1,0 +1,166 @@
+# <app> — fastapitemplate 由来の Web アプリ（app + MariaDB + nginx）
+#
+# ⚠ このファイルは**テンプレート側の原本**。deploy-repo の
+#   `stacks/<app>/compose.yaml` として複製して使う（ADR-0023 / deploy/komodo/README.md）。
+#   一緒に `docker/nginx/default.conf.template` も複製すること。
+#
+# 変数は deploy-repo の `resources/stacks.toml` の `environment` から渡る
+#   （雛形は deploy/komodo/stack.toml）。
+#
+# deploy-repo docs/new-stack.md の規約に従っている:
+#   - `container_name:` を書かない（ホスト全体で一意なので必ず衝突する）
+#   - データのボリュームは絶対パス（相対だと periphery コンテナ内のパスになる）
+#   - `edge` に出すのは front だけ。名前は必ずスタック固有の別名にする
+#   - 使い捨ての init-paths があるので stacks.toml に ignore_services を書く
+#   - サードパーティイメージは digest で固定する（値は stacks.toml 側）
+
+name: ${APP_STACK_NAME}
+
+services:
+  init-paths:
+    # データディレクトリを作り、所有者を合わせるだけの使い捨てコンテナ。
+    # ⚠ /host/data はアプリの実行ユーザー（イメージの appuser。既定 UID 5678）に合わせる。
+    #   ここを 1000 にするとアプリがそのディレクトリに書けない。
+    image: ${APP_INIT_IMAGE}
+    command: >
+      sh -c "
+        echo '[init] ensure dirs exist';
+        mkdir -p /host/db_data /host/data;
+        echo '[init] apply correct ownership';
+        chown -R 999:999 /host/db_data;
+        chmod -R 770 /host/db_data;
+        chown -R ${APP_UID}:${APP_GID} /host/data;
+        chmod -R 775 /host/data;
+        echo '[init] done';
+      "
+    volumes:
+      - ${APP_DATA_DIR}:/host
+    restart: "no"
+
+  db:
+    image: ${APP_DB_IMAGE}
+    environment:
+      - TZ=UTC
+      - MARIADB_ROOT_PASSWORD=${APP_MARIADB_ROOT_PASSWORD}
+      - MARIADB_USER=${APP_MARIADB_USER}
+      - MARIADB_PASSWORD=${APP_MARIADB_PASSWORD}
+      - MARIADB_DATABASE=${APP_MARIADB_DATABASE}
+    # ホストへは公開しない。到達できるのは同じ Docker ネットワークの中だけ（ADR-0010）。
+    expose:
+      - "3306"
+    volumes:
+      - ${APP_DATA_DIR}/db_data:/var/lib/mysql
+    command:
+      - --default-time-zone=+00:00
+    depends_on:
+      init-paths:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    healthcheck:
+      # $$ でエスケープし compose に展開させない。--protocol=tcp は初回初期化中の
+      # 一時ブートストラップサーバーを healthy と誤判定しないために必須。
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --protocol=tcp -u root -p\"$$MARIADB_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 600s
+
+  app:
+    image: ${APP_WEB_IMAGE}:${APP_IMAGE_TAG}
+    networks:
+      # ⚠ front から `app` という一般名で引いてはいけない。front は edge にも参加して
+      #   おり、Docker の DNS は参加中の全ネットワークを探す。edge はホスト全体で
+      #   共有なので、他スタックの同名サービスを引き当てる（2026-08-23 に photonest が
+      #   これで本番全断。deploy-repo docs/new-stack.md §4-1）。
+      #   スタック固有の別名を付けて、front はその名前で引く。
+      default:
+        aliases:
+          - ${APP_WEB_ALIAS}
+    init: true
+    stop_grace_period: 60s
+    command: web
+    expose:
+      - "8000"
+    environment:
+      - TZ=UTC
+      - DATABASE_URI=mysql+pymysql://${APP_MARIADB_USER}:${APP_MARIADB_PASSWORD}@db:3306/${APP_MARIADB_DATABASE}?charset=utf8mb4
+      - APP_ENV=${APP_ENV}
+      # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（ADR-0013）。
+      - TRUSTED_PROXY_HOPS=1
+      - APP_BASE_URL=${APP_BASE_URL}
+      - CORS_ALLOWED_ORIGINS=${APP_CORS_ALLOWED_ORIGINS}
+      - SESSION_COOKIE_SECURE=${APP_SESSION_COOKIE_SECURE}
+      # ⚠ パスキーは RP ID（ドメイン）に結び付く。変えると登録済みのパスキーが全部
+      #   使えなくなる。公開ドメインを決めてから設定する。
+      - WEBAUTHN_RP_ID=${APP_WEBAUTHN_RP_ID}
+      - WEBAUTHN_ORIGIN=${APP_WEBAUTHN_ORIGIN}
+      - WEBAUTHN_RP_NAME=${APP_DISPLAY_NAME}
+      - TOTP_ISSUER=${APP_DISPLAY_NAME}
+      - ACCESS_TOKEN_ISSUER=${APP_STACK_NAME}
+      - ACCESS_TOKEN_AUDIENCE=${APP_STACK_NAME}
+      - LOG_LEVEL=${APP_LOG_LEVEL}
+      - JWT_SECRET_KEY=${APP_JWT_SECRET_KEY}
+      - SECRET_KEY=${APP_SECRET_KEY}
+      - ADMIN_INITIAL_PASSWORD=${APP_ADMIN_INITIAL_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ${APP_DATA_DIR}/data:/app/data
+    restart: unless-stopped
+    mem_limit: 1g
+    pids_limit: 512
+    security_opt:
+      - "no-new-privileges:true"
+    healthcheck:
+      # イメージに wget が無いのでランタイムで書く（deploy-repo docs/new-stack.md §5）。
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # app は db healthy の後さらに DB 接続待ち + alembic upgrade head をこなす。
+      # 初回（空 DB）はスキーマ構築まで含むため長めに取る。
+      start_period: 300s
+
+  front:
+    # ⚠ サービス名を `nginx` `proxy` `web` にしない。edge 上で他スタックと衝突する
+    #   （現に edge で `nginx` は 4 件、`proxy` は 2 件重複している）。
+    image: ${APP_PROXY_IMAGE}
+    ports:
+      # LAN から直接叩けるようにする（Cloudflare 側とアプリ側の切り分け用）。
+      - "${APP_WEB_PORT}:80"
+    environment:
+      - TZ=UTC
+      # default.conf.template の ${APP_WEB_ALIAS} をこの値で埋める（envsubst）。
+      - APP_WEB_ALIAS=${APP_WEB_ALIAS}
+    volumes:
+      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      app:
+        # ⚠ service_healthy にしない。初回のスキーマ構築中に up 全体が
+        #   "dependency failed to start" で落ちる。
+        condition: service_started
+    restart: unless-stopped
+    mem_limit: 128m
+    pids_limit: 128
+    security_opt:
+      - "no-new-privileges:true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+    networks:
+      default: {}
+      edge:
+        aliases:
+          - ${APP_EDGE_ALIAS}
+
+networks:
+  default:
+    driver: bridge
+  edge:
+    external: true

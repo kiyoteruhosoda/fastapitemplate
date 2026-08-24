@@ -2,7 +2,7 @@
 
 FastAPI + DDD のアプリケーションテンプレートです（photonest の構成・設計思想がベース）。
 認証認可（JWT + scope）・システム設定管理・構造化ログ・管理画面 SPA・
-Docker / デプロイスクリプトまで含んだ状態から開発を始められます。
+Docker と Komodo へのデプロイ定義まで含んだ状態から開発を始められます。
 
 ## 技術スタック
 
@@ -10,7 +10,7 @@ Docker / デプロイスクリプトまで含んだ状態から開発を始め�
 - FastAPI + Pydantic（OpenAPI は `/docs`・`/openapi.json`）
 - SQLAlchemy 2.x + Alembic（本番 MariaDB 10.11 / 開発・テスト SQLite）
 - React + TypeScript + Vite（`frontend/`、SPA スケルトン。i18n・テーマ切り替え込み）
-- Docker（db / web / nginx 構成）+ Gunicorn + UvicornWorker
+- Docker（db / app / front 構成）+ Gunicorn + UvicornWorker
 - 品質ゲート: Ruff / MyPy（strict）/ PyTest ・ Prettier / ESLint / TypeScript / Vitest
 
 ## 主な機能
@@ -67,25 +67,31 @@ make format             # 整形の指摘を自動修正
 
 ## Docker / デプロイ
 
+**ビルドとデプロイは Komodo（nolumialab）で行います。成果物はコンテナイメージです**
+（[ADR-0023](docs/decisions/ADR-0023-komodo-build-and-deploy.md)）。
+
+```
+GitHub のソース ──push──▶ Komodo Build ──push──▶ hub.nolumia.com:5000/komodo/<app>
+                                                  ＝ 成果物（タグ: latest / <コミット> / 0.0.N）
+                                                            │ pull
+                      deploy-repo ──ResourceSync──▶ Komodo Stack ──┘
+```
+
+手元で動かすときは compose を使います（デプロイには使いません）。
+
 ```bash
-./scripts/build.sh              # dist/ に image.tar / image-db.tar / deploy.sh / manifest
-docker compose up -d            # ローカルで db / web / nginx を起動（要 .env）
+make image                      # Dockerfile が壊れていないかの確認用ビルド
+cp .env.example .env
+docker compose up -d            # db / app / front が起動 → http://127.0.0.1:8080
 ```
 
-配置先サーバーでは `dist/` の中身を `<app>/<stg|prod>/` に置き、
-`./deploy.sh <app|migrate|reset>` を実行します。git の無いデプロイ先では
-`scripts/build-remote-container.sh`（一括デプロイ）が使えます。
-詳細な手順は [docs/OPERATIONS.md](docs/OPERATIONS.md) を参照してください。
+デプロイ定義の雛形（compose・Komodo の Build / Stack 定義）は
+[deploy/komodo/](deploy/komodo/README.md) に入っています。deploy-repo へ複製して使います。
 
-**このテンプレートから作ったプロジェクトは名前を変えてください。** デプロイの名前
-（アプリ名）は `deploy.sh` の**配置場所**から決まり（`.env` の `APP_NAME` ＞ 親ディレクトリ名）、
-そこからイメージタグ・compose プロジェクト名・DB コンテナ名・ネットワーク名が導かれます。
-テンプレートの名前（`fastapitemplate`）のままではデプロイは中断します
-（[ADR-0015](docs/decisions/ADR-0015-deploy-name-from-path.md)）。
-
-```
-/volume1/docker/rewardpointsweb/prod/deploy.sh   → アプリ名 rewardpointsweb・環境 prod
-```
+**このテンプレートから作ったプロジェクトは名前を変えてください。** イメージ名・
+スタック名・ネットワーク別名・データディレクトリがその名前から派生します。
+`fastapitemplate` のまま Komodo に登録すると、テンプレート由来の別プロジェクトと
+イメージとエイリアスを取り合います。
 
 ## ドキュメント
 
@@ -97,6 +103,7 @@ docker compose up -d            # ローカルで db / web / nginx を起動（�
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作手順書 |
 | [docs/Progress.md](docs/Progress.md) | 進行中タスク |
 | [docs/decisions/](docs/decisions/) | 設計判断（ADR） |
+| [deploy/komodo/README.md](deploy/komodo/README.md) | Komodo でのビルドとデプロイ（定義の雛形つき） |
 | [frontend/README.md](frontend/README.md) | 画面遷移図・画面仕様・操作マニュアル |
 
 ## ライセンス

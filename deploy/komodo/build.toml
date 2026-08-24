@@ -1,0 +1,33 @@
+# Komodo Build 定義の雛形。
+#
+# deploy-repo の `resources/builds.toml` へ追記して使う（`<app>` / `<repo>` を置き換える）。
+# ソースの正本はアプリの GitHub リポジトリ。ここにはビルド方法だけを書く。
+#
+# 成果物: hub.nolumia.com:5000/komodo/<app> に latest / <コミット> / 0.0.N のタグで push される。
+
+[[build]]
+name = "<app>"
+tags = ["managed"]          # ⚠ これが無いと ResourceSync の対象にならない
+[build.config]
+builder = "nolumialab"
+repo = "kiyoteruhosoda/<repo>"
+git_provider = "github.com"
+git_account = "kiyoteruhosoda"
+branch = "main"
+build_path = "."
+dockerfile_path = "Dockerfile"
+image_name = "<app>"
+
+# ⚠ **これが無いと `/info` が版を答えられない。**
+# Komodo はコミット情報を build-arg で渡さない。一方 `.dockerignore` は `.git` を
+# 除いているので、Dockerfile の中から git を引くこともできない。
+# クローン済みのリポジトリで pre_build を走らせ、shared/kernel/version.json を
+# 作ってからビルドに入る（ADR-0023）。省くとイメージは version=dev を名乗り続ける。
+[build.config.pre_build]
+path = "."
+command = "bash scripts/generate_version.sh"
+
+[build.config.image_registry]
+domain = "hub.nolumia.com:5000"
+account = "nolumia"
+organization = "komodo"

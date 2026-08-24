@@ -1,22 +1,23 @@
 # ================================
-# fastapitemplate Makefile（ビルドの実体は scripts/build.sh）
+# fastapitemplate Makefile
 # ================================
 
-.PHONY: build clean \
+.PHONY: image \
 	check check-backend check-frontend \
 	format format-backend format-frontend \
 	lint typecheck test \
 	lint-frontend typecheck-frontend test-frontend
 
-# クロスビルドしたいときだけ指定する（例: make build PLATFORM=linux/amd64）。
-# 無指定なら実行ホストのネイティブアーキテクチャでビルドする。
-PLATFORM ?=
+# --------------------------------
+# イメージ（手元での確認用）
+# --------------------------------
+# 本番の成果物は Komodo Build が焼いてレジストリへ push する（ADR-0023）。
+# ここで作るのは Dockerfile が壊れていないかを手元で確かめるためのもの。
+IMAGE ?= fastapitemplate:dev
 
-build:
-	PLATFORM=$(PLATFORM) ./scripts/build.sh
-
-clean:
-	rm -rf dist
+image:
+	bash scripts/generate_version.sh
+	docker build -t $(IMAGE) .
 
 # --------------------------------
 # 品質ゲート（CI と同じ順序・同じコマンドを流す）

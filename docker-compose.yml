@@ -1,15 +1,26 @@
+# ローカル開発用の compose。**デプロイには使わない。**
+#
+# デプロイ先（Komodo）の compose は deploy/komodo/compose.yaml で、そちらは
+# deploy-repo の stacks/<app>/compose.yaml として置かれる（ADR-0023）。
+# サービス名・ネットワーク別名・nginx 設定はデプロイ側と同じ形に揃えてある。
+# 「手元では動くのにデプロイすると 502」を避けるため、構成をわざと二重化していない。
+#
+# 使い方:
+#   docker build -t fastapitemplate:dev .   （または make image）
+#   cp .env.example .env
+#   docker compose up -d                    → http://127.0.0.1:8080
+
 services:
   init-paths:
-    image: alpine
+    image: alpine:3
     command: >
       sh -c "
         echo '[init] ensure dirs exist';
-        mkdir -p /host/db_data;
-        mkdir -p /host/data;
+        mkdir -p /host/db_data /host/data;
         echo '[init] apply correct ownership';
         chown -R 999:999 /host/db_data;
         chmod -R 770 /host/db_data;
-        chown -R 1000:1000 /host/data;
+        chown -R ${APP_UID:-5678}:${APP_GID:-5678} /host/data;
         chmod -R 775 /host/data;
         echo '[init] done';
       "
@@ -18,12 +29,12 @@ services:
     restart: "no"
 
   db:
-    image: ${DB_IMAGE:-fastapitemplate-db:latest}
-    container_name: ${DB_CONTAINER_NAME:-fastapitemplate-mariadb}
+    # 素の MariaDB。タイムゾーンの固定だけを compose 側で与える。
+    image: ${DB_IMAGE:-mariadb:10.11}
     environment:
       - TZ=UTC
       # 初期設定のみ（.env 未作成／項目未記入）でも DB が初期化されるようデフォルト値を
-      # 持つ。既定の資格情報は開発向け。外部公開する環境では .env で必ず上書きすること。
+      # 持つ。既定の資格情報は開発向け。デプロイ先では Komodo の Variable から渡す。
       - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-template123}
       - MARIADB_USER=${MARIADB_USER:-web_user}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-template123}
@@ -32,8 +43,6 @@ services:
     # 保守も `docker compose exec db mariadb ...` とコンテナ内で完結させる（ADR-0010）。
     expose:
       - "3306"
-    env_file:
-      - .env
     volumes:
       - ${HOST_DATA_ROOT:-./mnt}/db_data:/var/lib/mysql
     command:
@@ -54,20 +63,25 @@ services:
       retries: 30
       start_period: 600s
 
-  web:
-    image: ${WEB_IMAGE:-fastapitemplate:latest}
+  app:
+    image: ${WEB_IMAGE:-fastapitemplate:dev}
+    networks:
+      # front はこの別名で引く。デプロイ側と同じ形（deploy/komodo/compose.yaml のコメント参照）。
+      default:
+        aliases:
+          - ${APP_WEB_ALIAS:-fastapitemplate-app}
     init: true
     stop_grace_period: 60s
     command: web
-    # 公開ポートは nginx が受け持つ。web はネットワーク内部からのみ到達可能にする。
+    # 公開ポートは front（nginx）が受け持つ。app はネットワーク内部からのみ到達可能にする。
     expose:
       - "8000"
     environment:
       - TZ=UTC
       - DATABASE_URI=mysql+pymysql://${MARIADB_USER:-web_user}:${MARIADB_PASSWORD:-template123}@db:3306/${MARIADB_DATABASE:-appdb}?charset=utf8mb4
       # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（それ以外の
-      # X-Forwarded-For は詐称できるので無視する）。web は expose のみで
-      # nginx 以外から到達できない。
+      # X-Forwarded-For は詐称できるので無視する）。app は expose のみで
+      # front 以外から到達できない。
       - TRUSTED_PROXY_HOPS=1
     env_file:
       - .env
@@ -81,22 +95,24 @@ services:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
       interval: 30s
       timeout: 10s
-      # web は db が healthy になった後も DB 接続待ち + alembic upgrade head を
+      # app は db が healthy になった後も DB 接続待ち + alembic upgrade head を
       # こなしてから起動する。初回（空 DB）はスキーマ構築まで含むため長めに取る。
       retries: 5
       start_period: 300s
 
-  nginx:
+  front:
     image: nginx:1.27-alpine
     # 公開フロント。外部リバースプロキシからはこのポートへ接続する。
     ports:
       - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-8080}:80"
     environment:
       - TZ=UTC
+      # default.conf.template の ${APP_WEB_ALIAS} をこの値で埋める（envsubst）。
+      - APP_WEB_ALIAS=${APP_WEB_ALIAS:-fastapitemplate-app}
     volumes:
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on:
-      web:
+      app:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:

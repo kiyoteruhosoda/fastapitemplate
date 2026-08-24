@@ -23,7 +23,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # uv（依存管理）。依存レイヤーを分けてキャッシュを効かせる。
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# ⚠ 版を固定する。`:latest` だと同じコミットからでも解決器の版が変わりうる。
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
@@ -33,20 +34,17 @@ COPY . /app
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Makefile から渡されるビルド情報で version.json を生成
-ARG COMMIT_HASH=dev
-ARG COMMIT_HASH_FULL=dev
-ARG BRANCH=unknown
-ARG COMMIT_DATE=unknown
-ARG BUILD_DATE=unknown
-
-RUN if [ "$BRANCH" = "main" ]; then VERSION="v${COMMIT_HASH}"; else VERSION="v${COMMIT_HASH}-${BRANCH}"; fi && \
-    printf '{\n  "version": "%s",\n  "commit_hash": "%s",\n  "commit_hash_full": "%s",\n  "branch": "%s",\n  "commit_date": "%s",\n  "build_date": "%s"\n}\n' \
-      "$VERSION" "$COMMIT_HASH" "$COMMIT_HASH_FULL" "$BRANCH" "$COMMIT_DATE" "$BUILD_DATE" \
-    > shared/kernel/version.json
+# バージョン情報（shared/kernel/version.json）は **ビルドの前に生成してコンテキストへ入れる**。
+# Komodo Build の pre_build が scripts/generate_version.sh を実行し、その出力がここへ
+# COPY されてくる（ADR-0023）。この RUN は「無かったときに dev として印を付ける」だけで、
+# 既にある内容は書き換えない。イメージには .git が入らないので、ここで git は引けない。
+RUN bash scripts/generate_version.sh
 
 RUN chmod +x /app/scripts/entrypoint.sh
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+# 実行ユーザーの UID。データディレクトリの所有者（compose の init-paths）と揃える必要が
+# あるため、値を変えるときは deploy/komodo/stack.toml の APP_UID / APP_GID も揃える。
+ARG APP_UID=5678
+RUN adduser -u "$APP_UID" --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser
 
 # エントリポイントはイメージに焼き込む。compose は command でモードのみ指定する。

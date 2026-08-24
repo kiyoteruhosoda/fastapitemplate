@@ -128,24 +128,31 @@ uv run alembic revision --autogenerate -m "<description>"
 2. `shared/kernel/settings/settings.py`
 3. `presentation/fastapi/admin/system_settings_definitions.py`
 
-## Docker イメージをビルドしたいとき
+## Docker イメージを手元でビルドしたいとき
 
 ```bash
-./scripts/build.sh   # アプリ + DB イメージ → dist/（tar・deploy.sh・manifest 一式）
-# make build でも同じ（scripts/build.sh を呼ぶだけ）
+make image           # scripts/generate_version.sh → docker build -t fastapitemplate:dev .
 ```
+
+**手元での確認用**（Dockerfile が壊れていないか）。デプロイに使う成果物は Komodo が
+焼いてレジストリへ push する（ADR-0023）。
 
 ## docker compose でローカル起動したいとき
 
 ```bash
+make image                       # 先にイメージを作る（fastapitemplate:dev）
 cp .env.example .env             # 必要に応じて編集
-docker compose up -d             # db / web / nginx が起動
+docker compose up -d             # db / app / front が起動
 ```
 
-- アプリ: http://127.0.0.1:8080 （nginx 経由）
+- アプリ: http://127.0.0.1:8080 （front＝nginx 経由）
 
-ホストへ公開されるのは nginx だけ。`web` と `db` は Docker ネットワーク内部からのみ
+ホストへ公開されるのは `front` だけ。`app` と `db` は Docker ネットワーク内部からのみ
 到達できる（ADR-0010）。
+
+**この compose はローカル開発専用。** デプロイ先の compose は
+`deploy/komodo/compose.yaml`（deploy-repo の `stacks/<app>/compose.yaml`）。
+サービス名・ネットワーク別名・nginx 設定は両者で揃えてある。
 
 ## DB を操作したいとき（SQL を流す・ダンプを取る）
 
@@ -169,8 +176,8 @@ docker compose exec -T db \
   sh -c 'exec mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' > dump.sql
 ```
 
-デプロイ先では compose プロジェクトが分かれているため、環境ディレクトリ
-（`<app>/stg/` など）で実行する。
+デプロイ先（Komodo）では compose プロジェクトがスタック名で分かれている。
+nolumialab 上で `docker compose -p <スタック名> exec ...` として実行する。
 
 ## DB へホストのツールから一時的につなぎたいとき
 
@@ -178,8 +185,7 @@ GUI クライアントを使いたい場合だけ、その場限りのポート�
 `docker-compose.yml` は変更しない（恒久的に開けないため。ADR-0010）。
 
 ```bash
-# ネットワーク名は .env の DOCKER_NETWORK_NAME（デプロイ先の既定は <app>-prod / <app>-stg。
-# リポジトリ直下でのローカル起動は docker-compose.yml の既定値）
+# ネットワーク名は .env の DOCKER_NETWORK_NAME（未設定ならリポジトリ名）
 docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1 | cut -d= -f2-)" \
   -p 127.0.0.1:3307:3306 alpine/socat \
   tcp-listen:3306,fork,reuseaddr tcp-connect:db:3306
@@ -190,118 +196,54 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 
 ## デプロイしたいとき
 
-配置先サーバーの `<app>/<stg|prod>/` に `dist/` の中身をそのまま置いて実行する:
+**Komodo（https://komodo.nolumia.com）から行う。** 手順の正本は deploy-repo の
+`docs/new-stack.md`、このテンプレート固有の点は `deploy/komodo/README.md`（ADR-0023）。
+
+```
+1. ソースを push        → Komodo Build がイメージを焼いてレジストリへ push
+                          （webhook を付けていなければ Komodo の画面から Build を実行）
+2. Komodo の画面で対象スタックを Deploy   → 新しいイメージを pull して入れ替わる
+3. 疎通確認  curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<PORT>/healthz
+```
+
+**本番スタックの入れ替えは自動化していない。** push のたびに本番が差し替わるのを
+避けるため、ビルドと定義同期までを自動にしてある。
+
+マイグレーションは `app` の entrypoint が起動時に流す（`alembic upgrade head`）。
+デプロイの手順としては分かれていない。
+
+## デプロイした版を確認したいとき
 
 ```bash
-./deploy.sh app          # 通常デプロイ（アプリのみ更新）
-./deploy.sh migrate      # DDL 更新時（Alembic migration 追加時）
-./deploy.sh reset        # 完全初期化（DB 消去。破壊的）
+curl -s http://10.10.2.11:<PORT>/info        # version / commit / branch / build_date
 ```
 
-環境（stg / prod）は配置ディレクトリ名から、**デプロイの名前（アプリ名）は親ディレクトリ名
-から**自動判定される（ADR-0015）。`.env` が無ければ初回実行時にテンプレートが自動生成される。
+`version` が `dev` になっている場合、その Build 定義に `pre_build` が無い
+（`deploy/komodo/README.md`「pre_build（版の刻印）」）。ビルドは成功するのに版だけが
+分からない状態なので、気付いたら Build 定義を直して焼き直す。
 
-```
-/volume1/docker/rewardpointsweb/prod/deploy.sh   → アプリ名 rewardpointsweb・環境 prod
-/volume1/docker/kaimono/stg/deploy.sh            → アプリ名 kaimono・環境 stg
-```
+## 前の版へ戻したいとき
 
-実際に使われた名前と出所は起動時に 1 行出力される:
+Komodo はビルドのたびに `latest` / `<コミット>` / `0.0.N` のタグを打つ。
+戻したい版のタグをスタックの `APP_IMAGE_TAG` に指定して Deploy する。
 
-```
-[deploy:prod] Deploy name: rewardpointsweb (source: 親ディレクトリ名（/volume1/docker/rewardpointsweb）, env: prod)
-```
-
-## デプロイの名前を変えたい・テンプレート名のままで止まったとき
-
-`デプロイの名前がテンプレートのまま（fastapitemplate）です` で中断した場合、
-次のどちらかで直して再デプロイする（このテンプレートから作ったプロジェクトが
-元テンプレートと同じコンテナ名・ホストポートを取り合わないための制約。ADR-0015）。
-
-```bash
-# 1. 配置場所を変える（推奨。ディレクトリ名がそのままアプリ名になる）
-mv /volume1/docker/fastapitemplate /volume1/docker/rewardpointsweb
-
-# 2. ディレクトリ名と無関係に固定したいときは .env に書く
-echo 'APP_NAME=rewardpointsweb' >> /volume1/docker/<app>/prod/.env
+```toml
+APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 ```
 
-名前を変えると、旧名の compose プロジェクトは次のデプロイで 1 度だけ自動的に畳まれ、
-自動生成された `.env` の `DB_CONTAINER_NAME` / `DOCKER_NETWORK_NAME` も書き換わる。
-ディレクトリごと移動した場合は `HOST_DATA_ROOT`（移動前の絶対パスが書かれている）も
-現在地へ直る。**DB のデータは `mnt/db_data` ごと移動するため引き継がれる。**
+**DB のスキーマは戻らない。** マイグレーションを含む版から戻すときは、
+その `downgrade()` を先に当てる必要がある。
 
-自動で直るのは deploy が生成した既定値だけ。次の場合は手で直す。
+## 新しいアプリを Komodo に載せたいとき
 
-- `.env` の値を自分で選んでいる場合（例: `HOST_DATA_ROOT` を別ディスクにしている、
-  `DB_CONTAINER_NAME` を独自の名前にしている）。
-- 移動先が元と別の親ディレクトリの場合（例 `/volume1/docker/…` → `/volume2/apps/…`）。
-  旧コンテナが自分のものだと判定できないため、`… にこの環境ディレクトリ以外のコンテナが
-  含まれるため畳みません` と出て畳まれない。出力された `working_dir=` が自分の旧デプロイの
-  ものだと確認できたら、手で畳んでから再デプロイする:
+`deploy/komodo/` の雛形を deploy-repo へ複製する。手順は
+[deploy/komodo/README.md](../deploy/komodo/README.md)。要点だけ:
 
-  ```bash
-  docker compose -p fastapitemplate down --remove-orphans
-  ```
-
-## デプロイが「container name is already in use」で失敗したとき
-
-同じ名前のコンテナの残骸は `deploy.sh` が自動で消してやり直すため、通常この手順は
-要らない。次の 2 つのときだけ手を動かす（判断の理由は ADR-0014）。
-
-**別の compose プロジェクトが名前を握っている場合**（`belongs to another compose
-project` と出る）。stg と prod でコンテナ名が重複している。名前の持ち主を確認する:
-
-```bash
-docker ps -a --filter name=<出力に出たコンテナ名> \
-  --format '{{.ID}}  {{.Names}}  {{.State}}  project={{.Label "com.docker.compose.project"}}'
-```
-
-アプリごと・環境ごとの名前は配置場所から決まるため（ADR-0015）、通常この状態にはならない。
-出たときは、同じ名前を使う別のアプリが同じホストにいる（配置ディレクトリ名が同じ、または
-`.env` の `APP_NAME` / `DB_CONTAINER_NAME` を手で同じ値にしている）。各環境ディレクトリの
-`.env` の `DB_CONTAINER_NAME` を別の値にし（例: prod は `<app>-mariadb`、stg は
-`<app>-mariadb-stg`）、再デプロイする。
-
-**実体の無い名前を Docker が握っている場合**（`Docker still holds the container
-name, but no container is behind it` と出て、`docker ps -a` にも `docker inspect`
-にも出ない）。Docker が名前だけ掴んだまま解放していない。削除では解消しないので、
-デーモンを再起動してから再デプロイする:
-
-```bash
-sudo systemctl restart docker    # Synology DSM: パッケージセンターから Container Manager を停止 → 起動
-./deploy.sh app
-```
-
-## デプロイ先に git が無いホスト（Synology 等）で一括デプロイしたいとき
-
-`scripts/build-remote-container.sh` をデプロイ先の `<app>/<stg|prod>/` に一度だけ手で置き、
-同じ場所に `build-remote-container.env`（雛形: `scripts/build-remote-container.env.example`）を
-作成してから実行する:
-
-```bash
-./build-remote-container.sh            # app（通常デプロイ）
-./build-remote-container.sh migrate
-./build-remote-container.sh reset
-```
-
-git pull → build.sh → dist/ 取り込み → deploy.sh を 1 本で実行する
-（ビルドは同一ホスト上の dev コンテナ内。スクリプト自身も自動で最新版へ差し替わる）。
-
-## 初回デプロイの WEB 公開ポートを既定値から変えたいとき
-
-`.env` が生成される前（初回デプロイ）にポートを決めるには、`build-remote-container.env` に書く:
-
-```bash
-APP_WEB_HOST_PORT=8090
-```
-
-初回デプロイ時に生成される `.env` の `WEB_HOST_PORT` へ転記される。
-未指定なら環境ディレクトリ名から決まる既定値（stg=8081 / prod=8080）が使われる。
-
-**すでに `.env` がある環境でポートを変えるときは `.env` の `WEB_HOST_PORT` を直接編集する。**
-`deploy.sh` は既存の `.env` を書き換えないため、`APP_WEB_HOST_PORT` を後から変えても効かない
-（理由は ADR-0008）。編集後は `./deploy.sh app`（または `./build-remote-container.sh`）で再デプロイする。
+- ポートは採番表から**計算**する（空き番号を勝手に取らない）
+- `builds.toml` の `[build.config.pre_build]` を**必ず書く**（版の刻印）
+- `stacks.toml` に `tags = ["managed"]` と `ignore_services = ["init-paths"]`
+- 秘密は Komodo の Variable へ。`JWT_SECRET_KEY` は必ず生成した値を入れる
+- 公開するときは **Access を作ってから ingress**（逆順は無認証で公開される）
 
 ## システム設定を変更したいとき
 
@@ -315,7 +257,7 @@ APP_WEB_HOST_PORT=8090
 ## アプリを再起動したいとき
 
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
-- ホスト: `docker compose restart web`
+- ホスト: `docker compose restart app`（デプロイ先は Komodo の画面から）
 
 ## 管理者がパスワードを忘れてサインインできないとき
 
@@ -367,7 +309,7 @@ ADMIN_INITIAL_PASSWORD='<new-password>' uv run python scripts/seed_master_data.p
 # docker compose（MariaDB）。資格情報はコンテナ内で展開させる（上記「DB を操作したいとき」参照）
 docker compose exec -T db \
   sh -c 'exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' < recover-admin.sql
-docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' web \
+docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' app \
   python scripts/seed_master_data.py
 ```
 
@@ -389,7 +331,7 @@ docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' web \
 |---|---|---|
 | `npm run dev`（既定） | `localhost` | `http://localhost:5173` |
 | ビルド済み SPA を FastAPI から | `localhost` | `http://localhost:8000` |
-| docker compose（nginx 経由） | `localhost` | `http://localhost:8080` |
+| docker compose（front＝nginx 経由） | `localhost` | `http://localhost:8080` |
 | 本番 | 公開ドメイン | `https://<公開ドメイン>` |
 
 RP ID にはドメイン名しか指定できない（IP アドレス不可）。開発時は
@@ -399,7 +341,7 @@ RP ID にはドメイン名しか指定できない（IP アドレス不可）�
 
 | 見たいもの | 画面（必要 scope） | DB | コンテナ |
 |---|---|---|---|
-| システムが何をしたか（リクエスト・警告・例外） | `/admin/logs`（`log:view`） | `log` | `docker compose logs web` |
+| システムが何をしたか（リクエスト・警告・例外） | `/admin/logs`（`log:view`） | `log` | `docker compose logs app` |
 | 誰が何をしたか（ログイン・管理操作・設定変更） | `/admin/audit-logs`（`audit:view`） | `audit_log` | — |
 
 どちらの記録にも同じ `requestId` が入る。片方で見つけた ID をもう一方の絞り込みに
