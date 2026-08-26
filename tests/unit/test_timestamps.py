@@ -43,3 +43,16 @@ def test_offset_notation_is_never_emitted() -> None:
 def test_to_naive_utc_drops_the_offset_after_converting() -> None:
     assert to_naive_utc(datetime(2026, 8, 26, 13, 0, tzinfo=JST)) == datetime(2026, 8, 26, 4, 0)
     assert to_naive_utc(None) is None
+
+
+def test_utc_datetime_field_renders_with_a_trailing_z() -> None:
+    """レスポンスモデルに載せた時刻も Z で出る（フロントの new Date が正しく読む）。"""
+    from pydantic import BaseModel
+
+    from presentation.fastapi.schemas.types import UtcDatetime
+
+    class _Sample(BaseModel):
+        updated_at: UtcDatetime
+
+    dumped = _Sample(updated_at=datetime(2026, 8, 26, 4, 20, 47)).model_dump(mode="json")
+    assert dumped["updated_at"] == "2026-08-26T04:20:47Z"

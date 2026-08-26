@@ -349,7 +349,7 @@ SystemSetting.query.get("some_key")
 3. **API の外へ出す ISO 文字列には必ず `Z` を付ける** — `timestamps.isoformat_utc()`
    を通す。オフセットの無い ISO 文字列は JavaScript の `new Date()` が**ローカル時刻
    として**解釈するため、付け忘れると JST の閲覧者で 9 時間ずれる。
-   `datetime` を直接返すレスポンスモデルを足すときも、naive のまま出すと同じ穴が開く。
+   レスポンスに `datetime` を直接載せるときは `presentation/fastapi/schemas/types.py` の `UtcDatetime` を使う。
 4. **シェルスクリプトの `date` は `-u` を明示する。** コンテナの `TZ` に引きずられない。
 
 コンテナ側は「作られるときに一律 UTC」が別途契約になっている（HANDOVER §14）。
