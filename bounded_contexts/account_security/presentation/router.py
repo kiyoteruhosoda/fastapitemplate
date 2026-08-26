@@ -54,6 +54,7 @@ from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import get_current_principal
 from presentation.fastapi.schemas.auth import StatusResponse
 from shared.application.authenticated_principal import AuthenticatedPrincipal
+from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(prefix="/api/account/security", tags=["account-security"])
 
@@ -65,8 +66,8 @@ def _to_passkey_response(summary: PasskeySummaryDto) -> PasskeyResponse:
         id=summary.id,
         name=summary.name,
         transports=list(summary.transports),
-        created_at=summary.created_at.isoformat() if summary.created_at else None,
-        last_used_at=summary.last_used_at.isoformat() if summary.last_used_at else None,
+        created_at=isoformat_utc(summary.created_at) if summary.created_at else None,
+        last_used_at=isoformat_utc(summary.last_used_at) if summary.last_used_at else None,
     )
 
 

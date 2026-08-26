@@ -59,7 +59,7 @@ else
     SOURCE="default"
 fi
 
-BUILD_DATE=$(date -Iseconds)
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # 契約: 時刻は UTC・末尾は Z（HANDOVER §14）
 
 mkdir -p "$(dirname "$VERSION_FILE")"
 cat > "$VERSION_FILE" << JSON

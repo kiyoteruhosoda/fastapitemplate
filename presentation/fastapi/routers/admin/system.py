@@ -43,6 +43,7 @@ from shared.kernel.restart import (
     RestartRequestStore,
     RestartScope,
 )
+from shared.kernel.timestamps import isoformat_utc
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def _to_response(request: RestartRequest) -> RestartRequestResponse:
     return RestartRequestResponse(
         scope=request.scope.value,
         token=request.token,
-        requested_at=(request.requested_at.isoformat() if request.requested_at else None),
+        requested_at=(isoformat_utc(request.requested_at) if request.requested_at else None),
         requested_by=request.requested_by,
         reason=request.reason,
     )
@@ -84,7 +85,7 @@ async def system_status(request: Request, _principal: SystemManagerDep, db: DbDe
         environment=build_info.environment,
         components={"api": "ok", "database": database},
         uptime_seconds=(now - request.app.state.startup_time).total_seconds(),
-        timestamp_utc=now.isoformat(),
+        timestamp_utc=isoformat_utc(now),
     )
 
 

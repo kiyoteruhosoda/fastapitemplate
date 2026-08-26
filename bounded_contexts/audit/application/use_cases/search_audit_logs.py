@@ -17,6 +17,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget
 from bounded_contexts.audit.domain.value_objects.log_search_criteria import (
     AuditLogCriteria,
 )
+from shared.kernel.timestamps import isoformat_utc
 
 
 class SearchAuditLogs:
@@ -49,7 +50,7 @@ class ListAuditLogFilterOptions:
 def _to_dto(entry: AuditLogEntry) -> AuditLogEntryDto:
     return AuditLogEntryDto(
         id=entry.id,
-        occurred_at=entry.occurred_at.isoformat(),
+        occurred_at=isoformat_utc(entry.occurred_at),
         event_type=entry.event_type,
         result=entry.result,
         actor_user_id=entry.actor_user_id,

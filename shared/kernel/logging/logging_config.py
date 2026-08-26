@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import logging
 import sys
-from datetime import UTC, datetime
 from typing import Any
 
 from shared.kernel.logging.request_context import (
     current_request_id,
     current_user_id_hash,
 )
+from shared.kernel.timestamps import isoformat_utc, utcnow
 
 _STDLIB_ATTRS = frozenset(
     {
@@ -62,7 +62,7 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         record.message = record.getMessage()
         log: dict[str, Any] = {
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": isoformat_utc(utcnow()),
             "level": record.levelname,
             "logger": record.name,
             "message": record.message,
