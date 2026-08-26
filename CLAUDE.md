@@ -340,6 +340,20 @@ SystemSetting.query.get("some_key")
 
 時刻は常に UTC。traceback フィールドは NULLABLE（例外時のみ記録）。
 
+### 時刻の契約
+
+1. **保存・比較・ログはすべて UTC。** 生成口は `shared/kernel/timestamps.utcnow()`
+   （naive な UTC）。`datetime.now()` / `datetime.utcnow()` / `date.today()` は書かない。
+2. **ローカルタイムへ直すのは画面だけ。** サーバは UTC のまま返し、フロントエンドが
+   閲覧者のタイムゾーンで描く。
+3. **API の外へ出す ISO 文字列には必ず `Z` を付ける** — `timestamps.isoformat_utc()`
+   を通す。オフセットの無い ISO 文字列は JavaScript の `new Date()` が**ローカル時刻
+   として**解釈するため、付け忘れると JST の閲覧者で 9 時間ずれる。
+   `datetime` を直接返すレスポンスモデルを足すときも、naive のまま出すと同じ穴が開く。
+4. **シェルスクリプトの `date` は `-u` を明示する。** コンテナの `TZ` に引きずられない。
+
+コンテナ側は「作られるときに一律 UTC」が別途契約になっている（HANDOVER §14）。
+
 ---
 
 ## テスト

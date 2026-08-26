@@ -17,6 +17,7 @@ from bounded_contexts.audit.domain.value_objects.log_search_criteria import (
     ApplicationLogCriteria,
     LogLevel,
 )
+from shared.kernel.timestamps import isoformat_utc
 
 
 class SearchApplicationLogs:
@@ -41,7 +42,7 @@ class ListApplicationLogFilterOptions:
 def _to_dto(entry: ApplicationLogEntry) -> ApplicationLogEntryDto:
     return ApplicationLogEntryDto(
         id=entry.id,
-        created_at=entry.created_at.isoformat(),
+        created_at=isoformat_utc(entry.created_at),
         level=entry.level,
         logger=entry.logger,
         message=entry.message,

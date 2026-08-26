@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from shared.kernel.database.session import get_db
+from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(tags=["ops"])
 
@@ -51,7 +52,7 @@ async def liveness(request: Request) -> LivenessResponse:
     return LivenessResponse(
         status="ok",
         version=build_info.version,
-        timestamp_utc=now.isoformat(),
+        timestamp_utc=isoformat_utc(now),
         uptime_seconds=(now - startup_time).total_seconds(),
     )
 
@@ -72,7 +73,7 @@ async def readiness(
     body = ReadinessResponse(
         status="ok" if all_ok else "ng",
         checks=checks,
-        timestamp_utc=now.isoformat(),
+        timestamp_utc=isoformat_utc(now),
     )
     return JSONResponse(
         status_code=status.HTTP_200_OK if all_ok else status.HTTP_503_SERVICE_UNAVAILABLE,
