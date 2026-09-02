@@ -68,6 +68,9 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
     `active_role` も持つが、これは表示・切り替えのためで認可には使わない。
 - ロール・権限コード・初期管理者は `shared/domain/auth/master_data.py` で一元管理し、
   マイグレーションのシードと `scripts/seed_master_data.py` が参照する。
+  投入は 2 つに分かれている（ADR-0024）。`seed_master_data` は**ロールと権限だけ**、
+  `ensure_default_admin` が初期管理者を据える。後者を呼ぶのは据え付けの `0002` と
+  投入スクリプトだけで、権限を足すマイグレーションは前者しか呼ばない。
 
 - 第二の要素（二要素認証・パスキー）は `bounded_contexts/account_security/` が持つ
   （ADR-0003）。パスワード認証は上記のまま、ログイン時に TOTP を検証する／パスキー

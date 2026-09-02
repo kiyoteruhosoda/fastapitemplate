@@ -267,6 +267,10 @@ APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 > **`scripts/seed_master_data.py` の再実行では復旧しない。** 投入は冪等で既存ユーザーを
 > 変更しないため、`ADMIN_INITIAL_PASSWORD` は**ユーザーが存在しないときだけ**使われる。
 > 実行は成功するが、パスワードは元のまま。
+>
+> ⚠ **マイグレーションは初期管理者を作らない**（ADR-0024。据え付けの `0002` だけが
+> 作る）。消した `admin@example.com` は消えたままになる。据え直したいときは、
+> このスクリプトを手で流す。
 
 ### 他に `user:manage` を持つユーザーがいるとき
 

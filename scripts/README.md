@@ -4,7 +4,7 @@
 |---|---|
 | `entrypoint.sh` | コンテナ起動。起動診断 → DB 接続待ち（MariaDB 使用時）→ `web` モードでは `alembic upgrade head` の後に Gunicorn + UvicornWorker を起動する。モードは compose の `command`（`web` / `migrate`）で指定する。 |
 | `run_db_migrations.py` | `alembic upgrade head` を実行する。どこから呼んでもプロジェクトルートへ chdir して動く。 |
-| `seed_master_data.py` | ロール・権限・初期管理者を投入する（冪等）。値の正本は `shared/domain/auth/master_data.py`。`ADMIN_INITIAL_PASSWORD` 環境変数で初期管理者パスワードを上書きできる。 |
+| `seed_master_data.py` | ロール・権限を投入し、**初期管理者が居なければ**据える（冪等）。値の正本は `shared/domain/auth/master_data.py`。`ADMIN_INITIAL_PASSWORD` 環境変数で初期管理者パスワードを上書きできる。⚠ 管理者を据えるのはこのスクリプトと据え付けのマイグレーション（`0002`）だけ。権限を足すマイグレーションは `seed_master_data` しか呼ばない（ADR-0024）。 |
 | `generate_pwa_icons.py` | `frontend/public/` のアイコン（`favicon.svg`・`pwa-192x192.png`・`pwa-512x512.png`・`pwa-maskable-512x512.png`・`apple-touch-icon.png`）を生成する。配色と図形の正本はこのスクリプトで、出力物は生成結果としてコミットする。PNG の書き出しは標準ライブラリ（`zlib` / `struct`）だけで行うため追加の依存は要らない。`maskable` 用は OS の切り抜きに備えてセーフゾーンを取った別画像、`apple-touch-icon.png` は iOS が独自に角丸へ切るため透明な角を持たない。 |
 | `generate_version.sh` | `shared/kernel/version.json` を作る。**ビルドの前に走らせる**（Komodo Build の `pre_build`／`make image`）。詳細は下記。 |
 

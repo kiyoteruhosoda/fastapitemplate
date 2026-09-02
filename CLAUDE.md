@@ -248,6 +248,7 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - `upgrade()` / `downgrade()` の両方を実装する。
 - ベースラインは `migrations/versions/0001_init_master.py`（全テーブルを現行モデルから生成）。
 - マスタデータ（ロール・権限・初期管理者）は `shared/domain/auth/master_data.py` を唯一の出所とし、`versions/*_seed_master_data.py` と `scripts/seed_master_data.py` の双方が参照する。値をどちらかに直書きしない。
+- **権限やロールを足すマイグレーションは `seed_master_data` だけを呼ぶ。** `ensure_default_admin` を呼ぶのは据え付け（`0002`）と投入スクリプトだけ（ADR-0024）。呼ぶと、運用の途中で消した既定の管理者が既定のパスワードのまま復活する。
 - テーブル・カラム・リレーション・制約を変更したら **`docs/ER.md` の ER 図とテーブル定義を同じコミットで更新する**。
 
 ---

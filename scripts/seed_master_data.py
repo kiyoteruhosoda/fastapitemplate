@@ -22,12 +22,14 @@ from dotenv import load_dotenv
 def main() -> None:
     load_dotenv()
 
-    from shared.infrastructure.master_data_seeder import seed_master_data
+    from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
     from shared.kernel.database.db import get_session_factory
 
     session = get_session_factory()()
     try:
-        seed_master_data(session, admin_password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None)
+        seed_master_data(session)
+        # 手で流すときは復旧が目的なので、居なければ初期管理者も据える（ADR-0024）。
+        ensure_default_admin(session, password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None)
         session.commit()
         print("Master data seeded.")
     except Exception:

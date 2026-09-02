@@ -21,7 +21,7 @@ import bounded_contexts.audit.infrastructure.audit_log_model
 import bounded_contexts.example.infrastructure.item_model  # noqa: F401 — メタデータ登録
 import shared.infrastructure.models  # noqa: F401 — メタデータ登録
 from shared.domain.auth import master_data
-from shared.infrastructure.master_data_seeder import seed_master_data
+from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
 from shared.kernel.settings.settings import settings
@@ -38,6 +38,7 @@ def engine() -> Iterator[sa.Engine]:
     db_module.set_engine(engine)
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     seed_master_data(session)
+    ensure_default_admin(session)
     session.commit()
     session.close()
     yield engine
