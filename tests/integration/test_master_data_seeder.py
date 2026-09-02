@@ -44,6 +44,12 @@ def test_reseeding_still_adds_new_roles_and_permissions(engine: sa.Engine) -> No
     manager = session.scalar(sa.select(Role).where(Role.name == "manager"))
     assert manager is not None
     manager.permissions.clear()
+    # ⚠ 権限の行を消す前に、**どのロールからも外す**。外部キーを検査する設定
+    #    （派生アプリでは SQLite でも有効にしている）だと、参照が残ったままでは
+    #    消せない。
+    for role in session.scalars(sa.select(Role)):
+        role.permissions = [item for item in role.permissions if item.code != "audit:view"]
+    session.flush()
     session.execute(sa.delete(Permission).where(Permission.code == "audit:view"))
     session.flush()
 
