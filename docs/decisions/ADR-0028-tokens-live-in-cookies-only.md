@@ -66,8 +66,23 @@ SSO を足した（ADR-0025）ことでトークンを発行する経路は 3 �
 ## 影響
 
 - **API の互換が壊れる。** `TokenResponse` から `access_token` / `refresh_token` が
-  消える（SSO の `SsoSessionResponse` も `redirect_to` だけになる）。**この
-  テンプレートから作った既存のアプリは、フロントエンドを同じ形に直すまで動かない。**
+  消える（SSO の `SsoSessionResponse` も `redirect_to` だけになる）。
+
+  影響するのは **API を直接叩いて本文からトークンを取り出している呼び出し元**で、
+  ブラウザからのログインではない。SPA は同じコミットで直すので、テンプレートを
+  取り込めば画面は揃う。**派生アプリは fork なので、取り込むまでは動き続ける**
+  （ライブラリを共有しているわけではない）。
+
+  実際に止まるのはこの形のコードである。
+
+  ```python
+  token = requests.post(f"{base}/api/auth/login", json=...).json()["access_token"]
+  ```
+
+  直し方は小さい —— `requests.Session` / `httpx.Client` で Set-Cookie を保持し、
+  以後は Cookie で叩く。**取り込む前に、自分の機械の呼び出し元を数えておくこと。**
+- **派生の取り込みには手間がかかる。** 画面を足している派生では `api.ts` の変更が
+  コンフリクトする。壊れるのではなく、マージが手作業になるという意味である。
 - **Swagger UI の Authorize ボタンは使わなくなる。** ブラウザでログインしていれば
   Cookie が付くのでそのまま叩ける。手元で `curl` を使うときは `-c` / `-b` で
   Cookie を扱う（`docs/OPERATIONS.md` に手順が要る）。
