@@ -140,18 +140,20 @@ CLAUDE.md・README・ADR-0023・OPERATIONS.md がかなりの分量を使って�
 
 ### T13 外部 IdP との SSO（`identity_federation` の逆輸入）
 
-方式は **ADR-0025** で決めた。派生（nolumiawiki / rewardpointsweb）が同じ形へ独立に
-たどり着いているので、ここは設計ではなく**移植と一般化**の作業になる。
+方式は **ADR-0025** で決めた。派生 3 つ（nolumiawiki / rewardpointsweb / photonest）が
+それぞれ独自に書いているので、ここは設計ではなく**部分ごとに良い方を採る移植**になる。
 
 やること:
 
-1. `bounded_contexts/identity_federation/` を nolumiawiki から移す（骨格）。
-   「寄せてよいか」の判断は rewardpointsweb の `AccountLinkingPolicy` を採る。
+1. `bounded_contexts/identity_federation/` を nolumiawiki から移す（層の分け方・
+   ポリシー・README）。「寄せてよいか」の判断は rewardpointsweb の
+   `AccountLinkingPolicy`、**往復状態（`state` / `nonce` / `code_verifier`）は
+   photonest の署名付き Cookie**（`oidc_tx` 相当）を採る。
    **機械トークンの部分（`machine_client` / `exchange_machine_token` /
    `machine_router` と `OidcProviderGateway.verify_machine_token`）は持ってこない**（T15）。
 2. 経路を `/api/auth/sso/*` に揃える。
-3. マイグレーション 1 本（`federated_identities` / `sso_login_sessions` /
-   `sso_login_tickets`）と `docs/ER.md`。
+3. マイグレーション 1 本（`federated_identities` / `sso_login_tickets`）と `docs/ER.md`。
+   **`sso_login_sessions` は作らない**（往復状態は Cookie に載るため）。
 4. 設定キー（`OIDC_*`）を 3 ファイルへ。**既定は `OIDC_ENABLED=false` /
    `OIDC_AUTO_PROVISION=false`**（テンプレートは安全側）。
 5. `httpx` を実行時の依存へ追加。
