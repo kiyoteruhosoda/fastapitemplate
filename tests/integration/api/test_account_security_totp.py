@@ -7,6 +7,7 @@ import pyotp
 import pytest
 from fastapi.testclient import TestClient
 
+from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 from shared.domain.auth import master_data
 
 
@@ -86,7 +87,8 @@ def test_login_rejects_wrong_code(client: TestClient, enrolled_secret: str) -> N
 def test_login_succeeds_with_code(client: TestClient, enrolled_secret: str) -> None:
     response = _login(client, totp_code=pyotp.TOTP(enrolled_secret).now())
     assert response.status_code == 200
-    assert response.json()["access_token"]
+    assert response.json()["expires_in"] > 0
+    assert client.cookies[ACCESS_TOKEN_COOKIE]
 
 
 def test_second_enrollment_is_rejected_while_enabled(

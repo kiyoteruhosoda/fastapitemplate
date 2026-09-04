@@ -19,8 +19,7 @@ export interface SsoProvider {
 }
 
 export interface SsoSession {
-  access_token: string
-  refresh_token: string
+  expires_in: number
   /** SSO を始めた画面（アプリ内の経路）。 */
   redirect_to: string
 }

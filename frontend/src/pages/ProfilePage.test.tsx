@@ -32,16 +32,15 @@ const ME: Me = {
   active_role: 'member',
 }
 
-const { apiGet, apiPut } = vi.hoisted(() => ({
+const { apiGet, apiPut, apiPost } = vi.hoisted(() => ({
   apiGet: vi.fn(),
   apiPut: vi.fn(),
+  apiPost: vi.fn(),
 }))
 
+// トークンは Cookie で運ばれるので、この層に保持の口はもう無い（ADR-0028）。
 vi.mock('../services/api', () => ({
-  api: { get: apiGet, put: apiPut },
-  hasTokens: () => true,
-  setTokens: vi.fn(),
-  clearTokens: vi.fn(),
+  api: { get: apiGet, put: apiPut, post: apiPost },
   errorMessageKey: () => 'error.unknown_error',
 }))
 

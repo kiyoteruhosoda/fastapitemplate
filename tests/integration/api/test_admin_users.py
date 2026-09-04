@@ -1,12 +1,14 @@
 from fastapi.testclient import TestClient
 
+from tests.conftest import sign_in
+
 
 def test_admin_users_require_permission(client: TestClient) -> None:
     client.cookies.clear()
     assert client.get("/api/admin/users").status_code == 401
 
 
-def test_user_crud_and_role_scope(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_user_crud_and_role_scope(client: TestClient, other_client: TestClient, admin_headers: dict[str, str]) -> None:
     # 作成
     response = client.post(
         "/api/admin/users",
@@ -22,15 +24,12 @@ def test_user_crud_and_role_scope(client: TestClient, admin_headers: dict[str, s
     user_id = response.json()["id"]
     assert response.json()["roles"] == ["member"]
 
-    # member ロールでは items 閲覧のみ・管理系は 403
-    login = client.post(
-        "/api/auth/login",
-        json={"email": "member@example.com", "password": "member-pass-1"},
-    )
-    member_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
-    assert client.get("/api/items", headers=member_headers).status_code == 200
-    assert client.post("/api/items", headers=member_headers, json={"name": "x"}).status_code == 403
-    assert client.get("/api/admin/users", headers=member_headers).status_code == 403
+    # member ロールでは items 閲覧のみ・管理系は 403。
+    # セッションは Cookie なので、別の利用者は別のクライアントで持つ（ADR-0028）。
+    member_headers = sign_in(other_client, "member@example.com", "member-pass-1")
+    assert other_client.get("/api/items").status_code == 200
+    assert other_client.post("/api/items", headers=member_headers, json={"name": "x"}).status_code == 403
+    assert other_client.get("/api/admin/users").status_code == 403
 
     # 更新（無効化）
     response = client.put(

@@ -20,6 +20,7 @@ from bounded_contexts.account_security.infrastructure import account_security_mo
 from bounded_contexts.audit.infrastructure import audit_log_model
 from bounded_contexts.example.infrastructure import item_model
 from bounded_contexts.identity_federation.infrastructure import identity_federation_models
+from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
 from shared.infrastructure import models as shared_models
 from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
@@ -81,11 +82,34 @@ def client(app: FastAPI) -> Iterator[TestClient]:
 
 
 @pytest.fixture
-def admin_headers(client: TestClient) -> dict[str, str]:
-    response = client.post(
-        "/api/auth/login",
-        json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": master_data.DEFAULT_ADMIN_PASSWORD},
-    )
+def other_client(app: FastAPI) -> Iterator[TestClient]:
+    """もう 1 つのブラウザ（別のセッション）。
+
+    トークンを Cookie で運ぶようになったので、**1 つの ``TestClient`` が持てる
+    セッションは 1 つ**になった（ブラウザと同じ）。管理者と一般利用者を行き来する
+    テストは、identity ごとにクライアントを分ける。
+    """
+    with TestClient(app) as c:
+        yield c
+
+
+def sign_in(client: TestClient, email: str, password: str) -> dict[str, str]:
+    """ログインして、更新系に必要なヘッダーを返す（ADR-0028）。
+
+    トークンは Cookie で運ばれ ``TestClient`` が保持するので、返すのは CSRF の
+    二重送信トークンだけ。**セッションを張り直すたびに読み直す** ——CSRF トークンは
+    セッションを作るたびに新しくなる。
+    """
+    response = client.post("/api/auth/login", json={"email": email, "password": password})
     assert response.status_code == 200, response.text
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return {CSRF_HEADER: client.cookies[CSRF_COOKIE]}
+
+
+@pytest.fixture
+def admin_headers(client: TestClient) -> dict[str, str]:
+    """管理者としてログインし、更新系に必要なヘッダーを返す（ADR-0028）。
+
+    トークンは応答本文に載らず Cookie で運ばれる。``TestClient`` が Cookie を
+    保持するので、**返すのは CSRF の二重送信トークンだけ**でよい。
+    """
+    return sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)

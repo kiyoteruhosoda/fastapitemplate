@@ -12,15 +12,15 @@ class LoginRequest(BaseModel):
     totp_code: str | None = None
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str
+class SessionResponse(BaseModel):
+    """ログインが成立したことと、アクセストークンの寿命（ADR-0028）。
+
+    ⚠ **トークンそのものは載せない。** Cookie で運ぶ。本文にも返すと、Cookie が
+    自動で送られる以上、XSS が更新の口を叩いて新しいトークンを読めてしまう。
+    ``expires_in`` は SPA が更新の頃合いを測るためだけの値。
+    """
+
     expires_in: int
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
 
 
 class MeResponse(BaseModel):

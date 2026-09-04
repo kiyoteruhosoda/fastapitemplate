@@ -30,6 +30,18 @@ npm run test         # Vitest
 
 ---
 
+## セッションの持ち方
+
+**この SPA はトークンを持たない**（ADR-0028）。access / refresh とも httpOnly Cookie で
+運ばれ、JavaScript からは見えない。そのため:
+
+- ログイン済みかどうかは **`GET /api/auth/me` の成否**で判断する（手元の値を見ない）。
+- 更新系（POST / PUT / PATCH / DELETE）には **CSRF の二重送信トークン**
+  （`csrf_token` Cookie の値を `X-CSRF-Token` ヘッダーへ）を載せる。
+  `src/services/api.ts` が毎回 Cookie から読み直す ——セッションを張り直すたびに
+  新しくなるので、控えると古い値を送ることになる。
+- ログアウトで Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
+
 ## 画面遷移図
 
 ```mermaid

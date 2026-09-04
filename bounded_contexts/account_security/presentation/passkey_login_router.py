@@ -25,10 +25,9 @@ from bounded_contexts.account_security.presentation.schemas import (
 from bounded_contexts.audit.application.use_cases.record_audit_event import RecordAuditEvent
 from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
-from presentation.fastapi.dependencies.auth import set_access_token_cookie
 from presentation.fastapi.dependencies.local_login import require_local_login
-from presentation.fastapi.schemas.auth import TokenResponse
-from presentation.fastapi.services.token_service import TokenService
+from presentation.fastapi.schemas.auth import SessionResponse
+from presentation.fastapi.services.session_cookies import establish_session
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
 
@@ -68,7 +67,7 @@ async def create_login_challenge(
     return PasskeyChallengeResponse(challenge_id=challenge.challenge_id, public_key=challenge.public_key)
 
 
-@router.post("/login", response_model=TokenResponse, dependencies=[Depends(require_local_login)])
+@router.post("/login", response_model=SessionResponse, dependencies=[Depends(require_local_login)])
 async def login_with_passkey(
     body: PasskeyAuthenticationRequest,
     response: Response,
@@ -77,7 +76,7 @@ async def login_with_passkey(
         CompletePasskeyAuthentication,
         Depends(dependencies.complete_passkey_authentication),
     ],
-) -> TokenResponse:
+) -> SessionResponse:
     user_id = use_case.execute(challenge_id=body.challenge_id, credential=body.credential)
 
     user = recording.db.get(User, user_id)
@@ -87,9 +86,8 @@ async def login_with_passkey(
             detail={"error": "invalid_credentials"},
         )
 
-    pair = TokenService.create_token_pair(user)
-    set_access_token_cookie(response, str(pair["access_token"]))
+    session = establish_session(response, user)
     # どの入口で入ったかを残す（ADR-0026 決定 1）。
     recording.audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=passkey")
     logger.info("passkey_login_succeeded")
-    return TokenResponse(**pair)  # type: ignore[arg-type]
+    return session

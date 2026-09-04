@@ -25,6 +25,8 @@ from bounded_contexts.account_security.domain.exceptions import TotpNotEnrolledE
 from presentation.fastapi.dependencies.auth import get_current_principal
 from presentation.fastapi.error_handling import INTERNAL_ERROR_CODE
 from shared.application.authenticated_principal import AuthenticatedPrincipal
+from shared.domain.auth import master_data
+from tests.conftest import sign_in
 
 _ALLOWED_ORIGIN = "https://app.example.com"
 _ERROR_LOGGER = "presentation.fastapi.error_handling"
@@ -170,7 +172,7 @@ def test_validation_failure_logs_the_fields_but_not_the_values(
 
 
 def test_the_500_log_line_knows_whose_request_it_was(
-    client_with_failing_endpoint: TestClient, admin_headers: dict[str, str], caplog: pytest.LogCaptureFixture
+    client_with_failing_endpoint: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
     """認証済みのリクエストで落ちたら、ログ行に ``user_id_hash`` が乗ること。
 
@@ -178,8 +180,10 @@ def test_the_500_log_line_knows_whose_request_it_was(
     タスク**で走るため認証依存関数が設定した ``contextvars`` が伝わらず、
     500 の行だけ「誰のリクエストか」が空になる。素の ASGI で書いている理由。
     """
+    # セッションは Cookie で持つので、**このクライアントで**ログインする（ADR-0028）。
+    sign_in(client_with_failing_endpoint, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     with caplog.at_level(logging.DEBUG, logger=_ERROR_LOGGER):
-        response = client_with_failing_endpoint.get("/api/test/authenticated-boom", headers=admin_headers)
+        response = client_with_failing_endpoint.get("/api/test/authenticated-boom")
 
     assert response.status_code == 500
     records = _records(caplog)

@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -32,10 +32,10 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import (
+    REFRESH_TOKEN_COOKIE,
     clear_access_token_cookie,
     get_current_principal,
     get_current_user,
-    set_access_token_cookie,
 )
 from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.dependencies.login import LoginServiceDep
@@ -45,13 +45,13 @@ from presentation.fastapi.schemas.auth import (
     LoginRequest,
     MeResponse,
     ProfileUpdateRequest,
-    RefreshRequest,
     ResetPasswordRequest,
     RoleSwitchRequest,
+    SessionResponse,
     StatusResponse,
-    TokenResponse,
 )
 from presentation.fastapi.services.password_reset_service import PasswordResetService
+from presentation.fastapi.services.session_cookies import establish_session
 from presentation.fastapi.services.token_service import TokenService
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
@@ -77,29 +77,33 @@ def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
     )
 
 
-@router.post("/login", response_model=TokenResponse, dependencies=[Depends(require_local_login)])
-async def login(body: LoginRequest, response: Response, login_service: LoginServiceDep) -> TokenResponse:
+@router.post("/login", response_model=SessionResponse, dependencies=[Depends(require_local_login)])
+async def login(body: LoginRequest, response: Response, login_service: LoginServiceDep) -> SessionResponse:
     """パスワード認証。二要素認証が有効なら ``totp_code`` も必須になる。"""
     user = login_service.authenticate(body)
-    pair = TokenService.create_token_pair(user)
-    set_access_token_cookie(response, str(pair["access_token"]))
     logger.info("login_succeeded")
-    return TokenResponse(**pair)  # type: ignore[arg-type]
+    return establish_session(response, user)
 
 
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh(body: RefreshRequest, response: Response, db: DbDep) -> TokenResponse:
-    """トークンを更新する。アクティブロール（ADR-0017）は引き継ぐ。"""
-    refreshed = TokenService.verify_refresh_token(body.refresh_token, session=db)
+@router.post("/refresh", response_model=SessionResponse)
+async def refresh(
+    response: Response,
+    db: DbDep,
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_TOKEN_COOKIE)] = None,
+) -> SessionResponse:
+    """トークンを更新する。アクティブロール（ADR-0017）は引き継ぐ。
+
+    ⚠ **本文でトークンを受け取らない**（ADR-0028）。受け取る口を残すと、SPA が
+    トークンを手元に持ち続ける理由になる。
+    """
+    refreshed = TokenService.verify_refresh_token(refresh_token or "", session=db)
     if refreshed is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
     user, active_role = refreshed
-    pair = TokenService.create_token_pair(user, active_role=active_role)
-    set_access_token_cookie(response, str(pair["access_token"]))
-    return TokenResponse(**pair)  # type: ignore[arg-type]
+    return establish_session(response, user, active_role=active_role)
 
 
 @router.post("/logout", response_model=StatusResponse)
@@ -113,13 +117,13 @@ async def me(principal: PrincipalDep, user: CurrentUserDep) -> MeResponse:
     return _me_response(user, principal)
 
 
-@router.post("/switch-role", response_model=TokenResponse)
+@router.post("/switch-role", response_model=SessionResponse)
 async def switch_role(
     body: RoleSwitchRequest,
     response: Response,
     user: CurrentUserDep,
     audit: AuditRecorderDep,
-) -> TokenResponse:
+) -> SessionResponse:
     """アクティブロールを切り替え、新しいトークンを発行する（ADR-0017）。
 
     ``role`` が ``null`` なら「すべてのロール」（保有権限の和集合）に戻す。
@@ -129,11 +133,10 @@ async def switch_role(
         audit.execute(AuditEventType.ROLE_SWITCHED, AuditResult.FAILURE, reason="role_not_granted")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "role_not_granted"})
 
-    pair = TokenService.create_token_pair(user, active_role=body.role)
-    set_access_token_cookie(response, str(pair["access_token"]))
+    session = establish_session(response, user, active_role=body.role)
     audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
     logger.info("active_role_switched")
-    return TokenResponse(**pair)  # type: ignore[arg-type]
+    return session
 
 
 @router.put("/me", response_model=MeResponse)

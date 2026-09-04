@@ -20,6 +20,7 @@ from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway 
     CodeExchange,
 )
 from bounded_contexts.identity_federation.presentation import dependencies, transaction_cookie
+from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 
 _ISSUER = "https://idp.example.test"
 _AUTHORIZE = f"{_ISSUER}/authorize"
@@ -124,7 +125,9 @@ def test_a_successful_round_trip_hands_a_ticket_to_the_spa(sso_client: TestClien
 
     exchanged = sso_client.post("/api/auth/sso/token", json={"ticket": ticket})
     assert exchanged.status_code == 200, exchanged.text
-    assert exchanged.json()["token_type"] == "bearer"
+    # トークンは Cookie で運ぶ（ADR-0028）。本文は寿命と戻り先だけ。
+    assert exchanged.json()["expires_in"] > 0
+    assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
 
     # 券は 1 回限り。
     assert sso_client.post("/api/auth/sso/token", json={"ticket": ticket}).status_code == 401

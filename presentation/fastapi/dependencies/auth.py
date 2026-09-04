@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 # アクセストークンを格納する Cookie 名（ログイン時に auth ルーターが設定する）
 ACCESS_TOKEN_COOKIE = "access_token"
+# リフレッシュトークンの Cookie。**経路を更新の口だけに絞る**——他のリクエストに
+# 付いて回ると、長命な資格情報が送られる回数がむやみに増える（ADR-0028）。
+REFRESH_TOKEN_COOKIE = "refresh_token"
+REFRESH_COOKIE_PATH = "/api/auth/refresh"
 
 
 def set_access_token_cookie(response: Response, token: str) -> None:
@@ -41,8 +45,27 @@ def set_access_token_cookie(response: Response, token: str) -> None:
     )
 
 
+def set_refresh_token_cookie(response: Response, token: str) -> None:
+    """リフレッシュトークンを Cookie へ載せる（ADR-0028）。
+
+    ⚠ **応答本文には載せない。** Cookie は自動で送られるので、本文にも返すと
+    XSS が ``POST /api/auth/refresh`` を叩いて新しいトークンを読めてしまい、
+    ``httpOnly`` が意味を持たなくなる。
+    """
+    response.set_cookie(
+        REFRESH_TOKEN_COOKIE,
+        token,
+        max_age=settings.refresh_token_expires_seconds,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+        path=REFRESH_COOKIE_PATH,
+    )
+
+
 def clear_access_token_cookie(response: Response) -> None:
     response.delete_cookie(ACCESS_TOKEN_COOKIE)
+    response.delete_cookie(REFRESH_TOKEN_COOKIE, path=REFRESH_COOKIE_PATH)
 
 
 # Authorization ヘッダー優先、無ければ Cookie フォールバック
@@ -162,10 +185,13 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
 
 __all__ = [
     "ACCESS_TOKEN_COOKIE",
+    "REFRESH_COOKIE_PATH",
+    "REFRESH_TOKEN_COOKIE",
     "clear_access_token_cookie",
     "get_current_principal",
     "get_current_user",
     "require_any_permission",
     "require_permission",
     "set_access_token_cookie",
+    "set_refresh_token_cookie",
 ]
