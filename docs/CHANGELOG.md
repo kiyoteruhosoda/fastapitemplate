@@ -1,3 +1,23 @@
+## 2026-09-04（4）（GitHub Actions を Node 24 で動く版に上げた。ADR-0030）
+
+- **CI の注釈に `Node.js 20 is deprecated` が出ていた。** ランナーが Node 20 を
+  落としたので、`node20` を要求する action は Node 24 で**強制的に**動かされて
+  いた。互換のための猶予なので、切れたら止まる。**チェックは緑のままで、
+  注釈にしか出ない。**
+- `astral-sh/setup-uv` `@v6` → **`@v10.0.1`**、`docker/setup-buildx-action`
+  `@v3` → `@v4`、`docker/build-push-action` `@v6` → `@v7`。これで
+  `node20` を要求する action は無くなった（`actions/checkout@v6` と
+  `actions/setup-node@v6` は元から `node24`）。
+- ⚠ **`setup-uv` だけ完全な版で固定してある。** 上流が v8 以降、動く major タグ
+  （`@v10` 等）の発行をやめたため（タグの差し替えによるサプライチェーン攻撃を
+  避けるため）。**書き方が揃っていないのは意図的**なので、`@v10` へ「直さない」こと。
+  上げるときは版を書き換える。
+- `setup-uv` v9 の破壊的変更で **`prune-cache` の既定が `false`** になった
+  （PyPI の負荷を下げるため）。Actions のキャッシュ使用量は増えるが上限内で
+  回るだけなので、設定は足していない。
+- ⚠ **派生アプリがセルフホストのランナーを使っている場合は先にランナーを更新する。**
+  docker の 2 つは Actions Runner v2.327.1 以降を要求する。
+
 ## 2026-09-04（3）（マイグレーションが初期管理者を据えないことを機械で見張る）
 
 - **`tests/unit/test_migrations_do_not_seat_an_admin.py` を足した。** ADR-0024 が

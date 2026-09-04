@@ -33,7 +33,10 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        # ⚠ ここだけ完全な版で固定する。setup-uv は v8 以降、
+        #   サプライチェーン対策として `@v10` のような動く major タグの発行をやめた
+        #   （タグを差し替えられる攻撃を避けるため）。上げるときは版を書き換える。
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
