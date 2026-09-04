@@ -2,19 +2,32 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from presentation.fastapi.dependencies.auth import (
+    ACCESS_TOKEN_COOKIE,
+    REFRESH_COOKIE_PATH,
+    REFRESH_TOKEN_COOKIE,
+)
+from presentation.fastapi.middleware.csrf import CSRF_COOKIE
 from shared.domain.auth import master_data
 from shared.infrastructure.models import PasswordResetToken, User
 
 
-def test_login_success(client: TestClient) -> None:
+def test_login_puts_the_tokens_in_cookies_and_not_in_the_body(client: TestClient) -> None:
+    """⚠ 本文にトークンを載せない（ADR-0028）。
+
+    Cookie は自動で送られるので、本文にも返すと XSS が更新の口を叩いて新しい
+    トークンを読めてしまい、``httpOnly`` にした意味が無くなる。
+    """
     response = client.post(
         "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
     )
     assert response.status_code == 200
-    data = response.json()
-    assert data["token_type"] == "bearer"
-    assert data["access_token"]
-    assert data["refresh_token"]
+    body = response.json()
+    assert body == {"expires_in": body["expires_in"]}, body
+    assert client.cookies[ACCESS_TOKEN_COOKIE]
+    assert client.cookies[REFRESH_TOKEN_COOKIE]
+    # CSRF の二重送信トークンだけは JavaScript から読める必要がある。
+    assert client.cookies[CSRF_COOKIE]
 
 
 def test_login_wrong_password(client: TestClient) -> None:
@@ -37,21 +50,29 @@ def test_me_returns_scopes(client: TestClient, admin_headers: dict[str, str]) ->
     assert "user:manage" in data["scopes"]
 
 
-def test_refresh_issues_new_pair(client: TestClient) -> None:
-    login = client.post(
-        "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
-    ).json()
-    response = client.post("/api/auth/refresh", json={"refresh_token": login["refresh_token"]})
+def test_refresh_reads_the_cookie_and_issues_a_new_pair(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.post("/api/auth/refresh", headers=admin_headers)
     assert response.status_code == 200
-    assert response.json()["access_token"]
+    assert response.json()["expires_in"] > 0
+    # 値そのものは同じ秒に発行すると一致しうる（`iat` / `exp` が秒解像度）。
+    # 見るのは「載せ直したか」。
+    issued = response.headers.get_list("set-cookie")
+    assert any(cookie.startswith(f"{ACCESS_TOKEN_COOKIE}=") for cookie in issued)
+    assert any(cookie.startswith(f"{REFRESH_TOKEN_COOKIE}=") for cookie in issued)
 
 
-def test_refresh_rejects_access_token(client: TestClient) -> None:
-    login = client.post(
-        "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
-    ).json()
-    response = client.post("/api/auth/refresh", json={"refresh_token": login["access_token"]})
-    assert response.status_code == 401
+def test_refresh_without_the_cookie_is_refused(client: TestClient) -> None:
+    client.cookies.clear()
+    assert client.post("/api/auth/refresh").status_code == 401
+
+
+def test_refresh_rejects_an_access_token_in_the_refresh_cookie(
+    client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """更新の口はリフレッシュトークンしか受け取らない（種別を見ている）。"""
+    access = client.cookies[ACCESS_TOKEN_COOKIE]
+    client.cookies.set(REFRESH_TOKEN_COOKIE, access, path=REFRESH_COOKIE_PATH)
+    assert client.post("/api/auth/refresh", headers=admin_headers).status_code == 401
 
 
 def test_update_me_changes_email_and_username(client: TestClient, admin_headers: dict[str, str]) -> None:

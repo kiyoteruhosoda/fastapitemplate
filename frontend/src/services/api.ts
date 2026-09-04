@@ -1,14 +1,18 @@
 /**
  * API クライアント（fetch ラッパー）。
  *
- * - JWT を localStorage に保持し、Authorization ヘッダーで送る。
- * - 401 のとき refresh トークンで1回だけ再試行する。
+ * - **トークンは持たない**（ADR-0028）。httpOnly Cookie で運ばれるので、
+ *   この層は `credentials: 'same-origin'` で送るだけでよい。
+ * - 更新系には CSRF の二重送信トークンを載せる（`csrf_token` Cookie の値）。
+ * - 401 のとき更新の口を 1 回だけ叩いて再試行する（更新もトークンを Cookie で受ける）。
  * - バックエンドはエラーコード（{"error": "..."}）を返す。表示文言への変換は
  *   i18n（フロントエンド側）で行う。
  */
 
-const ACCESS_KEY = 'access_token'
-const REFRESH_KEY = 'refresh_token'
+/** CSRF の二重送信トークン。**この Cookie だけは JavaScript から読める。** */
+const CSRF_COOKIE = 'csrf_token'
+const CSRF_HEADER = 'X-CSRF-Token'
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 export class ApiError extends Error {
   status: number
@@ -31,18 +35,15 @@ export function errorMessageKey(error: unknown): string {
   return `error.${error instanceof ApiError ? error.code : 'unknown_error'}`
 }
 
-export function setTokens(access: string, refresh: string): void {
-  localStorage.setItem(ACCESS_KEY, access)
-  localStorage.setItem(REFRESH_KEY, refresh)
-}
-
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_KEY)
-  localStorage.removeItem(REFRESH_KEY)
-}
-
-export function hasTokens(): boolean {
-  return localStorage.getItem(ACCESS_KEY) !== null
+/**
+ * CSRF トークンを Cookie から読む。
+ *
+ * **毎回読み直す。** セッションを張り直すたびに新しくなるので、控えておくと
+ * 更新やロール切り替えの後に古い値を送ることになる。
+ */
+function csrfToken(): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`))
+  return match?.[1] ? decodeURIComponent(match[1]) : null
 }
 
 function extractErrorCode(body: unknown): string {
@@ -57,36 +58,30 @@ function extractErrorCode(body: unknown): string {
   return 'unknown_error'
 }
 
-/** ``/api/auth/refresh`` の応答。 */
-interface TokenPair {
-  access_token: string
-  refresh_token: string
-}
-
+/**
+ * 更新の口を叩く。トークンは行きも帰りも Cookie なので、ここでは何も持ち回さない。
+ */
 async function tryRefresh(): Promise<boolean> {
-  const refresh = localStorage.getItem(REFRESH_KEY)
-  if (!refresh) return false
+  const headers: Record<string, string> = {}
+  const csrf = csrfToken()
+  if (csrf) headers[CSRF_HEADER] = csrf
   const response = await fetch('/api/auth/refresh', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refresh }),
+    headers,
+    credentials: 'same-origin',
   })
-  if (!response.ok) {
-    clearTokens()
-    return false
-  }
-  const pair = (await response.json()) as TokenPair
-  setTokens(pair.access_token, pair.refresh_token)
-  return true
+  return response.ok
 }
 
 async function request<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
   const headers: Record<string, string> = {}
-  const access = localStorage.getItem(ACCESS_KEY)
-  if (access) headers['Authorization'] = `Bearer ${access}`
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (UNSAFE_METHODS.has(method)) {
+    const csrf = csrfToken()
+    if (csrf) headers[CSRF_HEADER] = csrf
+  }
 
-  const init: RequestInit = { method, headers }
+  const init: RequestInit = { method, headers, credentials: 'same-origin' }
   if (body !== undefined) init.body = JSON.stringify(body)
 
   const response = await fetch(path, init)

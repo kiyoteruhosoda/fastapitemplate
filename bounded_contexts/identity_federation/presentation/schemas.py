@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from presentation.fastapi.schemas.auth import TokenResponse
-
 
 class SsoProviderResponse(BaseModel):
     """ログイン画面が「SSO で入る」ボタンを出すかどうかの判断材料。
@@ -26,9 +24,13 @@ class SsoTicketRequest(BaseModel):
     ticket: str = Field(min_length=1, max_length=255)
 
 
-class SsoSessionResponse(TokenResponse):
-    """引き換えの結果。``redirect_to`` は SSO を始めた画面（SPA 内の経路）。"""
+class SsoSessionResponse(BaseModel):
+    """引き換えの結果。``redirect_to`` は SSO を始めた画面（SPA 内の経路）。
 
+    ⚠ **トークンは載せない**（ADR-0028）。Cookie で運ぶ。
+    """
+
+    expires_in: int
     redirect_to: str
 
 

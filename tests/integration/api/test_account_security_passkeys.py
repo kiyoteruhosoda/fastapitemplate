@@ -28,6 +28,7 @@ from bounded_contexts.account_security.domain.services.webauthn_relying_party im
 from bounded_contexts.account_security.presentation.dependencies import (
     build_relying_party,
 )
+from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 
 
 @dataclass
@@ -243,7 +244,9 @@ def test_login_with_a_registered_passkey(
         },
     )
     assert response.status_code == 200, response.text
-    assert response.json()["access_token"]
+    # トークンは Cookie に載る（ADR-0028）。本文は寿命だけ。
+    assert response.json()["expires_in"] > 0
+    assert client.cookies[ACCESS_TOKEN_COOKIE]
 
 
 def test_login_with_an_unknown_credential_is_rejected(client: TestClient, relying_party: FakeRelyingParty) -> None:

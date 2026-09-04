@@ -23,17 +23,13 @@ const MULTI_ROLE: Me = {
   active_role: null,
 }
 
-const { apiGet, apiPost, setTokens } = vi.hoisted(() => ({
+const { apiGet, apiPost } = vi.hoisted(() => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
-  setTokens: vi.fn(),
 }))
 
 vi.mock('../services/api', () => ({
   api: { get: apiGet, post: apiPost },
-  hasTokens: () => true,
-  setTokens,
-  clearTokens: vi.fn(),
   errorMessageKey: () => 'error.unknown_error',
 }))
 
@@ -90,9 +86,10 @@ describe('RoleSwitcher', () => {
     )
   })
 
-  it('選ぶとトークンを再発行して /me を引き直す', async () => {
+  it('選ぶとセッションを載せ替えて /me を引き直す', async () => {
     await renderSwitcher(MULTI_ROLE)
-    apiPost.mockResolvedValue({ access_token: 'new-access', refresh_token: 'new-refresh' })
+    // トークンは Cookie に載り替わるので、応答は寿命だけ（ADR-0028）。
+    apiPost.mockResolvedValue({ expires_in: 900 })
     apiGet.mockResolvedValue({ ...MULTI_ROLE, active_role: 'member', scopes: ['dashboard:view'] })
 
     fireEvent.click(toggle())
@@ -101,7 +98,6 @@ describe('RoleSwitcher', () => {
     await waitFor(() => {
       expect(apiPost).toHaveBeenCalledWith('/api/auth/switch-role', { role: 'member' })
     })
-    expect(setTokens).toHaveBeenCalledWith('new-access', 'new-refresh')
     await waitFor(() => {
       expect(screen.getByText('Now acting as member.')).toBeInTheDocument()
     })
@@ -119,7 +115,6 @@ describe('RoleSwitcher', () => {
     await waitFor(() => {
       expect(screen.getByText('Something went wrong.')).toBeInTheDocument()
     })
-    expect(setTokens).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: /All roles/ })).toBeInTheDocument()
   })
 

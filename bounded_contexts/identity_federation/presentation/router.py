@@ -59,8 +59,7 @@ from bounded_contexts.identity_federation.presentation.schemas import (
     SsoSessionResponse,
     SsoTicketRequest,
 )
-from presentation.fastapi.dependencies.auth import set_access_token_cookie
-from presentation.fastapi.services.token_service import TokenService
+from presentation.fastapi.services.session_cookies import establish_session
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
 from shared.kernel.settings.settings import settings
@@ -168,10 +167,9 @@ async def exchange_ticket(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_credentials"},
         )
-    pair = TokenService.create_token_pair(user)
-    set_access_token_cookie(response, str(pair["access_token"]))
+    established = establish_session(response, user)
     logger.info("sso_login_succeeded")
-    return SsoSessionResponse(**pair, redirect_to=session.redirect_to)  # type: ignore[arg-type]
+    return SsoSessionResponse(expires_in=established.expires_in, redirect_to=session.redirect_to)
 
 
 def _redirect(url: str) -> RedirectResponse:

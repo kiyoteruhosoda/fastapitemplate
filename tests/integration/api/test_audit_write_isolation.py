@@ -33,6 +33,7 @@ from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
 from shared.kernel.settings.settings import settings
+from tests.conftest import sign_in
 
 # 別コネクションからの書き込みが詰まると busy timeout（既定 5 秒）まで待つ。
 # 1 リクエストがこれを超えるようなら、ロックで待たされている。
@@ -81,12 +82,7 @@ def file_client(file_engine: sa.Engine, monkeypatch: pytest.MonkeyPatch) -> Iter
 
 @pytest.fixture
 def file_admin_headers(file_client: TestClient) -> dict[str, str]:
-    response = file_client.post(
-        "/api/auth/login",
-        json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": master_data.DEFAULT_ADMIN_PASSWORD},
-    )
-    assert response.status_code == 200, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return sign_in(file_client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
 
 
 def _audit_rows(engine: sa.Engine, event_type: str) -> list[sa.Row[tuple[str, str]]]:

@@ -18,7 +18,6 @@
 | 8 | T9 | 期限切れ・使用済みパスワードリセットトークンを掃除する | ⬜未着手 | 中 | 小 |
 | 9 | T10 | `example` コンテキストを「作って終わり」から本当の見本へ育てる | ⬜未着手 | 中 | 中 |
 | 10 | T11 | テンプレート名を付け替えるスクリプト | ⬜未着手 | 中 | 中 |
-| 11 | T12 | トークンを Cookie 一本にする（ADR-0028 の実装） | ⬜未着手 | 大 | 中 |
 
 ## 詳細
 
@@ -120,31 +119,6 @@ CLAUDE.md・README・ADR-0023・OPERATIONS.md がかなりの分量を使って�
 `deploy/komodo/` の雛形、`pyproject.toml`、`frontend/package.json`、`TOTP_ISSUER` /
 `WEBAUTHN_RP_NAME`、`app.py` の `title`）。`scripts/rename_project.sh <new-name>`
 を用意すれば、この文書量の大半が「これを実行する」の 1 行になる。
-
-### T12 トークンを Cookie 一本にする（ADR-0028 の実装）
-
-方式は **ADR-0028** で決めた。SPA はトークンを持たず、access / refresh とも
-httpOnly Cookie で運ぶ。**トークンを応答本文で配るのもやめる** —— Cookie は自動で
-送られるので、本文に載せたままだと XSS が `POST /api/auth/refresh` を叩いて新しい
-トークンを読めてしまい、httpOnly が意味を持たない。
-
-やること:
-
-1. refresh トークンを httpOnly Cookie にする（経路は `/api/auth/refresh` に絞る）。
-2. `TokenResponse` から `access_token` / `refresh_token` を落とす
-   （SSO の `SsoSessionResponse` も `redirect_to` だけにする）。
-3. フロントエンドの `setTokens` / `hasTokens` を廃し、ログイン済みの判定を
-   `GET /api/auth/me` の成否に寄せる。
-4. CSRF の二重送信トークンを更新系（POST / PUT / PATCH / DELETE）へ。
-5. `docs/OPERATIONS.md` に curl / Swagger からの叩き方（Cookie の扱い）。
-
-⚠ **API の互換が壊れる。** ただし影響するのは**本文からトークンを取り出している
-機械の呼び出し元**で、ブラウザからのログインではない。SPA は同じコミットで直る。
-派生アプリは fork なので、取り込むまでは動き続ける。
-
-**T5（発行済みトークンの失効）と地続き。** 失効の手段が無いあいだは、持ち出させない
-ことが唯一の防御になる。今回良くなるのは「持ち出されない」ことで、「止められる」
-ようになるわけではない。
 
 （直近の完了分の要約は `CHANGELOG.md`、設計判断は `decisions/`（ADR）を参照。
 テンプレート刷新の経緯は `history/2026-07-template-refresh.md`、

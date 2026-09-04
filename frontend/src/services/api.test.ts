@@ -1,7 +1,7 @@
-/** API クライアントのトークン保持とエラーコード変換。 */
-import { beforeEach, describe, expect, it } from 'vitest'
+/** API クライアントのエラーコード変換と、CSRF トークンの送り方。 */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, clearTokens, errorMessageKey, hasTokens, setTokens } from './api'
+import { ApiError, api, errorMessageKey } from './api'
 
 describe('errorMessageKey', () => {
   it('ApiError のコードを i18n キーへ変換する', () => {
@@ -18,23 +18,46 @@ describe('errorMessageKey', () => {
   })
 })
 
-describe('トークンの保持', () => {
+/**
+ * トークンは持たない（ADR-0028）。この層が気にするのは Cookie を送ることと、
+ * 更新系に CSRF の二重送信トークンを載せることだけ。
+ */
+describe('リクエストの組み立て', () => {
+  const fetchMock = vi.fn()
+
   beforeEach(() => {
-    localStorage.clear()
+    document.cookie = 'csrf_token=the-token'
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) })
+    vi.stubGlobal('fetch', fetchMock)
   })
 
-  it('保存前は未保持', () => {
-    expect(hasTokens()).toBe(false)
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    document.cookie = 'csrf_token=; max-age=0'
   })
 
-  it('保存すると保持と判定される', () => {
-    setTokens('access', 'refresh')
-    expect(hasTokens()).toBe(true)
+  function initOf(): RequestInit {
+    return fetchMock.mock.calls[0]?.[1] as RequestInit
+  }
+
+  it('Cookie を送る（トークンは Cookie に載っているため）', async () => {
+    await api.get('/api/auth/me')
+    expect(initOf().credentials).toBe('same-origin')
   })
 
-  it('消すと未保持に戻る', () => {
-    setTokens('access', 'refresh')
-    clearTokens()
-    expect(hasTokens()).toBe(false)
+  it('読み取りには CSRF トークンを載せない', async () => {
+    await api.get('/api/auth/me')
+    expect(initOf().headers).not.toHaveProperty('X-CSRF-Token')
+  })
+
+  it('更新系には Cookie から読んだ CSRF トークンを載せる', async () => {
+    await api.post('/api/items', { name: 'x' })
+    expect((initOf().headers as Record<string, string>)['X-CSRF-Token']).toBe('the-token')
+  })
+
+  it('Authorization ヘッダーは付けない（手元にトークンを持たないため）', async () => {
+    await api.post('/api/items', { name: 'x' })
+    expect(initOf().headers).not.toHaveProperty('Authorization')
   })
 })

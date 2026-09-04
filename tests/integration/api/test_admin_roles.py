@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from tests.conftest import sign_in
+
 
 def test_role_crud(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
@@ -38,8 +40,14 @@ def test_permission_list(client: TestClient, admin_headers: dict[str, str]) -> N
     assert "user:manage" in codes
 
 
-def _user_manager_headers(client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
-    """``user:manage`` だけを持つ「ユーザー係」でサインインする（ADR-0018）。"""
+def _sign_in_user_manager(
+    client: TestClient, manager_client: TestClient, admin_headers: dict[str, str]
+) -> dict[str, str]:
+    """``user:manage`` だけを持つ「ユーザー係」で**別のクライアント**にサインインする。
+
+    セッションは Cookie で持つので（ADR-0028）、管理者と同じクライアントで
+    ログインすると管理者のセッションが置き換わってしまう。
+    """
     created = client.post(
         "/api/admin/roles",
         headers=admin_headers,
@@ -57,17 +65,14 @@ def _user_manager_headers(client: TestClient, admin_headers: dict[str, str]) -> 
         },
     )
     assert added.status_code == 201, added.text
-    signed_in = client.post(
-        "/api/auth/login",
-        json={"email": "user-manager@example.com", "password": "password-123"},
-    )
-    assert signed_in.status_code == 200, signed_in.text
-    return {"Authorization": f"Bearer {signed_in.json()['access_token']}"}
+    return sign_in(manager_client, "user-manager@example.com", "password-123")
 
 
-def test_user_manager_can_read_the_role_catalog(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_user_manager_can_read_the_role_catalog(
+    client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
+) -> None:
     """ユーザーへロールを割り当てるには、どんなロールがあるか読めなければならない。"""
-    headers = _user_manager_headers(client, admin_headers)
+    headers = _sign_in_user_manager(client, other_client, admin_headers)
 
     response = client.get("/api/admin/roles", headers=headers)
 
@@ -75,9 +80,11 @@ def test_user_manager_can_read_the_role_catalog(client: TestClient, admin_header
     assert "member" in [role["name"] for role in response.json()]
 
 
-def test_user_manager_cannot_change_roles(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_user_manager_cannot_change_roles(
+    client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
+) -> None:
     """読めても変えられない（権限を配る側は role:manage のまま）。"""
-    headers = _user_manager_headers(client, admin_headers)
+    headers = _sign_in_user_manager(client, other_client, admin_headers)
     role_id = next(r["id"] for r in client.get("/api/admin/roles", headers=headers).json() if r["name"] == "member")
 
     assert client.post("/api/admin/roles", headers=headers, json={"name": "x"}).status_code == 403
@@ -85,7 +92,9 @@ def test_user_manager_cannot_change_roles(client: TestClient, admin_headers: dic
     assert client.delete(f"/api/admin/roles/{role_id}", headers=headers).status_code == 403
 
 
-def test_role_catalog_still_requires_a_permission(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_role_catalog_still_requires_a_permission(
+    client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
+) -> None:
     """「いずれか」に緩めたのは 2 つの scope の間だけで、無権限には開かない。"""
     added = client.post(
         "/api/admin/users",
@@ -98,11 +107,8 @@ def test_role_catalog_still_requires_a_permission(client: TestClient, admin_head
         },
     )
     assert added.status_code == 201, added.text
-    token = client.post(
-        "/api/auth/login",
-        json={"email": "guest-only@example.com", "password": "password-123"},
-    ).json()["access_token"]
+    sign_in(other_client, "guest-only@example.com", "password-123")
 
-    response = client.get("/api/admin/roles", headers={"Authorization": f"Bearer {token}"})
+    response = other_client.get("/api/admin/roles")
 
     assert response.status_code == 403

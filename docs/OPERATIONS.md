@@ -259,6 +259,32 @@ APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
 - ホスト: `docker compose restart app`（デプロイ先は Komodo の画面から）
 
+## API を curl や CI から叩きたいとき
+
+トークンは応答本文に載らず **Cookie で運ばれる**（ADR-0028）。Cookie を保持して叩く。
+
+```bash
+# ログイン（Cookie をファイルへ保存する）
+curl -c cookies.txt -X POST http://127.0.0.1:8000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"admin@example.com"}'
+
+# 読み取りは Cookie だけでよい
+curl -b cookies.txt http://127.0.0.1:8000/api/auth/me
+
+# 更新系は CSRF の二重送信トークンが要る（cookies.txt から読む）
+CSRF=$(awk '$6=="csrf_token" {print $7}' cookies.txt)
+curl -b cookies.txt -X PUT http://127.0.0.1:8000/api/auth/me \
+  -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","username":"admin"}'
+```
+
+既にトークンを持っている呼び出し元は `Authorization: Bearer <token>` でも叩ける。
+**その場合 CSRF トークンは要らない**（ヘッダーは自動では送られないため）。
+
+Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログインしていればそのまま
+叩ける**（Authorize ボタンは使わない）。
+
 ## SSO（外部 IdP との連携）を有効にしたいとき
 
 1. IdP にクライアントを登録する。折り返し先は `<APP_BASE_URL>/api/auth/sso/callback`。

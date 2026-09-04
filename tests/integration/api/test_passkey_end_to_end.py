@@ -62,9 +62,8 @@ def test_register_then_sign_in_with_a_real_signature(
     )
     assert login.status_code == 200, login.text
 
-    # 発行されたトークンがそのまま使えること
-    token = login.json()["access_token"]
-    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    # 載った Cookie がそのまま使えること（ADR-0028）
+    me = client.get("/api/auth/me")
     assert me.status_code == 200
     assert me.json()["email"] == "admin@example.com"
 

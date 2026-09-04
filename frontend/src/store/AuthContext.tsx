@@ -1,7 +1,7 @@
 /** 認証状態（ログイン中ユーザーと scope）。認可判定は hasScope で行う。 */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
-import { api, clearTokens, hasTokens, setTokens } from '../services/api'
+import { api } from '../services/api'
 import { exchangeSsoTicket } from '../services/sso'
 import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
@@ -17,9 +17,9 @@ export interface Me {
   active_role: string | null
 }
 
-interface TokenPair {
-  access_token: string
-  refresh_token: string
+/** ログインが成立したことと、アクセストークンの寿命（トークン本体は Cookie）。 */
+interface SessionInfo {
+  expires_in: number
 }
 
 interface AuthValue {
@@ -46,15 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Me | null>(null)
   const [loading, setLoading] = useState(true)
 
+  /**
+   * ログイン済みかは **``/api/auth/me`` の成否で決める**（ADR-0028）。
+   *
+   * トークンは httpOnly Cookie にあり JavaScript からは見えないので、手元の値を
+   * 見て判断することはできない。「Cookie があるか」を推し量る代わりに、実際に
+   * 通るかを聞く。
+   */
   const refreshMe = useCallback(async () => {
-    if (!hasTokens()) {
-      setUser(null)
-      return
-    }
     try {
       setUser(await api.get<Me>('/api/auth/me'))
     } catch {
-      clearTokens()
       setUser(null)
     }
   }, [])
@@ -66,29 +68,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshMe])
 
   const login = async (email: string, password: string, totpCode?: string) => {
-    const pair = await api.post<TokenPair>('/api/auth/login', {
+    await api.post<SessionInfo>('/api/auth/login', {
       email,
       password,
       totp_code: totpCode || null,
     })
-    setTokens(pair.access_token, pair.refresh_token)
     await refreshMe()
   }
 
   const loginWithPasskey = async () => {
     const challenge = await api.post<PasskeyChallenge>('/api/auth/passkey/challenge')
     const credential = await assertPasskey(challenge.public_key)
-    const pair = await api.post<TokenPair>('/api/auth/passkey/login', {
+    await api.post<SessionInfo>('/api/auth/passkey/login', {
       challenge_id: challenge.challenge_id,
       credential,
     })
-    setTokens(pair.access_token, pair.refresh_token)
     await refreshMe()
   }
 
   const completeSsoLogin = async (ticket: string) => {
     const session = await exchangeSsoTicket(ticket)
-    setTokens(session.access_token, session.refresh_token)
     await refreshMe()
     return session.redirect_to
   }
@@ -99,14 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * これから送るトークンの scope が食い違わない。
    */
   const switchRole = async (role: string | null) => {
-    const pair = await api.post<TokenPair>('/api/auth/switch-role', { role })
-    setTokens(pair.access_token, pair.refresh_token)
+    await api.post<SessionInfo>('/api/auth/switch-role', { role })
     await refreshMe()
   }
 
   const logout = () => {
+    // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     void api.post('/api/auth/logout').catch(() => undefined)
-    clearTokens()
     setUser(null)
   }
 

@@ -40,6 +40,7 @@ from bounded_contexts.identity_federation.presentation.startup_check import (
     report_sso_configuration,
 )
 from presentation.fastapi.error_handling import register_error_handling
+from presentation.fastapi.middleware.csrf import CsrfMiddleware
 from presentation.fastapi.middleware.deferred_log_writes import (
     DeferredLogWriteMiddleware,
 )
@@ -146,6 +147,11 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Cookie で認証した更新系に CSRF の二重送信トークンを求める（ADR-0028）。
+    # ``Authorization`` ヘッダーで来たリクエストには求めない（ヘッダーは自動では
+    # 送られないので CSRF が成立しない）。
+    app.add_middleware(CsrfMiddleware)
 
     # 失敗の記録（4xx・入力検証）と、ミドルウェアより外側で落ちたとき用の保険。
     # 個別のドメイン例外ハンドラが優先される。

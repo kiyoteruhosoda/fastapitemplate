@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.infrastructure.models import User
+from tests.conftest import sign_in
 
 _EMAIL = "multi-role@example.com"
 _PASSWORD = "password-123"
@@ -31,17 +33,19 @@ def _create_multi_role_user(client: TestClient, admin_headers: dict[str, str]) -
 
 
 def _sign_in(client: TestClient) -> dict[str, str]:
-    response = client.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
-    assert response.status_code == 200, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return sign_in(client, _EMAIL, _PASSWORD)
 
 
 def _switch(client: TestClient, headers: dict[str, str], role: str | None) -> tuple[int, dict[str, str]]:
-    """切り替えて、成功したら新しいトークンのヘッダーを返す。"""
+    """切り替えて、成功したら新しいセッションのヘッダーを返す。
+
+    トークンは Cookie に載り替わる（ADR-0028）。CSRF トークンも新しくなるので
+    読み直す。
+    """
     response = client.post("/api/auth/switch-role", headers=headers, json={"role": role})
     if response.status_code != 200:
         return response.status_code, headers
-    return 200, {"Authorization": f"Bearer {response.json()['access_token']}"}
+    return 200, {CSRF_HEADER: client.cookies[CSRF_COOKIE]}
 
 
 def test_me_lists_every_granted_role(client: TestClient, admin_headers: dict[str, str]) -> None:
@@ -95,30 +99,26 @@ def test_unknown_role_is_rejected(client: TestClient, admin_headers: dict[str, s
 
 def test_refresh_keeps_the_active_role(client: TestClient, admin_headers: dict[str, str]) -> None:
     _create_multi_role_user(client, admin_headers)
-    signed_in = client.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD}).json()
-    switched = client.post(
-        "/api/auth/switch-role",
-        headers={"Authorization": f"Bearer {signed_in['access_token']}"},
-        json={"role": "member"},
-    ).json()
+    _, headers = _switch(client, _sign_in(client), "member")
 
-    refreshed = client.post("/api/auth/refresh", json={"refresh_token": switched["refresh_token"]})
+    refreshed = client.post("/api/auth/refresh", headers=headers)
     assert refreshed.status_code == 200
-    me = client.get(
-        "/api/auth/me",
-        headers={"Authorization": f"Bearer {refreshed.json()['access_token']}"},
-    ).json()
+
+    # 更新でセッションが載せ替わっても、アクティブロールは引き継がれる（ADR-0017）。
+    me = client.get("/api/auth/me").json()
     assert me["active_role"] == "member"
 
 
 def test_revoking_the_active_role_drops_its_scopes(
     client: TestClient,
+    other_client: TestClient,
     admin_headers: dict[str, str],
     db_session: Session,
 ) -> None:
     """切り替えた後にロールを外されたら、そのトークンの権限は残らない。"""
     _create_multi_role_user(client, admin_headers)
-    _, headers = _switch(client, _sign_in(client), "member")
+    # Cookie でセッションを持つので、利用者ごとにクライアントを分ける（ADR-0028）。
+    _switch(other_client, _sign_in(other_client), "member")
 
     user = db_session.scalar(select(User).where(User.email == _EMAIL))
     assert user is not None
@@ -129,14 +129,14 @@ def test_revoking_the_active_role_drops_its_scopes(
     )
     assert updated.status_code == 200
 
-    me = client.get("/api/auth/me", headers=headers).json()
+    me = other_client.get("/api/auth/me").json()
     assert me["scopes"] == []
     assert me["roles"] == ["manager"]
 
 
-def test_switch_is_audited(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_switch_is_audited(client: TestClient, other_client: TestClient, admin_headers: dict[str, str]) -> None:
     _create_multi_role_user(client, admin_headers)
-    _switch(client, _sign_in(client), "member")
+    _switch(other_client, _sign_in(other_client), "member")
 
     entries = client.get("/api/admin/audit-logs", headers=admin_headers, params={"event_type": "role.switched"}).json()
     assert entries["total"] == 1

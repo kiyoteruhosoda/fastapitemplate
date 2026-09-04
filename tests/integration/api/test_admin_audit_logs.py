@@ -19,6 +19,7 @@ from bounded_contexts.audit.infrastructure.audit_log_model import AuditLogModel
 from shared.domain.auth import master_data
 from shared.infrastructure.models import Permission, Role, User
 from shared.infrastructure.models.base import utcnow
+from tests.conftest import sign_in
 
 
 def _search(client: TestClient, headers: dict[str, str], query: str = "") -> dict[str, Any]:
@@ -50,7 +51,10 @@ def test_audit_logs_require_permission(client: TestClient) -> None:
 
 
 def test_log_view_alone_does_not_grant_audit_access(
-    client: TestClient, admin_headers: dict[str, str], engine: sa.Engine
+    client: TestClient,
+    other_client: TestClient,
+    admin_headers: dict[str, str],
+    engine: sa.Engine,
 ) -> None:
     """アプリログを見られる利用者が、そのまま監査ログを見られてはいけない。"""
     session = sessionmaker(bind=engine, expire_on_commit=False)()
@@ -68,15 +72,11 @@ def test_log_view_alone_does_not_grant_audit_access(
     session.commit()
     session.close()
 
-    login = client.post(
-        "/api/auth/login",
-        json={"email": "operator@example.com", "password": "operator-password"},
-    )
-    assert login.status_code == 200, login.text
-    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    # セッションは Cookie で持つので、別の利用者は別のクライアントで（ADR-0028）。
+    sign_in(other_client, "operator@example.com", "operator-password")
 
-    assert client.get("/api/admin/logs", headers=headers).status_code == 200
-    assert client.get("/api/admin/audit-logs", headers=headers).status_code == 403
+    assert other_client.get("/api/admin/logs").status_code == 200
+    assert other_client.get("/api/admin/audit-logs").status_code == 403
 
 
 def test_successful_login_is_recorded(client: TestClient, admin_headers: dict[str, str]) -> None:
