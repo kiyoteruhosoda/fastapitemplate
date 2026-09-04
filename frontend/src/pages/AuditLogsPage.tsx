@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
+import { FilterPanel } from '../components/FilterPanel'
 import { useLogSearch } from '../hooks/useLogSearch'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
@@ -118,126 +119,128 @@ export function AuditLogsPage() {
       <h1>{t('audit.title')}</h1>
       <p className="hint">{t('audit.hint')}</p>
 
-      <form className="filter-form" onSubmit={search}>
-        <label>
-          {t('audit.eventType')}
-          <select
-            value={form.event_type}
-            onChange={(e) => {
-              update('event_type', e.target.value)
-            }}
-          >
-            <option value="">{t('audit.allEventTypes')}</option>
-            {options.event_types.map((eventType) => (
-              <option key={eventType} value={eventType}>
-                {eventType}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('audit.result')}
-          <select
-            value={form.result}
-            onChange={(e) => {
-              update('result', e.target.value)
-            }}
-          >
-            <option value="">{t('audit.allResults')}</option>
-            {options.results.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('audit.actor')}
-          <input
-            type="number"
-            min={1}
-            value={form.actor_user_id}
-            onChange={(e) => {
-              update('actor_user_id', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('audit.targetType')}
-          <select
-            value={form.target_type}
-            onChange={(e) => {
-              update('target_type', e.target.value)
-            }}
-          >
-            <option value="">{t('audit.allTargetTypes')}</option>
-            {options.target_types.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('audit.targetId')}
-          <input
-            value={form.target_id}
-            onChange={(e) => {
-              update('target_id', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('audit.requestId')}
-          <input
-            value={form.request_id}
-            onChange={(e) => {
-              update('request_id', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('audit.from')}
-          <input
-            type="datetime-local"
-            value={form.occurred_from}
-            onChange={(e) => {
-              update('occurred_from', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('audit.to')}
-          <input
-            type="datetime-local"
-            value={form.occurred_to}
-            onChange={(e) => {
-              update('occurred_to', e.target.value)
-            }}
-          />
-        </label>
-        <div className="filter-actions">
-          <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
-            {t('audit.search')}
-          </ActionButton>
-          <ActionButton
-            type="button"
-            pending={pendingTrigger === 'failuresOnly'}
-            disabled={searching}
-            onClick={showFailuresOnly}
-          >
-            {t('audit.failuresOnly')}
-          </ActionButton>
-          <ActionButton
-            type="button"
-            pending={pendingTrigger === 'reset'}
-            disabled={searching}
-            onClick={reset}
-          >
-            {t('audit.reset')}
-          </ActionButton>
-        </div>
-      </form>
+      <FilterPanel>
+        <form className="filter-form" onSubmit={search}>
+          <label>
+            {t('audit.eventType')}
+            <select
+              value={form.event_type}
+              onChange={(e) => {
+                update('event_type', e.target.value)
+              }}
+            >
+              <option value="">{t('audit.allEventTypes')}</option>
+              {options.event_types.map((eventType) => (
+                <option key={eventType} value={eventType}>
+                  {eventType}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t('audit.result')}
+            <select
+              value={form.result}
+              onChange={(e) => {
+                update('result', e.target.value)
+              }}
+            >
+              <option value="">{t('audit.allResults')}</option>
+              {options.results.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t('audit.actor')}
+            <input
+              type="number"
+              min={1}
+              value={form.actor_user_id}
+              onChange={(e) => {
+                update('actor_user_id', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('audit.targetType')}
+            <select
+              value={form.target_type}
+              onChange={(e) => {
+                update('target_type', e.target.value)
+              }}
+            >
+              <option value="">{t('audit.allTargetTypes')}</option>
+              {options.target_types.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t('audit.targetId')}
+            <input
+              value={form.target_id}
+              onChange={(e) => {
+                update('target_id', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('audit.requestId')}
+            <input
+              value={form.request_id}
+              onChange={(e) => {
+                update('request_id', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('audit.from')}
+            <input
+              type="datetime-local"
+              value={form.occurred_from}
+              onChange={(e) => {
+                update('occurred_from', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('audit.to')}
+            <input
+              type="datetime-local"
+              value={form.occurred_to}
+              onChange={(e) => {
+                update('occurred_to', e.target.value)
+              }}
+            />
+          </label>
+          <div className="filter-actions">
+            <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
+              {t('audit.search')}
+            </ActionButton>
+            <ActionButton
+              type="button"
+              pending={pendingTrigger === 'failuresOnly'}
+              disabled={searching}
+              onClick={showFailuresOnly}
+            >
+              {t('audit.failuresOnly')}
+            </ActionButton>
+            <ActionButton
+              type="button"
+              pending={pendingTrigger === 'reset'}
+              disabled={searching}
+              onClick={reset}
+            >
+              {t('audit.reset')}
+            </ActionButton>
+          </div>
+        </form>
+      </FilterPanel>
 
       <p className="result-count">
         {t('audit.resultCount', { first: range.first, last: range.last, total: result.total })}

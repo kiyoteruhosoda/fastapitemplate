@@ -135,10 +135,15 @@ export function ConfigPage() {
                 {/* 見出しと入力欄は `for` / `id` で結ぶ。パスワード欄は入力欄に加えて
                  * 表示切り替えボタンを持ち、`<label>` で囲むと labelable な要素が
                  * 2 つ入って対応付けが曖昧になるため（HTML の label の内容モデル）。 */}
+                {/* 設定名・環境変数名・注記は別の要素にする。1 行に流すと
+                 * 「名前 KEY (再起動後に反映)」がひと続きの文に見える。 */}
                 <label htmlFor={`config-${item.key}`}>
-                  {labelFor(item)} <code>{item.key}</code>
-                  {item.env_locked && <em> ({t('config.envLocked')})</em>}
-                  {item.restart_scopes.length > 0 && <em> ({t('config.needsRestart')})</em>}
+                  <span className="config-label">{labelFor(item)}</span>
+                  <code className="config-key">{item.key}</code>
+                  {item.env_locked && <em className="config-note">{t('config.envLocked')}</em>}
+                  {item.restart_scopes.length > 0 && (
+                    <em className="config-note">{t('config.needsRestart')}</em>
+                  )}
                 </label>
                 {item.value_type === 'boolean' ? (
                   <input

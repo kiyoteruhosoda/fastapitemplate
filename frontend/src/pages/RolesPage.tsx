@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
+import { FormDialog } from '../components/FormDialog'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { usePendingRows } from '../hooks/usePendingRows'
@@ -27,6 +28,7 @@ export function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [name, setName] = useState('')
+  const [adding, setAdding] = useState(false)
   const { pendingActionOf, runForRow } = usePendingRows<RowAction>()
 
   const reload = () => api.get<Role[]>('/api/admin/roles').then(setRoles)
@@ -41,11 +43,13 @@ export function RolesPage() {
       })
   }, [])
 
-  const [create, creating] = usePendingAction(async () => {
+  const [create, creating] = usePendingAction(async (e: FormEvent) => {
+    e.preventDefault()
     if (!name.trim()) return
     try {
       await api.post('/api/admin/roles', { name, permissions: [] })
       setName('')
+      setAdding(false)
       await reload()
     } catch (err) {
       notify('error', t(errorMessageKey(err)))
@@ -77,24 +81,59 @@ export function RolesPage() {
 
   return (
     <div className="card">
-      <h1>{t('roles.title')}</h1>
-      <div className="inline-form">
-        <input
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value)
+      <div className="card-head">
+        <h1>{t('roles.title')}</h1>
+        <button
+          type="button"
+          className="button-primary"
+          onClick={() => {
+            setAdding(true)
           }}
-          placeholder="name"
-        />
-        <ActionButton type="button" pending={creating} onClick={create}>
+        >
           {t('roles.add')}
-        </ActionButton>
+        </button>
       </div>
+      {adding && (
+        <FormDialog
+          title={t('roles.add')}
+          onClose={() => {
+            setAdding(false)
+          }}
+        >
+          <form className="dialog-form" onSubmit={create}>
+            <label>
+              {t('roles.name')}
+              <input
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value)
+                }}
+                required
+              />
+            </label>
+            <p className="hint">{t('roles.addHint')}</p>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(false)
+                }}
+              >
+                {t('common.cancel')}
+              </button>
+              <ActionButton type="submit" pending={creating}>
+                {t('common.add')}
+              </ActionButton>
+            </div>
+          </form>
+        </FormDialog>
+      )}
       <div className="table-scroll">
-        <table>
+        <table className="matrix">
           <thead>
             <tr>
-              <th>Role</th>
+              <th>{t('roles.name')}</th>
+              {/* 権限コードは長いので縦組みにする（`.matrix` の指定を参照）。 */}
               {permissions.map((p) => (
                 <th key={p.id} className="vertical">
                   <code>{p.code}</code>
@@ -109,7 +148,8 @@ export function RolesPage() {
               const busy = rowAction !== null
               return (
                 <tr key={role.id}>
-                  <td>{role.name}</td>
+                  {/* 横スクロールしても残す列（`.matrix` が固定する）。 */}
+                  <th scope="row">{role.name}</th>
                   {permissions.map((p) => (
                     <td key={p.id}>
                       <input
@@ -126,6 +166,7 @@ export function RolesPage() {
                   <td>
                     <ActionButton
                       type="button"
+                      className="button-danger"
                       pending={rowAction === 'removal'}
                       disabled={busy}
                       onClick={() => {
