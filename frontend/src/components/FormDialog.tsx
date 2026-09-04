@@ -13,6 +13,9 @@
  * 開いているあいだだけ描画する（`{open && <FormDialog …>}` の形で使う）。閉じた
  * `<dialog>` を残しておくと、中の入力欄が読み上げ・テストの検索対象として
  * 一覧側の同名の項目と二重に見つかる。
+ *
+ * jsdom は `<dialog>` の開閉メソッドを持たないため、テストでは `vitest.setup.ts`
+ * が `open` 属性の付け外しだけを肩代わりする。
  */
 import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from 'react'
 
@@ -33,12 +36,17 @@ export function FormDialog({
   const dialogRef = useRef<HTMLDialogElement>(null)
   const headingId = useId()
 
+  // 描かれたら開く。閉じるのは呼び出し側が描画をやめたとき（後片付けで close）。
+  // StrictMode の二度目の実行でも、片付けで閉じてから開き直すので破綻しない
+  // （開いている `<dialog>` に `showModal()` を呼ぶと例外になる）。
+  //
+  // 開いたら最初の入力欄へフォーカスを移す。既定では DOM の先頭にある閉じるボタン
+  // （✕）へ入り、キーボードと読み上げでは「閉じる」から始まることになる。
   useEffect(() => {
     const dialog = dialogRef.current
-    // jsdom は `showModal` を持たない版があるため、無ければ素通しする（テストでは
-    // 中身が描かれていることだけを見る）。
-    if (dialog === null || typeof dialog.showModal !== 'function') return
+    if (dialog === null) return
     dialog.showModal()
+    dialog.querySelector<HTMLElement>('.dialog-form :is(input, select, textarea)')?.focus()
     return () => {
       dialog.close()
     }

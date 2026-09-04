@@ -1593,6 +1593,7 @@ tbody tr:hover {
   .settings-section > label,
   .settings-section > .field,
   .settings-section > .settings-form,
+  .settings-section > .inline-form,
   .settings-form > label,
   .settings-form > .field,
   .settings-form > button,
