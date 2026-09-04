@@ -33,6 +33,8 @@ erDiagram
     users ||--o| totp_secrets : "登録する"
     users ||--o{ passkey_credentials : "登録する"
     users ||--o{ webauthn_challenges : "発行する（ログイン用は NULL）"
+    users ||--o{ federated_identities : "外部 IdP と結び付く"
+    users ||--o{ sso_login_tickets : "引き換え券を受け取る"
 
     users {
         bigint id PK
@@ -191,6 +193,19 @@ JWT のクレームでありテーブルには持たない（セッションご�
 
 `users.id` への FK は 3 つとも `ON DELETE CASCADE`（ユーザー削除で資格情報も消える）。
 経緯は ADR-0003。
+
+### ID 連携（`bounded_contexts/identity_federation/infrastructure/`）
+
+| テーブル | 役割 |
+|---|---|
+| `federated_identities` | 外部 IdP のアカウントと利用者の結び付き。鍵は `(issuer, subject)`。**メールアドレスは鍵にしない**（変わり得るため）。利用者側に一意制約は置かない（1 人が複数の IdP アカウントを持てる） |
+| `sso_login_tickets` | コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**（漏れた控えからそのままログインできないようにする）。期限切れは券の発行時に掃除するので定期ジョブは持たない |
+
+⚠ **認可要求の往復状態（`state` / `nonce` / `code_verifier`）の表は無い。** 署名付き
+Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要らず、`state` を知って
+いるだけの相手は戻りを完了できない。
+
+`users.id` への FK はどちらも `ON DELETE CASCADE`。経緯は ADR-0025。
 
 ### 運用・その他
 

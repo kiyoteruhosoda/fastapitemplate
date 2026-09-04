@@ -37,6 +37,7 @@ from presentation.fastapi.dependencies.auth import (
     get_current_user,
     set_access_token_cookie,
 )
+from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.dependencies.login import LoginServiceDep
 from presentation.fastapi.schemas.auth import (
     ChangePasswordRequest,
@@ -76,7 +77,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(require_local_login)])
 async def login(body: LoginRequest, response: Response, login_service: LoginServiceDep) -> TokenResponse:
     """パスワード認証。二要素認証が有効なら ``totp_code`` も必須になる。"""
     user = login_service.authenticate(body)
@@ -174,7 +175,7 @@ async def update_me(
     return _me_response(user, principal)
 
 
-@router.post("/change-password", response_model=StatusResponse)
+@router.post("/change-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
 async def change_password(
     body: ChangePasswordRequest,
     principal: PrincipalDep,
@@ -198,7 +199,7 @@ async def change_password(
     return StatusResponse(status="ok")
 
 
-@router.post("/forgot-password", response_model=StatusResponse)
+@router.post("/forgot-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
 async def forgot_password(body: ForgotPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
     """再設定リンクを送る。
 
@@ -217,7 +218,7 @@ async def forgot_password(body: ForgotPasswordRequest, db: DbDep, audit: AuditRe
     return StatusResponse(status="accepted")
 
 
-@router.post("/reset-password", response_model=StatusResponse)
+@router.post("/reset-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
 async def reset_password(body: ResetPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
     """トークンで新しいパスワードを設定する。
 

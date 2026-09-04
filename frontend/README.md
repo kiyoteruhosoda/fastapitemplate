@@ -39,6 +39,8 @@ flowchart TD
         Totp["/login（TOTP 入力ステップ）<br/>※同一画面内の状態遷移"]
         Forgot["/forgot-password<br/>リセットリンク送信"]
         Reset["/reset-password?token=…<br/>新しいパスワード設定"]
+        SsoCallback["/login/sso?ticket=…<br/>SSO の戻り（引き換え）"]
+        Idp[["外部 IdP<br/>（別サイト）"]]
     end
 
     subgraph private["認証済み（Header + Sidebar + Footer レイアウト）"]
@@ -90,6 +92,10 @@ flowchart TD
 
 ---
 
+※ SSO を有効にしている場合、`/login` の「SSO でログイン」から外部 IdP へ出て、
+`/login/sso?ticket=…` へ戻る（ADR-0025）。`Login --> Idp --> SsoCallback --> Dashboard`。
+往復に失敗すると `/login?sso_error=<コード>` へ戻る。
+
 ## 画面一覧
 
 | #   | 画面                   | ルート                    | 認証 | 必要 scope                                          | サイドバー |
@@ -97,6 +103,7 @@ flowchart TD
 | S1  | サインイン             | `/login`                  | 不要 | —                                                   | —          |
 | S2  | パスワードリセット申請 | `/forgot-password`        | 不要 | —                                                   | —          |
 | S3  | パスワード再設定       | `/reset-password?token=…` | 不要 | —                                                   | —          |
+| S15 | SSO の戻り             | `/login/sso?ticket=…`     | 不要 | —                                                   | —          |
 | S4  | ダッシュボード         | `/`                       | 必要 | `dashboard:view`                                    | ✅         |
 | S5  | アイテム               | `/items`                  | 必要 | `item:view`（追加は `item:manage`）                 | ✅         |
 | S6  | プロフィール           | `/profile`                | 必要 | —                                                   | —          |
@@ -133,18 +140,37 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 
 ### S1 サインイン（`/login`）
 
-- **目的**: メールアドレスとパスワード、またはパスキーでサインインする。
-- **表示内容**: メール、パスワード、サインインボタン、パスキーボタン
-  （ブラウザが対応している場合のみ）、パスワードリセットへのリンク。
+- **目的**: メールアドレスとパスワード、パスキー、または外部 IdP（SSO）でサインインする。
+- **表示内容**: SSO ボタン（有効なときだけ。名前は `OIDC_DISPLAY_NAME`）、メール、
+  パスワード、サインインボタン、パスキーボタン（ブラウザが対応している場合のみ）、
+  パスワードリセットへのリンク。
+  - **どの入口を出すかはサーバーに聞く**（`GET /api/auth/sso/provider`）。
+    `local_login_enabled` が偽ならパスワード欄とパスキーのボタンを出さない
+    （ADR-0026 決定 2）。**問い合わせに失敗したときは出したままにする**——
+    ここで隠すと、問い合わせが落ちただけで全員が締め出される。
+  - `?sso_error=<コード>` が付いていれば、`error.<コード>` の文言で失敗を表示する。
 - **操作**:
   1. メール・パスワードを入力して送信 → 成功で `/` へ。
   2. 二要素認証が有効なユーザーは `totp_required` が返り、**同じ画面が
      ワンタイムコード入力ステップに切り替わる**（エラー表示ではなく次の手順）。
   3. コードを送信 → 成功で `/`。「戻る」で資格情報入力に戻る。
 - **使用 API**: `POST /api/auth/login`, `POST /api/auth/passkey/challenge`,
-  `POST /api/auth/passkey/login`
+  `POST /api/auth/passkey/login`, `GET /api/auth/sso/provider`
+  （SSO ボタンは `GET /api/auth/sso/login` へ**画面遷移**する。fetch では IdP の
+  ログイン画面を出せないため）
 - **備考**: エラーはエラーコードで返り、文言は `src/i18n/*.json` の
   `error.*` キーで表示する（バックエンドは表示文言を返さない）。
+
+### S15 SSO の戻り（`/login/sso?ticket=…`）
+
+- **目的**: 外部 IdP からの戻りで受け取った引き換え券をトークンへ換える（ADR-0025）。
+- **表示内容**: 「ログインしています…」だけ。利用者の操作は無い。
+- **操作**: 自動。成功したら SSO を始めた画面へ、失敗したら
+  `/login?sso_error=<コード>` へ転送する。
+- **使用 API**: `POST /api/auth/sso/token`
+- **備考**: **URL に載るのは券だけでトークンは載らない**（URL は履歴・Referer・
+  プロキシのログに残るため）。券は 1 回限りで、React の開発時の二重実行でも
+  2 度換えにいかないよう画面側で控えている。
 
 ### S2 パスワードリセット申請（`/forgot-password`）
 
@@ -393,6 +419,10 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
    - 初期管理者は `admin@example.com` / `admin@example.com`（初回サインイン後に必ず変更する）。
 3. 二要素認証を有効にしている場合は、認証アプリのコードを入力して再度「サインイン」。
 4. パスキーを登録済みなら「パスキーでサインイン」から画面ロック / セキュリティキーで入れる。
+5. SSO を有効にしている場合は「SSO でログイン」から外部 IdP へ出て、認証が済むと戻ってくる。
+
+> パスワード欄が出ていないときは、ローカルの入口が閉じられている（`LOCAL_LOGIN_ENABLED`）。
+> SSO のボタンからログインする。
 
 ### パスワードを忘れたとき
 

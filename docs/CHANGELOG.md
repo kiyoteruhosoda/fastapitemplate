@@ -1,3 +1,27 @@
+## 2026-09-04（外部 IdP との SSO を足した。ADR-0025 / ADR-0026）
+
+- **`bounded_contexts/identity_federation/` を追加した。** 認可コードフロー + PKCE で
+  外部 IdP へログインを委譲する。経路は `/api/auth/sso/{provider,login,callback,token}`。
+  クライアント認証は `client_secret_basic` と `private_key_jwt` の両対応で、
+  **既定は無効**（`OIDC_ENABLED=false`）。派生 3 つ（nolumiawiki / rewardpointsweb /
+  photonest）が別々に書いていたものを、部分ごとに良い方を採って持ってきた。
+- **往復状態（`state` / `nonce` / `code_verifier`）は署名付き Cookie で運ぶ。** 表に
+  控えを置かないので、`state` を知っているだけの相手は戻りを完了できない
+  （ログイン CSRF）。テーブルは 2 つだけで、掃除も要らない。
+- **コールバックは 1 回限りの引き換え券だけを URL に載せる。** トークンは URL に
+  載らない（履歴・Referer・プロキシのログに残るため）。
+- **要求した認証の強度は確かめる。** `OIDC_ACR_VALUES` を送ったら、返ってきた `acr` が
+  要求と一致しなければ（返ってこない場合も）ログインを断る。既定は空なので、
+  設定した派生だけが fail closed になる。
+- **`OIDC_AUTO_PROVISION` の既定は `false`。** IdP がテナント共用のとき、`true` は
+  「IdP に口座がある人は全員このアプリに入れる」を意味する。
+- **`LOCAL_LOGIN_ENABLED` を足した。** `false` でパスワード・パスキーのログインと、
+  ローカル資格情報の登録（パスキー・TOTP・パスワード変更）を止める。登録まで止める
+  のは、閉じた入口の合鍵を作れないようにするため。⚠ 締め出されたら環境変数で
+  `true` へ戻して再起動する。
+- ログイン成功の監査ログに**どの入口で入ったか**を残すようにした
+  （`method=password` / `passkey` / `sso`）。
+
 # CHANGELOG — 完了した重要な変更の要約
 
 ## 2026-09-04 入力の面を整理し、スマートフォンでは幅いっぱいに出すようにした

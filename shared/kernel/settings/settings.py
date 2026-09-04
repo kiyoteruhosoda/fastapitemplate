@@ -108,6 +108,11 @@ class _DatabaseOverrides:
         return value if isinstance(value, dict) else {}
 
 
+#: SSO のコールバック経路。``OIDC_REDIRECT_URI`` 未設定時の組み立てに使う
+#: （ルーターの ``prefix`` と対で合わせる）。
+OIDC_CALLBACK_PATH = "/api/auth/sso/callback"
+
+
 class ApplicationSettings:
     """環境変数・DB・デフォルト値を統合して設定値を返す。"""
 
@@ -339,7 +344,138 @@ class ApplicationSettings:
         """``audit_log`` を残す日数。``0`` は削除しない（ADR-0021）。"""
         return self.get_int("AUDIT_LOG_RETENTION_DAYS", 0)
 
+    # ------------------------------------------------------------------
+    # 外部 IdP との SSO（ADR-0025 / ADR-0026）
+    # ------------------------------------------------------------------
+
+    @property
+    def oidc_enabled(self) -> bool:
+        """SSO を使うか。**設定が揃っているかまでは見ない**（:attr:`oidc_configured`）。"""
+        return self.get_bool("OIDC_ENABLED", False)
+
+    @property
+    def oidc_configured(self) -> bool:
+        """有効かつ接続先が埋まっているか（ログイン画面にボタンを出す判断）。
+
+        資格情報まで揃っているかは ``ClientCredential`` が方式ごとに見る。
+        """
+        return self.oidc_enabled and bool(self.oidc_issuer and self.oidc_client_id)
+
+    @property
+    def oidc_display_name(self) -> str:
+        return str(self._get("OIDC_DISPLAY_NAME") or "SSO")
+
+    @property
+    def oidc_issuer(self) -> str:
+        return str(self._get("OIDC_ISSUER") or "").rstrip("/")
+
+    @property
+    def oidc_client_id(self) -> str:
+        return str(self._get("OIDC_CLIENT_ID") or "")
+
+    @property
+    def oidc_client_secret(self) -> str:
+        return str(self._get("OIDC_CLIENT_SECRET") or "")
+
+    @property
+    def oidc_client_auth_method(self) -> str:
+        """トークンエンドポイントへの client 認証方式（ADR-0025 決定 5）。
+
+        知らない値は既定へ落とさない（``ClientCredential`` が「不備」と判断する）。
+        """
+        return str(self._get("OIDC_CLIENT_AUTH_METHOD") or "").strip()
+
+    @property
+    def oidc_private_key_file(self) -> str:
+        """``private_key_jwt`` で署名する秘密鍵（PEM）の在り処。
+
+        ⚠ **ファイルとディレクトリの両方**でコンテナの実行 gid が通ること。
+        """
+        return str(self._get("OIDC_PRIVATE_KEY_FILE") or "")
+
+    @property
+    def oidc_private_key_kid(self) -> str:
+        return str(self._get("OIDC_PRIVATE_KEY_KID") or "")
+
+    @property
+    def oidc_scopes(self) -> Sequence[str]:
+        return self.get_list("OIDC_SCOPES")
+
+    @property
+    def oidc_redirect_uri(self) -> str:
+        """IdP に登録した折り返し先。空なら ``APP_BASE_URL`` から組み立てる。"""
+        configured = str(self._get("OIDC_REDIRECT_URI") or "")
+        if configured:
+            return configured
+        base = self.app_base_url.rstrip("/")
+        return f"{base}{OIDC_CALLBACK_PATH}" if base else ""
+
+    @property
+    def oidc_acr_values(self) -> Sequence[str]:
+        """要求する認証の強度。空 = 要求しない（ADR-0026 決定 1）。"""
+        return self.get_list("OIDC_ACR_VALUES")
+
+    @property
+    def oidc_email_claim(self) -> str:
+        return str(self._get("OIDC_EMAIL_CLAIM") or "email")
+
+    @property
+    def oidc_username_claim(self) -> str:
+        return str(self._get("OIDC_USERNAME_CLAIM") or "name")
+
+    @property
+    def oidc_groups_claim(self) -> str:
+        return str(self._get("OIDC_GROUPS_CLAIM") or "groups")
+
+    @property
+    def oidc_role_mapping(self) -> Sequence[str]:
+        """``"<グループ>=<ロール>"`` の並び。"""
+        return self.get_list("OIDC_ROLE_MAPPING")
+
+    @property
+    def oidc_default_roles(self) -> Sequence[str]:
+        return self.get_list("OIDC_DEFAULT_ROLES")
+
+    @property
+    def oidc_role_sync(self) -> bool:
+        return self.get_bool("OIDC_ROLE_SYNC", False)
+
+    @property
+    def oidc_auto_provision(self) -> bool:
+        return self.get_bool("OIDC_AUTO_PROVISION", False)
+
+    @property
+    def oidc_link_by_email(self) -> bool:
+        return self.get_bool("OIDC_LINK_BY_EMAIL", True)
+
+    @property
+    def oidc_allowed_email_domains(self) -> Sequence[str]:
+        return self.get_list("OIDC_ALLOWED_EMAIL_DOMAINS")
+
+    @property
+    def oidc_login_transaction_ttl_seconds(self) -> int:
+        """認可要求からコールバックまでに許す時間（署名付き Cookie の寿命）。"""
+        return self.get_int("OIDC_LOGIN_TRANSACTION_TTL_SECONDS", 600)
+
+    @property
+    def oidc_login_ticket_ttl_seconds(self) -> int:
+        return self.get_int("OIDC_LOGIN_TICKET_TTL_SECONDS", 60)
+
+    # ------------------------------------------------------------------
+    # ローカルの入口（ADR-0026 決定 2・3）
+    # ------------------------------------------------------------------
+
+    @property
+    def local_login_enabled(self) -> bool:
+        """パスワード・パスキーでのログインと、ローカル資格情報の登録を許すか。
+
+        ⚠ **締め出しの経路がある。** ``false`` のまま IdP が落ちる・最後の管理者が
+        IdP 側で止まると誰も入れなくなる。復旧は環境変数で ``true`` へ戻して再起動
+        （環境変数は DB の設定より優先される）。
+        """
+        return self.get_bool("LOCAL_LOGIN_ENABLED", True)
+
 
 settings = ApplicationSettings()
 
-__all__ = ["ApplicationSettings", "settings"]
+__all__ = ["OIDC_CALLBACK_PATH", "ApplicationSettings", "settings"]

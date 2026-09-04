@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import { api, clearTokens, hasTokens, setTokens } from '../services/api'
+import { exchangeSsoTicket } from '../services/sso'
 import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
 export interface Me {
@@ -27,6 +28,11 @@ interface AuthValue {
   /** 二要素認証が有効なアカウントでは totpCode が必要（未指定なら totp_required）。 */
   login: (email: string, password: string, totpCode?: string) => Promise<void>
   loginWithPasskey: () => Promise<void>
+  /**
+   * SSO の引き換え券をトークンへ換えてログイン状態にする（ADR-0025）。
+   * 戻り先（SSO を始めた画面）を返す。
+   */
+  completeSsoLogin: (ticket: string) => Promise<string>
   logout: () => void
   refreshMe: () => Promise<void>
   /** アクティブロールを切り替える（null ですべてのロールへ戻す。ADR-0017）。 */
@@ -80,6 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refreshMe()
   }
 
+  const completeSsoLogin = async (ticket: string) => {
+    const session = await exchangeSsoTicket(ticket)
+    setTokens(session.access_token, session.refresh_token)
+    await refreshMe()
+    return session.redirect_to
+  }
+
   /**
    * 切り替えはトークンの再発行で行う（サーバー側が scope を絞り直す）。
    * 新しいトークンに差し替えてから /me を引き直すので、画面に出る scope と
@@ -102,7 +115,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, loginWithPasskey, logout, refreshMe, switchRole, hasScope }}
+      value={{
+        user,
+        loading,
+        login,
+        loginWithPasskey,
+        completeSsoLogin,
+        logout,
+        refreshMe,
+        switchRole,
+        hasScope,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -18,10 +18,7 @@
 | 8 | T9 | 期限切れ・使用済みパスワードリセットトークンを掃除する | ⬜未着手 | 中 | 小 |
 | 9 | T10 | `example` コンテキストを「作って終わり」から本当の見本へ育てる | ⬜未着手 | 中 | 中 |
 | 10 | T11 | テンプレート名を付け替えるスクリプト | ⬜未着手 | 中 | 中 |
-| 11 | T12 | フロントエンドのトークン保管方式を 1 つに決める | 🟡要判断 | 中 | 中 |
-| 12 | T13 | 外部 IdP との SSO（`identity_federation` の逆輸入） | ⬜未着手 | 大 | 大 |
-| 13 | T14 | ローカルの入口を閉じられるようにする（`LOCAL_LOGIN_ENABLED`） | ⬜未着手 | 大 | 中 |
-| 14 | T15 | 機械の口（`client_credentials` のトークンで API を叩く経路） | 🟡要判断 | 中 | 大 |
+| 11 | T12 | トークンを Cookie 一本にする（ADR-0028 の実装） | ⬜未着手 | 大 | 中 |
 
 ## 詳細
 
@@ -124,74 +121,30 @@ CLAUDE.md・README・ADR-0023・OPERATIONS.md がかなりの分量を使って�
 `WEBAUTHN_RP_NAME`、`app.py` の `title`）。`scripts/rename_project.sh <new-name>`
 を用意すれば、この文書量の大半が「これを実行する」の 1 行になる。
 
-### T12 フロントエンドのトークン保管方式を 1 つに決める
+### T12 トークンを Cookie 一本にする（ADR-0028 の実装）
 
-バックエンドは access トークンを **httpOnly Cookie** に載せている
-（`set_access_token_cookie`）のに、フロントエンドは同じトークンを
-**localStorage** にも保存して `Authorization` ヘッダーで送っている
-（`frontend/src/services/api.ts`）。httpOnly にした意味が localStorage 側で
-打ち消されており、二重管理でもある。
-
-- Cookie 一本にする → XSS でトークンを持ち出されない。CSRF 対策（`SameSite` に
-  加えてトークン）と、Swagger UI からの手動確認の導線を決める必要がある。
-- ヘッダー一本にする → 現状の実装に近いが、Cookie を発行する意味が無くなる。
-
-どちらを採るかは影響範囲が広く、決めたら ADR に残す。
-
-### T13 外部 IdP との SSO（`identity_federation` の逆輸入）
-
-方式は **ADR-0025** で決めた。派生（nolumiawiki / rewardpointsweb）が同じ形へ独立に
-たどり着いているので、ここは設計ではなく**移植と一般化**の作業になる。
+方式は **ADR-0028** で決めた。SPA はトークンを持たず、access / refresh とも
+httpOnly Cookie で運ぶ。**トークンを応答本文で配るのもやめる** —— Cookie は自動で
+送られるので、本文に載せたままだと XSS が `POST /api/auth/refresh` を叩いて新しい
+トークンを読めてしまい、httpOnly が意味を持たない。
 
 やること:
 
-1. `bounded_contexts/identity_federation/` を nolumiawiki から移す（骨格）。
-   「寄せてよいか」の判断は rewardpointsweb の `AccountLinkingPolicy` を採る。
-   **機械トークンの部分（`machine_client` / `exchange_machine_token` /
-   `machine_router` と `OidcProviderGateway.verify_machine_token`）は持ってこない**（T15）。
-2. 経路を `/api/auth/sso/*` に揃える。
-3. マイグレーション 1 本（`federated_identities` / `sso_login_sessions` /
-   `sso_login_tickets`）と `docs/ER.md`。
-4. 設定キー（`OIDC_*`）を 3 ファイルへ。**既定は `OIDC_ENABLED=false` /
-   `OIDC_AUTO_PROVISION=false`**（テンプレートは安全側）。
-5. `httpx` を実行時の依存へ追加。
-6. フロントエンド: ログイン画面のボタン、SSO コールバック画面、`frontend/README.md` の 4 か所。
-7. `docs/OPERATIONS.md` に「IdP へクライアントを登録する」「`private_key_jwt` の鍵を
-   渡す」の手順（ディレクトリとファイルの両方に実行 gid が通ること）。
+1. refresh トークンを httpOnly Cookie にする（経路は `/api/auth/refresh` に絞る）。
+2. `TokenResponse` から `access_token` / `refresh_token` を落とす
+   （SSO の `SsoSessionResponse` も `redirect_to` だけにする）。
+3. フロントエンドの `setTokens` / `hasTokens` を廃し、ログイン済みの判定を
+   `GET /api/auth/me` の成否に寄せる。
+4. CSRF の二重送信トークンを更新系（POST / PUT / PATCH / DELETE）へ。
+5. `docs/OPERATIONS.md` に curl / Swagger からの叩き方（Cookie の扱い）。
 
-移植元は同じテンプレート由来で、`identity_federation` の import は `shared` と
-`presentation.fastapi`（`TokenService` / `set_access_token_cookie`）にしか向いていない。
-アプリ固有のものを掴んでいないので、機械的に移せる見込み。
+⚠ **API の互換が壊れる。** ただし影響するのは**本文からトークンを取り出している
+機械の呼び出し元**で、ブラウザからのログインではない。SPA は同じコミットで直る。
+派生アプリは fork なので、取り込むまでは動き続ける。
 
-### T14 ローカルの入口を閉じられるようにする（`LOCAL_LOGIN_ENABLED`）
-
-**ADR-0026** の 2 と 3。T13 の後（SSO が無い状態で閉じると誰も入れない）。
-
-- `false` のときに 403 `local_login_disabled` を返す口: `/api/auth/login`・
-  `/api/auth/passkey/login`・`/api/auth/forgot-password`・`/api/auth/reset-password`・
-  パスキー登録・TOTP 有効化・パスワード変更。
-- ログイン成功の監査ログに入口を残す（`method=password` / `passkey` / `sso`）。
-- `OIDC_ACR_VALUES` を送り、**返ってきた `acr` を検証して満たさなければ断る**
-  （`acr` が返ってこない場合も断る）。discovery の `acr_values_supported` との
-  突き合わせを起動時の確認に足す。**idp 側（assay の ADR-0043）とセットで進める** ——
-  あちらが `acr` を返すまで、この設定を入れた派生はログインが通らない（既定は空）。
-- 締め出しからの復旧手順を `docs/OPERATIONS.md` へ（環境変数で戻して再起動）。
-- **T4 と地続き**。「最後の管理者」を数えるとき、SSO でしか入れない管理者をどう扱うか。
-
-### T15 機械の口（`client_credentials` のトークンで API を叩く経路）
-
-ADR-0025 では**含めない**と決めた。テンプレートへ入れるかどうかがまだ判断待ち。
-
-`client_credentials` のトークンには**認可が載らない**（`scope` は空になり、`sub` は
-利用者ではなくクライアント自身）。そのため「どのクライアントが誰として何をしてよいか」を
-受け側で登録する仕組みが別に要る。nolumiawiki は `MachineClient.acts_as` でそれを
-持っている（あちらの ADR-0060）。
-
-判断すること:
-
-- テンプレートに要るか。要るなら nolumiawiki の形をそのまま採るか。
-- 検証で外せない点（`sub_type == "client"` と `sub == client_id` の確認）を、
-  どのレイヤーの責務にするか。
+**T5（発行済みトークンの失効）と地続き。** 失効の手段が無いあいだは、持ち出させない
+ことが唯一の防御になる。今回良くなるのは「持ち出されない」ことで、「止められる」
+ようになるわけではない。
 
 （直近の完了分の要約は `CHANGELOG.md`、設計判断は `decisions/`（ADR）を参照。
 テンプレート刷新の経緯は `history/2026-07-template-refresh.md`、

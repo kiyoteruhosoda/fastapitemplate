@@ -236,5 +236,21 @@
   "error.passkey_cancelled": "パスキーの操作が取り消されました。",
   "error.invalid_restart_scope": "再起動の対象が不正です。",
   "error.restart_request_failed": "再起動を要求できませんでした。",
-  "error.unknown_error": "エラーが発生しました。"
+  "error.unknown_error": "エラーが発生しました。",
+  "login.withSso": "{provider} でログイン",
+  "login.localDisabled": "パスワードでのログインは無効です。上のボタンからログインしてください。",
+  "login.ssoCompleting": "ログインしています…",
+  "error.sso_error": "SSO でのログインに失敗しました。もう一度お試しください。",
+  "error.sso_not_configured": "SSO は利用できません。",
+  "error.sso_state_invalid": "ログインの手続きが期限切れか、別のブラウザで開始されました。もう一度お試しください。",
+  "error.sso_ticket_invalid": "ログインのリンクが期限切れです。もう一度お試しください。",
+  "error.sso_provider_unavailable": "IdP に接続できませんでした。",
+  "error.sso_invalid_id_token": "IdP の応答を検証できませんでした。",
+  "error.sso_acr_not_satisfied": "IdP が要求した強度の認証を満たしませんでした。",
+  "error.sso_email_missing": "IdP がメールアドレスを返しませんでした。",
+  "error.sso_email_not_allowed": "このメールアドレスのドメインではログインできません。",
+  "error.sso_account_not_linked": "対応するアカウントがありません。管理者に作成を依頼してください。",
+  "error.sso_account_inactive": "このアカウントは無効化されています。",
+  "error.sso_callback_invalid": "SSO でのログインに失敗しました。もう一度お試しください。",
+  "error.local_login_disabled": "パスワードとパスキーでのログインは無効です。"
 }

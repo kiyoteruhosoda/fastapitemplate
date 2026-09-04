@@ -1,11 +1,12 @@
-import { useId, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useId, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
 import { PasswordInput } from '../components/PasswordInput'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
+import { fetchSsoProvider, startSsoLogin, type SsoProvider } from '../services/sso'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
 import { useAuth } from '../store/AuthContext'
 
@@ -21,6 +22,28 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [params] = useSearchParams()
+  // SSO の設定は起動後に変えられるので、画面を開くたびに問い合わせる。
+  // 取れないうちは**ローカルの入口を出したままにする**（問い合わせに失敗しただけで
+  // 全員が締め出されるのを避ける）。
+  const [sso, setSso] = useState<SsoProvider>({
+    enabled: false,
+    display_name: '',
+    local_login_enabled: true,
+  })
+
+  useEffect(() => {
+    fetchSsoProvider()
+      .then(setSso)
+      .catch(() => undefined)
+  }, [])
+
+  // サーバー側の往復（``/api/auth/sso/callback``）が失敗すると、ここへ
+  // ``?sso_error=<コード>`` で戻ってくる。表示文言は画面が決める。
+  useEffect(() => {
+    const code = params.get('sso_error')
+    if (code) setError(`error.${code}`)
+  }, [params])
   // パスワード欄は表示切り替えボタンを持つため `<label>` で囲まず `for` で結ぶ
   // （labelable な要素を 2 つ入れると対応付けが曖昧になる）。
   const passwordId = useId()
@@ -71,7 +94,21 @@ export function LoginPage() {
         <h1>{step === 'totp' ? t('login.totpTitle') : t('login.title')}</h1>
         {error && <p className="error">{t(error)}</p>}
 
-        {step === 'credentials' ? (
+        {sso.enabled && (
+          <ActionButton
+            type="button"
+            pending={false}
+            onClick={() => {
+              startSsoLogin('/')
+            }}
+          >
+            {t('login.withSso', { provider: sso.display_name })}
+          </ActionButton>
+        )}
+        {/* 入口が閉じているときは、押しても 403 になるものを出さない（ADR-0026 決定 2）。 */}
+        {!sso.local_login_enabled ? (
+          <p className="hint">{t('login.localDisabled')}</p>
+        ) : step === 'credentials' ? (
           <>
             <label>
               {t('login.email')}

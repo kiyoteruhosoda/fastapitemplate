@@ -259,6 +259,75 @@ APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
 - ホスト: `docker compose restart app`（デプロイ先は Komodo の画面から）
 
+## SSO（外部 IdP との連携）を有効にしたいとき
+
+1. IdP にクライアントを登録する。折り返し先は `<APP_BASE_URL>/api/auth/sso/callback`。
+   自前 idp（assay）なら管理 API で登録できる。
+
+   ```bash
+   curl -X POST "$ISSUER/admin/clients" -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -H 'Content-Type: application/json' \
+     -d '{"app_name":"<アプリ名>","client_type":"confidential",
+          "redirect_uris":["https://<ホスト>/api/auth/sso/callback"],
+          "scopes":["openid","profile","email"],
+          "token_endpoint_auth_method":"private_key_jwt","jwks":"<公開鍵の JWKS>"}'
+   ```
+
+2. 設定を入れる（環境変数か管理画面 > システム設定 > SSO）。
+
+   ```
+   OIDC_ENABLED=true
+   OIDC_ISSUER=<発行者 URL>
+   OIDC_CLIENT_ID=<登録で得た client_id>
+   OIDC_CLIENT_AUTH_METHOD=client_secret_basic   # または private_key_jwt
+   OIDC_CLIENT_SECRET=<client_secret_basic のとき>
+   OIDC_REDIRECT_URI=https://<ホスト>/api/auth/sso/callback
+   ```
+
+3. 起動時のログで `sso_ready` を確かめる。`sso_disabled_by_configuration` なら
+   設定が欠けている。`sso_private_key_unreadable` なら鍵が読めていない。
+
+## SSO で `private_key_jwt` を使いたいとき
+
+1. 秘密鍵（PEM）をホストへ置き、コンテナへ **read-only** で渡す。
+2. 設定に**在り処**だけを入れる（鍵そのものは設定にも DB にも入れない）。
+
+   ```
+   OIDC_CLIENT_AUTH_METHOD=private_key_jwt
+   OIDC_PRIVATE_KEY_FILE=/run/oidc/client.key
+   OIDC_PRIVATE_KEY_KID=<IdP に複数鍵があるときだけ>
+   ```
+
+⚠ **ファイルとディレクトリの両方**でコンテナの実行 gid が通ること。ディレクトリに
+実行ビットが無いと、起動も設定画面も通るのに**利用者が IdP から戻ってきた瞬間だけ**
+落ちる。起動時のログ（`sso_ready` / `sso_private_key_unreadable`）で確かめる。
+
+## 強い認証を IdP に要求したいとき
+
+`OIDC_ACR_VALUES` に IdP の予約語を入れる（自前 idp なら `urn:assay:ac:mfa`）。
+
+```
+OIDC_ACR_VALUES=["urn:assay:ac:mfa"]
+```
+
+⚠ **入れたら fail closed になる。** 返ってきた `acr` が要求と一致しなければ、
+また `acr` が返ってこなければ、ログインを断る（`sso_acr_not_satisfied`）。
+予約語を持たない IdP へつないでいるときは**空のままにする**。
+
+## パスワードでのログインを止めたいとき（SSO 専用にする）
+
+```
+LOCAL_LOGIN_ENABLED=false
+```
+
+パスワード・パスキーでのログインと、ローカル資格情報の登録（パスキー・TOTP・
+パスワード変更）が 403 `local_login_disabled` になる。ログイン画面はパスワード欄と
+パスキーのボタンを出さなくなる。
+
+⚠ **締め出しの経路がある。** この状態で IdP が落ちる、あるいは最後の管理者が IdP 側で
+止まると誰も入れなくなる。**復旧は環境変数で `LOCAL_LOGIN_ENABLED=true` へ戻して
+再起動する**（環境変数は DB の設定より優先されるので、管理画面に入れなくても戻せる）。
+
 ## 管理者がパスワードを忘れてサインインできないとき
 
 メール送信が有効なら `/forgot-password` から再設定する。無効なとき
