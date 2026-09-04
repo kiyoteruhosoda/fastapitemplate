@@ -18,8 +18,7 @@
 | 8 | T9 | 期限切れ・使用済みパスワードリセットトークンを掃除する | ⬜未着手 | 中 | 小 |
 | 9 | T10 | `example` コンテキストを「作って終わり」から本当の見本へ育てる | ⬜未着手 | 中 | 中 |
 | 10 | T11 | テンプレート名を付け替えるスクリプト | ⬜未着手 | 中 | 中 |
-| 11 | T12 | フロントエンドのトークン保管方式を 1 つに決める | 🟡要判断 | 中 | 中 |
-| 12 | T15 | 機械の口（`client_credentials` のトークンで API を叩く経路） | 🟡要判断 | 中 | 大 |
+| 11 | T12 | トークンを Cookie 一本にする（ADR-0028 の実装） | ⬜未着手 | 大 | 中 |
 
 ## 詳細
 
@@ -122,34 +121,29 @@ CLAUDE.md・README・ADR-0023・OPERATIONS.md がかなりの分量を使って�
 `WEBAUTHN_RP_NAME`、`app.py` の `title`）。`scripts/rename_project.sh <new-name>`
 を用意すれば、この文書量の大半が「これを実行する」の 1 行になる。
 
-### T12 フロントエンドのトークン保管方式を 1 つに決める
+### T12 トークンを Cookie 一本にする（ADR-0028 の実装）
 
-バックエンドは access トークンを **httpOnly Cookie** に載せている
-（`set_access_token_cookie`）のに、フロントエンドは同じトークンを
-**localStorage** にも保存して `Authorization` ヘッダーで送っている
-（`frontend/src/services/api.ts`）。httpOnly にした意味が localStorage 側で
-打ち消されており、二重管理でもある。
+方式は **ADR-0028** で決めた。SPA はトークンを持たず、access / refresh とも
+httpOnly Cookie で運ぶ。**トークンを応答本文で配るのもやめる** —— Cookie は自動で
+送られるので、本文に載せたままだと XSS が `POST /api/auth/refresh` を叩いて新しい
+トークンを読めてしまい、httpOnly が意味を持たない。
 
-- Cookie 一本にする → XSS でトークンを持ち出されない。CSRF 対策（`SameSite` に
-  加えてトークン）と、Swagger UI からの手動確認の導線を決める必要がある。
-- ヘッダー一本にする → 現状の実装に近いが、Cookie を発行する意味が無くなる。
+やること:
 
-どちらを採るかは影響範囲が広く、決めたら ADR に残す。
+1. refresh トークンを httpOnly Cookie にする（経路は `/api/auth/refresh` に絞る）。
+2. `TokenResponse` から `access_token` / `refresh_token` を落とす
+   （SSO の `SsoSessionResponse` も `redirect_to` だけにする）。
+3. フロントエンドの `setTokens` / `hasTokens` を廃し、ログイン済みの判定を
+   `GET /api/auth/me` の成否に寄せる。
+4. CSRF の二重送信トークンを更新系（POST / PUT / PATCH / DELETE）へ。
+5. `docs/OPERATIONS.md` に curl / Swagger からの叩き方（Cookie の扱い）。
 
-### T15 機械の口（`client_credentials` のトークンで API を叩く経路）
+⚠ **API の互換が壊れる。** このテンプレートから作った既存のアプリは、フロントエンドを
+同じ形に直すまで動かない。
 
-ADR-0025 では**含めない**と決めた。テンプレートへ入れるかどうかがまだ判断待ち。
-
-`client_credentials` のトークンには**認可が載らない**（`scope` は空になり、`sub` は
-利用者ではなくクライアント自身）。そのため「どのクライアントが誰として何をしてよいか」を
-受け側で登録する仕組みが別に要る。nolumiawiki は `MachineClient.acts_as` でそれを
-持っている（あちらの ADR-0060）。
-
-判断すること:
-
-- テンプレートに要るか。要るなら nolumiawiki の形をそのまま採るか。
-- 検証で外せない点（`sub_type == "client"` と `sub == client_id` の確認）を、
-  どのレイヤーの責務にするか。
+**T5（発行済みトークンの失効）と地続き。** 失効の手段が無いあいだは、持ち出させない
+ことが唯一の防御になる。今回良くなるのは「持ち出されない」ことで、「止められる」
+ようになるわけではない。
 
 （直近の完了分の要約は `CHANGELOG.md`、設計判断は `decisions/`（ADR）を参照。
 テンプレート刷新の経緯は `history/2026-07-template-refresh.md`、
