@@ -65,6 +65,9 @@
   --radius-md: 0.6rem;
   --radius-lg: 0.9rem;
   --radius-pill: 999px;
+  /* 画面の左右の余白。ヘッダー・本文・フッターで同じ値を使い、端末の切り欠きは
+   * env(safe-area-inset-*) で避ける（`index.html` の viewport-fit=cover）。 */
+  --gutter: 1.5rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -311,6 +314,9 @@ input[type='radio'] {
 /* --- 外枠 ---------------------------------------------------------------- */
 .layout {
   min-height: 100vh;
+  /* アドレスバーの伸縮で表示領域が変わる端末では、いま見えている高さに合わせる
+   * （100vh のままだとフッターが常に画面外へはみ出す）。 */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -324,7 +330,10 @@ input[type='radio'] {
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--gutter);
+  /* 横向きの端末で切り欠きに文字が隠れないよう、左右は安全域の分まで広げる。 */
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   /* 本文がヘッダーの下を通り抜けるので、透けた背景をぼかして文字を読みやすくする */
   backdrop-filter: blur(10px);
@@ -444,7 +453,7 @@ input[type='radio'] {
   gap: 0.15rem;
   min-width: 14rem;
   /* 画面より広くしない（切り替えボタンが右端に無い配置でもはみ出させない）。 */
-  max-width: calc(100vw - 2 * var(--space-5));
+  max-width: calc(100vw - 2 * var(--gutter));
   padding: var(--space-2);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -566,14 +575,20 @@ input[type='radio'] {
 
 .content {
   flex: 1;
-  padding: var(--space-5);
+  padding: var(--gutter);
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
   /* flex 子要素の既定（min-width: auto）だと表の幅で本文が広がり、
    * 画面全体が横スクロールしてしまう。縮めることを許して .table-scroll に任せる。 */
   min-width: 0;
 }
 
 .footer {
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--gutter);
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+  /* ホームバー（iOS）の下に文字が潜らないようにする。 */
+  padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
   font-size: 0.8rem;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
@@ -602,6 +617,15 @@ input[type='radio'] {
   margin: var(--space-2) 0 0;
 }
 
+/* 見出しと、その画面の主要な操作（「追加」）を 1 行に置く。表の上にフォームを
+ * 敷かず、画面を開いた人がまずデータを見られるようにする（ADR-0027）。 */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .card-inset {
   display: flex;
   flex-direction: column;
@@ -614,6 +638,7 @@ input[type='radio'] {
 
 .auth-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: var(--space-4);
@@ -674,12 +699,34 @@ input[type='radio'] {
   border-bottom: none;
 }
 
-/* 行の見出しは 1 行のテキストとして流す（`.card label` の縦積みを打ち消す）。
- * 行そのものは `<div>`（入力欄とは `for` / `id` で結ぶ）。 */
+/* 行の見出しは「設定名・環境変数名・注記」の 3 つを横に並べる
+ * （`.card label` の縦積みを打ち消す）。行そのものは `<div>`（入力欄とは
+ * `for` / `id` で結ぶ）。 */
 .config-row > label {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem var(--space-2);
   color: var(--text);
   font-size: 0.95rem;
+}
+
+/* 環境変数名は補助情報。設定名と同じ大きさで並べると 1 つの文に見える。 */
+.config-key {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* 「環境変数で固定」「再起動後に反映」。件数が少ないので色ではなく囲みで示す。 */
+.config-note {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .notice {
@@ -705,6 +752,110 @@ input[type='radio'] {
   background: #ffffff;
   padding: var(--space-2);
   border-radius: var(--radius-sm);
+}
+
+/* --- 入力ダイアログ（ADR-0027） ------------------------------------------
+ * 一覧の画面から「追加」で開く。広い画面では中央に、狭い画面では画面の下から
+ * **幅いっぱい**に出す。`<dialog>` を `showModal()` で開いているので top layer に
+ * 載り、ヘッダー（`position: sticky`）やドロワーとの重ね順を調整する必要が無い。 */
+.form-dialog {
+  /* 枠と余白は panel に持たせる。ここを 0 にしておくと、背景（::backdrop）への
+   * クリックだけが `<dialog>` 自身へ届き、「外側を押して閉じる」を判定できる。 */
+  padding: 0;
+  border: none;
+  background: transparent;
+  /* ブラウザ既定の上限（calc(100% - 6px - 2em)）を外す。狭い画面で幅いっぱいに
+   * 出すのに邪魔になる。 */
+  max-width: none;
+  max-height: none;
+  color: var(--text);
+  animation: dialog-in 0.18s ease-out;
+}
+
+.form-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+  animation: dialog-backdrop-in 0.18s ease-out;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes dialog-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 開いているあいだ背後を動かさない（シートの中だけが縦に流れる）。 */
+body:has(dialog[open]) {
+  overflow: hidden;
+}
+
+.form-dialog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(30rem, 100vw);
+  max-height: 85dvh;
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.form-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.form-dialog-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.form-dialog-close {
+  flex: none;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+/* ダイアログの中のフォームは幅が決まっているので、常に縦に積む
+ * （`.inline-form` のように画面幅で折り返しを変えない）。 */
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dialog-form label,
+.dialog-form input,
+.dialog-form select,
+.dialog-form textarea,
+.dialog-form fieldset,
+.dialog-form .field,
+.dialog-form .password-field {
+  width: 100%;
+}
+
+/* チェックボックスのチップは横並びのまま（幅いっぱいにすると縦に伸びる）。 */
+.dialog-form .chip-option,
+.dialog-form .chip-option input {
+  width: auto;
+}
+
+/* 決定と取り消しは最後にまとめる。狭い画面では横に等分する（下のメディアクエリ）。 */
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 /* --- チップ（ロール・scope のような短い値の並び） ------------------------- */
@@ -825,6 +976,72 @@ tbody tr:last-child td {
 
 tbody tr:hover {
   background: var(--surface-raised);
+}
+
+/* --- 対応表（ユーザー × ロール、ロール × 権限） --------------------------
+ * 列が権限・ロールの数だけ増える表。列見出しに入るのは値そのもの（scope の
+ * コード・ロール名）で、横に並べると 1 列で 12rem を超え、行の見出しが画面外へ
+ * 流れて「どの行を触っているのか」が分からなくなる。
+ * 列見出しを縦組みにして幅を詰め、行の見出しは左端に固定する。 */
+.card:has(.matrix) {
+  /* 列が増えるので、広い画面ではカードの幅の上限（62rem）を外す。 */
+  max-width: none;
+}
+
+.matrix .vertical {
+  writing-mode: vertical-rl;
+  /* vertical-rl は上から下へ読ませる。180 度回して下から上（左下始まり）にする。 */
+  transform: rotate(180deg);
+  /* いちばん長い scope（`admin:system-settings` = 21 文字）が入る高さ。
+   * 足りないと末尾が黙って切れる。 */
+  height: 10.5rem;
+  padding: var(--space-2) 0.3rem;
+  text-align: left;
+  vertical-align: bottom;
+  /* 見出しではなく値なので、大文字化も字間の調整もしない。 */
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+}
+
+/* 行の見出し（ユーザー名・ロール名）は横に流れても左端に残す。 */
+.matrix th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.matrix thead th:first-child {
+  position: sticky;
+  left: 0;
+  /* 縦組みの見出しが下を通るので、行の見出しより 1 段上に置く。 */
+  z-index: 2;
+  background: var(--surface-raised);
+}
+
+.matrix tbody tr:hover th[scope='row'] {
+  background: var(--surface-raised);
+}
+
+/* チェックの列は縦組みの見出しの真下に来るよう中央に置く。 */
+.matrix tbody td:has(input[type='checkbox']) {
+  text-align: center;
+}
+
+/* --- ログの絞り込み（ADR-0027） ------------------------------------------
+ * 広い画面では常に開いた状態で、開閉ボタンを出さない（`display: none` にして
+ * 支援技術からも外す。閉じる手段が無いのに `aria-expanded` を出さないため）。 */
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.filter-toggle {
+  display: none;
 }
 
 /* ログ検索の絞り込みフォーム（項目数が多いので折り返して並べる） */
@@ -998,7 +1215,7 @@ tbody tr:hover {
 .toast-container {
   position: fixed;
   right: var(--space-4);
-  bottom: var(--space-4);
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -1033,8 +1250,14 @@ tbody tr:hover {
  *      （開閉状態は AppLayout が nav[data-open] に書き込む）
  *   2. 横幅に収まらない要素（表・フォーム・設定行）を縦に積む／横スクロールさせる
  *   3. 指で押せる大きさ（2.75rem）と、iOS が自動拡大しない文字サイズ（16px）にする
+ *   4. 画面に重ねる面（入力ダイアログ・絞り込み）を**幅いっぱい**に出す（ADR-0027）
  * =================================================================== */
 @media (max-width: 48rem) {
+  :root {
+    /* 左右の余白を詰める（本文に使える幅を優先する）。 */
+    --gutter: 0.75rem;
+  }
+
   .nav-toggle {
     display: inline-flex;
     align-items: center;
@@ -1055,6 +1278,7 @@ tbody tr:hover {
     width: min(16rem, 80vw);
     min-width: 0;
     padding: var(--space-4) var(--space-3);
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
     background: var(--surface);
     box-shadow: var(--shadow-lg);
     overflow-y: auto;
@@ -1105,7 +1329,8 @@ tbody tr:hover {
   }
 
   .header {
-    padding: var(--space-2) var(--space-3);
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
   }
 
   /* 狭い画面では、収まらない分をまずタイトルの省略で吸収する。 */
@@ -1178,13 +1403,16 @@ tbody tr:hover {
     max-width: none;
   }
 
-  .content {
-    padding: var(--space-3);
-  }
-
   .card {
     padding: var(--space-4);
     border-radius: var(--radius-md);
+  }
+
+  /* 見出しの右にボタンを置くと、どちらも収まらない。積んで幅いっぱいにする。 */
+  .card-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
   }
 
   /* 指で押せる大きさを確保し、文字は 16px 以上にする
@@ -1280,6 +1508,14 @@ tbody tr:hover {
     min-width: 34rem;
   }
 
+  /* 区切りの無い値（requestId・イベント名）は折り返さない。狭い画面では列が
+   * 60px 前後まで痩せるため、折り返すと 1 行のログが 4 行分の高さになり、
+   * 一覧としての密度が落ちる。読むには横になぞる（広い画面では折り返して
+   * 全体を見せる）。 */
+  td > code {
+    white-space: nowrap;
+  }
+
   /* 名前と値を縦に積む。2 列のままだと日本語のラベルが幅を取り、残った幅に
    * 収まらない値（ISO 形式の時刻）が途中で折り返されて読みにくくなる。 */
   .status-list {
@@ -1294,6 +1530,86 @@ tbody tr:hover {
   .qr-code {
     width: min(12rem, 62vw);
     height: auto;
+  }
+
+  /* --- 画面に重ねる面は幅いっぱいに出す（ADR-0027） ---------------------
+   * 入力ダイアログは画面の下から迫り出すシートにする。指が届く下端に主要な操作が
+   * 来て、左右に逃げる余白も無くなる。 */
+  .form-dialog {
+    width: 100%;
+    max-width: none;
+    /* 上を auto にして下端へ寄せる（`<dialog>` の既定は margin: auto）。 */
+    margin: auto 0 0;
+    animation: sheet-in 0.22s ease-out;
+  }
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+
+  .form-dialog-panel {
+    width: 100%;
+    max-height: 88dvh;
+    padding: var(--space-4);
+    /* ホームバー（iOS）の上に決定ボタンが重ならないようにする。 */
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  /* 決定と取り消しは横に等分する（右端に寄せると片手で届かない）。 */
+  .dialog-actions {
+    justify-content: stretch;
+  }
+
+  .dialog-actions button {
+    flex: 1;
+  }
+
+  /* 絞り込みは畳んでおき、「絞り込み」で開く。開くまでは結果が画面の先頭に来る。 */
+  .filter-toggle {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .filter-toggle-caret {
+    transition: transform 0.15s ease;
+  }
+
+  .filter-panel[data-open='true'] .filter-toggle-caret {
+    transform: rotate(180deg);
+  }
+
+  .filter-panel[data-open='false'] .filter-panel-fields {
+    display: none;
+  }
+
+  /* プロフィール・セキュリティの入力欄と操作を幅いっぱいにする。区画もフォームも
+   * `align-items: flex-start` で内容の幅まで縮むため、途中の入れ物から順に伸ばす
+   * （どれか 1 段でも縮んだままだと中の 100% がそこで頭打ちになる）。 */
+  .settings-section > label,
+  .settings-section > .field,
+  .settings-section > .settings-form,
+  .settings-form > label,
+  .settings-form > .field,
+  .settings-form > button,
+  .settings-form > .password-field {
+    align-self: stretch;
+  }
+
+  .settings-section > label > select,
+  .settings-form input,
+  .settings-form select,
+  .settings-form .password-field {
+    width: 100%;
+  }
+
+  /* 環境変数名は設定名の下へ落とす（横に並べると 1 つの文に見える）。 */
+  .config-key {
+    flex-basis: 100%;
   }
 
   .toast-container {

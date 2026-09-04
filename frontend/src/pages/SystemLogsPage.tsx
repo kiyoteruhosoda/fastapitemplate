@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
+import { FilterPanel } from '../components/FilterPanel'
 import { useLogSearch } from '../hooks/useLogSearch'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
@@ -108,85 +109,87 @@ export function SystemLogsPage() {
       <h1>{t('logs.title')}</h1>
       <p className="hint">{t('logs.hint')}</p>
 
-      <form className="filter-form" onSubmit={search}>
-        <label>
-          {t('logs.level')}
-          <select
-            value={form.level}
-            onChange={(e) => {
-              update('level', e.target.value)
-            }}
-          >
-            <option value="">{t('logs.allLevels')}</option>
-            {levels.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('logs.logger')}
-          <input
-            value={form.logger}
-            onChange={(e) => {
-              update('logger', e.target.value)
-            }}
-            placeholder="app.request"
-          />
-        </label>
-        <label>
-          {t('logs.message')}
-          <input
-            value={form.message}
-            onChange={(e) => {
-              update('message', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('logs.requestId')}
-          <input
-            value={form.request_id}
-            onChange={(e) => {
-              update('request_id', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('logs.from')}
-          <input
-            type="datetime-local"
-            value={form.created_from}
-            onChange={(e) => {
-              update('created_from', e.target.value)
-            }}
-          />
-        </label>
-        <label>
-          {t('logs.to')}
-          <input
-            type="datetime-local"
-            value={form.created_to}
-            onChange={(e) => {
-              update('created_to', e.target.value)
-            }}
-          />
-        </label>
-        <div className="filter-actions">
-          <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
-            {t('logs.search')}
-          </ActionButton>
-          <ActionButton
-            type="button"
-            pending={pendingTrigger === 'reset'}
-            disabled={searching}
-            onClick={reset}
-          >
-            {t('logs.reset')}
-          </ActionButton>
-        </div>
-      </form>
+      <FilterPanel>
+        <form className="filter-form" onSubmit={search}>
+          <label>
+            {t('logs.level')}
+            <select
+              value={form.level}
+              onChange={(e) => {
+                update('level', e.target.value)
+              }}
+            >
+              <option value="">{t('logs.allLevels')}</option>
+              {levels.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t('logs.logger')}
+            <input
+              value={form.logger}
+              onChange={(e) => {
+                update('logger', e.target.value)
+              }}
+              placeholder="app.request"
+            />
+          </label>
+          <label>
+            {t('logs.message')}
+            <input
+              value={form.message}
+              onChange={(e) => {
+                update('message', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('logs.requestId')}
+            <input
+              value={form.request_id}
+              onChange={(e) => {
+                update('request_id', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('logs.from')}
+            <input
+              type="datetime-local"
+              value={form.created_from}
+              onChange={(e) => {
+                update('created_from', e.target.value)
+              }}
+            />
+          </label>
+          <label>
+            {t('logs.to')}
+            <input
+              type="datetime-local"
+              value={form.created_to}
+              onChange={(e) => {
+                update('created_to', e.target.value)
+              }}
+            />
+          </label>
+          <div className="filter-actions">
+            <ActionButton type="submit" pending={pendingTrigger === 'search'} disabled={searching}>
+              {t('logs.search')}
+            </ActionButton>
+            <ActionButton
+              type="button"
+              pending={pendingTrigger === 'reset'}
+              disabled={searching}
+              onClick={reset}
+            >
+              {t('logs.reset')}
+            </ActionButton>
+          </div>
+        </form>
+      </FilterPanel>
 
       <p className="result-count">
         {t('logs.resultCount', { first: range.first, last: range.last, total: result.total })}

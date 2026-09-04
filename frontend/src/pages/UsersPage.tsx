@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
+import { FormDialog } from '../components/FormDialog'
 import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
@@ -43,6 +44,7 @@ export function UsersPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const [adding, setAdding] = useState(false)
   const { pendingActionOf, runForRow } = usePendingRows<RowAction>()
 
   const reload = () => api.get<User[]>('/api/admin/users').then(setUsers)
@@ -85,6 +87,7 @@ export function UsersPage() {
       setUsername('')
       setPassword('')
       setSelectedRoles([])
+      setAdding(false)
       await reload()
       notify('success', t('common.saved'))
     } catch (err) {
@@ -119,64 +122,106 @@ export function UsersPage() {
 
   return (
     <div className="card">
-      <h1>{t('users.title')}</h1>
-      <form className="inline-form" onSubmit={create}>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value)
+      <div className="card-head">
+        <h1>{t('users.title')}</h1>
+        <button
+          type="button"
+          className="button-primary"
+          onClick={() => {
+            setAdding(true)
           }}
-          placeholder={t('common.email')}
-          required
-        />
-        <input
-          value={username}
-          onChange={(e) => {
-            setUsername(e.target.value)
-          }}
-          placeholder={t('common.username')}
-          required
-        />
-        <PasswordInput
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value)
-          }}
-          placeholder={t('common.password')}
-          minLength={8}
-          required
-        />
-        <fieldset className="chip-choice">
-          <legend>{t('users.roles')}</legend>
-          {roleNames.map((name) => (
-            <label key={name} className="chip-option">
-              <input
-                type="checkbox"
-                checked={selectedRoles.includes(name)}
-                onChange={() => {
-                  toggleSelected(name)
-                }}
-              />
-              {name}
-            </label>
-          ))}
-        </fieldset>
-        <ActionButton type="submit" pending={creating}>
+        >
           {t('users.add')}
-        </ActionButton>
-      </form>
+        </button>
+      </div>
+      {adding && (
+        <FormDialog
+          title={t('users.add')}
+          onClose={() => {
+            setAdding(false)
+          }}
+        >
+          <form className="dialog-form" onSubmit={create}>
+            <label>
+              {t('common.email')}
+              <input
+                type="email"
+                autoComplete="off"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                }}
+                required
+              />
+            </label>
+            <label>
+              {t('common.username')}
+              <input
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value)
+                }}
+                required
+              />
+            </label>
+            {/* パスワード欄は表示切り替えボタンを持つため `<label>` で囲めない。 */}
+            <div className="field">
+              <label htmlFor="new-user-password">{t('common.password')}</label>
+              <PasswordInput
+                id="new-user-password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                }}
+                minLength={8}
+                required
+              />
+            </div>
+            <fieldset className="chip-choice">
+              <legend>{t('users.roles')}</legend>
+              {roleNames.map((name) => (
+                <label key={name} className="chip-option">
+                  <input
+                    type="checkbox"
+                    checked={selectedRoles.includes(name)}
+                    onChange={() => {
+                      toggleSelected(name)
+                    }}
+                  />
+                  {name}
+                </label>
+              ))}
+            </fieldset>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(false)
+                }}
+              >
+                {t('common.cancel')}
+              </button>
+              <ActionButton type="submit" pending={creating}>
+                {t('common.add')}
+              </ActionButton>
+            </div>
+          </form>
+        </FormDialog>
+      )}
       <p className="hint">{t('users.rolesHint')}</p>
       <div className="table-scroll">
-        <table>
+        <table className="matrix">
           <thead>
             <tr>
+              <th>{t('common.username')}</th>
               <th>ID</th>
               <th>{t('common.email')}</th>
-              <th>{t('common.username')}</th>
+              {/* ロールの列は数が増えるので縦組みにする（`.matrix` の指定を参照）。 */}
               {roleNames.map((name) => (
-                <th key={name}>{name}</th>
+                <th key={name} className="vertical">
+                  {name}
+                </th>
               ))}
               <th>{t('common.active')}</th>
               <th>{t('common.actions')}</th>
@@ -188,9 +233,11 @@ export function UsersPage() {
               const busy = rowAction !== null
               return (
                 <tr key={user.id}>
+                  {/* 横スクロールしても残す列（`.matrix` が固定する）。どの行を
+                      操作しているか分かるよう、人が読める名前を先頭に置く。 */}
+                  <th scope="row">{user.username}</th>
                   <td>{user.id}</td>
                   <td>{user.email}</td>
-                  <td>{user.username}</td>
                   {roleNames.map((name) => (
                     <td key={name}>
                       <input

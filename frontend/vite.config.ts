@@ -58,7 +58,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // 開発時はバックエンド（uv run python main.py）へプロキシする
-      '/api': { target: 'http://localhost:8000', changeOrigin: true },
+      '/api': { target: 'http://localhost:8123', changeOrigin: true },
     },
   },
   build: {

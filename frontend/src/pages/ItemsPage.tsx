@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
+import { FormDialog } from '../components/FormDialog'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
@@ -18,6 +19,7 @@ export function ItemsPage() {
   const { notify } = useToast()
   const [items, setItems] = useState<Item[]>([])
   const [name, setName] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const reload = () => api.get<Item[]>('/api/items').then(setItems)
 
@@ -30,6 +32,7 @@ export function ItemsPage() {
     try {
       await api.post('/api/items', { name })
       setName('')
+      setAdding(false)
       await reload()
     } catch {
       notify('error', t('error.unknown_error'))
@@ -38,21 +41,53 @@ export function ItemsPage() {
 
   return (
     <div className="card">
-      <h1>{t('items.title')}</h1>
-      {hasScope('item:manage') && (
-        <form className="inline-form" onSubmit={submit}>
-          <input
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value)
+      <div className="card-head">
+        <h1>{t('items.title')}</h1>
+        {hasScope('item:manage') && (
+          <button
+            type="button"
+            className="button-primary"
+            onClick={() => {
+              setAdding(true)
             }}
-            placeholder={t('items.name')}
-            required
-          />
-          <ActionButton type="submit" pending={submitting}>
+          >
             {t('items.add')}
-          </ActionButton>
-        </form>
+          </button>
+        )}
+      </div>
+      {adding && (
+        <FormDialog
+          title={t('items.add')}
+          onClose={() => {
+            setAdding(false)
+          }}
+        >
+          <form className="dialog-form" onSubmit={submit}>
+            <label>
+              {t('items.name')}
+              <input
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value)
+                }}
+                required
+              />
+            </label>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(false)
+                }}
+              >
+                {t('common.cancel')}
+              </button>
+              <ActionButton type="submit" pending={submitting}>
+                {t('common.add')}
+              </ActionButton>
+            </div>
+          </form>
+        </FormDialog>
       )}
       <div className="table-scroll">
         <table>
