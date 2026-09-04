@@ -3,6 +3,11 @@
 ビルド済みフロントエンドが存在する場合のみマウントされる。API・docs 以外の
 パスは ``index.html`` へフォールバックする（React Router の履歴モード対応）。
 
+⚠ **``/api/`` 配下は受け皿へ落とさない**（ADR-0032）。このルーターは catch-all なので、
+何も書かないと**存在しない API のパスが 200 で index.html を返す**。しかも
+`frontend/dist` があるときだけそうなるので、**本番でだけ起きて手元とテストでは
+再現しない**。打ち間違えた API は、dist の有無にかかわらず 404 を返す。
+
 配信するファイルは 2 種類あり、キャッシュの扱いを分ける。
 
 - ``assets/`` 配下: Vite が内容ハッシュ付きの名前で書き出す。中身が変われば
@@ -20,12 +25,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, Response
 
 DIST_DIR = Path(__file__).resolve().parents[3] / "frontend" / "dist"
 
 INDEX_HTML = "index.html"
+
+#: 受け皿へ落とさない経路。ここに当たったら 404 にする。
+#: **応答の形は dist が無いときと同じ**（FastAPI 既定の 404）にしてある——
+#: 呼ぶ側から見て、フロントエンドが焼かれているかどうかで挙動が変わらないように。
+API_PREFIX = "api/"
 HASHED_ASSETS_PREFIX = "assets/"
 CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 CACHE_REVALIDATE = "no-cache"
@@ -87,4 +97,7 @@ async def spa_fallback(path: str, request: Request) -> Response:
     # パストラバーサルを防ぎつつ、実在する静的ファイルはそのまま返す
     if candidate.is_file() and candidate.is_relative_to(DIST_DIR):
         return _serve(candidate, path, request)
+    if path.startswith(API_PREFIX):
+        # 存在しない API。**index.html を返さない**（呼んだ側は JSON を待っている）。
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return _serve(DIST_DIR / INDEX_HTML, INDEX_HTML, request)

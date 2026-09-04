@@ -1,3 +1,23 @@
+## 2026-09-05（名前の直書きと、SPA が API を飲み込む問題を直した。ADR-0031 / ADR-0032）
+
+- **`USER_AGENT` に `"nolumiawiki"` が直に書いてあった。** 派生アプリで入れた修正を
+  テンプレートへ戻すときに値ごと持ち帰ったもので、**この行を直さないかぎり、
+  あらゆる派生アプリが IdP に対して別のアプリの名前で名乗り続ける**状態だった
+  （2026-09-05 に `mp3play` を起こしたときに気付いた）。`FastAPI(title=...)` も同じく
+  `"fastapitemplate"` が直書きだった。
+- **名前の正本を `pyproject.toml` の `[project].name` 1 か所にした**（ADR-0031）。
+  `shared/kernel/version.py` に `project_name()` を置き、`BuildInfo.name` として運ぶ。
+  Swagger の題と `User-Agent`（`<name>/<version>`）はここから導く。
+  ⚠ **読めなかったときの既定は `"app"`。** テンプレート名にすると、読めていないことに
+  気付けなくなる。
+- **SPA の受け皿が `/api/` を飲み込んでいた**（ADR-0032）。存在しない API のパスが
+  **`200` + `index.html`** を返していた。しかも `frontend/dist` があるときだけなので、
+  **本番でだけ起きて手元と CI では再現しない**。受け皿に落ちた `/api/` は 404 にした
+  （形は dist の無いときと同じ）。
+- ⚠ **どちらも派生アプリ側の直書きは自動では消えない。** `git merge template/main` を
+  取り込んだら、`app.py` と `oidc_metadata.py` に自分で書いた名前が残っていないか
+  確かめること。
+
 ## 2026-09-04（4）（GitHub Actions を Node 24 で動く版に上げた。ADR-0030）
 
 - **CI の注釈に `Node.js 20 is deprecated` が出ていた。** ランナーが Node 20 を

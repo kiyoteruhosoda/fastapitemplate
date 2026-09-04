@@ -16,6 +16,10 @@
 - **⚠ 名前を間違えても自動では止まらない。** 以前は `deploy.sh` が配置場所から名前を
   決めてテンプレート名なら中断していたが（旧 ADR-0015）、その仕組みごと撤去した。
   スタックを定義する人が名前を揃える。
+- **アプリ自身の名前は `pyproject.toml` の `[project].name` が正本**（ADR-0031）。
+  Swagger の題と外向きの `User-Agent` はここから導く。**コードに名前を直に書かない**
+  ——過去に `USER_AGENT = "nolumiawiki"` が居座り、派生アプリが全部その名前で
+  IdP に名乗っていた。
 - ローカル開発（リポジトリ直下の `docker compose up`）で名前を分けたい場合は、
   `.env` の `DOCKER_NETWORK_NAME` / `WEB_IMAGE` / `APP_WEB_ALIAS` と `Makefile` の
   `IMAGE` を新しいプロジェクト名へ揃える。

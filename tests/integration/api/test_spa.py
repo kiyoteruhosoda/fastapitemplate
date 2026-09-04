@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+import sqlalchemy as sa
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -96,3 +97,44 @@ def test_path_traversal_falls_back_to_index_html(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert "<title>app</title>" in response.text
+
+
+def test_an_unknown_api_path_is_not_swallowed(client: TestClient) -> None:
+    """受け皿は `/api/` を飲み込まない（ADR-0032）。
+
+    飲み込むと、打ち間違えた API が **200 で index.html** を返す。しかも
+    `frontend/dist` がある本番でだけそうなるので、手元とテストでは再現しない。
+    """
+    response = client.get("/api/nonexistent")
+
+    assert response.status_code == 404
+    assert "<title>" not in response.text
+
+
+def test_a_built_asset_under_api_is_still_served(client: TestClient, dist: Path) -> None:
+    """実在するファイルが優先。`/api/` を理由に、焼いた成果物まで拒まない。"""
+    (dist / "api").mkdir()
+    (dist / "api" / "config.json").write_text('{"ok": true}')
+
+    response = client.get("/api/config.json")
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_the_whole_app_still_answers_404_for_an_unknown_api_path(dist: Path, engine: sa.Engine) -> None:
+    """本物のアプリに SPA を載せた状態でも、無い API は 404 のまま。
+
+    ⚠ **ここが本番と手元の違いが出る所。** CI は `frontend/dist` を焼かないので、
+    受け皿の取りこぼしは普通のテストでは再現しない（`dist` を作って初めて出る）。
+    """
+    from presentation.fastapi.app import create_app
+
+    app = create_app()
+    assert spa.dist_available()
+
+    with TestClient(app) as client:
+        response = client.get("/api/nonexistent")
+
+    assert response.status_code == 404
+    assert "<title>" not in response.text
