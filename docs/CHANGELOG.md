@@ -1,3 +1,19 @@
+## 2026-09-04（3）（マイグレーションが初期管理者を据えないことを機械で見張る）
+
+- **`tests/unit/test_migrations_do_not_seat_an_admin.py` を足した。** ADR-0024 が
+  決めた「`ensure_default_admin` を呼ぶのは据え付けの `0002` と投入スクリプトだけ」
+  を、`migrations/versions/` を AST で走査して検証する。破ったマイグレーションを
+  **追加した時点で**落ちる（当てたあとではない）。
+- **既存の回帰テストでは足りなかった。** `tests/integration/test_master_data_seeder.py`
+  が見張るのは `seed_master_data` の振る舞いなので、新しいマイグレーションが
+  `ensure_default_admin` を自分で呼ぶ形は素通りしていた。規約（CLAUDE.md）と
+  レビューだけが歯止めだった。
+- **関数を呼ばない形も対象。** `master_data.DEFAULT_ADMIN_PASSWORD_HASH` 等を直に
+  持ち出して自前で `User` を組み立てる書き方も同じ地雷なので拾う。`import` の
+  別名付け（`as`）と属性参照でもすり抜けない。
+- 許可リスト（`0002_seed_master_data.py`）が空振りしていないことも併せて確認する。
+  据え付けの経路が別のファイルへ移ったら落ちる。
+
 ## 2026-09-04（2）（トークンを Cookie 一本にした。ADR-0028）
 
 - ⚠ **API の互換が壊れる。** ログイン・更新・ロール切り替え・SSO の引き換えは、
