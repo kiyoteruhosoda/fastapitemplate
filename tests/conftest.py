@@ -16,12 +16,28 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import shared.infrastructure.models  # noqa: F401 — メタデータ登録
+from bounded_contexts.account_security.infrastructure import account_security_models
+from bounded_contexts.audit.infrastructure import audit_log_model
+from bounded_contexts.example.infrastructure import item_model
+from bounded_contexts.identity_federation.infrastructure import identity_federation_models
 from shared.domain.auth import master_data
+from shared.infrastructure import models as shared_models
 from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
 from shared.kernel.settings.settings import settings
+
+# ⚠ **import しただけでは ``ruff --fix`` に消される。** モデルは import の副作用で
+# ``Base.metadata`` へ登録されるので「使っていない import」に見え、F401 として 1 行ずつ
+# 剥がされる。消えると「テーブルが無い」で落ちるが、**落ち方が import と結び付かない**。
+# 参照して使うことで、消せない形にしてある（``migrations/env.py`` も同じ）。
+_REGISTERED_MODELS = (
+    account_security_models,
+    audit_log_model,
+    item_model,
+    identity_federation_models,
+    shared_models,
+)
 
 
 @pytest.fixture

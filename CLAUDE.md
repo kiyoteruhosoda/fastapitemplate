@@ -259,6 +259,7 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - 型安全のための Python 側の許可値集中管理（`enum.Enum` クラスや定数タプル）は推奨。禁止しているのは「DB 側のネイティブ ENUM 型」であって、Python の列挙そのものではない。
 - 主キー等の `BigInteger` は SQLite テストとの両立のため `sa.BigInteger().with_variant(sa.Integer(), "sqlite")` を使う。
 - モデルを変更したら必ず対応するマイグレーションを追加する。乖離は `tests/integration/test_migration_model_consistency.py` が検出する。
+- **モデルのメタデータ登録（`migrations/env.py` と `tests/conftest.py`）は「import して参照する」形で書く。** import しただけだと `ruff --fix` が「使っていない import」として **1 行ずつ剥がす**。`# noqa: F401` も当てにならない（ruff が実際に指摘するのは並びの最後の 1 行だけで、他は `RUF100` になる）。消えても起動もテストも通ってしまい、気付けるのは `alembic revision --autogenerate` が**全テーブルの削除を提案したとき**になる。
 - モデルを変更したら `docs/ER.md` も更新する（ER 図はコードの正本ではなく、コードに追従させる）。
 
 ---

@@ -38,10 +38,30 @@ def _get_database_url() -> str:
 def _load_metadata() -> MetaData:
     """全モデルを import して MetaData を返す。
 
-    コンテキスト固有モデルを追加したらここへ import を足す。
+    コンテキスト固有モデルを追加したらここへ import を足し、``_registered`` にも並べる。
+
+    ⚠ **import しただけでは ``ruff --fix`` に消される。** モデルは import の副作用で
+    ``Base.metadata`` へ登録されるので「使っていない import」に見え、F401 として
+    1 行ずつ剥がされる。消えても起動もテストも通ってしまい、気付けるのは
+    ``alembic revision --autogenerate`` が**全テーブルの削除を提案したとき**になる。
+    参照して使うことで、消せない形にしてある。
     """
-    import shared.infrastructure.models  # noqa: F401
+    from bounded_contexts.account_security.infrastructure import account_security_models
+    from bounded_contexts.audit.infrastructure import audit_log_model
+    from bounded_contexts.example.infrastructure import item_model
+    from bounded_contexts.identity_federation.infrastructure import identity_federation_models
+    from shared.infrastructure import models as shared_models
     from shared.kernel.database.db import Base
+
+    _registered = (
+        account_security_models,
+        audit_log_model,
+        item_model,
+        identity_federation_models,
+        shared_models,
+    )
+    if not _registered:  # pragma: no cover - 参照して import を消させないための行
+        raise RuntimeError("no models registered")
 
     return Base.metadata
 
