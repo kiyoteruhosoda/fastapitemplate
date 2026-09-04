@@ -35,6 +35,13 @@ class AuditEventType(StrEnum):
     # 後から辿れるように記録する。``reason`` には切り替え先のロール名が入る
     # （ロール名は個人情報ではない）。
     ROLE_SWITCHED = "role.switched"
+    # --- SSO（外部 IdP との連携。ADR-0025） ---
+    # 失敗は実行者を入れない（誰が試したかが分かっていないため。ADR-0013）。
+    SSO_LOGIN_SUCCEEDED = "sso_login.succeeded"
+    SSO_LOGIN_FAILED = "sso_login.failed"
+    # IdP の名乗りから利用者を作った／既存の利用者へ結び付けた。どちらも初回だけ起きる。
+    SSO_USER_PROVISIONED = "sso_user.provisioned"
+    SSO_IDENTITY_LINKED = "sso_identity.linked"
     # --- 二要素認証・パスキー ---
     TWO_FACTOR_ENABLED = "two_factor.enabled"
     TWO_FACTOR_DISABLED = "two_factor.disabled"

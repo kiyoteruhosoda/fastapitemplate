@@ -30,6 +30,15 @@ from bounded_contexts.audit.presentation.router import (
     audit_log_router as admin_audit_logs_router,
 )
 from bounded_contexts.example.presentation.router import router as items_router
+from bounded_contexts.identity_federation.presentation.error_handling import (
+    register_identity_federation_error_handler,
+)
+from bounded_contexts.identity_federation.presentation.router import (
+    router as sso_router,
+)
+from bounded_contexts.identity_federation.presentation.startup_check import (
+    report_sso_configuration,
+)
 from presentation.fastapi.error_handling import register_error_handling
 from presentation.fastapi.middleware.deferred_log_writes import (
     DeferredLogWriteMiddleware,
@@ -64,11 +73,35 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     start_restart_watcher(RestartScope.WEB)
     # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0021）
     start_log_retention_worker()
+    # SSO の設定が実際に使えるかを一度だけ確かめる（秘密鍵は署名のときまで読まれない
+    # ため、権限の食い違いが利用者の戻りでしか出ない。ADR-0025）
+    report_sso_configuration()
     try:
         yield
     finally:
         stop_interval_workers()
         stop_restart_watchers()
+
+
+def _include_routers(app: FastAPI) -> None:
+    """ルーターの登録。**SPA より前**に並べる（SPA は catch-all のため）。"""
+    for router in (
+        health_router,
+        ui_settings_router,
+        auth_router,
+        passkey_login_router,
+        account_security_router,
+        sso_router,
+        admin_users_router,
+        admin_roles_router,
+        admin_permissions_router,
+        admin_config_router,
+        admin_logs_router,
+        admin_audit_logs_router,
+        admin_system_router,
+        items_router,
+    ):
+        app.include_router(router)
 
 
 def create_app() -> FastAPI:
@@ -118,20 +151,9 @@ def create_app() -> FastAPI:
     # 個別のドメイン例外ハンドラが優先される。
     register_error_handling(app)
     register_account_security_error_handler(app)
+    register_identity_federation_error_handler(app)
 
-    app.include_router(health_router)
-    app.include_router(ui_settings_router)
-    app.include_router(auth_router)
-    app.include_router(passkey_login_router)
-    app.include_router(account_security_router)
-    app.include_router(admin_users_router)
-    app.include_router(admin_roles_router)
-    app.include_router(admin_permissions_router)
-    app.include_router(admin_config_router)
-    app.include_router(admin_logs_router)
-    app.include_router(admin_audit_logs_router)
-    app.include_router(admin_system_router)
-    app.include_router(items_router)
+    _include_routers(app)
 
     # SPA は最後（catch-all のため）。ビルド済みの場合のみ配信する。
     if spa.dist_available():

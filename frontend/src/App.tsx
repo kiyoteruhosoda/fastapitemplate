@@ -8,6 +8,7 @@ import { ConfigPage } from './pages/ConfigPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ItemsPage } from './pages/ItemsPage'
 import { LoginPage } from './pages/LoginPage'
+import { SsoCallbackPage } from './pages/SsoCallbackPage'
 import { PermissionsPage } from './pages/PermissionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
@@ -34,6 +35,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/sso" element={<SsoCallbackPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<RequireAuth />}>

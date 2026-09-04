@@ -19,11 +19,12 @@ dependencies = [
     "pyotp>=2.9.0",
     "webauthn>=2.5.0",
     "qrcode>=8.0",
+    # SSO（discovery・トークン交換・UserInfo）。ADR-0025
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "mypy>=1.14",
     "pytest>=9.0.3",
     "ruff>=0.11.0",

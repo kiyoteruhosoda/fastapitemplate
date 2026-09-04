@@ -154,6 +154,117 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Keep audit logs for (days, 0 = forever)",
         "value_type": "integer",
     },
+    # --- SSO（外部 IdP との連携。ADR-0025 / ADR-0026） ---
+    # 接続先とクライアント認証の方式は起動時にしか読まれないわけではないが、
+    # 実際に効くのは次の認可要求からなので再起動は要らない。
+    {"key": "OIDC_ENABLED", "category": "sso", "label": "Enable SSO", "value_type": "boolean"},
+    {
+        "key": "OIDC_DISPLAY_NAME",
+        "category": "sso",
+        "label": "Sign-in button label",
+        "value_type": "string",
+    },
+    {"key": "OIDC_ISSUER", "category": "sso", "label": "Issuer URL", "value_type": "string"},
+    {"key": "OIDC_CLIENT_ID", "category": "sso", "label": "Client ID", "value_type": "string"},
+    {
+        "key": "OIDC_CLIENT_SECRET",
+        "category": "sso",
+        "label": "Client secret (client_secret_basic only)",
+        "value_type": "string",
+        "secret": True,
+    },
+    {
+        "key": "OIDC_CLIENT_AUTH_METHOD",
+        "category": "sso",
+        "label": "Token endpoint authentication",
+        "value_type": "string",
+        "choices": [
+            ["client_secret_basic", "client_secret_basic"],
+            ["private_key_jwt", "private_key_jwt"],
+        ],
+    },
+    {
+        "key": "OIDC_PRIVATE_KEY_FILE",
+        "category": "sso",
+        "label": "Private key file (private_key_jwt only)",
+        "value_type": "string",
+    },
+    {
+        "key": "OIDC_PRIVATE_KEY_KID",
+        "category": "sso",
+        "label": "Private key ID (kid)",
+        "value_type": "string",
+    },
+    {"key": "OIDC_SCOPES", "category": "sso", "label": "Requested scopes", "value_type": "list"},
+    {"key": "OIDC_REDIRECT_URI", "category": "sso", "label": "Redirect URI", "value_type": "string"},
+    {
+        "key": "OIDC_ACR_VALUES",
+        "category": "sso",
+        "label": "Required authentication context (acr_values, empty = do not request)",
+        "value_type": "list",
+    },
+    {"key": "OIDC_EMAIL_CLAIM", "category": "sso", "label": "Email claim", "value_type": "string"},
+    {
+        "key": "OIDC_USERNAME_CLAIM",
+        "category": "sso",
+        "label": "Display name claim",
+        "value_type": "string",
+    },
+    {"key": "OIDC_GROUPS_CLAIM", "category": "sso", "label": "Groups claim", "value_type": "string"},
+    {
+        "key": "OIDC_ROLE_MAPPING",
+        "category": "sso",
+        "label": "Group to role mapping (<group>=<role>)",
+        "value_type": "list",
+    },
+    {
+        "key": "OIDC_DEFAULT_ROLES",
+        "category": "sso",
+        "label": "Roles granted when no mapping matches",
+        "value_type": "list",
+    },
+    {
+        "key": "OIDC_ROLE_SYNC",
+        "category": "sso",
+        "label": "Re-apply roles from groups on every login",
+        "value_type": "boolean",
+    },
+    {
+        "key": "OIDC_AUTO_PROVISION",
+        "category": "sso",
+        "label": "Create unknown users on first login",
+        "value_type": "boolean",
+    },
+    {
+        "key": "OIDC_LINK_BY_EMAIL",
+        "category": "sso",
+        "label": "Link to an existing account by verified email",
+        "value_type": "boolean",
+    },
+    {
+        "key": "OIDC_ALLOWED_EMAIL_DOMAINS",
+        "category": "sso",
+        "label": "Accepted email domains (empty = any)",
+        "value_type": "list",
+    },
+    {
+        "key": "OIDC_LOGIN_TRANSACTION_TTL_SECONDS",
+        "category": "sso",
+        "label": "Authorization round trip TTL (seconds)",
+        "value_type": "integer",
+    },
+    {
+        "key": "OIDC_LOGIN_TICKET_TTL_SECONDS",
+        "category": "sso",
+        "label": "Hand-off ticket TTL (seconds)",
+        "value_type": "integer",
+    },
+    {
+        "key": "LOCAL_LOGIN_ENABLED",
+        "category": "auth",
+        "label": "Allow password and passkey sign-in",
+        "value_type": "boolean",
+    },
 ]
 
 SYSTEM_SETTING_DEFINITIONS_BY_KEY: dict[str, dict[str, object]] = {

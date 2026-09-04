@@ -52,6 +52,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import get_current_principal
+from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.schemas.auth import StatusResponse
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.kernel.timestamps import isoformat_utc
@@ -85,7 +86,9 @@ async def two_factor_status(
     return TwoFactorStatusResponse(enabled=status_dto.enabled, enrolling=status_dto.enrolling)
 
 
-@router.post("/two-factor/enrollment", response_model=TotpEnrollmentResponse)
+@router.post(
+    "/two-factor/enrollment", response_model=TotpEnrollmentResponse, dependencies=[Depends(require_local_login)]
+)
 async def start_two_factor_enrollment(
     principal: PrincipalDep,
     use_case: Annotated[StartTotpEnrollment, Depends(dependencies.start_totp_enrollment)],
@@ -99,7 +102,7 @@ async def start_two_factor_enrollment(
     )
 
 
-@router.post("/two-factor/confirmation", response_model=StatusResponse)
+@router.post("/two-factor/confirmation", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
 async def confirm_two_factor_enrollment(
     body: TotpCodeRequest,
     principal: PrincipalDep,
@@ -143,7 +146,9 @@ async def list_registered_passkeys(
     return [_to_passkey_response(item) for item in use_case.execute(principal.user_id)]
 
 
-@router.post("/passkeys/registration", response_model=PasskeyChallengeResponse)
+@router.post(
+    "/passkeys/registration", response_model=PasskeyChallengeResponse, dependencies=[Depends(require_local_login)]
+)
 async def start_passkey_registration(
     principal: PrincipalDep,
     use_case: Annotated[StartPasskeyRegistration, Depends(dependencies.start_passkey_registration)],

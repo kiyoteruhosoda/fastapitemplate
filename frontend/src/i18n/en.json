@@ -236,5 +236,21 @@
   "error.passkey_cancelled": "Passkey request was cancelled.",
   "error.invalid_restart_scope": "Unknown restart target.",
   "error.restart_request_failed": "Could not request a restart.",
-  "error.unknown_error": "Something went wrong."
+  "error.unknown_error": "Something went wrong.",
+  "login.withSso": "Sign in with {provider}",
+  "login.localDisabled": "Password sign-in is turned off. Use the button above.",
+  "login.ssoCompleting": "Signing you in…",
+  "error.sso_error": "Single sign-on failed. Please try again.",
+  "error.sso_not_configured": "Single sign-on is not available.",
+  "error.sso_state_invalid": "The sign-in attempt expired or was started in another browser. Please try again.",
+  "error.sso_ticket_invalid": "The sign-in link expired. Please try again.",
+  "error.sso_provider_unavailable": "Could not reach the identity provider.",
+  "error.sso_invalid_id_token": "The identity provider's response could not be verified.",
+  "error.sso_acr_not_satisfied": "The identity provider did not meet the required sign-in strength.",
+  "error.sso_email_missing": "The identity provider did not return an email address.",
+  "error.sso_email_not_allowed": "This email domain is not allowed to sign in.",
+  "error.sso_account_not_linked": "No account matches this identity. Ask an administrator to create one.",
+  "error.sso_account_inactive": "This account is disabled.",
+  "error.sso_callback_invalid": "Single sign-on failed. Please try again.",
+  "error.local_login_disabled": "Password and passkey sign-in are turned off."
 }

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -21,7 +22,11 @@ from bounded_contexts.account_security.presentation.schemas import (
     PasskeyAuthenticationRequest,
     PasskeyChallengeResponse,
 )
+from bounded_contexts.audit.application.use_cases.record_audit_event import RecordAuditEvent
+from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
+from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import set_access_token_cookie
+from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.schemas.auth import TokenResponse
 from presentation.fastapi.services.token_service import TokenService
 from shared.infrastructure.models import User
@@ -34,7 +39,23 @@ router = APIRouter(prefix="/api/auth/passkey", tags=["auth"])
 DbDep = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/challenge", response_model=PasskeyChallengeResponse)
+@dataclass(frozen=True)
+class _LoginRecording:
+    """ログインの成立を記録するのに要るもの（DB と監査）。
+
+    束ねているのは、ルーターの引数を設計上の数（4 個）に収めるため。どちらも
+    ``Depends()`` の注入で、業務上の入力ではない。
+    """
+
+    db: Session
+    audit: RecordAuditEvent
+
+
+def login_recording(db: DbDep, audit: AuditRecorderDep) -> _LoginRecording:
+    return _LoginRecording(db=db, audit=audit)
+
+
+@router.post("/challenge", response_model=PasskeyChallengeResponse, dependencies=[Depends(require_local_login)])
 async def create_login_challenge(
     use_case: Annotated[StartPasskeyAuthentication, Depends(dependencies.start_passkey_authentication)],
 ) -> PasskeyChallengeResponse:
@@ -47,11 +68,11 @@ async def create_login_challenge(
     return PasskeyChallengeResponse(challenge_id=challenge.challenge_id, public_key=challenge.public_key)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(require_local_login)])
 async def login_with_passkey(
     body: PasskeyAuthenticationRequest,
     response: Response,
-    db: DbDep,
+    recording: Annotated[_LoginRecording, Depends(login_recording)],
     use_case: Annotated[
         CompletePasskeyAuthentication,
         Depends(dependencies.complete_passkey_authentication),
@@ -59,7 +80,7 @@ async def login_with_passkey(
 ) -> TokenResponse:
     user_id = use_case.execute(challenge_id=body.challenge_id, credential=body.credential)
 
-    user = db.get(User, user_id)
+    user = recording.db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -68,5 +89,7 @@ async def login_with_passkey(
 
     pair = TokenService.create_token_pair(user)
     set_access_token_cookie(response, str(pair["access_token"]))
+    # どの入口で入ったかを残す（ADR-0026 決定 1）。
+    recording.audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=passkey")
     logger.info("passkey_login_succeeded")
     return TokenResponse(**pair)  # type: ignore[arg-type]

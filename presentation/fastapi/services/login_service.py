@@ -61,7 +61,9 @@ class LoginService:
             self._reject(user, "invalid_password")
 
         self._verify_second_factor(user, credentials.totp_code)
-        self._audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED)
+        # どの入口で入ったかを残す（ADR-0026 決定 1）。入口ごとに認証の強度が違うため、
+        # 記録が無いと「IdP 側で止めたのにまだ入れている」ことに後から気付けない。
+        self._audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=password")
         return user
 
     def _verify_second_factor(self, user: User, totp_code: str | None) -> None:
