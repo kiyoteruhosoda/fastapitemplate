@@ -24,6 +24,7 @@ import jwt
 from bounded_contexts.identity_federation.domain.exceptions import (
     IdentityProviderUnavailableError,
 )
+from shared.kernel.version import load_build_info, project_name
 
 # 受け入れる ID トークンの署名アルゴリズム。**対称鍵（HS*）と ``none`` は入れない**
 # ——クライアントシークレットを鍵に使う HS* は IdP 以外も署名を作れてしまう。
@@ -51,7 +52,11 @@ _JWKS_REFRESH_INTERVAL_SECONDS = 60.0
 # ``Python-urllib/3.x`` を名乗る。IdP の前段に居る CDN・WAF はこの UA を落とすことが
 # あり（実際に Cloudflare が 403 を返し、ログインの折り返しだけが失敗した）、
 # discovery とトークン交換は通るのに ID トークンの検証だけが落ちる形になる。
-USER_AGENT = "nolumiawiki"
+#
+# ⚠ **名前を直に書かない。** アプリ自身の名前（``pyproject.toml`` の
+# ``[project].name``）から導く（ADR-0031）。直に書くと、テンプレートから起こした
+# アプリが**別のアプリの名前で名乗り続ける**——実際に長らくそうなっていた。
+USER_AGENT = f"{project_name()}/{load_build_info().version}"
 
 
 @dataclass(frozen=True)

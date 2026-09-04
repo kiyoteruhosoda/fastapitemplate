@@ -113,7 +113,10 @@ def create_app() -> FastAPI:
 
     build_info = load_build_info()
     app = FastAPI(
-        title="fastapitemplate",
+        # ⚠ 名前を直に書かない。`pyproject.toml` の `[project].name` から導く
+        #   （ADR-0031）。書くと、テンプレートから起こしたアプリの Swagger が
+        #   テンプレートの名前を名乗り続ける。
+        title=build_info.name,
         version=build_info.version,
         description="FastAPI + DDD template (photonest-based).",
         lifespan=_lifespan,

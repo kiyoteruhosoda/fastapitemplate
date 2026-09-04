@@ -93,6 +93,11 @@ docker compose up -d            # db / app / front が起動 → http://127.0.0.
 `fastapitemplate` のまま Komodo に登録すると、テンプレート由来の別プロジェクトと
 イメージとエイリアスを取り合います。
 
+**`pyproject.toml` の `[project].name` も同時に変えてください。** ここがアプリ自身の
+名前の正本で、Swagger の題と、外へ出るときに名乗る `User-Agent` がここから導かれます
+（[ADR-0031](docs/decisions/ADR-0031-the-app-name-comes-from-pyproject.md)）。
+コード側に名前を直に書かないでください。
+
 ## ドキュメント
 
 | ファイル | 内容 |
