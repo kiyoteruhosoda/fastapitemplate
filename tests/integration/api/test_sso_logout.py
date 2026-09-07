@@ -29,6 +29,7 @@ from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway 
     EndSessionRequest,
 )
 from bounded_contexts.identity_federation.presentation import dependencies
+from shared.domain.auth import master_data
 
 _ISSUER = "https://idp.example.test"
 _END_SESSION = f"{_ISSUER}/logout"
@@ -98,8 +99,9 @@ def make_client(
     return _make
 
 
-def _logout(client: TestClient) -> httpx.Response:
-    return client.get("/api/auth/sso/logout", follow_redirects=False)
+def _logout(client: TestClient, *, site: str | None = "same-origin") -> httpx.Response:
+    headers = {} if site is None else {"Sec-Fetch-Site": site}
+    return client.get("/api/auth/sso/logout", follow_redirects=False, headers=headers)
 
 
 def test_the_default_does_not_reach_the_idp(make_client: _MakeClient, gateway: _StubGateway) -> None:
@@ -156,3 +158,66 @@ def test_the_landing_route_returns_to_the_login_screen(make_client: _MakeClient)
         response = client.get("/api/auth/sso/signed-out", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login?signed_out=1"
+
+
+def test_a_cross_site_request_cannot_end_the_sso_session(make_client: _MakeClient, gateway: _StubGateway) -> None:
+    """よその頁から呼ばれた遷移では IdP まで通さない。
+
+    ⚠ **この口は未認証で状態を変える。**しかも変えるのは全アプリで共有された IdP の
+    セッション。守らないと ``<img src="…/logout">`` を置くだけで他アプリからも
+    締め出せる。**IdP の確認画面はあてにできない**（assay は挟まない）。
+    """
+    with make_client(rp_logout=True) as client:
+        response = _logout(client, site="cross-site")
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+    assert gateway.seen == []
+
+
+def test_a_same_site_request_cannot_end_the_sso_session(make_client: _MakeClient, gateway: _StubGateway) -> None:
+    """兄弟のサブドメインからも通さない。通すのは自分のオリジンからだけ。"""
+    with make_client(rp_logout=True) as client:
+        response = _logout(client, site="same-site")
+    assert response.headers["location"] == "/login"
+    assert gateway.seen == []
+
+
+def test_the_user_typing_the_url_is_allowed(make_client: _MakeClient) -> None:
+    """アドレス欄・ブックマークからは通す（``none``）。よその頁からは作れない値。"""
+    with make_client(rp_logout=True) as client:
+        response = _logout(client, site="none")
+    assert response.headers["location"].startswith(_END_SESSION)
+
+
+def test_a_browser_without_the_header_is_allowed(make_client: _MakeClient) -> None:
+    """ヘッダーを付けない古いブラウザを締め出さない。
+
+    塞ぎたいのは**よその頁から起こした遷移**で、そこでは今のブラウザが必ず付ける。
+    無い場合まで閉じると、古い環境でサインアウトできなくなるほうの実害が勝つ。
+    """
+    with make_client(rp_logout=True) as client:
+        response = _logout(client, site=None)
+    assert response.headers["location"].startswith(_END_SESSION)
+
+
+def test_the_screen_learns_the_setting_from_me(make_client: _MakeClient) -> None:
+    """判断は ``/me`` に載せて届ける。**サインアウトのたびに問い合わせを増やさない。**
+
+    ``/provider`` でも返しているが、あちらはログイン画面のためのもの。ログイン済みの
+    画面が引くと、サインアウトの経路に往復が 1 つ増える。
+    """
+    with make_client(rp_logout=True) as client:
+        client.post(
+            "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
+        )
+        body = client.get("/api/auth/me").json()
+    assert body["rp_logout_enabled"] is True
+
+
+def test_me_reports_the_default_as_false(make_client: _MakeClient) -> None:
+    with make_client() as client:
+        client.post(
+            "/api/auth/login", json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD}
+        )
+        body = client.get("/api/auth/me").json()
+    assert body["rp_logout_enabled"] is False

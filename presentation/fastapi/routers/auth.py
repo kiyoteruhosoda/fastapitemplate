@@ -56,6 +56,7 @@ from presentation.fastapi.services.token_service import TokenService
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
+from shared.kernel.settings.settings import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
         scopes=sorted(principal.permissions),
         roles=list(user.role_names),
         active_role=principal.active_role,
+        rp_logout_enabled=settings.oidc_rp_logout_enabled,
     )
 
 

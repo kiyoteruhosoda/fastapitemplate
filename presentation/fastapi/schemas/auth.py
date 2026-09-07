@@ -33,6 +33,12 @@ class MeResponse(BaseModel):
     roles: list[str]
     # None = すべてのロール（保有権限の和集合）で操作している
     active_role: str | None = None
+    # サインアウトを IdP まで通すか（``OIDC_RP_LOGOUT_ENABLED``。既定は偽。ADR-0033）。
+    # **この画面がどう入ったかではなく、サーバーの設定**を返す。真にするのは
+    # 「SSO でしか入れないアプリ」と「共有の端末で開くもの」だけなので、パスワードで
+    # 入った利用者を巻き込む形にはならない（ローカル口座を持つアプリは偽のまま）。
+    # SSO の可否とは別に **/me で返す**——サインアウトのたびに問い合わせを増やさない。
+    rp_logout_enabled: bool = False
 
 
 class RoleSwitchRequest(BaseModel):

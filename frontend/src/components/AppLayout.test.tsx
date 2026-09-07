@@ -24,6 +24,7 @@ const ME: Me = {
   scopes: ['dashboard:view', 'item:view'],
   roles: ['member'],
   active_role: null,
+  rp_logout_enabled: false,
 }
 
 vi.mock('../services/api', () => ({

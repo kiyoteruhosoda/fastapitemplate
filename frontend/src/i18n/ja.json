@@ -239,6 +239,7 @@
   "error.unknown_error": "エラーが発生しました。",
   "login.withSso": "{provider} でログイン",
   "login.localDisabled": "パスワードでのログインは無効です。上のボタンからログインしてください。",
+  "login.signedOut": "サインアウトしました。",
   "login.ssoCompleting": "ログインしています…",
   "error.sso_error": "SSO でのログインに失敗しました。もう一度お試しください。",
   "error.sso_not_configured": "SSO は利用できません。",
