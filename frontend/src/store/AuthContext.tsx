@@ -110,14 +110,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * サーバーの設定（`OIDC_RP_LOGOUT_ENABLED`。既定は無効）で決まるので、
    * こちらは問い合わせて従うだけにする。
    *
+   * ⚠ **手元の状態は往復を待たずに落とす。** `setUser(null)` を `POST /logout` の
+   * あとに置くと、回線が遅い・切れているときに**押しても画面が変わらない**
+   * （サインアウト済みに見えず、押し直しを誘う）。手元の控えを消すのに往復の
+   * 成否は要らない——Cookie を落とすのはどのみちサーバー側。
+   *
    * ⚠ **IdP へ送り出す前に `POST /logout` の完了を待つ。** 送り出しは画面遷移で、
    * 待たずに始めると Cookie を落とす往復が中断され、**アプリ側だけ入ったまま**に
    * なりうる。無効なときは従来どおり画面遷移しない。
    */
   const logout = async () => {
+    setUser(null)
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     await api.post('/api/auth/logout').catch(() => undefined)
-    setUser(null)
     const provider = await fetchSsoProvider().catch(() => null)
     if (provider?.rp_logout_enabled) startSsoLogout()
   }

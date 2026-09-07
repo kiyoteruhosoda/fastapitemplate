@@ -195,6 +195,7 @@ __all__ = [
     "DbDep",
     "GatewayDep",
     "account_linking_policy",
+    "build_rp_logout_url",
     "claims_mapping",
     "client_credential",
     "complete_sso_login",

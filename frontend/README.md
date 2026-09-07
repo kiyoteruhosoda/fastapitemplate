@@ -41,6 +41,13 @@ npm run test         # Vitest
   `src/services/api.ts` が毎回 Cookie から読み直す ——セッションを張り直すたびに
   新しくなるので、控えると古い値を送ることになる。
 - ログアウトで Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
+  画面はまず手元の控えを捨ててから `POST /api/auth/logout` の完了を待つ
+  （待ってから捨てると、回線が遅いときに押しても何も起きないように見える）。
+- **サインアウトを IdP まで通すかはサーバーが決める**（`OIDC_RP_LOGOUT_ENABLED`。
+  既定は無効。ADR-0033）。`GET /api/auth/sso/provider` の `rp_logout_enabled` が
+  真のときだけ、アプリのサインアウトを終えたあと `GET /api/auth/sso/logout` へ
+  **画面遷移**する（IdP の Cookie を落とすのは IdP 自身なので fetch では届かない）。
+  戻りは `GET /api/auth/sso/signed-out` 経由で `/login?signed_out=1`。
 
 ## 画面遷移図
 
@@ -108,6 +115,9 @@ flowchart TD
 `/login/sso?ticket=…` へ戻る（ADR-0025）。`Login --> Idp --> SsoCallback --> Dashboard`。
 往復に失敗すると `/login?sso_error=<コード>` へ戻る。
 
+※ `rp_logout_enabled` が真のとき、ログアウトは `/login` で終わらず IdP へ出て
+`/login?signed_out=1` へ戻る（ADR-0033）。`Dashboard --> Idp --> Login`。
+
 ## 画面一覧
 
 | #   | 画面                   | ルート                    | 認証 | 必要 scope                                          | サイドバー |
@@ -161,6 +171,8 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
     （ADR-0026 決定 2）。**問い合わせに失敗したときは出したままにする**——
     ここで隠すと、問い合わせが落ちただけで全員が締め出される。
   - `?sso_error=<コード>` が付いていれば、`error.<コード>` の文言で失敗を表示する。
+  - `?signed_out=1` は IdP でのサインアウトを終えて戻ってきた印（ADR-0033）。
+    **画面は今のところ何も出さない**——出すなら `login.signedOut` を足す。
 - **操作**:
   1. メール・パスワードを入力して送信 → 成功で `/` へ。
   2. 二要素認証が有効なユーザーは `totp_required` が返り、**同じ画面が
@@ -373,6 +385,9 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
   アバター付き。`/profile` へ）、ログアウト。狭い画面ではメニューボタン（☰）が
   左端に出て、ユーザー名は隠れてアバターだけになる。言語・テーマの切り替えは
   プロフィール（S6）にある。
+  - ログアウトは手元の状態をその場で捨て、`POST /api/auth/logout` の完了を待つ。
+    サーバーが `rp_logout_enabled` を真で返す構成では、そのあと IdP へ
+    画面遷移する（ADR-0033）。既定では遷移しない。
   - ロールの切り替え（`components/RoleSwitcher.tsx`。ADR-0017）は
     **複数ロールを持つ利用者にだけ**出る。押すと「すべてのロール」と保有ロールが
     並び、選ぶとその場でトークンが再発行されて有効 scope が変わる
