@@ -1,3 +1,6 @@
 node_modules/
+# worktree では node_modules が**本体への symlink**として貸される。末尾 `/` の
+# パターンはディレクトリにしか当たらないので、symlink はこの行が無いと未追跡で残る。
+node_modules
 dist/
 *.local

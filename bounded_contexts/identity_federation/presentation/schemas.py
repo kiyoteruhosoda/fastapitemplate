@@ -16,6 +16,9 @@ class SsoProviderResponse(BaseModel):
     #: パスワード・パスキーの入口が開いているか（ADR-0026 決定 2）。ログイン画面は
     #: これが偽ならパスワード欄とパスキーのボタンを出さない。
     local_login_enabled: bool = True
+    #: サインアウトを IdP まで通すか。画面はこれが真のときだけ、アプリの
+    #: サインアウトを済ませたあと ``/api/auth/sso/logout`` へ遷移する。
+    rp_logout_enabled: bool = False
 
 
 class SsoTicketRequest(BaseModel):

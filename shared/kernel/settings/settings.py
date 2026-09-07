@@ -112,6 +112,10 @@ class _DatabaseOverrides:
 #: （ルーターの ``prefix`` と対で合わせる）。
 OIDC_CALLBACK_PATH = "/api/auth/sso/callback"
 
+#: RP-Initiated Logout の着地点。``OIDC_POST_LOGOUT_REDIRECT_URI`` 未設定時の
+#: 組み立てに使う（ルーターの ``prefix`` と対で合わせる）。
+OIDC_SIGNED_OUT_PATH = "/api/auth/sso/signed-out"
+
 
 class ApplicationSettings:
     """環境変数・DB・デフォルト値を統合して設定値を返す。"""
@@ -411,6 +415,40 @@ class ApplicationSettings:
         return f"{base}{OIDC_CALLBACK_PATH}" if base else ""
 
     @property
+    def oidc_rp_logout_enabled(self) -> bool:
+        """サインアウトを IdP まで通すか（RP-Initiated Logout 1.0）。**既定は無効**。
+
+        **有効にすると副作用がある。** 消えるのは IdP の SSO セッションなので、
+        このアプリのサインアウトが**他のアプリの次回 SSO ログイン**にも効く
+        （名乗り直しが要るようになる）。他アプリの既存セッションは切れない——
+        あれは各アプリ自身の Cookie で、IdP は ``backchannel_logout_uri`` を
+        登録したクライアントにしか知らせないため。
+
+        **ローカル口座を持つアプリでは既定のまま無効でよい。** ``/logout`` が既に
+        自分のセッションを終わらせており、そこへ他アプリへの副作用を足す理由が無い。
+        有効にする価値があるのは、**SSO でしか入れないアプリ**（IdP のセッションが
+        唯一のセッション）と、**共有の端末で開く操作盤**（サインアウト後に
+        ボタン 1 つで入り直せると困るもの）。
+
+        なお「このアプリだけ毎回名乗り直させたい」だけなら、こちらではなく
+        認可要求の ``prompt=login`` のほうが副作用が無い。
+        """
+        return self.get_bool("OIDC_RP_LOGOUT_ENABLED", False)
+
+    @property
+    def oidc_post_logout_redirect_uri(self) -> str:
+        """サインアウト後に IdP から戻ってくる先。空なら ``APP_BASE_URL`` から組み立てる。
+
+        ⚠ **IdP 側の登録と完全一致でなければ使われない。** 未登録でも失敗はせず、
+        IdP 自身の完了ページで止まる（サインアウトそのものは効く）。
+        """
+        configured = str(self._get("OIDC_POST_LOGOUT_REDIRECT_URI") or "")
+        if configured:
+            return configured
+        base = self.app_base_url.rstrip("/")
+        return f"{base}{OIDC_SIGNED_OUT_PATH}" if base else ""
+
+    @property
     def oidc_acr_values(self) -> Sequence[str]:
         """要求する認証の強度。空 = 要求しない（ADR-0026 決定 1）。"""
         return self.get_list("OIDC_ACR_VALUES")
@@ -478,4 +516,4 @@ class ApplicationSettings:
 
 settings = ApplicationSettings()
 
-__all__ = ["OIDC_CALLBACK_PATH", "ApplicationSettings", "settings"]
+__all__ = ["OIDC_CALLBACK_PATH", "OIDC_SIGNED_OUT_PATH", "ApplicationSettings", "settings"]

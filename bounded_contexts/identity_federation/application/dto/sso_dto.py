@@ -15,6 +15,9 @@ class SsoProviderDto:
 
     enabled: bool
     display_name: str
+    #: サインアウトを IdP まで通すか（ADR: RP-Initiated Logout）。画面はこれが真の
+    #: ときだけ、サインアウト後に ``/api/auth/sso/logout`` へ遷移する。
+    rp_logout_enabled: bool = False
 
 
 @dataclass(frozen=True)

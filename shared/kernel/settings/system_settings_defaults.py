@@ -83,6 +83,16 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "OIDC_SCOPES": ["openid", "profile", "email"],
     # IdP に登録するリダイレクト URI。空なら APP_BASE_URL + /api/auth/sso/callback。
     "OIDC_REDIRECT_URI": "",
+    # サインアウトを IdP まで通すか（RP-Initiated Logout 1.0）。**既定は無効。**
+    # ⚠ **有効にすると他のアプリに影響する。** 消えるのは IdP の SSO セッションなので、
+    #   このアプリのサインアウトが他アプリの「次回 SSO ログイン」にも効く。
+    #   ローカル口座を持つアプリは無効のままでよい（/logout が既に自分のセッションを
+    #   終わらせている）。詳細は settings.oidc_rp_logout_enabled の docstring。
+    "OIDC_RP_LOGOUT_ENABLED": False,
+    # サインアウト後に IdP から戻る先。空なら APP_BASE_URL + /api/auth/sso/signed-out。
+    # ⚠ **IdP 側の登録と完全一致でなければ使われない**（未登録でも失敗はせず、
+    #   IdP 自身の完了ページで止まる）。
+    "OIDC_POST_LOGOUT_REDIRECT_URI": "",
     # 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0026 決定 1）。
     # ⚠ **入れたら fail closed になる。** 返ってきた acr が要求と一致しなければ
     #   （返ってこない場合も）ログインを断る。予約語を持たない IdP へつなぐときは

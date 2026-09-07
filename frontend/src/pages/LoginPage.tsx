@@ -30,6 +30,7 @@ export function LoginPage() {
     enabled: false,
     display_name: '',
     local_login_enabled: true,
+    rp_logout_enabled: false,
   })
 
   useEffect(() => {

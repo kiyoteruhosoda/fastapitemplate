@@ -25,6 +25,7 @@ from bounded_contexts.identity_federation.domain.exceptions import (
 from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway import (
     AuthorizationRequest,
     CodeExchange,
+    EndSessionRequest,
 )
 from bounded_contexts.identity_federation.domain.value_objects.identity_provider import (
     IdentityProvider,
@@ -73,6 +74,20 @@ class HttpxOidcProviderGateway:
             parameters["acr_values"] = " ".join(request.acr_values)
         separator = "&" if "?" in metadata.authorization_endpoint else "?"
         return f"{metadata.authorization_endpoint}{separator}{urlencode(parameters)}"
+
+    def end_session_url(self, request: EndSessionRequest) -> str | None:
+        provider = request.provider
+        metadata = self._metadata.metadata(provider.issuer)
+        if not metadata.end_session_endpoint:
+            # 対応していない OP。呼ぶ側が「通せない」と分かるように None で返す。
+            return None
+        parameters = {"client_id": provider.client_id}
+        if request.post_logout_redirect_uri:
+            # ⚠ **OP に登録済みの URI でなければ使われない。** 未登録でも失敗はせず、
+            #   OP 自身の完了ページで止まる（サインアウトそのものは効く）。
+            parameters["post_logout_redirect_uri"] = request.post_logout_redirect_uri
+        separator = "&" if "?" in metadata.end_session_endpoint else "?"
+        return f"{metadata.end_session_endpoint}{separator}{urlencode(parameters)}"
 
     # ------------------------------------------------------------------
     # 引き換え

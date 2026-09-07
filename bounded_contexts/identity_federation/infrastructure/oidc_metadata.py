@@ -66,6 +66,9 @@ class ProviderMetadata:
     token_endpoint: str
     jwks_uri: str
     userinfo_endpoint: str = ""
+    #: RP-Initiated Logout の窓口。**任意**——出さない IdP があるので、
+    #: 欠けていても discovery は成立させる（サインアウトの機能だけが使えない）。
+    end_session_endpoint: str = ""
     signing_algorithms: tuple[str, ...] = ()
     token_auth_methods: tuple[str, ...] = ()
 
@@ -82,6 +85,7 @@ class ProviderMetadata:
             token_endpoint=_text(document.get("token_endpoint")),
             jwks_uri=_text(document.get("jwks_uri")),
             userinfo_endpoint=_text(document.get("userinfo_endpoint")),
+            end_session_endpoint=_text(document.get("end_session_endpoint")),
             signing_algorithms=_supported_algorithms(document.get("id_token_signing_alg_values_supported")),
             token_auth_methods=tuple(_texts(document.get("token_endpoint_auth_methods_supported"))),
         )

@@ -1,11 +1,13 @@
 """SSO（OpenID Connect）ログイン API。
 
-経路は 4 つ。
+経路は 6 つ。
 
 - ``GET /provider`` — ログイン画面が「SSO で入る」ボタンを出すかを問い合わせる
 - ``GET /login`` — IdP の認可エンドポイントへブラウザを送り出す
 - ``GET /callback`` — IdP からの戻り。引き換え券を付けて SPA へ戻す
 - ``POST /token`` — 引き換え券をトークンへ換える（Cookie もここで載せる）
+- ``GET /logout`` — サインアウトを IdP まで通す（**既定では無効**）
+- ``GET /signed-out`` — その戻り。ログイン画面へ返すだけ
 
 ``/login`` は**往復状態（``state`` / ``nonce`` / ``code_verifier``）を署名付き Cookie に
 入れてから**送り出し、``/callback`` はそれを復元して照合する（ADR-0025）。サーバー側に
@@ -37,6 +39,9 @@ from bounded_contexts.audit.domain.entities.audit_event import (
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from bounded_contexts.identity_federation.application.dto.sso_dto import (
     ResolvedAccountDto,
+)
+from bounded_contexts.identity_federation.application.use_cases.build_rp_logout_url import (
+    BuildRpLogoutUrl,
 )
 from bounded_contexts.identity_federation.application.use_cases.complete_sso_login import (
     CompleteSsoLogin,
@@ -105,7 +110,39 @@ async def describe_provider(
         enabled=provider.enabled,
         display_name=provider.display_name,
         local_login_enabled=settings.local_login_enabled,
+        rp_logout_enabled=provider.rp_logout_enabled,
     )
+
+
+# ``/logout`` は IdP へ discovery を出すことがあるので ``def``（``/login`` と同じ理由）。
+@router.get("/logout", include_in_schema=False)
+def logout(
+    use_case: Annotated[BuildRpLogoutUrl, Depends(dependencies.build_rp_logout_url)],
+) -> RedirectResponse:
+    """サインアウトを IdP まで通す。**アプリのセッションはここでは触らない。**
+
+    終わらせるのは ``POST /api/auth/logout`` の仕事で、画面はそれを済ませてから
+    ここへ遷移する。二重に持たせない——片方だけ直したときにずれるため。
+
+    **通せないときはログイン画面へ返すだけ**（設定が無効・SSO が使えない・IdP が
+    ``end_session_endpoint`` を出していない）。ここで失敗を見せても、利用者に
+    できることが無い。
+    """
+    return _redirect(use_case.execute() or LOGIN_SCREEN)
+
+
+@router.get("/signed-out", include_in_schema=False)
+def signed_out() -> RedirectResponse:
+    """IdP でサインアウトを終えた足の着地点。
+
+    **この URI を IdP のクライアントに登録しておく**（``post_logout_redirect_uri``）。
+    未登録でも壊れはせず、IdP 自身の完了ページで止まる。
+
+    ここが独立した経路なのは、**登録する文字列を SPA のルーティングから切り離す**
+    ため。画面の経路を変えるたびに IdP 側の登録を直すことになると、片方だけ直して
+    黙って外れる。
+    """
+    return _redirect(f"{LOGIN_SCREEN}?signed_out=1")
 
 
 # ``/login`` と ``/callback`` は IdP へ同期の HTTP を出す（discovery・トークン交換）。

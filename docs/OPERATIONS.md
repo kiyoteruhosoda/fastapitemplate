@@ -340,6 +340,42 @@ OIDC_ACR_VALUES=["urn:assay:ac:mfa"]
 また `acr` が返ってこなければ、ログインを断る（`sso_acr_not_satisfied`）。
 予約語を持たない IdP へつないでいるときは**空のままにする**。
 
+## サインアウトを IdP まで通したいとき（ADR-0033）
+
+**既定では通していない。** `POST /api/auth/logout` はこのアプリのセッションを
+終わらせるだけで、IdP の SSO セッションは生きている。そのためサインアウトのあと
+「SSO で入る」を押すと**名乗り直さずに入れる**。
+
+```
+OIDC_RP_LOGOUT_ENABLED=true
+OIDC_POST_LOGOUT_REDIRECT_URI=https://<ホスト>/api/auth/sso/signed-out   # 空なら APP_BASE_URL から組み立てる
+```
+
+⚠ **有効にすると他のアプリに影響する。** 消えるのは IdP の SSO セッションで、これは
+その IdP を使う**全アプリで共有**されている。片方のサインアウトが、もう片方の
+**次回 SSO ログイン**で名乗り直しを要求する形になる（他アプリの既存セッションは
+切れない）。**ローカル口座を持つアプリは既定のまま無効でよい**——`/logout` が既に
+自分のセッションを終わらせている。
+
+有効にする価値があるのは **SSO でしか入れないアプリ**（`LOCAL_LOGIN_ENABLED=false`）と、
+**共有の端末で開くもの**の 2 つ。
+
+⚠ **戻り先を IdP のクライアントへ登録すること。**
+
+```bash
+curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
+     -H "Authorization: Bearer <管理トークン>" \
+     -H 'Content-Type: application/json' \
+     -d '{"post_logout_redirect_uris":["https://<ホスト>/api/auth/sso/signed-out"]}'
+```
+
+未登録でも壊れはせず、**IdP 自身の完了ページで止まる**（エラーにならないので、
+登録漏れは「戻ってこない」という形でしか出ない）。IdP が `end_session_endpoint` を
+出していない場合も、ログイン画面へ返すだけで失敗にはしない。
+
+**「このアプリだけ毎回名乗り直させたい」だけなら、こちらではない。** 認可要求の
+`prompt=login` のほうが、共有の SSO セッションを壊さずに済む。
+
 ## パスワードでのログインを止めたいとき（SSO 専用にする）
 
 ```
