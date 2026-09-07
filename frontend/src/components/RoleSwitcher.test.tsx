@@ -21,6 +21,7 @@ const MULTI_ROLE: Me = {
   scopes: ['dashboard:view', 'item:view', 'log:view'],
   roles: ['manager', 'member'],
   active_role: null,
+  rp_logout_enabled: false,
 }
 
 const { apiGet, apiPost } = vi.hoisted(() => ({

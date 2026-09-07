@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import { api } from '../services/api'
-import { exchangeSsoTicket, fetchSsoProvider, startSsoLogout } from '../services/sso'
+import { exchangeSsoTicket, startSsoLogout } from '../services/sso'
 import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
 export interface Me {
@@ -15,6 +15,11 @@ export interface Me {
   roles: string[]
   /** null は「すべてのロール」（保有権限の和集合）。 */
   active_role: string | null
+  /**
+   * サインアウトを IdP まで通すか（サーバーの設定。既定は偽。ADR-0033）。
+   * `/me` に載せてあるので、サインアウトのために問い合わせを増やさない。
+   */
+  rp_logout_enabled: boolean
 }
 
 /** ログインが成立したことと、アクセストークンの寿命（トークン本体は Cookie）。 */
@@ -107,8 +112,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * サインアウト。
    *
    * **アプリのセッションは必ず終わらせる。** IdP まで通すかどうかは
-   * サーバーの設定（`OIDC_RP_LOGOUT_ENABLED`。既定は無効）で決まるので、
-   * こちらは問い合わせて従うだけにする。
+   * サーバーの設定（`OIDC_RP_LOGOUT_ENABLED`。既定は無効）で決まる。判断は
+   * `/me` に載って届いているので、**サインアウトのために問い合わせを増やさない**。
+   *
+   * ⚠ **行き先は `setUser(null)` の前に読む。** あとで読むと `user` は既に null で、
+   * 有効な構成でも IdP へ行かなくなる。
    *
    * ⚠ **手元の状態は往復を待たずに落とす。** `setUser(null)` を `POST /logout` の
    * あとに置くと、回線が遅い・切れているときに**押しても画面が変わらない**
@@ -120,11 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * なりうる。無効なときは従来どおり画面遷移しない。
    */
   const logout = async () => {
+    const toIdp = user?.rp_logout_enabled ?? false
     setUser(null)
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     await api.post('/api/auth/logout').catch(() => undefined)
-    const provider = await fetchSsoProvider().catch(() => null)
-    if (provider?.rp_logout_enabled) startSsoLogout()
+    if (toIdp) startSsoLogout()
   }
 
   const hasScope = (...codes: string[]) =>

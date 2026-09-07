@@ -44,9 +44,10 @@ npm run test         # Vitest
   画面はまず手元の控えを捨ててから `POST /api/auth/logout` の完了を待つ
   （待ってから捨てると、回線が遅いときに押しても何も起きないように見える）。
 - **サインアウトを IdP まで通すかはサーバーが決める**（`OIDC_RP_LOGOUT_ENABLED`。
-  既定は無効。ADR-0033）。`GET /api/auth/sso/provider` の `rp_logout_enabled` が
-  真のときだけ、アプリのサインアウトを終えたあと `GET /api/auth/sso/logout` へ
-  **画面遷移**する（IdP の Cookie を落とすのは IdP 自身なので fetch では届かない）。
+  既定は無効。ADR-0033）。判断は **`/api/auth/me` の `rp_logout_enabled`** に載って
+  届く（サインアウトのために問い合わせを増やさないため）。真のときだけ、アプリの
+  サインアウトを終えたあと `GET /api/auth/sso/logout` へ**画面遷移**する
+  （IdP の Cookie を落とすのは IdP 自身なので fetch では届かない）。
   戻りは `GET /api/auth/sso/signed-out` 経由で `/login?signed_out=1`。
 
 ## 画面遷移図
@@ -172,7 +173,8 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
     ここで隠すと、問い合わせが落ちただけで全員が締め出される。
   - `?sso_error=<コード>` が付いていれば、`error.<コード>` の文言で失敗を表示する。
   - `?signed_out=1` は IdP でのサインアウトを終えて戻ってきた印（ADR-0033）。
-    **画面は今のところ何も出さない**——出すなら `login.signedOut` を足す。
+    `login.signedOut` を出す。**出さないと、期限切れで飛ばされたのと見分けが
+    付かない。**送信すると畳む（済んだ話なので残さない）。
 - **操作**:
   1. メール・パスワードを入力して送信 → 成功で `/` へ。
   2. 二要素認証が有効なユーザーは `totp_required` が返り、**同じ画面が

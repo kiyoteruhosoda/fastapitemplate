@@ -239,6 +239,7 @@
   "error.unknown_error": "Something went wrong.",
   "login.withSso": "Sign in with {provider}",
   "login.localDisabled": "Password sign-in is turned off. Use the button above.",
+  "login.signedOut": "You are signed out.",
   "login.ssoCompleting": "Signing you in…",
   "error.sso_error": "Single sign-on failed. Please try again.",
   "error.sso_not_configured": "Single sign-on is not available.",

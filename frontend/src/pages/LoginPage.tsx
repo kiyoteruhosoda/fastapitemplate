@@ -22,6 +22,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [params] = useSearchParams()
   // SSO の設定は起動後に変えられるので、画面を開くたびに問い合わせる。
   // 取れないうちは**ローカルの入口を出したままにする**（問い合わせに失敗しただけで
@@ -45,6 +46,12 @@ export function LoginPage() {
     const code = params.get('sso_error')
     if (code) setError(`error.${code}`)
   }, [params])
+
+  // IdP でのサインアウトを終えると `?signed_out=1` で戻ってくる（ADR-0033）。
+  // **出さないと、期限切れで飛ばされたのと見分けが付かない。**
+  useEffect(() => {
+    if (params.get('signed_out')) setNotice('login.signedOut')
+  }, [params])
   // パスワード欄は表示切り替えボタンを持つため `<label>` で囲まず `for` で結ぶ
   // （labelable な要素を 2 つ入れると対応付けが曖昧になる）。
   const passwordId = useId()
@@ -52,6 +59,7 @@ export function LoginPage() {
   const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+    setNotice(null)
     try {
       await login(email, password, step === 'totp' ? totpCode : undefined)
       navigate('/')
@@ -93,6 +101,7 @@ export function LoginPage() {
     <div className="auth-page">
       <form className="card" onSubmit={submit}>
         <h1>{step === 'totp' ? t('login.totpTitle') : t('login.title')}</h1>
+        {notice && <p className="hint">{t(notice)}</p>}
         {error && <p className="error">{t(error)}</p>}
 
         {sso.enabled && (

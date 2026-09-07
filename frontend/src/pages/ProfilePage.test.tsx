@@ -30,6 +30,7 @@ const ME: Me = {
   scopes: ['dashboard:view'],
   roles: ['manager', 'member'],
   active_role: 'member',
+  rp_logout_enabled: false,
 }
 
 const { apiGet, apiPut, apiPost } = vi.hoisted(() => ({

@@ -107,6 +107,21 @@ describe('LoginPage', () => {
     })
   })
 
+  it('IdP でサインアウトして戻ると ?signed_out を文言にして出す', async () => {
+    // ⚠ 出さないと、期限切れで飛ばされたのと見分けが付かない（ADR-0033）。
+    fetchSsoProvider.mockResolvedValue({
+      enabled: true,
+      display_name: 'Nolumia',
+      local_login_enabled: true,
+      rp_logout_enabled: true,
+    })
+    renderPage('/login?signed_out=1')
+
+    await waitFor(() => {
+      expect(screen.getByText('You are signed out.')).toBeInTheDocument()
+    })
+  })
+
   it('サーバー側の往復が失敗したら ?sso_error を文言にして出す', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,

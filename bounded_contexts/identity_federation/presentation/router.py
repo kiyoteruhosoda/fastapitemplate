@@ -28,7 +28,7 @@ import re
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -118,6 +118,7 @@ async def describe_provider(
 @router.get("/logout", include_in_schema=False)
 def logout(
     use_case: Annotated[BuildRpLogoutUrl, Depends(dependencies.build_rp_logout_url)],
+    sec_fetch_site: Annotated[str | None, Header(alias="Sec-Fetch-Site")] = None,
 ) -> RedirectResponse:
     """サインアウトを IdP まで通す。**アプリのセッションはここでは触らない。**
 
@@ -125,10 +126,37 @@ def logout(
     ここへ遷移する。二重に持たせない——片方だけ直したときにずれるため。
 
     **通せないときはログイン画面へ返すだけ**（設定が無効・SSO が使えない・IdP が
-    ``end_session_endpoint`` を出していない）。ここで失敗を見せても、利用者に
-    できることが無い。
+    ``end_session_endpoint`` を出していない・よそから呼ばれた）。ここで失敗を
+    見せても、利用者にできることが無い。
     """
+    if not _from_this_site(sec_fetch_site):
+        logger.warning("sso_logout_rejected_cross_site")
+        return _redirect(LOGIN_SCREEN)
     return _redirect(use_case.execute() or LOGIN_SCREEN)
+
+
+def _from_this_site(sec_fetch_site: str | None) -> bool:
+    """この経路への遷移が**自分のサイトから**始まったかを見る。
+
+    ⚠ **この口は未認証で状態を変える。** しかも変えるのは**IdP の SSO セッション**で、
+    それは同じ IdP を使う全アプリで共有されている。守らないと、よその頁が
+    ``<img src="…/api/auth/sso/logout">`` を置くだけで**利用者を他アプリからも
+    締め出せる**（被害はログインし直しまでだが、頼んでいない副作用ではある）。
+
+    ⚠ **IdP の確認画面はあてにしない。** OIDC は ``id_token_hint`` が無いとき OP が
+    確認を挟むことを *SHOULD* としているだけで、**自前 idp (assay) は挟まない**
+    （2026-09-07 に実装を確認）。歯止めはここしか無い。
+
+    Cookie ではなくブラウザが付ける ``Sec-Fetch-Site`` を見る。CSRF トークンを使わない
+    のは、ここが**画面遷移**だから——トークンを載せるには JavaScript で URL を組む
+    ことになり、``<a href>`` で開けるという性質を捨てることになる。
+
+    通すのは自分のオリジンからの遷移 (``same-origin``) と、利用者が自分で叩いた場合
+    (``none``。アドレス欄・ブックマーク)。**ヘッダーごと無い場合も通す**——付けない
+    のは古いブラウザで、そこを閉じるとサインアウトできなくなる。よその頁から
+    起こした遷移では**ブラウザが必ず付ける**ので、塞ぎたい経路は塞がる。
+    """
+    return sec_fetch_site is None or sec_fetch_site in {"same-origin", "none"}
 
 
 @router.get("/signed-out", include_in_schema=False)
