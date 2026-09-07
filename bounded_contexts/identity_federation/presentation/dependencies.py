@@ -15,6 +15,9 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from bounded_contexts.identity_federation.application.use_cases.build_rp_logout_url import (
+    BuildRpLogoutUrl,
+)
 from bounded_contexts.identity_federation.application.use_cases.complete_sso_login import (
     CompleteSsoLogin,
 )
@@ -134,12 +137,24 @@ def role_assignment() -> RoleAssignment:
 
 
 def describe_sso_provider() -> DescribeSsoProvider:
-    return DescribeSsoProvider(provider=identity_provider())
+    return DescribeSsoProvider(
+        provider=identity_provider(),
+        rp_logout_enabled=settings.oidc_rp_logout_enabled,
+    )
 
 
 def requested_authentication_context() -> RequestedAuthenticationContext:
     """要求する認証の強度（ADR-0026 決定 1）。空 = 要求しない。"""
     return RequestedAuthenticationContext(values=tuple(settings.oidc_acr_values))
+
+
+def build_rp_logout_url(gateway: GatewayDep) -> BuildRpLogoutUrl:
+    return BuildRpLogoutUrl(
+        provider=identity_provider(),
+        gateway=gateway,
+        enabled=settings.oidc_rp_logout_enabled,
+        post_logout_redirect_uri=settings.oidc_post_logout_redirect_uri,
+    )
 
 
 def start_sso_login(gateway: GatewayDep) -> StartSsoLogin:

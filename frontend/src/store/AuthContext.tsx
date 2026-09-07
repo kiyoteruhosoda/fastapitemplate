@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import { api } from '../services/api'
-import { exchangeSsoTicket } from '../services/sso'
+import { exchangeSsoTicket, fetchSsoProvider, startSsoLogout } from '../services/sso'
 import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
 export interface Me {
@@ -33,7 +33,8 @@ interface AuthValue {
    * 戻り先（SSO を始めた画面）を返す。
    */
   completeSsoLogin: (ticket: string) => Promise<string>
-  logout: () => void
+  /** サインアウト。IdP まで通すかはサーバーの設定次第（既定は通さない）。 */
+  logout: () => Promise<void>
   refreshMe: () => Promise<void>
   /** アクティブロールを切り替える（null ですべてのロールへ戻す。ADR-0017）。 */
   switchRole: (role: string | null) => Promise<void>
@@ -102,10 +103,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refreshMe()
   }
 
-  const logout = () => {
+  /**
+   * サインアウト。
+   *
+   * **アプリのセッションは必ず終わらせる。** IdP まで通すかどうかは
+   * サーバーの設定（`OIDC_RP_LOGOUT_ENABLED`。既定は無効）で決まるので、
+   * こちらは問い合わせて従うだけにする。
+   *
+   * ⚠ **IdP へ送り出す前に `POST /logout` の完了を待つ。** 送り出しは画面遷移で、
+   * 待たずに始めると Cookie を落とす往復が中断され、**アプリ側だけ入ったまま**に
+   * なりうる。無効なときは従来どおり画面遷移しない。
+   */
+  const logout = async () => {
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
-    void api.post('/api/auth/logout').catch(() => undefined)
+    await api.post('/api/auth/logout').catch(() => undefined)
     setUser(null)
+    const provider = await fetchSsoProvider().catch(() => null)
+    if (provider?.rp_logout_enabled) startSsoLogout()
   }
 
   const hasScope = (...codes: string[]) =>

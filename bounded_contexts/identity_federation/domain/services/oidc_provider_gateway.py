@@ -30,6 +30,21 @@ class AuthorizationRequest:
 
 
 @dataclass(frozen=True)
+class EndSessionRequest:
+    """サインアウトを IdP まで通すための材料（RP-Initiated Logout 1.0）。
+
+    ``id_token_hint`` は載せない。このテンプレートは検証したあとの ID トークンを
+    保持しないので、**手元に無いものを送れない**。代わりに ``client_id`` と
+    ``post_logout_redirect_uri`` の組で名乗る（OP はこの組で登録済みかを見る）。
+    保持するなら行を 1 本増やす話になるので、必要になったアプリで別途決める。
+    """
+
+    provider: IdentityProvider
+    #: サインアウト後に戻ってくる先。空なら付けない（OP 自身の完了ページで止まる）。
+    post_logout_redirect_uri: str = ""
+
+
+@dataclass(frozen=True)
 class CodeExchange:
     """戻ってきた認可コードを引き換えるための材料。"""
 
@@ -47,6 +62,13 @@ class OidcProviderGateway(Protocol):
         :class:`~bounded_contexts.identity_federation.domain.exceptions.IdentityProviderUnavailableError`。
         """
 
+    def end_session_url(self, request: EndSessionRequest) -> str | None:
+        """サインアウトのために送り出す URL。**IdP が対応していなければ ``None``。**
+
+        discovery に ``end_session_endpoint`` が無い OP があるので、呼ぶ側は
+        ``None`` を「この IdP では通せない」として素直に扱うこと（失敗にしない）。
+        """
+
     def exchange_code(self, exchange: CodeExchange) -> Mapping[str, Any]:
         """認可コードを検証済みのクレームへ換える。
 
@@ -58,5 +80,6 @@ class OidcProviderGateway(Protocol):
 __all__ = [
     "AuthorizationRequest",
     "CodeExchange",
+    "EndSessionRequest",
     "OidcProviderGateway",
 ]

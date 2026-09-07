@@ -16,6 +16,11 @@ export interface SsoProvider {
    * 偽ならログイン画面はパスワード欄とパスキーのボタンを出さない。
    */
   local_login_enabled: boolean
+  /**
+   * サインアウトを IdP まで通すか（既定は偽）。真のときだけ、アプリの
+   * サインアウトを済ませたあと `startSsoLogout` で IdP へ送り出す。
+   */
+  rp_logout_enabled: boolean
 }
 
 export interface SsoSession {
@@ -38,6 +43,19 @@ export function fetchSsoProvider(): Promise<SsoProvider> {
 export function startSsoLogin(redirectTo: string): void {
   const query = new URLSearchParams({ redirect_to: redirectTo })
   window.location.replace(`/api/auth/sso/login?${query.toString()}`)
+}
+
+/**
+ * サインアウトを IdP まで通す（RP-Initiated Logout）。
+ *
+ * `startSsoLogin` と同じく**画面遷移**でしか行えない。IdP の Cookie を落とすのは
+ * IdP 自身なので、fetch では届かない。
+ *
+ * `replace` を使う。サインアウトした画面を履歴に残すと、「戻る」でそこへ戻れて
+ * しまい、サインアウトしたのかどうかが読めなくなる。
+ */
+export function startSsoLogout(): void {
+  window.location.replace('/api/auth/sso/logout')
 }
 
 /** 引き換え券をトークンへ換える。 */

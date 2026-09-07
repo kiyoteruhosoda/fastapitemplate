@@ -198,6 +198,18 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     {"key": "OIDC_SCOPES", "category": "sso", "label": "Requested scopes", "value_type": "list"},
     {"key": "OIDC_REDIRECT_URI", "category": "sso", "label": "Redirect URI", "value_type": "string"},
     {
+        "key": "OIDC_RP_LOGOUT_ENABLED",
+        "category": "sso",
+        "label": "Sign out of the identity provider too (affects other apps)",
+        "value_type": "boolean",
+    },
+    {
+        "key": "OIDC_POST_LOGOUT_REDIRECT_URI",
+        "category": "sso",
+        "label": "Post-logout redirect URI",
+        "value_type": "string",
+    },
+    {
         "key": "OIDC_ACR_VALUES",
         "category": "sso",
         "label": "Required authentication context (acr_values, empty = do not request)",

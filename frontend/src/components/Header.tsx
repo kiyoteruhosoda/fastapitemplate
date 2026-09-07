@@ -51,7 +51,13 @@ export function Header({
               </span>
               <span className="header-username">{user.username}</span>
             </Link>
-            <button type="button" className="button-ghost" onClick={logout}>
+            <button
+              type="button"
+              className="button-ghost"
+              onClick={() => {
+                void logout()
+              }}
+            >
               {t('nav.logout')}
             </button>
           </>
