@@ -72,7 +72,7 @@ class SystemSettingItemResponse(BaseModel):
     restart_scopes: list[str] = []
     value: object = None
     default: object = None
-    env_locked: bool
+    env_fallback: bool
     stored: bool
 
 

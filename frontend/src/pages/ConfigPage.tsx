@@ -20,7 +20,7 @@ interface SettingItem {
   restart_scopes: string[]
   value: unknown
   default: unknown
-  env_locked: boolean
+  env_fallback: boolean
   stored: boolean
 }
 
@@ -140,7 +140,7 @@ export function ConfigPage() {
                 <label htmlFor={`config-${item.key}`}>
                   <span className="config-label">{labelFor(item)}</span>
                   <code className="config-key">{item.key}</code>
-                  {item.env_locked && <em className="config-note">{t('config.envLocked')}</em>}
+                  {item.env_fallback && <em className="config-note">{t('config.envFallback')}</em>}
                   {item.restart_scopes.length > 0 && (
                     <em className="config-note">{t('config.needsRestart')}</em>
                   )}
@@ -149,7 +149,6 @@ export function ConfigPage() {
                   <input
                     id={`config-${item.key}`}
                     type="checkbox"
-                    disabled={item.env_locked}
                     checked={Boolean(currentValue(item))}
                     onChange={(e) => {
                       setValue(item.key, e.target.checked)
@@ -158,7 +157,6 @@ export function ConfigPage() {
                 ) : item.choices ? (
                   <select
                     id={`config-${item.key}`}
-                    disabled={item.env_locked}
                     value={asText(currentValue(item))}
                     onChange={(e) => {
                       setValue(item.key, e.target.value)
@@ -173,7 +171,6 @@ export function ConfigPage() {
                 ) : item.secret ? (
                   <PasswordInput
                     id={`config-${item.key}`}
-                    disabled={item.env_locked}
                     value={asText(currentValue(item))}
                     onChange={(e) => {
                       setValue(item.key, parseValue(item, e.target.value))
@@ -183,7 +180,6 @@ export function ConfigPage() {
                   <input
                     id={`config-${item.key}`}
                     type={item.value_type === 'integer' ? 'number' : 'text'}
-                    disabled={item.env_locked}
                     value={asText(currentValue(item))}
                     onChange={(e) => {
                       setValue(item.key, parseValue(item, e.target.value))

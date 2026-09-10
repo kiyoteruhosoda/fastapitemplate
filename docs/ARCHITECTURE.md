@@ -154,7 +154,9 @@ Infrastructure は Application を import できないため
 ## 設定管理の設計
 
 `shared/kernel/settings/settings.py` の `ApplicationSettings` が
-「環境変数 > DB（system_settings テーブル）> デフォルト値」の優先順位で値を解決する。
+「**DB（system_settings テーブル）> 環境変数 > デフォルト値**」の優先順位で
+値を解決する（ADR-0034）。⚠ **環境変数は「配るときの初期値」**であって、
+運用中に決め直す場所は管理画面である。
 
 - DB 層は TTL キャッシュ付き。管理画面からの保存時は
   `SystemSettingService` が `invalidate()` を呼び即時反映する。

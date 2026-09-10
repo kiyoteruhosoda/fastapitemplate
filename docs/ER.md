@@ -211,7 +211,7 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 
 | テーブル | 役割 | モデル |
 |---|---|---|
-| `system_settings` | 設定の DB 上書き層。優先順位は 環境変数 > DB > デフォルト値 | `shared/infrastructure/models/system_setting.py` |
+| `system_settings` | 設定の上書き層。優先順位は **DB > 環境変数 > デフォルト値**（ADR-0034）| `shared/infrastructure/models/system_setting.py` |
 | `log` | アプリログ（システムが何をしたか）。`request_id` でリクエスト単位に追跡する。索引は絞り込み軸（レベル・ロガー・利用者・期間・`request_id`）に対応する | `shared/infrastructure/models/log.py` |
 | `audit_log` | 監査ログ（誰が何をしたか）。ログイン・ユーザー／ロール管理・設定変更・再起動要求・MFA の変更を記録する | `bounded_contexts/audit/infrastructure/audit_log_model.py` |
 | `items` | example コンテキストのサンプルテーブル | `bounded_contexts/example/infrastructure/item_model.py` |

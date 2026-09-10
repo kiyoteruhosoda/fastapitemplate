@@ -118,7 +118,7 @@ OIDC_SIGNED_OUT_PATH = "/api/auth/sso/signed-out"
 
 
 class ApplicationSettings:
-    """環境変数・DB・デフォルト値を統合して設定値を返す。"""
+    """DB・環境変数・デフォルト値を統合して設定値を返す（この順に強い）。"""
 
     def __init__(self, env: Mapping[str, str] | None = None) -> None:
         self._env: Mapping[str, str] = os.environ if env is None else env
@@ -129,12 +129,22 @@ class ApplicationSettings:
     # ------------------------------------------------------------------
 
     def _get(self, key: str, default: Any = None) -> Any:
-        env_value = self._env.get(key)
-        if env_value is not None and env_value != "":
-            return env_value
+        """⚠ **DB（管理画面）が環境変数より強い。**
+
+        環境変数は「配るときの初期値」であって、**運用中に決め直す場所は画面**
+        である ——逆にすると、compose に 1 行書いた時点でその鍵は画面から
+        触れなくなり、**画面に出ているのに変えられない**状態になる。
+
+        ⚠ **ブートストラップの鍵はこの順序の外**（`DATABASE_URI` など）。
+        解決に DB 接続が要る鍵を DB から読むと再帰するので、下の節では
+        `self._env` を直接読んでいる。
+        """
         db_value = self._db.get(key)
         if db_value is not None:
             return db_value
+        env_value = self._env.get(key)
+        if env_value is not None and env_value != "":
+            return env_value
         return DEFAULT_APPLICATION_SETTINGS.get(key, default)
 
     def resolve(self, key: str, default: Any = None) -> Any:

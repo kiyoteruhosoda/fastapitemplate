@@ -90,7 +90,7 @@
   "permissions.title": "権限一覧",
   "config.title": "システム設定",
   "config.save": "保存",
-  "config.envLocked": "環境変数で固定されています",
+  "config.envFallback": "環境変数にも値があります（消すとそちらへ戻ります）",
   "config.needsRestart": "再起動後に反映",
   "config.restartRequired": "保存しました。次の設定は起動時にしか読まれないため、再起動後に反映されます: {keys}",
   "config.restartNow": "今すぐ再起動",
