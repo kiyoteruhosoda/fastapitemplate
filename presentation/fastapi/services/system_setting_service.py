@@ -59,7 +59,10 @@ class SystemSettingService:
                 {
                     **definition,
                     "value": value,
-                    "env_locked": bool(env.get(key)),
+                    # ⚠ **止める印ではない。** DB の値が環境変数より強いので、
+                    #   ここが真でも画面から変えられる。意味は「この鍵は
+                    #   環境変数にも値がある＝画面の値を消すとそちらへ戻る」。
+                    "env_fallback": bool(env.get(key)),
                     "stored": key in stored,
                     "default": DEFAULT_APPLICATION_SETTINGS.get(key),
                 }

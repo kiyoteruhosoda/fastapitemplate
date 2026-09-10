@@ -90,7 +90,7 @@
   "permissions.title": "Permissions",
   "config.title": "System settings",
   "config.save": "Save",
-  "config.envLocked": "locked by environment variable",
+  "config.envFallback": "environment variable holds a fallback",
   "config.needsRestart": "applied after a restart",
   "config.restartRequired": "Saved. These settings are only read at startup and take effect after a restart: {keys}",
   "config.restartNow": "Restart now",

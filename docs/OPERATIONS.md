@@ -248,7 +248,9 @@ APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 ## システム設定を変更したいとき
 
 管理画面（`/admin/config`。要 `admin:system-settings` 権限）から編集する。
-保存すると即時反映される（環境変数が設定されているキーは環境変数が優先）。
+保存すると即時反映される。⚠ **保存した値は環境変数より強い**（ADR-0034）——
+環境変数にも値がある鍵には「環境変数にも値があります（消すとそちらへ戻ります）」
+と出る。**消す**（空にして保存）と環境変数へ、環境変数も無ければ既定値へ戻る。
 
 「再起動後に反映」と表示される項目（ログ設定・CORS）は保存だけでは効かない。
 保存後に出る「今すぐ再起動」を押す（要 `system:manage` 権限）。要求は DB に置かれ、
@@ -387,8 +389,17 @@ LOCAL_LOGIN_ENABLED=false
 パスキーのボタンを出さなくなる。
 
 ⚠ **締め出しの経路がある。** この状態で IdP が落ちる、あるいは最後の管理者が IdP 側で
-止まると誰も入れなくなる。**復旧は環境変数で `LOCAL_LOGIN_ENABLED=true` へ戻して
-再起動する**（環境変数は DB の設定より優先されるので、管理画面に入れなくても戻せる）。
+止まると誰も入れなくなる。⚠ **環境変数では戻せない**（ADR-0034 以降、DB のほうが強い）。
+**復旧は保存を消す**——画面に入れないので、コンテナの中から鍵 1 つを消す:
+
+```bash
+docker compose exec app python scripts/unset_setting.py --list
+docker compose exec app python scripts/unset_setting.py LOCAL_LOGIN_ENABLED
+docker compose restart app
+```
+
+⚠ **行ごと消さない**（`system_settings` の 1 行に全部の鍵が入っているので、
+他の設定まで既定へ戻る）。上のスクリプトは 1 鍵だけ消す。
 
 ## 管理者がパスワードを忘れてサインインできないとき
 
