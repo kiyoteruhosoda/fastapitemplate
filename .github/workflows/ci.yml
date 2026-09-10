@@ -24,6 +24,8 @@ jobs:
   backend:
     name: Backend (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -62,6 +64,7 @@ jobs:
   frontend:
     name: Frontend (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: frontend

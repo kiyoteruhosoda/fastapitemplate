@@ -36,6 +36,8 @@ jobs:
   build:
     name: Docker build
     runs-on: ubuntu-latest
+    # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
