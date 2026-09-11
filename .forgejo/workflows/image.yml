@@ -16,7 +16,7 @@ on:
       - "scripts/**"
       - "frontend/package.json"
       - "frontend/package-lock.json"
-      - ".github/workflows/image.yml"
+      - ".forgejo/workflows/image.yml"
   pull_request:
     paths:
       - "Dockerfile"
@@ -26,7 +26,7 @@ on:
       - "scripts/**"
       - "frontend/package.json"
       - "frontend/package-lock.json"
-      - ".github/workflows/image.yml"
+      - ".forgejo/workflows/image.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -35,7 +35,9 @@ concurrency:
 jobs:
   build:
     name: Docker build
-    runs-on: ubuntu-latest
+    # ⚠ **docker を使うので専用の台へ**（ジョブのイメージに docker が入っている）。
+    #   ⚠ ここへ来たジョブは**ホスト root 相当**になる。
+    runs-on: [self-hosted, nolumialab-docker]
     # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
     timeout-minutes: 20
     steps:
@@ -47,18 +49,14 @@ jobs:
         env:
           BRANCH_OVERRIDE: ${{ github.head_ref || github.ref_name }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
+      # ⚠ **buildx の別ドライバを立てない**（`blobshare` の 3cc9765 と同じ判断）。
+      #   forge では `cache-to: type=gha` が届かない ——act_runner のキャッシュ置き場は
+      #   ランナーのコンテナの IP で待っており、ホストのデーモンが作る buildkit の
+      #   コンテナからは経路が無い。自前のランナーはデーモンが居座るので、素の
+      #   `docker build` のほうが layer が再利用される。
       - name: Build（push はしない）
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: false
-          load: true
-          tags: fastapitemplate:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: docker build -t fastapitemplate:ci .
+          # ⚠ forge では act_runner のキャッシュがジョブから届かないので使わない。
 
       # 版の刻印が効いていることの回帰テスト。ここが dev に戻ると、ビルドは緑のまま
       # 「どのコミットが動いているか答えられない」イメージが出続ける。
