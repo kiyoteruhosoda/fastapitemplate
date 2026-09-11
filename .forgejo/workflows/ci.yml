@@ -23,7 +23,8 @@ concurrency:
 jobs:
   backend:
     name: Backend (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # ⚠ **自前の台で回す**（forge へ移したとき変えた）。
+    runs-on: [self-hosted, nolumialab]
     # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
     timeout-minutes: 25
     strategy:
@@ -38,7 +39,8 @@ jobs:
         # ⚠ ここだけ完全な版で固定する。setup-uv は v8 以降、
         #   サプライチェーン対策として `@v10` のような動く major タグの発行をやめた
         #   （タグを差し替えられる攻撃を避けるため）。上げるときは版を書き換える。
-        uses: astral-sh/setup-uv@v10.0.1
+        # ⚠ **鏡に無いので自前の鏡を完全な URL で指す**（forge へ移したため）。
+        uses: https://git.nolumia.com/astral-sh/setup-uv@v10.0.1
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -63,7 +65,8 @@ jobs:
 
   frontend:
     name: Frontend (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    # ⚠ **自前の台で回す**（forge へ移したとき変えた）。
+    runs-on: [self-hosted, nolumialab]
     timeout-minutes: 25
     defaults:
       run:
