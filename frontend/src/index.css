@@ -1212,6 +1212,30 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
+/* 新しい版の知らせ（ADR-0035）。トーストと違い、押されるまで消さない。
+   トーストより手前（z-index）に置き、重なっても隠れないようにする。 */
+.update-prompt {
+  position: fixed;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  margin-inline: auto;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--space-4));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.9rem;
+  z-index: 101;
+}
+
 .toast-container {
   position: fixed;
   right: var(--space-4);

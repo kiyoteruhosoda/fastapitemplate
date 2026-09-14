@@ -7,7 +7,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 入れ替えるのは利用者が押したときだけ（ADR-0035）。'autoUpdate' は新しい
+      // Service Worker を黙って有効にするが、**既に開いている画面は古い JavaScript の
+      // まま動き続ける**ので、直ったはずの不具合がそのまま見えることになる。
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'fastapitemplate',
