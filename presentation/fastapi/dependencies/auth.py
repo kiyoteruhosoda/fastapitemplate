@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
+    FederatedLogin,
+)
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
@@ -131,6 +135,37 @@ async def get_current_user(
     return user
 
 
+@dataclass(frozen=True)
+class CurrentSession:
+    """いま操作している利用者と、その入り口（ADR-0036）。
+
+    ``federated_login`` が ``None`` ならローカルのログイン。新しいトークンを
+    出し直す口（ロールの切り替え）は、**これをそのまま引き継ぐ**。
+    """
+
+    user: User
+    federated_login: FederatedLogin | None
+
+
+async def get_current_session(
+    user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+) -> CurrentSession:
+    """認証済みの利用者と、そのセッションがどこから始まったかを返す。
+
+    トークンは :func:`get_current_principal` が既に検証している（同じリクエストの
+    同じ値）。ここで読むのは宛名のクレームだけで、認証をやり直しているのではない。
+    """
+    from presentation.fastapi.services.token_service import TokenService
+
+    token = _extract_token(credentials, access_token_cookie)
+    return CurrentSession(
+        user=user,
+        federated_login=TokenService.federated_login_of(token) if token else None,
+    )
+
+
 def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
     """指定された権限を全て保持している場合のみアクセスを許可する依存関数ファクトリ。
 
@@ -187,8 +222,10 @@ __all__ = [
     "ACCESS_TOKEN_COOKIE",
     "REFRESH_COOKIE_PATH",
     "REFRESH_TOKEN_COOKIE",
+    "CurrentSession",
     "clear_access_token_cookie",
     "get_current_principal",
+    "get_current_session",
     "get_current_user",
     "require_any_permission",
     "require_permission",

@@ -378,6 +378,29 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 **「このアプリだけ毎回名乗り直させたい」だけなら、こちらではない。** 認可要求の
 `prompt=login` のほうが、共有の SSO セッションを壊さずに済む。
 
+## IdP で止めた利用者を、このアプリでも止めたいとき（ADR-0036）
+
+受け口は `POST <APP_BASE_URL>/api/auth/sso/backchannel-logout` で、**設定は要らない**
+（常に受ける）。**IdP 側の登録だけが栓**になる。
+
+```bash
+curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
+     -H "Authorization: Bearer <管理トークン>" \
+     -H 'Content-Type: application/json' \
+     -d '{"backchannel_logout_uri":"https://<ホスト>/api/auth/sso/backchannel-logout"}'
+```
+
+⚠ **IdP からこのアプリへ届く経路が要る**（利用者のブラウザは通らない）。IdP が
+外へ出られない構成なら、内部の名前で登録する。
+
+確かめ方は、IdP で対象の利用者をサインアウトさせてから、そのセッションで
+`GET /api/auth/me` を叩く（401 になれば届いている）。受けた側のログは
+`sso_backchannel_logout_received`、検証に落ちたものは `sso_logout_token_rejected`。
+
+⚠ **これだけでは「止めたら届く」は完成しない。** 残り 2 つ（短命のアクセストークンと
+定期照合）は `docs/Progress.md` の T12。⚠ **いまの assay は「利用者を止めた」ときに
+通知を送らない**（送るのはログアウトのとき）ので、管理者が止めた事実は届かない。
+
 ## パスワードでのログインを止めたいとき（SSO 専用にする）
 
 ```

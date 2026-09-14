@@ -14,6 +14,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
+    FederatedLogin,
+)
+
 
 @dataclass(frozen=True)
 class SsoLoginTicket:
@@ -21,6 +25,9 @@ class SsoLoginTicket:
     user_id: int
     redirect_to: str
     expires_at: datetime
+    #: どの IdP セッションから始まったログインか（ADR-0036）。券と一緒に運ばないと、
+    #: 停止の通知が届いたときに落とす相手を決められない。
+    login: FederatedLogin
 
     def is_expired(self, now: datetime) -> bool:
         return now >= self.expires_at

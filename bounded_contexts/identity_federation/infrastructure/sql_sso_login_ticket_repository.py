@@ -15,6 +15,12 @@ from bounded_contexts.identity_federation.domain.entities.sso_login_ticket impor
 from bounded_contexts.identity_federation.domain.exceptions import (
     SsoTicketNotFoundError,
 )
+from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
+    FederatedLogin,
+)
+from bounded_contexts.identity_federation.domain.value_objects.federated_session import (
+    FederatedSession,
+)
 from bounded_contexts.identity_federation.infrastructure.identity_federation_models import (
     SsoLoginTicketRecord,
 )
@@ -32,6 +38,10 @@ class SqlSsoLoginTicketRepository:
                 ticket_hash=ticket.ticket_hash,
                 user_id=ticket.user_id,
                 redirect_to=ticket.redirect_to,
+                issuer=ticket.login.session.issuer,
+                subject=ticket.login.session.subject,
+                session_id=ticket.login.session.session_id,
+                session_started_at=ticket.login.started_at,
                 expires_at=ticket.expires_at,
             )
         )
@@ -48,6 +58,14 @@ class SqlSsoLoginTicketRepository:
             user_id=record.user_id,
             redirect_to=record.redirect_to,
             expires_at=record.expires_at,
+            login=FederatedLogin(
+                session=FederatedSession(
+                    issuer=record.issuer,
+                    subject=record.subject,
+                    session_id=record.session_id,
+                ),
+                started_at=record.session_started_at,
+            ),
         )
 
         # 券は 1 回限り。消費は削除の成否で決める（同時に 2 本送られても

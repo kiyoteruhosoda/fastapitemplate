@@ -199,13 +199,19 @@ JWT のクレームでありテーブルには持たない（セッションご�
 | テーブル | 役割 |
 |---|---|
 | `federated_identities` | 外部 IdP のアカウントと利用者の結び付き。鍵は `(issuer, subject)`。**メールアドレスは鍵にしない**（変わり得るため）。利用者側に一意制約は置かない（1 人が複数の IdP アカウントを持てる） |
-| `sso_login_tickets` | コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**（漏れた控えからそのままログインできないようにする）。期限切れは券の発行時に掃除するので定期ジョブは持たない |
+| `sso_login_tickets` | コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**（漏れた控えからそのままログインできないようにする）。期限切れは券の発行時に掃除するので定期ジョブは持たない。`issuer` / `subject` / `session_id` / `session_started_at` は、券と一緒に運ぶ**どの IdP セッションから始まったログインか**（ADR-0036） |
+| `federated_session_revocations` | IdP から届いた「このセッションを止めろ」の記録（ADR-0036）。主キーは `jti` で、**再送はそのまま行の重複として弾かれる**。`session_id` が NULL の行はその利用者のすべてのセッションに効く。期限切れは通知を受けるたびに掃除するので定期ジョブは持たない |
 
 ⚠ **認可要求の往復状態（`state` / `nonce` / `code_verifier`）の表は無い。** 署名付き
 Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要らず、`state` を知って
 いるだけの相手は戻りを完了できない。
 
-`users.id` への FK はどちらも `ON DELETE CASCADE`。経緯は ADR-0025。
+`users.id` への FK は `federated_identities` と `sso_login_tickets` の 2 つで、どちらも
+`ON DELETE CASCADE`。経緯は ADR-0025。
+
+⚠ **`federated_session_revocations` は `users` へ FK を張らない。** 行が指すのは
+**IdP 側の利用者**（`issuer` + `subject`）で、このアプリに対応する行がまだ無い・
+もう無い場合がある。参照整合を取ると、そのとき通知を受けられなくなる。
 
 ### 運用・その他
 
