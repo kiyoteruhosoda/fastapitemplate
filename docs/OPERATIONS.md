@@ -315,6 +315,17 @@ Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログ�
 3. 起動時のログで `sso_ready` を確かめる。`sso_disabled_by_configuration` なら
    設定が欠けている。`sso_private_key_unreadable` なら鍵が読めていない。
 
+⚠ **初めて SSO で入る人は、同じメールアドレスのローカル口座があっても結び付かない**
+（`sso_error=sso_account_not_linked`。ADR-0037）。寄せてよいと判断したときだけ開ける。
+
+```
+OIDC_LINK_BY_EMAIL=true
+```
+
+⚠ **開ける前に、つないだ IdP で `email_verified` がどう立つのかを確かめること。**
+自前 idp (assay) のこの値は「テナント管理者がそう主張している」であって、本人が
+所有を証明したという意味ではない（**管理者がメールを変更してもこの値は維持される**）。
+
 ## SSO で `private_key_jwt` を使いたいとき
 
 1. 秘密鍵（PEM）をホストへ置き、コンテナへ **read-only** で渡す。
@@ -377,6 +388,49 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 
 **「このアプリだけ毎回名乗り直させたい」だけなら、こちらではない。** 認可要求の
 `prompt=login` のほうが、共有の SSO セッションを壊さずに済む。
+
+## SSO でしか入れない利用者にしたいとき（ADR-0038）
+
+`users.password_hash` を NULL にする。NULL の利用者は**パスワードで入れない・変更
+できない・リセットでも生やせない**。
+
+```sql
+UPDATE users SET password_hash = NULL WHERE email = '<メールアドレス>';
+```
+
+逆に**ローカル口座を持たせたい**なら、管理画面（またはユーザー API）でパスワードを
+設定する。これは監査に残る明示的な操作である。
+
+⚠ **移行（`0008_password_is_optional`）が触るのは、利用者の行と IdP との結び付きが
+60 秒以内に作られた利用者だけ**である。⚠ **知らない方言の DB では移行が
+何もしない**ので、上の SQL を手で流す。対象は「SSO で作られた利用者」で、次で拾える。
+
+```sql
+SELECT u.id, u.email FROM users u JOIN federated_identities f ON f.user_id = u.id;
+```
+
+## IdP で止めた利用者を、このアプリでも止めたいとき（ADR-0036）
+
+受け口は `POST <APP_BASE_URL>/api/auth/sso/backchannel-logout` で、**設定は要らない**
+（常に受ける）。**IdP 側の登録だけが栓**になる。
+
+```bash
+curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
+     -H "Authorization: Bearer <管理トークン>" \
+     -H 'Content-Type: application/json' \
+     -d '{"backchannel_logout_uri":"https://<ホスト>/api/auth/sso/backchannel-logout"}'
+```
+
+⚠ **IdP からこのアプリへ届く経路が要る**（利用者のブラウザは通らない）。IdP が
+外へ出られない構成なら、内部の名前で登録する。
+
+確かめ方は、IdP で対象の利用者をサインアウトさせてから、そのセッションで
+`GET /api/auth/me` を叩く（401 になれば届いている）。受けた側のログは
+`sso_backchannel_logout_received`、検証に落ちたものは `sso_logout_token_rejected`。
+
+⚠ **これだけでは「止めたら届く」は完成しない。** 残り 2 つ（短命のアクセストークンと
+定期照合）は `docs/Progress.md` の T12。⚠ **いまの assay は「利用者を止めた」ときに
+通知を送らない**（送るのはログアウトのとき）ので、管理者が止めた事実は届かない。
 
 ## パスワードでのログインを止めたいとき（SSO 専用にする）
 

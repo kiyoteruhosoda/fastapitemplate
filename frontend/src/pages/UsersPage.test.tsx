@@ -17,6 +17,7 @@ const USER = {
   username: 'multi',
   is_active: true,
   roles: ['manager'],
+  entrances: { password: true, totp: false, passkeys: 0, identity_providers: [] },
 }
 
 const { apiGet, apiPut } = vi.hoisted(() => ({ apiGet: vi.fn(), apiPut: vi.fn() }))
@@ -53,6 +54,29 @@ describe('UsersPage のロール列', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiPut.mockResolvedValue({})
+  })
+
+  it('入れる手段を並べて出す（認証系が 2 つあることを読み取れるようにする）', async () => {
+    // ⚠ IdP 側の多要素はここに出ない。出せるのはこのアプリが知っている口だけで、
+    //   それがまさに「認証系が 2 つある」ということ（ADR-0039）。
+    apiGet.mockImplementation((path: string) =>
+      path === '/api/admin/users'
+        ? Promise.resolve([
+            {
+              ...USER,
+              entrances: {
+                password: false,
+                totp: false,
+                passkeys: 2,
+                identity_providers: ['https://idp.example.test'],
+              },
+            },
+          ])
+        : Promise.resolve([{ id: 1, name: 'manager' }]),
+    )
+    await renderPage()
+
+    expect(screen.getByText('Passkey ×2 / SSO')).toBeInTheDocument()
   })
 
   it('ロール一覧を読めればその全ロールが列になる', async () => {

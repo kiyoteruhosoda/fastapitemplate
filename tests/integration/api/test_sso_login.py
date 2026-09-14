@@ -60,7 +60,11 @@ def sso_client(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[TestClient]:
-    """SSO を有効にしたアプリ（既存の利用者へ検証済みメールで寄せる構成）。"""
+    """SSO を有効にしたアプリ（既存の利用者へ検証済みメールで寄せる構成）。
+
+    ⚠ **寄せるのは既定ではない**（ADR-0037）。ここは往復そのものを見たいので、
+    明示的に開けている。
+    """
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
@@ -68,6 +72,7 @@ def sso_client(
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
+    monkeypatch.setenv("OIDC_LINK_BY_EMAIL", "true")
     app: FastAPI = create_app()
     app.dependency_overrides[dependencies.oidc_gateway] = lambda: gateway
     with TestClient(app) as client:
@@ -131,6 +136,31 @@ def test_a_successful_round_trip_hands_a_ticket_to_the_spa(sso_client: TestClien
 
     # 券は 1 回限り。
     assert sso_client.post("/api/auth/sso/token", json={"ticket": ticket}).status_code == 401
+
+
+def test_by_default_an_unknown_account_is_not_linked_to_a_local_one(
+    engine: sa.Engine,
+    gateway: _StubGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """⚠ 既定では、同じメールアドレスのローカル口座へ黙って寄せない（ADR-0037）。
+
+    ``email_verified`` の意味は IdP 側と RP 側で食い違い得る。assay のこの値は
+    「テナント管理者がそう主張している」であって本人の証明ではない。
+    """
+    from presentation.fastapi.app import create_app
+
+    monkeypatch.setenv("OIDC_ENABLED", "true")
+    monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
+    monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
+    monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
+    app = create_app()
+    app.dependency_overrides[dependencies.oidc_gateway] = lambda: gateway
+    with TestClient(app) as client:
+        state = _start(client)
+        response = client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
+        assert "sso_error=sso_account_not_linked" in response.headers["location"]
 
 
 def test_a_requested_acr_is_sent_and_verified(

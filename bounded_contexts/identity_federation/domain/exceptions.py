@@ -49,6 +49,16 @@ class InvalidIdTokenError(IdentityFederationError):
     code = "sso_invalid_id_token"
 
 
+class InvalidLogoutTokenError(IdentityFederationError):
+    """``logout_token`` の検証に失敗した（署名・発行者・対象者・期限・形）。
+
+    **理由は外へ出さない。** この口は未認証で叩けるので、細かく答えると
+    「どこまで通ったか」を総当たりの手掛かりにできる。
+    """
+
+    code = "sso_invalid_logout_token"
+
+
 class SsoAcrNotSatisfiedError(IdentityFederationError):
     """要求した認証の強度（``acr_values``）が満たされていない（ADR-0026 決定 1）。
 
@@ -87,6 +97,7 @@ __all__ = [
     "IdentityFederationError",
     "IdentityProviderUnavailableError",
     "InvalidIdTokenError",
+    "InvalidLogoutTokenError",
     "SsoAccountInactiveError",
     "SsoAccountNotLinkedError",
     "SsoAcrNotSatisfiedError",

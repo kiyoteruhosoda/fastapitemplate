@@ -2,6 +2,9 @@
 
 トークンは平文を保存せず SHA-256 ハッシュのみを保存する。
 ユーザーの存在有無は API 応答から判別できないようにする（列挙攻撃対策）。
+
+⚠ **パスワードを持たない利用者には発行しない**（ADR-0038）。リセットを通すと、
+「この利用者は SSO でしか入れない」が黙って崩れる。応答は不在のときと同じ。
 """
 
 from __future__ import annotations
@@ -49,6 +52,12 @@ class PasswordResetService:
         if user is None or not user.is_active:
             logger.info("password_reset_requested_unknown_email")
             return None
+        if not user.has_local_password:
+            # ⚠ **リセットでローカル認証を生やさない**（ADR-0038）。パスワードを
+            # 持たない利用者にここで新しい値を設定させると、「この利用者は SSO でしか
+            # 入れない」が黙って崩れる。持たせるなら管理者が明示的に設定する。
+            logger.info("password_reset_requested_without_local_password")
+            return None
 
         token = secrets.token_urlsafe(32)
         session.add(
@@ -90,6 +99,10 @@ class PasswordResetService:
             return None
         user = session.get(User, row.user_id)
         if user is None or not user.is_active:
+            return None
+        if not user.has_local_password:
+            # 発行のあとでパスワードを取り上げられた場合（ADR-0038）。券が残っていても
+            # 通さない。
             return None
         user.password_hash = generate_password_hash(new_password)
         row.used_at = utcnow()

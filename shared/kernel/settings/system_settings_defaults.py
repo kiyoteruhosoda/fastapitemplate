@@ -113,8 +113,11 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # ⚠ **未知の利用者を初回ログインで作るか。既定は false。** IdP がテナント共用の
     #   場合、true は「IdP に口座がある人は全員このアプリに入れる」を意味する。
     "OIDC_AUTO_PROVISION": False,
-    # 既存のローカルアカウントと**検証済みの**メールアドレスで結び付ける
-    "OIDC_LINK_BY_EMAIL": True,
+    # ⚠ **初回ログインで既存のローカルアカウントへ寄せるか。既定は false**（ADR-0037）。
+    #   条件の email_verified は、自前 idp (assay) では「テナント管理者がそう主張して
+    #   いる」であって本人の証明ではない。開けるなら、つないだ IdP でこの値がどう立つ
+    #   のかまで確かめること。
+    "OIDC_LINK_BY_EMAIL": False,
     # 受け入れるメールアドレスのドメイン（空 = 制限しない）
     "OIDC_ALLOWED_EMAIL_DOMAINS": [],
     # 認可要求 -> コールバックの往復に許す時間（署名付き Cookie の寿命）

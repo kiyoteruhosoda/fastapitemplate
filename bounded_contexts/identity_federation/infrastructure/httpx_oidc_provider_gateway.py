@@ -21,11 +21,13 @@ import jwt
 from bounded_contexts.identity_federation.domain.exceptions import (
     IdentityProviderUnavailableError,
     InvalidIdTokenError,
+    InvalidLogoutTokenError,
 )
 from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway import (
     AuthorizationRequest,
     CodeExchange,
     EndSessionRequest,
+    LogoutTokenVerification,
 )
 from bounded_contexts.identity_federation.domain.value_objects.identity_provider import (
     IdentityProvider,
@@ -159,6 +161,30 @@ class HttpxOidcProviderGateway:
             logger.warning("sso_id_token_nonce_mismatch")
             raise InvalidIdTokenError
         return claims
+
+    # ------------------------------------------------------------------
+    # 停止の伝播（ADR-0036）
+    # ------------------------------------------------------------------
+
+    def verify_logout_token(self, verification: LogoutTokenVerification) -> Mapping[str, Any]:
+        """``logout_token`` を JWT として確かめる（署名・発行者・対象者・期限）。
+
+        ``exp`` と ``iat`` を**必須**にする。仕様は ``exp`` を必須にしていないが、
+        無ければ「いつまで有効な通知か」を判断できず、一度傍受された通知を
+        いつまでも投げ返せる。自前 idp (assay) は双方を必ず載せる（ADR-0024）。
+        """
+        provider = verification.provider
+        metadata = self._metadata.metadata(provider.issuer)
+        try:
+            return self._decode(
+                metadata,
+                verification.logout_token,
+                audience=provider.client_id,
+                options={"require": ["exp", "iat", "aud", "iss"]},
+            )
+        except jwt.InvalidTokenError as error:
+            logger.warning("sso_logout_token_rejected")
+            raise InvalidLogoutTokenError from error
 
     def _userinfo(self, metadata: ProviderMetadata, access_token: str, claims: Mapping[str, Any]) -> dict[str, Any]:
         """UserInfo を引いて補う。取れなくてもログインは続ける。

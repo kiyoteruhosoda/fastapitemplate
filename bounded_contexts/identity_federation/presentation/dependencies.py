@@ -27,6 +27,9 @@ from bounded_contexts.identity_federation.application.use_cases.describe_sso_pro
 from bounded_contexts.identity_federation.application.use_cases.exchange_sso_ticket import (
     ExchangeSsoTicket,
 )
+from bounded_contexts.identity_federation.application.use_cases.receive_backchannel_logout import (
+    ReceiveBackchannelLogout,
+)
 from bounded_contexts.identity_federation.application.use_cases.resolve_federated_account import (
     ResolveFederatedAccount,
 )
@@ -65,6 +68,9 @@ from bounded_contexts.identity_federation.infrastructure.sql_federated_identity_
 )
 from bounded_contexts.identity_federation.infrastructure.sql_federated_user_directory import (
     SqlFederatedUserDirectory,
+)
+from bounded_contexts.identity_federation.infrastructure.sql_session_revocation_repository import (
+    SqlSessionRevocationRepository,
 )
 from bounded_contexts.identity_federation.infrastructure.sql_sso_login_ticket_repository import (
     SqlSsoLoginTicketRepository,
@@ -191,6 +197,20 @@ def exchange_sso_ticket(db: DbDep) -> ExchangeSsoTicket:
     return ExchangeSsoTicket(tickets=SqlSsoLoginTicketRepository(db))
 
 
+def receive_backchannel_logout(db: DbDep, gateway: GatewayDep) -> ReceiveBackchannelLogout:
+    """停止の伝播の受け口（ADR-0036）。
+
+    記録を残す期間は**リフレッシュトークンの寿命**に合わせる。これを過ぎれば
+    停止より前に発行されたトークンは自力で期限切れになる。
+    """
+    return ReceiveBackchannelLogout(
+        provider=identity_provider(),
+        gateway=gateway,
+        revocations=SqlSessionRevocationRepository(db),
+        keep_for_seconds=settings.refresh_token_expires_seconds,
+    )
+
+
 __all__ = [
     "DbDep",
     "GatewayDep",
@@ -204,6 +224,7 @@ __all__ = [
     "identity_provider",
     "oidc_gateway",
     "provisioning_policy",
+    "receive_backchannel_logout",
     "requested_authentication_context",
     "resolve_federated_account",
     "role_assignment",
