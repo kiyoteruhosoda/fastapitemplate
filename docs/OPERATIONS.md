@@ -315,6 +315,17 @@ Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログ�
 3. 起動時のログで `sso_ready` を確かめる。`sso_disabled_by_configuration` なら
    設定が欠けている。`sso_private_key_unreadable` なら鍵が読めていない。
 
+⚠ **初めて SSO で入る人は、同じメールアドレスのローカル口座があっても結び付かない**
+（`sso_error=sso_account_not_linked`。ADR-0037）。寄せてよいと判断したときだけ開ける。
+
+```
+OIDC_LINK_BY_EMAIL=true
+```
+
+⚠ **開ける前に、つないだ IdP で `email_verified` がどう立つのかを確かめること。**
+自前 idp (assay) のこの値は「テナント管理者がそう主張している」であって、本人が
+所有を証明したという意味ではない（**管理者がメールを変更してもこの値は維持される**）。
+
 ## SSO で `private_key_jwt` を使いたいとき
 
 1. 秘密鍵（PEM）をホストへ置き、コンテナへ **read-only** で渡す。

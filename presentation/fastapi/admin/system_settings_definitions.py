@@ -250,7 +250,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     {
         "key": "OIDC_LINK_BY_EMAIL",
         "category": "sso",
-        "label": "Link to an existing account by verified email",
+        "label": "Link to an existing account by verified email (check what the IdP means by verified)",
         "value_type": "boolean",
     },
     {
