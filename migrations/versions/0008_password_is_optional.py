@@ -47,12 +47,12 @@ _ELAPSED_SECONDS = {
 
 
 def upgrade() -> None:
-    op.alter_column(
-        "users",
-        "password_hash",
-        existing_type=sa.String(length=255),
-        nullable=True,
-    )
+    # ⚠ **素の ``alter_column`` は SQLite で作れない SQL になる** ——
+    #   ``ALTER TABLE users ALTER COLUMN ... DROP NOT NULL`` が出る（MariaDB では
+    #   ``MODIFY`` に化けるので、本番だけ見ていると気付けない）。alembic の版に
+    #   よって通ったり通らなかったりするので、テーブルを作り直す形で固定する。
+    with op.batch_alter_table("users") as batch:
+        batch.alter_column("password_hash", existing_type=sa.String(length=255), nullable=True)
     elapsed = _ELAPSED_SECONDS.get(op.get_bind().dialect.name)
     if elapsed is None:
         # 知らない方言では触らない。**黙って全員のパスワードを落とすより、
@@ -75,9 +75,5 @@ def downgrade() -> None:
     # ⚠ **落とした値は戻らない。** NULL のまま NOT NULL へ戻すと通らないので、
     #   入れ直せない行には**誰も知らない値**を入れる（元の形に合わせる）。
     op.execute(sa.text("UPDATE users SET password_hash = 'pbkdf2:sha256:unusable' WHERE password_hash IS NULL"))
-    op.alter_column(
-        "users",
-        "password_hash",
-        existing_type=sa.String(length=255),
-        nullable=False,
-    )
+    with op.batch_alter_table("users") as batch:
+        batch.alter_column("password_hash", existing_type=sa.String(length=255), nullable=False)
