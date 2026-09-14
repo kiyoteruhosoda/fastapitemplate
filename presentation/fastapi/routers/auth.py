@@ -78,6 +78,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
         scopes=sorted(principal.permissions),
         roles=list(user.role_names),
         active_role=principal.active_role,
+        has_password=user.has_local_password,
         rp_logout_enabled=settings.oidc_rp_logout_enabled,
     )
 
@@ -203,7 +204,9 @@ async def change_password(
     audit: AuditRecorderDep,
 ) -> StatusResponse:
     user = db.get(User, principal.user_id)
-    if user is None or not check_password_hash(user.password_hash, body.current_password):
+    if user is None or user.password_hash is None or not check_password_hash(user.password_hash, body.current_password):
+        # ⚠ **パスワードを持たない利用者もここで断る**（ADR-0038）。理由は分けない
+        # ——「持っていない」を教えると、入り口の有無を外から数えられる。
         audit.execute(
             AuditEventType.PASSWORD_CHANGED,
             AuditResult.FAILURE,

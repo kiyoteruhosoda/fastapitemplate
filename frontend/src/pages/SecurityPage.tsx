@@ -10,9 +10,14 @@ import { PasskeyControls } from '../components/PasskeyControls'
 import { PasswordChangeForm } from '../components/PasswordChangeForm'
 import { TwoFactorControls } from '../components/TwoFactorControls'
 import { useI18n } from '../i18n'
+import { useAuth } from '../store/AuthContext'
 
 export function SecurityPage() {
   const { t } = useI18n()
+  const { user } = useAuth()
+  // パスワードを持たない利用者にはフォームを出さない（ADR-0038）。出すと、
+  // 「今のパスワード」を入力できない相手に、絶対に通らない入力欄を見せることになる。
+  const hasPassword = user?.has_password ?? true
 
   return (
     <div className="card">
@@ -21,7 +26,11 @@ export function SecurityPage() {
 
       <section className="settings-section">
         <h2>{t('changePassword.title')}</h2>
-        <PasswordChangeForm />
+        {hasPassword ? (
+          <PasswordChangeForm />
+        ) : (
+          <p className="hint">{t('changePassword.notSet')}</p>
+        )}
       </section>
 
       <section className="settings-section">

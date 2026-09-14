@@ -389,6 +389,26 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 **「このアプリだけ毎回名乗り直させたい」だけなら、こちらではない。** 認可要求の
 `prompt=login` のほうが、共有の SSO セッションを壊さずに済む。
 
+## SSO でしか入れない利用者にしたいとき（ADR-0038）
+
+`users.password_hash` を NULL にする。NULL の利用者は**パスワードで入れない・変更
+できない・リセットでも生やせない**。
+
+```sql
+UPDATE users SET password_hash = NULL WHERE email = '<メールアドレス>';
+```
+
+逆に**ローカル口座を持たせたい**なら、管理画面（またはユーザー API）でパスワードを
+設定する。これは監査に残る明示的な操作である。
+
+⚠ **移行（`0008_password_is_optional`）が触るのは、利用者の行と IdP との結び付きが
+60 秒以内に作られた利用者だけ**である。⚠ **MariaDB / SQLite 以外の DB では移行が
+何もしない**ので、上の SQL を手で流す。対象は「SSO で作られた利用者」で、次で拾える。
+
+```sql
+SELECT u.id, u.email FROM users u JOIN federated_identities f ON f.user_id = u.id;
+```
+
 ## IdP で止めた利用者を、このアプリでも止めたいとき（ADR-0036）
 
 受け口は `POST <APP_BASE_URL>/api/auth/sso/backchannel-logout` で、**設定は要らない**

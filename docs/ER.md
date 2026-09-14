@@ -40,7 +40,7 @@ erDiagram
         bigint id PK
         varchar(255) email UK "一意"
         varchar(100) username
-        varchar(255) password_hash
+        varchar(255) password_hash "NULL = ローカル認証なし（ADR-0038）"
         boolean is_active "既定 true"
         datetime created_at "UTC"
         datetime updated_at "UTC"
@@ -170,7 +170,7 @@ erDiagram
 
 | テーブル | 役割 | モデル |
 |---|---|---|
-| `users` | ユーザー。`email` が一意な識別子。無効化は削除ではなく `is_active` で行う | `user.py` |
+| `users` | ユーザー。`email` が一意な識別子。無効化は削除ではなく `is_active` で行う。⚠ **`password_hash` が NULL = ローカル認証を持たない**（ADR-0038）。「空のパスワード」でも「誰も知らない値が入っている」でもない | `user.py` |
 | `roles` | ロール。`id` は `user_roles` からの参照キーとして固定値で投入する | `role.py` |
 | `permissions` | 権限コード（scope）。`code` を安定キーとし `id` は DB 採番 | `role.py` |
 | `user_roles` | ユーザー ⇔ ロール（多対多） | `user.py` |

@@ -34,6 +34,7 @@
   "changePassword.current": "現在のパスワード",
   "changePassword.new": "新しいパスワード",
   "changePassword.submit": "変更",
+  "changePassword.notSet": "サインインは連携先の IdP で行うため、ここで変更するパスワードはありません。",
   "profile.title": "プロフィール",
   "profile.account": "アカウント",
   "profile.preferences": "表示設定",

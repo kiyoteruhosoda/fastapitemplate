@@ -34,6 +34,7 @@
   "changePassword.current": "Current password",
   "changePassword.new": "New password",
   "changePassword.submit": "Change",
+  "changePassword.notSet": "You sign in with your identity provider, so there is no password to change here.",
   "profile.title": "Profile",
   "profile.account": "Account",
   "profile.preferences": "Display preferences",

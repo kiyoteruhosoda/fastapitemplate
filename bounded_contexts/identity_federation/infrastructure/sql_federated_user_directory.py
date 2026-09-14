@@ -7,13 +7,11 @@ Domain / Application 層はこの実装を知らない。
 from __future__ import annotations
 
 import logging
-import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from werkzeug.security import generate_password_hash
 
 from bounded_contexts.identity_federation.domain.entities.federated_account import (
     FederatedAccount,
@@ -22,10 +20,6 @@ from bounded_contexts.identity_federation.domain.entities.federated_account impo
 from shared.infrastructure.models import Role, User
 
 logger = logging.getLogger(__name__)
-
-# SSO で作った利用者に与えるパスワード。誰も知らない値を入れることで、
-# パスワード認証の口からは入れない状態にする（``password_hash`` は NOT NULL）。
-_UNUSABLE_PASSWORD_BYTES = 48
 
 
 @dataclass(frozen=True)
@@ -62,9 +56,10 @@ class SqlFederatedUserDirectory:
         user = User(
             email=account.email,
             username=account.username,
-            # 平文はどこにも残さない。ローカルのパスワードを使いたい利用者は
-            # パスワードリセットで自分で設定する。
-            password_hash=generate_password_hash(secrets.token_urlsafe(_UNUSABLE_PASSWORD_BYTES)),
+            # ⚠ **ランダム値で埋めない**（ADR-0038）。埋めると「パスワードが無い」と
+            # 「誰も知らないパスワードがある」が区別できなくなり、画面に変更の導線が
+            # 出る・監査で入れる手段が読めない、という歪みが出る。
+            password_hash=None,
             is_active=True,
         )
         user.roles = self._roles_named(account.roles)

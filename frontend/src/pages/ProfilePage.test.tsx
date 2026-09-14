@@ -30,6 +30,7 @@ const ME: Me = {
   scopes: ['dashboard:view'],
   roles: ['manager', 'member'],
   active_role: 'member',
+  has_password: true,
   rp_logout_enabled: false,
 }
 
