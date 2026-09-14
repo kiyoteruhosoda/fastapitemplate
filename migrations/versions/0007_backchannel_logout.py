@@ -63,12 +63,6 @@ def downgrade() -> None:
     op.drop_column("sso_login_tickets", "session_id")
     op.drop_column("sso_login_tickets", "subject")
     op.drop_column("sso_login_tickets", "issuer")
-    op.drop_index(
-        "ix_federated_session_revocations_expires_at",
-        table_name="federated_session_revocations",
-    )
-    op.drop_index(
-        "ix_federated_session_revocations_subject",
-        table_name="federated_session_revocations",
-    )
+    # ⚠ **索引は単独で落とさない。** ``DROP TABLE`` が一緒に消すので不要で、外部キー列の
+    #   索引だと MariaDB では 1553 で落ちる（SQLite は通るので手元では気付けない）。
     op.drop_table("federated_session_revocations")
