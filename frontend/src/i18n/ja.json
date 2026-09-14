@@ -253,5 +253,7 @@
   "error.sso_account_not_linked": "対応するアカウントがありません。管理者に作成を依頼してください。",
   "error.sso_account_inactive": "このアカウントは無効化されています。",
   "error.sso_callback_invalid": "SSO でのログインに失敗しました。もう一度お試しください。",
-  "error.local_login_disabled": "パスワードとパスキーでのログインは無効です。"
+  "error.local_login_disabled": "パスワードとパスキーでのログインは無効です。",
+  "update.available": "新しい版があります。",
+  "update.reload": "再読み込み"
 }

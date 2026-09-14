@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 
 import App from './App'
+import { AppUpdatePrompt } from './components/AppUpdatePrompt'
 import { ToastProvider } from './components/ToastNotification'
 import { I18nProvider } from './i18n'
 import './index.css'
+import { watchForUpdate } from './services/appUpdate'
 import { loadUiSettings, type UiSettings } from './services/uiSettings'
 import { AuthProvider } from './store/AuthContext'
 import { ThemeProvider } from './theme'
@@ -23,6 +25,8 @@ function render(settings: UiSettings) {
               <BrowserRouter>
                 <App />
               </BrowserRouter>
+              {/* 新しい版の知らせは画面に関わらず出す（ADR-0035）。 */}
+              <AppUpdatePrompt watch={watchForUpdate} />
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>

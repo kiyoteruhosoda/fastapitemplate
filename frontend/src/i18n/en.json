@@ -253,5 +253,7 @@
   "error.sso_account_not_linked": "No account matches this identity. Ask an administrator to create one.",
   "error.sso_account_inactive": "This account is disabled.",
   "error.sso_callback_invalid": "Single sign-on failed. Please try again.",
-  "error.local_login_disabled": "Password and passkey sign-in are turned off."
+  "error.local_login_disabled": "Password and passkey sign-in are turned off.",
+  "update.available": "A new version is available.",
+  "update.reload": "Reload"
 }
