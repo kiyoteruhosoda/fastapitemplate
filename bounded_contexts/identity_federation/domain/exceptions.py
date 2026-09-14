@@ -87,6 +87,52 @@ class SsoAccountNotLinkedError(IdentityFederationError):
     code = "sso_account_not_linked"
 
 
+class SsoIdentityTakenError(IdentityFederationError):
+    """その IdP アカウントは**別の利用者**に結び付いている（ADR-0040）。
+
+    ⚠ **横取りになるので断る。** 付け替えを許すと、IdP 側で 1 つの口座を共有して
+    いる相手が、後からこのアプリの別人の入り口を奪える。
+    """
+
+    code = "sso_identity_taken"
+
+
+class SsoAlreadyLinkedError(IdentityFederationError):
+    """この利用者には、その IdP の結び付きが**既にある**（ADR-0040）。
+
+    別の ``subject`` へ差し替えたいなら、いったん解除してから結び直す。黙って
+    上書きすると、前の結び付きで入っていた経路が予告なく消える。
+    """
+
+    code = "sso_already_linked"
+
+
+class SsoIdentityNotLinkedError(IdentityFederationError):
+    """解除しようとしたが、その IdP との結び付きが無い。"""
+
+    code = "sso_identity_not_linked"
+
+
+class SsoLastEntranceError(IdentityFederationError):
+    """解除すると、この利用者が**どこからも入れなくなる**（ADR-0040）。
+
+    ⚠ **締め出しを作らない。** ローカルのパスワードもパスキーも無い利用者から
+    IdP を外すと、残るのは管理者による復旧だけになる。
+    """
+
+    code = "sso_last_entrance"
+
+
+class SsoLinkSessionMismatchError(IdentityFederationError):
+    """連携の往復を始めた利用者と、戻ってきたときのセッションが違う。
+
+    往復の途中でサインアウトした・別の利用者で入り直した場合に起きる。
+    **どちらの口座へ結び付けるべきか決められない**ので、やり直してもらう。
+    """
+
+    code = "sso_link_session_mismatch"
+
+
 class SsoAccountInactiveError(IdentityFederationError):
     """アカウントが無効化されている。"""
 
@@ -101,8 +147,13 @@ __all__ = [
     "SsoAccountInactiveError",
     "SsoAccountNotLinkedError",
     "SsoAcrNotSatisfiedError",
+    "SsoAlreadyLinkedError",
     "SsoEmailMissingError",
     "SsoEmailNotAllowedError",
+    "SsoIdentityNotLinkedError",
+    "SsoIdentityTakenError",
+    "SsoLastEntranceError",
+    "SsoLinkSessionMismatchError",
     "SsoLoginTransactionInvalidError",
     "SsoNotConfiguredError",
     "SsoTicketNotFoundError",

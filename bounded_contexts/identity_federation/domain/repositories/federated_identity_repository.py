@@ -16,6 +16,12 @@ class FederatedIdentityRepository(Protocol):
     def link(self, identity: FederatedIdentity) -> FederatedIdentity:
         """結び付きを保存する（同じ ``(issuer, subject)`` は上書きしない）。"""
 
+    def find_for_user(self, issuer: str, user_id: int) -> FederatedIdentity | None:
+        """その利用者が、その IdP と結び付いているかを引く（ADR-0040）。"""
+
+    def unlink(self, identity: FederatedIdentity) -> None:
+        """結び付きを消す。**利用者そのものには触らない。**"""
+
     def touch(self, identity: FederatedIdentity) -> None:
         """最終ログイン日時を更新する（棚卸しのため。認可には使わない）。"""
 

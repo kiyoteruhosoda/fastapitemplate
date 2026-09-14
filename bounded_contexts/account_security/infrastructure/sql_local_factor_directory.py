@@ -40,5 +40,16 @@ class SqlLocalFactorDirectory:
             for user_id in confirmed | set(passkeys)
         }
 
+    def factors_of(self, user_id: int) -> LocalFactors:
+        totp = self.session.scalar(
+            select(TotpSecretRecord.user_id)
+            .where(TotpSecretRecord.user_id == user_id)
+            .where(TotpSecretRecord.confirmed_at.is_not(None))
+        )
+        passkeys = self.session.scalar(
+            select(func.count()).select_from(PasskeyCredentialRecord).where(PasskeyCredentialRecord.user_id == user_id)
+        )
+        return LocalFactors(totp=totp is not None, passkeys=passkeys or 0)
+
 
 __all__ = ["SqlLocalFactorDirectory"]

@@ -25,6 +25,9 @@ from fastapi import Response
 from bounded_contexts.identity_federation.domain.value_objects.login_transaction import (
     LoginTransaction,
 )
+from bounded_contexts.identity_federation.domain.value_objects.transaction_purpose import (
+    TransactionPurpose,
+)
 from shared.kernel.settings.settings import settings
 from shared.kernel.timestamps import utcnow
 
@@ -40,6 +43,8 @@ def issue(response: Response, transaction: LoginTransaction, *, path: str) -> No
         "nonce": transaction.nonce,
         "code_verifier": transaction.code_verifier,
         "redirect_to": transaction.redirect_to,
+        "purpose": transaction.purpose.value,
+        "user_id": transaction.user_id,
         "exp": utcnow() + timedelta(seconds=ttl),
     }
     response.set_cookie(
@@ -69,7 +74,30 @@ def read(raw: str | None) -> LoginTransaction | None:
     values = {key: claims.get(key) for key in ("state", "nonce", "code_verifier", "redirect_to")}
     if not all(isinstance(value, str) and value for value in values.values()):
         return None
-    return LoginTransaction(**values)  # type: ignore[arg-type]
+    purpose = _purpose_of(claims.get("purpose"))
+    if purpose is None:
+        return None
+    user_id = claims.get("user_id")
+    return LoginTransaction(
+        **values,  # type: ignore[arg-type]
+        purpose=purpose,
+        user_id=user_id if isinstance(user_id, int) else None,
+    )
+
+
+def _purpose_of(raw: object) -> TransactionPurpose | None:
+    """⚠ **知らない目的は受け取らない。**
+
+    署名は付いているので普通は書き換わらないが、鍵を使い回している古い Cookie が
+    残ることはある。既定へ落とすと「連携のつもりの往復がログインとして完了する」
+    ——落ちる先が安全側とは限らないので、復元できないものは断る。
+    """
+    if raw is None:
+        # 連携（ADR-0040）より前に発行された Cookie。ログインの往復として読む。
+        return TransactionPurpose.LOGIN
+    if isinstance(raw, str) and raw in tuple(TransactionPurpose):
+        return TransactionPurpose(raw)
+    return None
 
 
 def clear(response: Response, *, path: str) -> None:

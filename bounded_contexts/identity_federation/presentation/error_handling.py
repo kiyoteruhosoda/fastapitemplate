@@ -1,7 +1,7 @@
 """ドメイン例外 -> HTTP 応答の対応付け。
 
-ここが受けるのは **JSON を返す経路**（``POST /api/auth/sso/token`` と
-``POST /api/auth/sso/backchannel-logout``）だけ。
+ここが受けるのは **JSON を返す経路**（``POST /api/auth/sso/token``・
+``POST /api/auth/sso/backchannel-logout``・``/api/auth/sso/link`` の 3 つ）だけ。
 ブラウザの画面遷移で使う ``/login`` と ``/callback`` はルーター自身が例外を捕まえ、
 ログイン画面への転送に変える（JSON を返しても SPA は読めないため）。
 """
@@ -15,6 +15,10 @@ from bounded_contexts.identity_federation.domain.exceptions import (
     IdentityFederationError,
     IdentityProviderUnavailableError,
     InvalidLogoutTokenError,
+    SsoAlreadyLinkedError,
+    SsoIdentityNotLinkedError,
+    SsoIdentityTakenError,
+    SsoLastEntranceError,
     SsoNotConfiguredError,
     SsoTicketNotFoundError,
 )
@@ -27,6 +31,12 @@ _STATUS_BY_ERROR: dict[type[IdentityFederationError], int] = {
     # 停止の通知を送るのは IdP であって利用者ではない。401 で返すと「認証し直せ」に
     # 読めてしまうので、仕様どおり「要求が不正」として返す（Back-Channel Logout 1.0 §2.8）。
     InvalidLogoutTokenError: status.HTTP_400_BAD_REQUEST,
+    # 連携の解除・結び付け（ADR-0040）。⚠ **401 で返さない** ——呼んでいる本人は
+    # 認証を通っており、「認証し直せ」と読めると利用者が無意味な操作を繰り返す。
+    SsoIdentityNotLinkedError: status.HTTP_404_NOT_FOUND,
+    SsoIdentityTakenError: status.HTTP_409_CONFLICT,
+    SsoAlreadyLinkedError: status.HTTP_409_CONFLICT,
+    SsoLastEntranceError: status.HTTP_409_CONFLICT,
 }
 
 

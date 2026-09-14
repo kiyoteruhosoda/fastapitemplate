@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,8 @@ class FederatedIdentity:
     issuer: str
     subject: str
     user_id: int
+    #: 結び付けた日時。保存されている行を引いたときだけ入る（画面の表示用）。
+    linked_at: datetime | None = None
 
 
 __all__ = ["FederatedIdentity"]

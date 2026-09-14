@@ -14,6 +14,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hmac import compare_digest
 
+from bounded_contexts.identity_federation.domain.value_objects.transaction_purpose import (
+    TransactionPurpose,
+)
+
 
 @dataclass(frozen=True)
 class LoginTransaction:
@@ -21,6 +25,14 @@ class LoginTransaction:
     nonce: str
     code_verifier: str
     redirect_to: str = "/"
+    #: この往復が何のために始まったか（ADR-0040）。
+    purpose: TransactionPurpose = TransactionPurpose.LOGIN
+    #: 連携の往復を始めた利用者。ログインの往復では ``None``。
+    #:
+    #: ⚠ **戻ってきたときのセッションと突き合わせるためにある。** これが無いと、
+    #:   往復の途中で別の利用者に入れ替わったブラウザが、**その人の口座へ**
+    #:   結び付けてしまう。
+    user_id: int | None = None
 
     def matches(self, state: str) -> bool:
         """戻ってきた ``state`` が、この往復で送り出したものか。
@@ -34,6 +46,10 @@ class LoginTransaction:
         推測されないようにする）。
         """
         return bool(state) and compare_digest(self.state, state)
+
+    def belongs_to(self, user_id: int) -> bool:
+        """連携の往復を始めたのが、いま入っているこの利用者か。"""
+        return self.user_id is not None and self.user_id == user_id
 
 
 __all__ = ["LoginTransaction"]

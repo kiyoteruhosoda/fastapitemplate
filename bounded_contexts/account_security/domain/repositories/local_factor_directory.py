@@ -17,5 +17,10 @@ class LocalFactorDirectory(Protocol):
         問い合わせることになる。
         """
 
+    def factors_of(self, user_id: int) -> LocalFactors:
+        """1 人分だけ数える。**自分の設定画面のように、相手が 1 人と決まっている
+        ときだけ使う**（一覧からは呼ばない）。
+        """
+
 
 __all__ = ["LocalFactorDirectory"]

@@ -1,7 +1,8 @@
 /**
  * セキュリティ画面（`/profile/security`）。
  *
- * パスワード変更・二要素認証・パスキーが 1 つの画面に並ぶこと（ADR-0020）と、
+ * パスワード変更・二要素認証・パスキー・IdP との連携が 1 つの画面に並ぶこと
+ * （ADR-0020 / ADR-0040）と、
  * それぞれが正しい API を叩くことを確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -48,11 +49,19 @@ vi.mock('../services/webauthn', () => ({
   isPasskeySupported: () => true,
 }))
 
-/** この画面が開いたときに引く 3 本（本人・二要素認証の状態・パスキーの一覧）。 */
+/** この画面が開いたときに引く 4 本（本人・二要素認証・連携の状態・パスキーの一覧）。 */
 function respondToGet(path: string, me: Me = ME) {
   if (path === '/api/auth/me') return Promise.resolve(me)
   if (path === '/api/account/security/two-factor')
     return Promise.resolve({ enabled: false, enrolling: false })
+  if (path === '/api/auth/sso/link')
+    return Promise.resolve({
+      available: true,
+      display_name: 'Example IdP',
+      linked: false,
+      linked_at: null,
+      can_unlink: false,
+    })
   return Promise.resolve([])
 }
 
@@ -82,13 +91,15 @@ describe('SecurityPage', () => {
     apiPost.mockResolvedValue({})
   })
 
-  it('パスワード変更・二要素認証・パスキーが 1 つの画面に並ぶ', async () => {
+  it('パスワード変更・二要素認証・パスキー・連携が 1 つの画面に並ぶ', async () => {
     await renderPage()
 
     expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Two-factor authentication' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Passkeys' })).toBeInTheDocument()
     expect(screen.getByText('No passkeys registered yet.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Single sign-on' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Link with Example IdP' })).toBeInTheDocument()
     // プロフィールへ戻る導線がある
     expect(screen.getByRole('link', { name: 'Back to profile' })).toHaveAttribute(
       'href',
