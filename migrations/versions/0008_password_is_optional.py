@@ -40,6 +40,7 @@ _PROVISIONED_WITHIN_SECONDS = 60
 #: 秒差を出す式は方言ごとに違う（``TIMESTAMPDIFF`` は SQLite に無い）。
 _ELAPSED_SECONDS = {
     "sqlite": "(julianday(f.created_at) - julianday(u.created_at)) * 86400",
+    "postgresql": "EXTRACT(EPOCH FROM (f.created_at - u.created_at))",
     "mysql": "TIMESTAMPDIFF(SECOND, u.created_at, f.created_at)",
     "mariadb": "TIMESTAMPDIFF(SECOND, u.created_at, f.created_at)",
 }
