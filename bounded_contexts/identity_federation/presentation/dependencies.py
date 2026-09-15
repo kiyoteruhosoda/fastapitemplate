@@ -18,8 +18,14 @@ from sqlalchemy.orm import Session
 from bounded_contexts.identity_federation.application.use_cases.build_rp_logout_url import (
     BuildRpLogoutUrl,
 )
+from bounded_contexts.identity_federation.application.use_cases.complete_sso_link import (
+    CompleteSsoLink,
+)
 from bounded_contexts.identity_federation.application.use_cases.complete_sso_login import (
     CompleteSsoLogin,
+)
+from bounded_contexts.identity_federation.application.use_cases.describe_federated_link import (
+    DescribeFederatedLink,
 )
 from bounded_contexts.identity_federation.application.use_cases.describe_sso_provider import (
     DescribeSsoProvider,
@@ -33,8 +39,14 @@ from bounded_contexts.identity_federation.application.use_cases.receive_backchan
 from bounded_contexts.identity_federation.application.use_cases.resolve_federated_account import (
     ResolveFederatedAccount,
 )
+from bounded_contexts.identity_federation.application.use_cases.start_sso_link import (
+    StartSsoLink,
+)
 from bounded_contexts.identity_federation.application.use_cases.start_sso_login import (
     StartSsoLogin,
+)
+from bounded_contexts.identity_federation.application.use_cases.unlink_federated_identity import (
+    UnlinkFederatedIdentity,
 )
 from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway import (
     OidcProviderGateway,
@@ -171,6 +183,36 @@ def start_sso_login(gateway: GatewayDep) -> StartSsoLogin:
     )
 
 
+def start_sso_link(gateway: GatewayDep) -> StartSsoLink:
+    """連携の往復の開始（ADR-0040）。要求する認証の強度はログインと同じ。"""
+    return StartSsoLink(
+        provider=identity_provider(),
+        gateway=gateway,
+        acr_values=tuple(settings.oidc_acr_values),
+    )
+
+
+def complete_sso_link(db: DbDep, gateway: GatewayDep) -> CompleteSsoLink:
+    return CompleteSsoLink(
+        provider=identity_provider(),
+        gateway=gateway,
+        identities=SqlFederatedIdentityRepository(db),
+        claims=claims_mapping(),
+        requested_context=requested_authentication_context(),
+    )
+
+
+def describe_federated_link(db: DbDep) -> DescribeFederatedLink:
+    return DescribeFederatedLink(
+        identities=SqlFederatedIdentityRepository(db),
+        provider=identity_provider(),
+    )
+
+
+def unlink_federated_identity(db: DbDep) -> UnlinkFederatedIdentity:
+    return UnlinkFederatedIdentity(identities=SqlFederatedIdentityRepository(db))
+
+
 def resolve_federated_account(db: DbDep) -> ResolveFederatedAccount:
     return ResolveFederatedAccount(
         identities=SqlFederatedIdentityRepository(db),
@@ -218,7 +260,9 @@ __all__ = [
     "build_rp_logout_url",
     "claims_mapping",
     "client_credential",
+    "complete_sso_link",
     "complete_sso_login",
+    "describe_federated_link",
     "describe_sso_provider",
     "exchange_sso_ticket",
     "identity_provider",
@@ -228,5 +272,7 @@ __all__ = [
     "requested_authentication_context",
     "resolve_federated_account",
     "role_assignment",
+    "start_sso_link",
     "start_sso_login",
+    "unlink_federated_identity",
 ]

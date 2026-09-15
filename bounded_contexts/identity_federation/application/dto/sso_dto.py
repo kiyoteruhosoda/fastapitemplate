@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
     FederatedLogin,
@@ -71,7 +72,21 @@ class SsoSessionDto:
     login: FederatedLogin
 
 
+@dataclass(frozen=True)
+class FederatedLinkDto:
+    """設定画面に出す「自分の連携の状態」（ADR-0040）。
+
+    ``available`` が偽なら、画面はこの区画そのものを出さない（SSO が無効）。
+    """
+
+    available: bool
+    display_name: str = ""
+    linked: bool = False
+    linked_at: datetime | None = None
+
+
 __all__ = [
+    "FederatedLinkDto",
     "ResolvedAccountDto",
     "SsoAuthorizationDto",
     "SsoHandoffDto",

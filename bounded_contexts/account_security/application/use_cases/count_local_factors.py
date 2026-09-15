@@ -24,5 +24,9 @@ class CountLocalFactors:
     def execute(self) -> dict[int, LocalFactors]:
         return self.directory.factors_by_user()
 
+    def for_user(self, user_id: int) -> LocalFactors:
+        """1 人分だけ。自分の設定画面（ADR-0040）のように相手が決まっているとき。"""
+        return self.directory.factors_of(user_id)
+
 
 __all__ = ["CountLocalFactors"]

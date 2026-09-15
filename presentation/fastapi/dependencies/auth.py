@@ -135,6 +135,27 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_or_none(
+    access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """入っていれば利用者を、入っていなければ ``None`` を返す（401 にしない）。
+
+    ⚠ **これを認可に使わない。** 用があるのは**ブラウザの画面遷移**で戻ってくる
+    経路だけである（ADR-0040 の連携の戻り）。そこで 401 を返すと、利用者には
+    JSON の生文字列が見えるだけで、やり直す導線も出せない。認可が要る口は
+    :func:`get_current_principal` 系を使う。
+    """
+    from presentation.fastapi.services.token_service import TokenService
+
+    if not access_token_cookie:
+        return None
+    principal, _ = TokenService.verify_access_token_with_reason(access_token_cookie, session=db)
+    if principal is None:
+        return None
+    return db.get(User, principal.user_id)
+
+
 @dataclass(frozen=True)
 class CurrentSession:
     """いま操作している利用者と、その入り口（ADR-0036）。

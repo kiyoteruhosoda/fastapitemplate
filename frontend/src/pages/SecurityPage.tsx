@@ -6,6 +6,7 @@
  */
 import { Link } from 'react-router-dom'
 
+import { FederatedIdentityControls } from '../components/FederatedIdentityControls'
 import { PasskeyControls } from '../components/PasskeyControls'
 import { PasswordChangeForm } from '../components/PasswordChangeForm'
 import { TwoFactorControls } from '../components/TwoFactorControls'
@@ -41,6 +42,11 @@ export function SecurityPage() {
       <section className="settings-section">
         <h2>{t('security.passkeys')}</h2>
         <PasskeyControls />
+      </section>
+
+      <section className="settings-section">
+        <h2>{t('security.federation')}</h2>
+        <FederatedIdentityControls />
       </section>
 
       <div>

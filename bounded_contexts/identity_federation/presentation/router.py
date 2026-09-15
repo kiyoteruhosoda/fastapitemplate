@@ -1,6 +1,6 @@
 """SSO（OpenID Connect）ログイン API。
 
-経路は 7 つ。
+経路は 10。
 
 - ``GET /provider`` — ログイン画面が「SSO で入る」ボタンを出すかを問い合わせる
 - ``GET /login`` — IdP の認可エンドポイントへブラウザを送り出す
@@ -9,6 +9,13 @@
 - ``GET /logout`` — サインアウトを IdP まで通す（**既定では無効**）
 - ``GET /signed-out`` — その戻り。ログイン画面へ返すだけ
 - ``POST /backchannel-logout`` — IdP からの停止の通知を受ける（ADR-0036）
+- ``GET /link`` — 自分の連携の状態を答える（設定画面。ADR-0040）
+- ``POST /link/start`` — 連携の往復を始める（入っている本人が押す）
+- ``DELETE /link`` — 連携を外す
+
+``/callback`` は**ログインの戻りと連携の戻りを兼ねる**。どちらの後始末をするかは
+往復状態の ``purpose`` で決める ——IdP に登録する戻り先の URI を 1 つに保つため
+（ADR-0040）。⚠ **目的をクエリで渡さない。** URL を書き換えるだけで化けさせられる。
 
 ``/login`` は**往復状態（``state`` / ``nonce`` / ``code_verifier``）を署名付き Cookie に
 入れてから**送り出し、``/callback`` はそれを復元して照合する（ADR-0025）。サーバー側に
@@ -34,6 +41,12 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from bounded_contexts.account_security.application.use_cases.count_local_factors import (
+    CountLocalFactors,
+)
+from bounded_contexts.account_security.infrastructure.sql_local_factor_directory import (
+    SqlLocalFactorDirectory,
+)
 from bounded_contexts.audit.domain.entities.audit_event import (
     AuditEventType,
     AuditResult,
@@ -45,8 +58,14 @@ from bounded_contexts.identity_federation.application.dto.sso_dto import (
 from bounded_contexts.identity_federation.application.use_cases.build_rp_logout_url import (
     BuildRpLogoutUrl,
 )
+from bounded_contexts.identity_federation.application.use_cases.complete_sso_link import (
+    CompleteSsoLink,
+)
 from bounded_contexts.identity_federation.application.use_cases.complete_sso_login import (
     CompleteSsoLogin,
+)
+from bounded_contexts.identity_federation.application.use_cases.describe_federated_link import (
+    DescribeFederatedLink,
 )
 from bounded_contexts.identity_federation.application.use_cases.describe_sso_provider import (
     DescribeSsoProvider,
@@ -57,18 +76,41 @@ from bounded_contexts.identity_federation.application.use_cases.exchange_sso_tic
 from bounded_contexts.identity_federation.application.use_cases.receive_backchannel_logout import (
     ReceiveBackchannelLogout,
 )
+from bounded_contexts.identity_federation.application.use_cases.start_sso_link import (
+    StartSsoLink,
+)
 from bounded_contexts.identity_federation.application.use_cases.start_sso_login import (
     StartSsoLogin,
+)
+from bounded_contexts.identity_federation.application.use_cases.unlink_federated_identity import (
+    UnlinkFederatedIdentity,
 )
 from bounded_contexts.identity_federation.domain.exceptions import (
     IdentityFederationError,
     InvalidLogoutTokenError,
+    SsoLinkSessionMismatchError,
+    SsoNotConfiguredError,
+)
+from bounded_contexts.identity_federation.domain.value_objects.login_transaction import (
+    LoginTransaction,
+)
+from bounded_contexts.identity_federation.domain.value_objects.sso_callback import (
+    SsoCallback,
+)
+from bounded_contexts.identity_federation.domain.value_objects.transaction_purpose import (
+    TransactionPurpose,
 )
 from bounded_contexts.identity_federation.presentation import dependencies, transaction_cookie
 from bounded_contexts.identity_federation.presentation.schemas import (
+    FederatedLinkResponse,
+    SsoLinkStartResponse,
     SsoProviderResponse,
     SsoSessionResponse,
     SsoTicketRequest,
+)
+from presentation.fastapi.dependencies.auth import (
+    get_current_user,
+    get_current_user_or_none,
 )
 from presentation.fastapi.schemas.auth import StatusResponse
 from presentation.fastapi.services.session_cookies import establish_session
@@ -85,6 +127,8 @@ DbDep = Annotated[Session, Depends(get_db)]
 # 戻り先の SPA の経路（フロントエンドのルーティングと対で合わせる）
 LOGIN_SCREEN = "/login"
 HANDOFF_SCREEN = "/login/sso"
+#: 連携の戻りの着地点（設定画面のセキュリティ区画。ADR-0040）
+SECURITY_SCREEN = "/profile/security"
 
 # IdP が返すエラーコードはそのまま画面の URL へ載るため、素性の分かる形だけを通す
 # （反射した文字列でリンクを組み立てられないようにする）。照合は ``fullmatch``——
@@ -199,29 +243,155 @@ def start_login(
     return response
 
 
+class _CallbackTools:
+    """戻りの後始末に要る道具。
+
+    ログインの戻りと連携の戻りを 1 つの経路で受けるので、両方の道具をここへまとめる
+    （ハンドラの引数を増やさないため。``SsoCallbackQuery`` と同じ書き方）。
+    """
+
+    def __init__(
+        self,
+        login: Annotated[CompleteSsoLogin, Depends(dependencies.complete_sso_login)],
+        link: Annotated[CompleteSsoLink, Depends(dependencies.complete_sso_link)],
+        audit: AuditRecorderDep,
+        viewer: Annotated[User | None, Depends(get_current_user_or_none)] = None,
+    ) -> None:
+        self.login = login
+        self.link = link
+        self.audit = audit
+        self.viewer = viewer
+
+
 @router.get("/callback", include_in_schema=False)
-def complete_login(
+def complete_callback(
     query: Annotated[SsoCallbackQuery, Depends()],
-    use_case: Annotated[CompleteSsoLogin, Depends(dependencies.complete_sso_login)],
-    audit: AuditRecorderDep,
+    tools: Annotated[_CallbackTools, Depends()],
     tx: Annotated[str | None, Cookie(alias=transaction_cookie.COOKIE_NAME)] = None,
 ) -> RedirectResponse:
-    """IdP からの戻りを受け取り、引き換え券を付けて SPA へ戻す。
+    """IdP からの戻りを受け取る。ログインの戻りと連携の戻りを兼ねる（ADR-0040）。
 
     往復状態の Cookie は、成功しても失敗しても落とす（1 回の往復で使い切る）。
+
+    ⚠ **Cookie が復元できないときはログインの戻りとして扱う。** 連携だったのか
+    どうかは、その往復状態にしか書かれていないためである（結果は
+    ``sso_state_invalid`` でログイン画面へ戻る。やり直せば連携は通る）。
     """
+    transaction = transaction_cookie.read(tx)
+    if transaction is not None and transaction.purpose is TransactionPurpose.LINK:
+        return _complete_link(query, tools, transaction)
+    return _complete_login(query, tools, transaction)
+
+
+def _complete_login(
+    query: SsoCallbackQuery,
+    tools: _CallbackTools,
+    transaction: LoginTransaction | None,
+) -> RedirectResponse:
+    """引き換え券を付けて SPA へ戻す。"""
     if query.error is not None or not query.code or not query.state:
-        return _failed(audit, query.error or "sso_callback_invalid")
+        return _failed(tools.audit, query.error or "sso_callback_invalid")
     try:
-        handoff = use_case.execute(
-            code=query.code,
-            state=query.state,
-            transaction=transaction_cookie.read(tx),
-        )
+        handoff = tools.login.execute(code=query.code, state=query.state, transaction=transaction)
     except IdentityFederationError as error:
-        return _failed(audit, error.code)
-    _record_success(audit, handoff.account)
+        return _failed(tools.audit, error.code)
+    _record_success(tools.audit, handoff.account)
     return _redirect(f"{HANDOFF_SCREEN}?ticket={quote(handoff.ticket)}")
+
+
+def _complete_link(
+    query: SsoCallbackQuery,
+    tools: _CallbackTools,
+    transaction: LoginTransaction,
+) -> RedirectResponse:
+    """戻ってきた相手を、往復を始めた利用者へ結び付けて設定画面へ返す。
+
+    ⚠ **いま入っている利用者を見て決め直さない。** 誰に結び付けるかは往復を始めた
+    時点で決まっている（往復状態の ``user_id``）。ここで見るのは「その本人が
+    まだ入っているか」だけで、入れ替わっていれば断る。
+    """
+    viewer = tools.viewer
+    if viewer is None:
+        return _link_failed(SsoLinkSessionMismatchError.code)
+    if query.error is not None or not query.code or not query.state:
+        return _link_failed(query.error or "sso_callback_invalid")
+    callback = SsoCallback(code=query.code, state=query.state, transaction=transaction)
+    try:
+        tools.link.execute(callback=callback, user_id=viewer.id)
+    except IdentityFederationError as error:
+        logger.warning("sso_link_failed: %s", error.code)
+        return _link_failed(error.code)
+    tools.audit.as_actor(viewer.id).execute(AuditEventType.SSO_IDENTITY_LINKED)
+    logger.info("sso_link_succeeded")
+    return _redirect(f"{SECURITY_SCREEN}?sso_link=linked")
+
+
+@router.post("/link/start", response_model=SsoLinkStartResponse)
+def start_link(
+    user: Annotated[User, Depends(get_current_user)],
+    use_case: Annotated[StartSsoLink, Depends(dependencies.start_sso_link)],
+    response: Response,
+) -> SsoLinkStartResponse:
+    """連携の往復を始める。**画面はこの URL へ自分で遷移する。**
+
+    303 を返さず XHR にしているのは、⚠ **認証が切れている相手に 401 を返せる**
+    ようにするため。画面遷移で始めると、切れていた場合に JSON の生文字列が
+    見えるだけで、やり直す導線が出せない。
+
+    ⚠ **CSRF の守りはここで効く。** Cookie で認証する更新系なので
+    ``CsrfMiddleware`` の対象になり、よその頁からは起こせない。
+    """
+    authorization = use_case.execute(user_id=user.id)
+    transaction_cookie.issue(response, authorization.transaction, path=router.prefix)
+    return SsoLinkStartResponse(authorization_url=authorization.authorization_url)
+
+
+@router.get("/link", response_model=FederatedLinkResponse)
+def describe_link(
+    user: Annotated[User, Depends(get_current_user)],
+    use_case: Annotated[DescribeFederatedLink, Depends(dependencies.describe_federated_link)],
+    db: DbDep,
+) -> FederatedLinkResponse:
+    """自分の連携の状態を答える（ADR-0040）。他人の分は見えない。"""
+    link = use_case.execute(user_id=user.id)
+    return FederatedLinkResponse(
+        available=link.available,
+        display_name=link.display_name,
+        linked=link.linked,
+        linked_at=link.linked_at,
+        can_unlink=link.linked and _has_other_entrance(db, user),
+    )
+
+
+@router.delete("/link", response_model=StatusResponse)
+def remove_link(
+    user: Annotated[User, Depends(get_current_user)],
+    use_case: Annotated[UnlinkFederatedIdentity, Depends(dependencies.unlink_federated_identity)],
+    audit: AuditRecorderDep,
+    db: DbDep,
+) -> StatusResponse:
+    """連携を外す。⚠ **外すと入れなくなる利用者は断る**（ADR-0040）。"""
+    provider = dependencies.identity_provider()
+    if provider is None:
+        raise SsoNotConfiguredError
+    use_case.execute(
+        issuer=provider.issuer,
+        user_id=user.id,
+        has_other_entrance=_has_other_entrance(db, user),
+    )
+    audit.as_actor(user.id).execute(AuditEventType.SSO_IDENTITY_UNLINKED)
+    return StatusResponse(status="ok")
+
+
+def _has_other_entrance(db: Session, user: User) -> bool:
+    """IdP を外したあとも、この利用者に**入り口**が残るか。
+
+    ⚠ **二要素認証は入り口ではない。** パスワードの後ろに置く second factor なので、
+    それだけでは入れない。数えるのはパスワードとパスキーである。
+    """
+    if user.has_local_password:
+        return True
+    return CountLocalFactors(SqlLocalFactorDirectory(db)).for_user(user.id).passkeys > 0
 
 
 @router.post("/token", response_model=SsoSessionResponse)
@@ -308,6 +478,16 @@ def _redirect(url: str) -> RedirectResponse:
 def _to_login_screen(code: str) -> RedirectResponse:
     safe = code if _ERROR_CODE.fullmatch(code) else _GENERIC_ERROR
     return _redirect(f"{LOGIN_SCREEN}?sso_error={safe}")
+
+
+def _link_failed(code: str) -> RedirectResponse:
+    """連携の失敗を設定画面へ返す。
+
+    **監査ログには残さない。** 結び付きは増えていないので「誰が何をしたか」は
+    変わっておらず、原因を追うのはアプリログの仕事になる（ADR-0013）。
+    """
+    safe = code if _ERROR_CODE.fullmatch(code) else _GENERIC_ERROR
+    return _redirect(f"{SECURITY_SCREEN}?sso_link_error={safe}")
 
 
 def _failed(audit: AuditRecorderDep, reason: str) -> RedirectResponse:
