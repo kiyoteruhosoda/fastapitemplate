@@ -176,15 +176,28 @@ async def get_current_session(
     user: User = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+    db: Session = Depends(get_db),
 ) -> CurrentSession:
     """認証済みの利用者と、そのセッションがどこから始まったかを返す。
 
     トークンは :func:`get_current_principal` が既に検証している（同じリクエストの
     同じ値）。ここで読むのは宛名のクレームだけで、認証をやり直しているのではない。
+
+    ⚠ **ここは「新しいトークンを出す」経路のためにある**（ロールの切り替え）。
+    アクセストークンの検証が DB を引かなくなったので（ADR-0041）、**出し直しの
+    経路だけは止まっていないことを確かめる** ——確かめないと、止められた利用者が
+    切り替えを繰り返すだけで**いつまでも新しいトークンを受け取れる**。
+    **寿命による上限が、そこで破れる。**
     """
     from presentation.fastapi.services.token_service import TokenService
 
     token = _extract_token(credentials, access_token_cookie)
+    if token and TokenService.session_is_revoked(token, session=db):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token", "reason": "session_revoked"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return CurrentSession(
         user=user,
         federated_login=TokenService.federated_login_of(token) if token else None,

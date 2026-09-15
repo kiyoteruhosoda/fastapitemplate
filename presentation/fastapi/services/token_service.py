@@ -191,6 +191,19 @@ class TokenService:
         )
 
     @classmethod
+    def session_is_revoked(cls, token: str, *, session: Session) -> bool:
+        """このアクセストークンのセッションが IdP 側で止められているか（ADR-0041）。
+
+        ⚠ **普段の検証では呼ばない。** 呼ぶのは「新しいトークンを出す」経路だけで、
+        そこだけは DB を引いて確かめる ——確かめないと、止められた利用者が
+        出し直しを繰り返すだけで寿命の上限を破れる。
+        """
+        claims, _ = cls._decode(token)
+        if claims is None or claims.get("type") != TYPE_ACCESS:
+            return False
+        return _session_revoked(claims, session)
+
+    @classmethod
     def federated_login_of(cls, token: str) -> FederatedLogin | None:
         """検証済みのアクセストークンから、IdP 側のセッションを読む。
 
