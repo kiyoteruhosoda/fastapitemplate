@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from bounded_contexts.identity_federation.domain.entities.federated_account import (
     FederatedAccount,
@@ -67,6 +68,30 @@ class SqlFederatedUserDirectory:
         self.session.flush()
         logger.info("sso_user_provisioned")
         return _require_account(user)
+
+    def refresh_profile(self, user_id: int, *, email: str | None, username: str) -> None:
+        """名前とメールアドレスを写しへ上書きする（ADR-0042）。
+
+        ⚠ **ぶつかる値は書かない。** ``users.email`` も ``users.username`` も一意なので、
+        別の利用者が既に持っている値をそのまま書くと**ログインが 500 で落ちる**。
+        写しの更新でログインを壊すのは本末転倒なので、その項目だけ見送って記録に残す。
+        """
+        user = self.session.get(User, user_id)
+        if user is None:  # pragma: no cover - 直前に引けた利用者が消えた場合のみ
+            return
+        if email is not None and email != user.email and self._is_free(User.email, email, user_id):
+            user.email = email
+        if username and username != user.username and self._is_free(User.username, username, user_id):
+            user.username = username
+        self.session.flush()
+
+    def _is_free(self, column: InstrumentedAttribute[str], value: str, user_id: int) -> bool:
+        taken = self.session.scalar(select(User.id).where(column == value).where(User.id != user_id))
+        if taken is not None:
+            # ⚠ 値そのものは残さない（PII）。どの項目が見送られたかだけ分かればよい。
+            logger.warning("federated_profile_conflict", extra={"field": column.key})
+            return False
+        return True
 
     def apply_roles(self, user_id: int, roles: Sequence[str]) -> FederatedAccount:
         user = self.session.get(User, user_id)

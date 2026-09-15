@@ -101,9 +101,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # クレーム名の対応付け（IdP ごとに異なる）
     "OIDC_EMAIL_CLAIM": "email",
     "OIDC_USERNAME_CLAIM": "name",
-    "OIDC_GROUPS_CLAIM": "groups",
     # IdP のグループ -> このアプリのロール。"<グループ>=<ロール>" の並び。
-    "OIDC_ROLE_MAPPING": [],
     # 対応付けに当たらなかった利用者へ与えるロール
     "OIDC_DEFAULT_ROLES": [],
     # 毎回のログインでロールを IdP のグループから引き直す（IdP を正とする）。

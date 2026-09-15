@@ -130,7 +130,6 @@ def claims_mapping() -> ClaimsMapping:
     return ClaimsMapping(
         email_claim=settings.oidc_email_claim,
         username_claim=settings.oidc_username_claim,
-        groups_claim=settings.oidc_groups_claim,
     )
 
 
@@ -148,7 +147,6 @@ def provisioning_policy() -> ProvisioningPolicy:
 
 def role_assignment() -> RoleAssignment:
     return RoleAssignment.from_rules(
-        settings.oidc_role_mapping,
         settings.oidc_default_roles,
         sync_on_login=settings.oidc_role_sync,
     )

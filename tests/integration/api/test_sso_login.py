@@ -190,3 +190,48 @@ def test_a_requested_acr_is_sent_and_verified(
             follow_redirects=False,
         )
         assert "sso_error=sso_acr_not_satisfied" in response.headers["location"]
+
+
+def test_the_profile_copy_follows_the_idp(sso_client: TestClient, gateway: _StubGateway, engine: sa.Engine) -> None:
+    """⚠ **写しは IdP を正とする**（ADR-0042 / idp の ADR-0049 G4・I5）。
+
+    書き直さないと、向こうで改名・メール変更をしても**こちらの表示は永久に
+    古いまま**になる。
+    """
+    from sqlalchemy.orm import sessionmaker
+
+    from shared.infrastructure.models import User
+
+    state = _start(sso_client)
+    sso_client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
+
+    gateway.claims = {**gateway.claims, "name": "改名した人", "email": "renamed@example.com"}
+    state = _start(sso_client)
+    sso_client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
+
+    with sessionmaker(bind=engine, expire_on_commit=False)() as session:
+        user = session.scalars(sa.select(User).where(User.email == "renamed@example.com")).one()
+        assert user.username == "改名した人"
+
+
+def test_a_name_another_user_already_has_is_not_copied(
+    sso_client: TestClient, gateway: _StubGateway, engine: sa.Engine
+) -> None:
+    """⚠ **写しの更新でログインを壊さない。** 一意の列がぶつかる項目だけ見送る。"""
+    from sqlalchemy.orm import sessionmaker
+
+    from shared.infrastructure.models import User
+
+    state = _start(sso_client)
+    sso_client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
+
+    with sessionmaker(bind=engine, expire_on_commit=False)() as session:
+        session.add(User(email="taken@example.com", username="taken", is_active=True))
+        session.commit()
+
+    gateway.claims = {**gateway.claims, "email": "taken@example.com"}
+    state = _start(sso_client)
+    response = sso_client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
+    # ⚠ ログインは通る（見送るのはぶつかった項目だけ）。
+    assert response.status_code == 303
+    assert "sso_error" not in response.headers["location"]
