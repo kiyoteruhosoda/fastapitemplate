@@ -1,7 +1,11 @@
-"""停止の伝播（IdP → RP）が効いているか（ADR-0036）。
+"""停止の伝播（IdP → RP）が効いているか（ADR-0036 / ADR-0041）。
 
 IdP との通信はゲートウェイを差し替えて止める。ここで確かめたいのは、**届いた通知が
 実際にセッションを終わらせること**と、終わらせる範囲を間違えないことである。
+
+⚠ **効くのは「次の更新のとき」である**（ADR-0041）。アクセストークンの検証は DB を
+引かないので、止まった直後でも**手元のアクセストークンは寿命まで通る**。止める判定は
+更新の 1 点に集約してあり、**上限時間はアクセストークンの寿命**（既定 5 分）になる。
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from bounded_contexts.identity_federation.presentation import dependencies
 from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
+from shared.kernel.settings.settings import settings
 
 _ISSUER = "https://idp.example.test"
 _AUTHORIZE = f"{_ISSUER}/authorize"
@@ -118,36 +123,59 @@ def _post_logout(client: TestClient, logout_token: str) -> int:
         return idp.post(_LOGOUT, data={"logout_token": logout_token}).status_code
 
 
-def test_a_stop_from_the_idp_ends_the_session(sso_client: TestClient) -> None:
+def _refresh(client: TestClient) -> int:
+    response = client.post("/api/auth/refresh", headers={CSRF_HEADER: client.cookies[CSRF_COOKIE]})
+    return response.status_code
+
+
+def test_a_stop_from_the_idp_ends_the_session_at_the_next_refresh(sso_client: TestClient) -> None:
     _sign_in_with_sso(sso_client)
     assert sso_client.get("/api/auth/me").status_code == 200
 
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
 
-    # Cookie は残っているが、もう通らない（サーバー側に控えが無いので、
-    # 効くのは次に提示されたとき）。
+    # ⚠ **手元のアクセストークンは寿命まで通る**（ADR-0041。検証は DB を引かない）。
     assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
-    assert sso_client.get("/api/auth/me").status_code == 401
+    assert sso_client.get("/api/auth/me").status_code == 200
+    # 終わるのは更新のとき。ここから先は新しいアクセストークンが出ない。
+    assert _refresh(sso_client) == 401
+
+
+def test_the_access_token_outlives_the_stop_only_until_it_expires(sso_client: TestClient) -> None:
+    """⚠ **これが引き受けた緩さである**（ADR-0041）。
+
+    止まった利用者が通り続ける上限は、アクセストークンの寿命そのものになる。
+    短くするほど上限が縮み、長くするほど停止が遅れて効く。
+    """
+    _sign_in_with_sso(sso_client)
+    assert _post_logout(sso_client, "session-1|delivery-1") == 200
+    # 止まっているのに、手元のアクセストークンはまだ通る。
+    assert sso_client.get("/api/auth/me").status_code == 200
+    # その「まだ」の上限が寿命である。
+    assert settings.access_token_expires_seconds <= 300
 
 
 def test_a_stopped_session_cannot_be_refreshed(sso_client: TestClient) -> None:
-    """⚠ ここが抜けると、更新を 1 回通すだけで停止をすり抜けられる。"""
+    """⚠ **止める判定はここだけである**（ADR-0041）。
+
+    アクセストークンの検証は DB を引かないので、ここが抜けると停止はどこにも
+    効かなくなる ——寿命による上限そのものが無くなる。
+    """
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    refreshed = sso_client.post("/api/auth/refresh", headers={CSRF_HEADER: sso_client.cookies[CSRF_COOKIE]})
-    assert refreshed.status_code == 401, refreshed.text
+    assert _refresh(sso_client) == 401
 
 
 def test_a_stop_for_another_session_leaves_this_one_alone(sso_client: TestClient) -> None:
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-2|delivery-1") == 200
-    assert sso_client.get("/api/auth/me").status_code == 200
+    assert _refresh(sso_client) == 200
 
 
 def test_a_stop_without_a_sid_ends_every_session_of_that_user(sso_client: TestClient) -> None:
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "|delivery-1") == 200
-    assert sso_client.get("/api/auth/me").status_code == 401
+    assert _refresh(sso_client) == 401
 
 
 def test_signing_in_again_after_a_stop_works(sso_client: TestClient, gateway: _StubGateway) -> None:
@@ -159,17 +187,54 @@ def test_signing_in_again_after_a_stop_works(sso_client: TestClient, gateway: _S
     assert sso_client.get("/api/auth/me").status_code == 200
 
 
+def _switch_role(client: TestClient) -> int:
+    response = client.post(
+        "/api/auth/switch-role",
+        json={"role": None},
+        headers={CSRF_HEADER: client.cookies[CSRF_COOKIE]},
+    )
+    return response.status_code
+
+
 def test_switching_roles_keeps_the_session_stoppable(sso_client: TestClient) -> None:
     """⚠ 出し直したトークンが宛名を落とすと、切り替えた瞬間に伝播から外れる。"""
     _sign_in_with_sso(sso_client)
-    switched = sso_client.post(
-        "/api/auth/switch-role",
-        json={"role": None},
-        headers={CSRF_HEADER: sso_client.cookies[CSRF_COOKIE]},
-    )
-    assert switched.status_code == 200, switched.text
+    assert _switch_role(sso_client) == 200
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    assert sso_client.get("/api/auth/me").status_code == 401
+    assert _refresh(sso_client) == 401
+
+
+def test_a_stopped_session_cannot_mint_new_tokens_by_switching_roles(sso_client: TestClient) -> None:
+    """⚠ **出し直しの経路を塞がないと、寿命による上限が破れる**（ADR-0041）。
+
+    アクセストークンの検証は DB を引かないので、止まった利用者でも手元の 1 枚は
+    寿命まで通る。その 1 枚でロールを切り替えられてしまうと、**5 分ごとに新しい
+    トークンを受け取れる** ——いつまでも入っていられることになる。
+    """
+    _sign_in_with_sso(sso_client)
+    assert _post_logout(sso_client, "session-1|delivery-1") == 200
+    # 読む経路はまだ通る（引き受けた緩さ）。
+    assert sso_client.get("/api/auth/me").status_code == 200
+    # ⚠ 出し直す経路は通さない。
+    assert _switch_role(sso_client) == 401
+
+
+def test_a_stopped_session_cannot_register_a_new_way_in(sso_client: TestClient) -> None:
+    """⚠ **止められた相手に、新しい入り口を作らせない**（ADR-0041 決定 6）。
+
+    二要素認証やパスキーの登録は「入り口を増やす」操作である。アクセストークンの
+    検証は DB を引かないので、止まった利用者でも手元の 1 枚は寿命まで通る
+    ——その 1 枚で入り口を増やされては、止めた意味が半分無くなる。
+    """
+    _sign_in_with_sso(sso_client)
+    assert sso_client.get("/api/account/security/two-factor").status_code == 200
+
+    assert _post_logout(sso_client, "session-1|delivery-1") == 200
+
+    # 読むだけの経路はまだ通る（引き受けた緩さ）。
+    assert sso_client.get("/api/auth/me").status_code == 200
+    # ⚠ 資格情報を作り替える経路は通さない。
+    assert sso_client.get("/api/account/security/two-factor").status_code == 401
 
 
 def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient, gateway: _StubGateway) -> None:
@@ -182,7 +247,7 @@ def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient,
     gateway.sid = "session-1"
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    assert sso_client.get("/api/auth/me").status_code == 200
+    assert _refresh(sso_client) == 200
 
 
 def test_a_local_login_is_not_touched(sso_client: TestClient) -> None:
