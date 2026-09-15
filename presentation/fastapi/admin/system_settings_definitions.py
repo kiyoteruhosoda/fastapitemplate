@@ -225,23 +225,18 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Display name claim",
         "value_type": "string",
     },
-    {"key": "OIDC_GROUPS_CLAIM", "category": "sso", "label": "Groups claim", "value_type": "string"},
-    {
-        "key": "OIDC_ROLE_MAPPING",
-        "category": "sso",
-        "label": "Group to role mapping (<group>=<role>)",
-        "value_type": "list",
-    },
     {
         "key": "OIDC_DEFAULT_ROLES",
         "category": "sso",
-        "label": "Roles granted when no mapping matches",
+        "label": "Roles granted on first login",
         "value_type": "list",
     },
     {
+        # ⚠ **引き直すのは既定のロールだけである**（ADR-0042）。真にすると、
+        #   管理画面で足したロールが**毎回のログインで消える**。
         "key": "OIDC_ROLE_SYNC",
         "category": "sso",
-        "label": "Re-apply roles from groups on every login",
+        "label": "Re-apply the default roles on every login",
         "value_type": "boolean",
     },
     {

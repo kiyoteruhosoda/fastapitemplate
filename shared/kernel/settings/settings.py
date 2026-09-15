@@ -472,15 +472,6 @@ class ApplicationSettings:
         return str(self._get("OIDC_USERNAME_CLAIM") or "name")
 
     @property
-    def oidc_groups_claim(self) -> str:
-        return str(self._get("OIDC_GROUPS_CLAIM") or "groups")
-
-    @property
-    def oidc_role_mapping(self) -> Sequence[str]:
-        """``"<グループ>=<ロール>"`` の並び。"""
-        return self.get_list("OIDC_ROLE_MAPPING")
-
-    @property
     def oidc_default_roles(self) -> Sequence[str]:
         return self.get_list("OIDC_DEFAULT_ROLES")
 
