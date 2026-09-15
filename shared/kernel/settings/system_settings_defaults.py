@@ -13,7 +13,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "JWT_SECRET_KEY": "default-jwt-secret-change-me-in-production",
     "ACCESS_TOKEN_ISSUER": "fastapitemplate",
     "ACCESS_TOKEN_AUDIENCE": "fastapitemplate",
-    "ACCESS_TOKEN_EXPIRES_SECONDS": 900,
+    "ACCESS_TOKEN_EXPIRES_SECONDS": 300,
     "REFRESH_TOKEN_EXPIRES_SECONDS": 14 * 24 * 3600,
     "SESSION_COOKIE_SECURE": False,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS": 3600,

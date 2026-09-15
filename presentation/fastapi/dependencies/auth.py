@@ -88,9 +88,13 @@ def _extract_token(
 async def get_current_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
-    db: Session = Depends(get_db),
 ) -> AuthenticatedPrincipal:
-    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。"""
+    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。
+
+    ⚠ **DB を引かない**（ADR-0041）。認可の材料はすべてトークンのクレームに
+    載っている。利用者の行そのものが要る経路は :func:`get_current_user` を使う
+    ——そちらは 1 件引くが、**認可の判定ではない**。
+    """
     from presentation.fastapi.services.token_service import TokenService
 
     token = _extract_token(credentials, access_token_cookie)
@@ -101,7 +105,7 @@ async def get_current_principal(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    principal, reason = TokenService.verify_access_token_with_reason(token, session=db)
+    principal, reason = TokenService.verify_access_token_with_reason(token)
     if not principal:
         logger.debug("JWT 認証失敗: %s", reason)
         raise HTTPException(
@@ -150,7 +154,7 @@ async def get_current_user_or_none(
 
     if not access_token_cookie:
         return None
-    principal, _ = TokenService.verify_access_token_with_reason(access_token_cookie, session=db)
+    principal, _ = TokenService.verify_access_token_with_reason(access_token_cookie)
     if principal is None:
         return None
     return db.get(User, principal.user_id)

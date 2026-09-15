@@ -96,6 +96,9 @@ class TokenService:
                 "type": TYPE_ACCESS,
                 "scope": effective,
                 "email": user.email,
+                # ⚠ **検証が DB を引かないので、principal の材料はここに全部載せる**
+                #   （ADR-0041）。載せ忘れた項目は、その経路でだけ空になる。
+                "username": user.username,
                 "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
             },
             settings.jwt_secret_key,
@@ -134,37 +137,45 @@ class TokenService:
             return None, "token_invalid"
 
     @classmethod
-    def verify_access_token_with_reason(
-        cls, token: str, *, session: Session
-    ) -> tuple[AuthenticatedPrincipal | None, str | None]:
+    def verify_access_token_with_reason(cls, token: str) -> tuple[AuthenticatedPrincipal | None, str | None]:
+        """アクセストークンを**署名とクレームだけ**で検証する（ADR-0041）。
+
+        ⚠ **DB を引かない。** 止まっている利用者・外された権限・IdP からの停止は、
+        ここでは分からない。**分かるのは次の更新のとき**で、それまでの上限が
+        アクセストークンの寿命（既定 5 分）になる。
+
+        ⚠ **この緩さを引き受けられるのは、更新の側が引き締めているからである。**
+        :meth:`verify_refresh_token` は DB を引き、止まっていれば新しい
+        アクセストークンを出さない。**止める判定はあちらの 1 点に集約してある。**
+        """
         claims, reason = cls._decode(token)
         if claims is None:
             return None, reason
         if claims.get("type") != TYPE_ACCESS:
             return None, "not_access_token"
-        user = cls._load_active_user(claims, session)
-        if user is None:
-            return None, "user_not_found_or_inactive"
-        if _session_revoked(claims, session):
-            return None, "session_revoked"
-        # scope はアクティブロールの現在の権限との積集合（失効した権限、および
-        # 切り替えた後に外されたロールの権限を無効化する）
-        active_role = _active_role_of(claims)
-        scope = frozenset(claims.get("scope") or ()) & user.permission_codes_of(active_role)
+        try:
+            user_id = int(claims.get("sub", ""))
+        except ValueError:
+            return None, "token_invalid"
         return (
             AuthenticatedPrincipal(
-                user_id=user.id,
-                email=user.email,
-                username=user.username,
-                permissions=scope,
-                active_role=active_role,
+                user_id=user_id,
+                email=str(claims.get("email") or ""),
+                username=str(claims.get("username") or ""),
+                permissions=frozenset(claims.get("scope") or ()),
+                active_role=_active_role_of(claims),
             ),
             None,
         )
 
     @classmethod
     def verify_refresh_token(cls, token: str, *, session: Session) -> RefreshedSession | None:
-        """更新対象のユーザーと、そのセッションのアクティブロール・入り口を返す。"""
+        """更新対象のユーザーと、そのセッションのアクティブロール・入り口を返す。
+
+        ⚠ **止める判定はここに集約してある**（ADR-0041）。アクセストークンの検証は
+        DB を引かないので、**止まっている利用者を止められるのはこの 1 点だけ**である
+        ——ここを緩めると、寿命による上限そのものが無くなる。
+        """
         claims, _ = cls._decode(token)
         if claims is None or claims.get("type") != TYPE_REFRESH:
             return None

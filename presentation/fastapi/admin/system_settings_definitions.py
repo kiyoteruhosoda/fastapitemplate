@@ -25,6 +25,9 @@ _RESTART_WEB: tuple[str, ...] = (RestartScope.WEB.value,)
 SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     # --- 認証 ---
     {
+        # ⚠ **これが「止めたら効くまで」の上限時間になる**（ADR-0041）。検証は DB を
+        #   引かないので、止められた利用者が弾かれるのは次の更新のときである。
+        #   長くするほど、停止・権限の取り上げが遅れて効く。
         "key": "ACCESS_TOKEN_EXPIRES_SECONDS",
         "category": "auth",
         "label": "Access token lifetime (seconds)",
