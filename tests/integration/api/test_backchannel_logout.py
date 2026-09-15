@@ -219,6 +219,24 @@ def test_a_stopped_session_cannot_mint_new_tokens_by_switching_roles(sso_client:
     assert _switch_role(sso_client) == 401
 
 
+def test_a_stopped_session_cannot_register_a_new_way_in(sso_client: TestClient) -> None:
+    """⚠ **止められた相手に、新しい入り口を作らせない**（ADR-0041 決定 6）。
+
+    二要素認証やパスキーの登録は「入り口を増やす」操作である。アクセストークンの
+    検証は DB を引かないので、止まった利用者でも手元の 1 枚は寿命まで通る
+    ——その 1 枚で入り口を増やされては、止めた意味が半分無くなる。
+    """
+    _sign_in_with_sso(sso_client)
+    assert sso_client.get("/api/account/security/two-factor").status_code == 200
+
+    assert _post_logout(sso_client, "session-1|delivery-1") == 200
+
+    # 読むだけの経路はまだ通る（引き受けた緩さ）。
+    assert sso_client.get("/api/auth/me").status_code == 200
+    # ⚠ 資格情報を作り替える経路は通さない。
+    assert sso_client.get("/api/account/security/two-factor").status_code == 401
+
+
 def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient, gateway: _StubGateway) -> None:
     """送り手は再送でも同じ ``jti`` を使う（idp の ADR-0024）。
 

@@ -204,6 +204,34 @@ async def get_current_session(
     )
 
 
+async def get_settled_principal(
+    # ⚠ **値は使わない。関門として通すためだけに置いてある**（名前の ``_`` はその印）。
+    _session: CurrentSession = Depends(get_current_session),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+) -> AuthenticatedPrincipal:
+    """**資格情報を作り替える経路**のための関門（ADR-0041 決定 6）。
+
+    二要素認証やパスキーの登録・解除は「新しい入り口を作る」操作である。
+    ⚠ **アクセストークンの検証が DB を引かなくなったので、止められた利用者でも
+    手元の 1 枚は寿命まで通る。** その 1 枚で新しい入り口を作られては、止めた意味が
+    半分無くなる ——ここだけは、いまの状態を確かめてから通す。
+
+    確かめているのは :func:`get_current_session` である（利用者が生きていること、
+    IdP 側で止められていないこと）。**出し直しの経路と同じ関門**を使う。
+    """
+    from presentation.fastapi.services.token_service import TokenService
+
+    token = _extract_token(credentials, access_token_cookie)
+    principal, _ = TokenService.verify_access_token_with_reason(token or "")
+    if principal is None:  # pragma: no cover - 関門を通った時点で必ず読める
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token"},
+        )
+    return principal
+
+
 def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
     """指定された権限を全て保持している場合のみアクセスを許可する依存関数ファクトリ。
 
