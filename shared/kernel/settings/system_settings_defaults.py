@@ -80,6 +80,11 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # IdP に鍵が複数登録されているときに、どれで検証するかを示す（RFC 7638 の
     # サムプリント）。1 つしか無ければ空でよい。
     "OIDC_PRIVATE_KEY_KID": "",
+    # このアプリが**機械として** IdP を呼ぶときの client_id（ADR-0043）。assay で
+    # サービスアカウントとして登録したもので、ログイン用の OIDC_CLIENT_ID とは別の登録。
+    # 鍵は上の OIDC_PRIVATE_KEY_FILE / KID を共有し、方式は常に private_key_jwt。
+    # 空なら定期照合は走らない。⚠ assay でアプリの「名乗り」に結び付けるまでは 403 で見送る。
+    "MACHINE_CLIENT_ID": "",
     "OIDC_SCOPES": ["openid", "profile", "email"],
     # IdP に登録するリダイレクト URI。空なら APP_BASE_URL + /api/auth/sso/callback。
     "OIDC_REDIRECT_URI": "",

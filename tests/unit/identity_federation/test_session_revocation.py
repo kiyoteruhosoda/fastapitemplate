@@ -1,9 +1,12 @@
-"""停止の記録が、どのトークンを無効にするか（ADR-0036）。"""
+"""停止の記録が、どのトークンを無効にするか（ADR-0036 / ADR-0043）。"""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from bounded_contexts.identity_federation.domain.entities.federated_identity import (
+    FederatedIdentity,
+)
 from bounded_contexts.identity_federation.domain.entities.session_revocation import (
     SessionRevocation,
 )
@@ -69,3 +72,38 @@ def test_another_user_is_never_touched() -> None:
 def test_the_record_is_kept_only_as_long_as_a_token_can_live() -> None:
     """リフレッシュトークンの寿命を過ぎれば、記録より前のトークンは自力で切れる。"""
     assert _revocation(None).expires_at == _NOW + timedelta(seconds=3600)
+
+
+# --- 定期照合が書く失効（ADR-0043） ---------------------------------------------------------
+
+
+def _reconciled(last_login_at: datetime | None, *, subject: str = "idp-subject") -> SessionRevocation:
+    identity = FederatedIdentity(issuer=_ISSUER, subject=subject, user_id=1, last_login_at=last_login_at)
+    return SessionRevocation.after_reconciliation(identity, now=_NOW, keep_for_seconds=3600)
+
+
+def test_reconciliation_ends_every_session_that_started_before_it() -> None:
+    revocation = _reconciled(_NOW - timedelta(days=1))
+
+    assert revocation.session.session_id is None
+    assert revocation.covers(_login("any-session"))
+    assert not revocation.covers(_login(started_at=_NOW + timedelta(seconds=1)))
+
+
+def test_reconciliation_writes_the_same_jti_for_the_same_login() -> None:
+    """⚠ 毎時・ワーカーの数だけ走っても、行は 1 本で済む。"""
+    logged_in = _NOW - timedelta(days=1)
+
+    assert _reconciled(logged_in).jti == _reconciled(logged_in).jti
+
+
+def test_reconciliation_writes_a_new_jti_after_a_new_login() -> None:
+    """⚠ 同じ ``jti`` のままだと、戻って入り直した後の停止を取りこぼす。"""
+    assert _reconciled(_NOW - timedelta(days=1)).jti != _reconciled(_NOW - timedelta(hours=1)).jti
+
+
+def test_reconciliation_jti_fits_the_column_and_differs_per_subject() -> None:
+    revocation = _reconciled(None)
+
+    assert len(revocation.jti) == 64
+    assert revocation.jti != _reconciled(None, subject="someone-else").jti

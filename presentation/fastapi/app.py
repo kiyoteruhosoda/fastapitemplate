@@ -33,6 +33,9 @@ from bounded_contexts.example.presentation.router import router as items_router
 from bounded_contexts.identity_federation.presentation.error_handling import (
     register_identity_federation_error_handler,
 )
+from bounded_contexts.identity_federation.presentation.reconciliation import (
+    start_sso_reconciliation_worker,
+)
 from bounded_contexts.identity_federation.presentation.router import (
     router as sso_router,
 )
@@ -74,6 +77,9 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     start_restart_watcher(RestartScope.WEB)
     # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0021）
     start_log_retention_worker()
+    # IdP で止まった人の SSO のセッションを、毎時聞き直して止める
+    # （MACHINE_CLIENT_ID が空なら何もしない。ADR-0043）
+    start_sso_reconciliation_worker()
     # SSO の設定が実際に使えるかを一度だけ確かめる（秘密鍵は署名のときまで読まれない
     # ため、権限の食い違いが利用者の戻りでしか出ない。ADR-0025）
     report_sso_configuration()

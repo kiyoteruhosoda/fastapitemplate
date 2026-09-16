@@ -412,6 +412,16 @@ class ApplicationSettings:
         return str(self._get("OIDC_PRIVATE_KEY_KID") or "")
 
     @property
+    def machine_client_id(self) -> str:
+        """このアプリが**機械として**名乗る ``client_id``（ADR-0043）。
+
+        ⚠ 利用者のログイン用（``OIDC_CLIENT_ID``）とは**別の登録**。鍵だけを共有する。
+        ⚠ **用途の名前を付けない**（``RECONCILE_…`` にしない）。どのアプリのものかは
+        assay が決めることで、こちらが用途ごとに名乗りを使い分けて申告するものではない。
+        """
+        return str(self._get("MACHINE_CLIENT_ID") or "")
+
+    @property
     def oidc_scopes(self) -> Sequence[str]:
         return self.get_list("OIDC_SCOPES")
 

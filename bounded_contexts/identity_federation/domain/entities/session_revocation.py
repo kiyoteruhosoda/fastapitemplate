@@ -10,9 +10,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from bounded_contexts.identity_federation.domain.entities.federated_identity import (
+    FederatedIdentity,
+)
 from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
     FederatedLogin,
 )
@@ -42,6 +46,38 @@ class SessionRevocation:
         return cls(
             jti=notice.jti,
             session=notice.session,
+            revoked_at=now,
+            expires_at=now + timedelta(seconds=keep_for_seconds),
+        )
+
+    @classmethod
+    def after_reconciliation(
+        cls,
+        identity: FederatedIdentity,
+        *,
+        now: datetime,
+        keep_for_seconds: int,
+    ) -> SessionRevocation:
+        """定期照合で assay が「もう使えない」と答えた人の、**すべての** SSO セッションを止める（ADR-0043）。
+
+        ⚠ **``jti`` を ``(issuer, sub, 最後に SSO で入った時刻)`` から決める。**
+
+        - 同じログインに対しては、毎時・ワーカーの数だけ走っても**行は 1 本**で済む
+          （2 本目は ``jti`` の重複として :meth:`SessionRevocationRepository.record` が弾く）
+        - assay で戻って入り直し、また止められたときは時刻が変わるので**新しい行**になる。
+          ⚠ 同じ ``jti`` のままだと古い行が残って新しい行が書かれず、入り直した
+          セッションを取りこぼす（記録は「その時刻より前に始まったもの」にしか効かない）
+
+        ``jti`` の列は 64 文字なので、材料はハッシュにして収める。IdP が発行する ``jti`` とは
+        材料に前置きを混ぜて空間を分けてある。
+        """
+        generation = identity.last_login_at or identity.linked_at
+        material = "|".join(
+            ("sso-reconciliation", identity.issuer, identity.subject, generation.isoformat() if generation else "")
+        )
+        return cls(
+            jti=hashlib.sha256(material.encode("utf-8")).hexdigest(),
+            session=FederatedSession(issuer=identity.issuer, subject=identity.subject, session_id=None),
             revoked_at=now,
             expires_at=now + timedelta(seconds=keep_for_seconds),
         )
