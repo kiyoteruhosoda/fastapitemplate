@@ -428,9 +428,36 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 `GET /api/auth/me` を叩く（401 になれば届いている）。受けた側のログは
 `sso_backchannel_logout_received`、検証に落ちたものは `sso_logout_token_rejected`。
 
-⚠ **これだけでは「止めたら届く」は完成しない。** 残り 2 つ（短命のアクセストークンと
-定期照合）は `docs/Progress.md` の T12。⚠ **いまの assay は「利用者を止めた」ときに
-通知を送らない**（送るのはログアウトのとき）ので、管理者が止めた事実は届かない。
+通知が届かなかったぶんは、次の「定期的に拾い直したいとき」で拾う。
+
+## IdP で止めた利用者を、定期的に拾い直したいとき（ADR-0043）
+
+照合は **SSO が使えて `MACHINE_CLIENT_ID` が入っていれば毎時**聞きに行く。止めるのは
+**SSO で始まったセッションだけ**で、ローカルのパスワード・パスキーでは今までどおり入れる。
+
+1. assay でこのアプリの**サービスアカウント**を登録する（`client_credentials` を許し、
+   `OIDC_PRIVATE_KEY_FILE` と対になる公開鍵を載せる）。ログイン用の登録とは別にする
+2. ⚠ **assay の管理コンソールで、アプリの詳細画面「このアプリの名乗り」区画に、そのサービスアカウントを結び付ける。**
+   結び付けるまでは 403 が返り、照合は `sso_reconciliation_not_bound`（info）を残して何も変えずに終わる
+3. 設定を入れる
+
+   ```
+   MACHINE_CLIENT_ID=<サービスアカウントの client_id>
+   ```
+
+   鍵は `OIDC_PRIVATE_KEY_FILE` / `OIDC_PRIVATE_KEY_KID` を使う（ログインの方式が
+   `client_secret_basic` でも、鍵のファイルは要る）
+4. 次の周回（1 時間ごと。すぐ見たいなら再起動）でログを確かめる
+
+| ログ | 意味 |
+|---|---|
+| `sso_reconciliation_finished` | 照合した（`checked` / `revoked` / `unlinked` / `held_back` の件数つき） |
+| `sso_reconciliation_not_bound` | assay でサービスアカウントがまだアプリに結び付いていない（手順 2） |
+| `sso_reconciliation_skipped` | assay に聞けなかった。**何も変えていない**（`assay_admin_token_failed` / `sso_roster_request_failed` が前に出る） |
+| `sso_reconciliation_everyone_unknown` | ⚠ 全員が「居ない」と返った。**何も変えていない**。`OIDC_ISSUER` のテナントと、結び付けたアプリを確かめる |
+
+止まった人を戻すのは assay 側だけでよい（こちらの操作は要らない）。消えた人（`unknown`）は結び付きが
+外れるので、同じ人が IdP で作り直されたら、本人がログインしたうえで結び付け直す。
 
 ## パスワードでのログインを止めたいとき（SSO 専用にする）
 

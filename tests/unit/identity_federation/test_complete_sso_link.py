@@ -91,6 +91,9 @@ class _Identities:
     def touch(self, identity: FederatedIdentity) -> None:
         return None
 
+    def list_for_issuer(self, issuer: str) -> list[FederatedIdentity]:
+        return [r for r in self.rows if r.issuer == issuer]
+
 
 def _provider() -> IdentityProvider:
     return IdentityProvider(

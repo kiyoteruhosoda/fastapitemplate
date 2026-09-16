@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -64,6 +65,19 @@ class SqlFederatedIdentityRepository:
         record.last_login_at = utcnow()
         self.session.flush()
 
+    def list_for_issuer(self, issuer: str) -> Sequence[FederatedIdentity]:
+        """その IdP と結び付いている利用者を全件（定期照合。ADR-0043）。
+
+        並びは ``subject`` の昇順に固定する。順番が実行計画しだいで変わると、
+        記録を突き合わせたときに毎回違って見える。
+        """
+        records = self.session.scalars(
+            select(FederatedIdentityRecord)
+            .where(FederatedIdentityRecord.issuer == issuer)
+            .order_by(FederatedIdentityRecord.subject)
+        ).all()
+        return [identity for identity in (_as_identity(record) for record in records) if identity is not None]
+
 
 def _as_identity(record: FederatedIdentityRecord | None) -> FederatedIdentity | None:
     if record is None:
@@ -73,6 +87,7 @@ def _as_identity(record: FederatedIdentityRecord | None) -> FederatedIdentity | 
         subject=record.subject,
         user_id=record.user_id,
         linked_at=record.created_at,
+        last_login_at=record.last_login_at,
     )
 
 

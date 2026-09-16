@@ -139,11 +139,22 @@ class SsoAccountInactiveError(IdentityFederationError):
     code = "sso_account_inactive"
 
 
+class MachineNotBoundToApplicationError(IdentityFederationError):
+    """名乗ったサービスアカウントが、assay でどのアプリにも結び付いていない（管理 API の 403。ADR-0043）。
+
+    ⚠ **障害ではなく「まだ準備されていない」。** どのアプリの名簿を返すかは assay が
+    呼び出し元のサービスアカウントから決めるので、結び付けるまで毎回この形で返る。
+    """
+
+    code = "machine_not_bound_to_application"
+
+
 __all__ = [
     "IdentityFederationError",
     "IdentityProviderUnavailableError",
     "InvalidIdTokenError",
     "InvalidLogoutTokenError",
+    "MachineNotBoundToApplicationError",
     "SsoAccountInactiveError",
     "SsoAccountNotLinkedError",
     "SsoAcrNotSatisfiedError",
