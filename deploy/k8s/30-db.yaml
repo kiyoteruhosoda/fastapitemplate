@@ -1,0 +1,68 @@
+# db（MariaDB）。
+#
+# ⚠ **StatefulSet ではなく Deployment ＋ 既に在る PVC。** StatefulSet の
+#   `volumeClaimTemplates` で作った PVC は StatefulSet を消しても残り、名前が
+#   ぶつかって新しいほうが古い PVC を掴むことがある。加えて StatefulSet は
+#   `replicas` 以外の `spec` を後から変えられない（作り直すしかない）。
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: <app>-<env>
+spec:
+  selector: {app: db}
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: <app>-<env>
+  labels:
+    nolumia.dev/service: db
+spec:
+  # ⚠ **台数は宣言しない。** 正本は deck の scale の 1 点だけ。
+  #   ここに書くと `apply` が止めてある環境を起こす（0 を宣言の値へ戻すため）。
+  selector:
+    matchLabels: {app: db}
+  strategy: {type: Recreate}
+  template:
+    metadata:
+      labels: {app: db}
+    spec:
+      containers:
+        - name: db
+          # ⚠ **サードパーティも digest で固定する。** 同じタグでも中身は同じとは
+          #   限らない（`mariadb:10.11` が namespace によって別物だった実例がある）。
+          image: mariadb:10.11@sha256:8020e05c4c498d06c87f0a1db010eb79bd6f8fb30e9b763d4690c34ce1e61008
+          args: ["--default-time-zone=+00:00"]
+          env:
+            - {name: TZ, value: UTC}
+          envFrom:
+            - secretRef: {name: <app>-db}
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - {name: db-data, mountPath: /var/lib/mysql}
+          readinessProbe:
+            exec:
+              # ⚠ `--protocol=tcp` は必須。ソケット経由だと初期化中の一時サーバーにも
+              #   通ってしまい、まだ使えない DB を ready と答える。
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 --protocol=tcp -u root -p"$MARIADB_ROOT_PASSWORD" --silent
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 60
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 1Gi}
+      volumes:
+        - name: db-data
+          persistentVolumeClaim: {claimName: db-data}
