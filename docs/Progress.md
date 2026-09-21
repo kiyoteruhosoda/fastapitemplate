@@ -110,9 +110,14 @@ ADR-0039 で「ローカル口座を意図して持つ」と決めた。決め�
 ### T8 依存ライブラリの脆弱性検査を CI に足す
 
 CI は整形・静的解析・型・テストの 8 ゲートを持つが、依存の脆弱性は見ていない。
-`pip-audit`（あるいは `uv` の監査）と `npm audit` を足し、Dependabot の設定
-（`.github/dependabot.yml`）を置く。認証・パスキーを持つテンプレートなので、
-派生プロジェクトが古い `webauthn` / `pyjwt` を抱えたまま増えるのは避けたい。
+`pip-audit`（あるいは `uv` の監査）と `npm audit` を足す。認証・パスキーを持つ
+テンプレートなので、派生プロジェクトが古い `webauthn` / `pyjwt` を抱えたまま
+増えるのは避けたい。
+
+⚠ **版上げの PR は Renovate が既に立てている**（forge 側の設定が正本で、
+リポジトリには何も置かない）。**`.github/dependabot.yml` を置かない**
+——forge では GitHub の内蔵機能が動かないので、置いてもただのファイルになる。
+ここで足すのは**脆弱性の検査**だけ。
 
 ### T9 期限切れ・使用済みパスワードリセットトークンを掃除する
 
@@ -131,11 +136,11 @@ README とルーターの docstring は「Item CRUD」と書いているが、�
 
 ### T11 テンプレート名を付け替えるスクリプト
 
-CLAUDE.md・README・ADR-0023・OPERATIONS.md がかなりの分量を使って「名前を必ず
-変えること」を説明しているのに、しかも **Komodo 方式では名前を間違えても自動で
-止まらなくなった**（旧 ADR-0015 の中断機構を撤去した）のに、実際の
+CLAUDE.md・README・ADR-0044・OPERATIONS.md がかなりの分量を使って「名前を必ず
+変えること」を説明しているのに、しかも **名前を間違えても自動では止まらない**
+（旧 ADR-0015 の中断機構を撤去した）のに、実際の
 付け替えは手作業（`docker-compose.yml` の既定値、`Makefile` の `IMAGE`、
-`deploy/komodo/` の雛形、`pyproject.toml`、`frontend/package.json`、`TOTP_ISSUER` /
+`deploy/k8s/` の雛形、`pyproject.toml`、`frontend/package.json`、`TOTP_ISSUER` /
 `WEBAUTHN_RP_NAME`、`app.py` の `title`）。`scripts/rename_project.sh <new-name>`
 を用意すれば、この文書量の大半が「これを実行する」の 1 行になる。
 

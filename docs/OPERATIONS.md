@@ -134,8 +134,8 @@ uv run alembic revision --autogenerate -m "<description>"
 make image           # scripts/generate_version.sh → docker build -t fastapitemplate:dev .
 ```
 
-**手元での確認用**（Dockerfile が壊れていないか）。デプロイに使う成果物は Komodo が
-焼いてレジストリへ push する（ADR-0023）。
+**手元での確認用**（Dockerfile が壊れていないか）。デプロイに使う成果物は
+LAN の中の build が焼いてレジストリへ push する（ADR-0044）。
 
 ## docker compose でローカル起動したいとき
 
@@ -150,9 +150,11 @@ docker compose up -d             # db / app / front が起動
 ホストへ公開されるのは `front` だけ。`app` と `db` は Docker ネットワーク内部からのみ
 到達できる（ADR-0010）。
 
-**この compose はローカル開発専用。** デプロイ先の compose は
-`deploy/komodo/compose.yaml`（deploy-repo の `stacks/<app>/compose.yaml`）。
-サービス名・ネットワーク別名・nginx 設定は両者で揃えてある。
+**この compose はローカル開発専用。** デプロイ先に compose は無い（k3s の宣言。
+ADR-0044）。⚠ **nginx の設定は共有ではない** ——デプロイ先のものは deploy-repo の
+`k8s/<app>-<env>/20-config.yaml`（ConfigMap）にあり、**resolver が違う**
+（docker の `127.0.0.11` ではなく CoreDNS の `10.43.0.10`）。片方を直したら
+もう片方も直す。
 
 ## DB を操作したいとき（SQL を流す・ダンプを取る）
 
@@ -176,8 +178,21 @@ docker compose exec -T db \
   sh -c 'exec mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' > dump.sql
 ```
 
-デプロイ先（Komodo）では compose プロジェクトがスタック名で分かれている。
-nolumialab 上で `docker compose -p <スタック名> exec ...` として実行する。
+デプロイ先（k3s）では namespace で分かれている。**引用を重ねると必ず壊れる**ので、
+**先に Pod の中へ入ってから**叩く（資格情報はコンテナの中で展開させる）。
+
+```bash
+ssh -t nolumialab 'sudo k3s kubectl -n <app>-<env> exec -it deploy/db -- bash'
+# ↓ ここからは Pod の中
+exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"
+```
+
+ダンプを手元へ取るときは、`-i`（標準入出力だけ）を使う。
+
+```bash
+ssh nolumialab 'sudo k3s kubectl -n <app>-<env> exec -i deploy/db -- \
+  sh -c "exec mariadb-dump -u root -p\"\$MARIADB_ROOT_PASSWORD\" \"\$MARIADB_DATABASE\""' > dump.sql
+```
 
 ## DB へホストのツールから一時的につなぎたいとき
 
@@ -196,53 +211,71 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 
 ## デプロイしたいとき
 
-**Komodo（https://komodo.nolumia.com）から行う。** 手順の正本は deploy-repo の
-`docs/new-stack.md`、このテンプレート固有の点は `deploy/komodo/README.md`（ADR-0023）。
+**deck（https://deck.nolumia.com）の画面から行う。** 環境（`<app>/<env>`）を選んで
+版を上げると、**build → pin → deploy** の 3 段が LAN の中で走る（ADR-0044）。
 
 ```
-1. ソースを push        → Komodo Build がイメージを焼いてレジストリへ push
-                          （webhook を付けていなければ Komodo の画面から Build を実行）
-2. Komodo の画面で対象スタックを Deploy   → 新しいイメージを pull して入れ替わる
-3. 疎通確認  curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<PORT>/healthz
+1. 変更を main へマージする（forge: git.nolumia.com/kyon/<app>）
+2. deck で環境を選び、版を上げる
+     build   イメージを焼いて hub.nolumia.com:5000/app/<image>:sha-<コミット> へ push
+     pin     その digest を deploy-repo の k8s/<app>-<env>/40-app.yaml へ書き戻す
+     deploy  k8s/<app>-<env>/ をクラスタへ apply する
+3. 疎通確認  curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<NodePort>/healthz
 ```
 
-**本番スタックの入れ替えは自動化していない。** push のたびに本番が差し替わるのを
-避けるため、ビルドと定義同期までを自動にしてある。
+**マージしただけでは配られない。** 押すのは人（ADR-0035）。
 
 マイグレーションは `app` の entrypoint が起動時に流す（`alembic upgrade head`）。
 デプロイの手順としては分かれていない。
 
+⚠ **deck が落ちているときの退避経路**は deploy-repo の workflow 2 つ
+（`build-image.yml` → `apply-manifests.yml`。どちらも手押し）。⚠ **どちらも既定が
+安全側**（apply は `mode=plan`、build の pin は `*-stg`）なので、**prod へ入れるには
+2 つとも明示が要る** ——明示しないと**何も入らないまま success が返る**。
+
 ## デプロイした版を確認したいとき
 
 ```bash
-curl -s http://10.10.2.11:<PORT>/info        # version / commit / branch / build_date
+curl -s http://10.10.2.11:<NodePort>/info    # version / commit / branch / build_date
 ```
 
-`version` が `dev` になっている場合、その Build 定義に `pre_build` が無い
-（`deploy/komodo/README.md`「pre_build（版の刻印）」）。ビルドは成功するのに版だけが
-分からない状態なので、気付いたら Build 定義を直して焼き直す。
+⚠ **成功表示を証拠にしない。** 押した digest と、実際に動いている Pod を突き合わせる。
+
+```bash
+ssh nolumialab "sudo k3s kubectl -n <app>-<env> get po \
+  -o jsonpath='{.items[*].status.containerStatuses[*].imageID}'"
+```
+
+`version` が `dev` になっている場合、build の表（deploy-repo の
+`resources/build-matrix.json`）でこのアプリの `pre_build` が `true` になっていない
+（`deploy/k8s/README.md`「3. build の表」）。ビルドは成功するのに版だけが
+分からない状態なので、気付いたら表を直して焼き直す。
 
 ## 前の版へ戻したいとき
 
-Komodo はビルドのたびに `latest` / `<コミット>` / `0.0.N` のタグを打つ。
-戻したい版のタグをスタックの `APP_IMAGE_TAG` に指定して Deploy する。
+**宣言の `image:` を前の digest に戻して apply する。** 履歴は deploy-repo の
+git に残っているので、`k8s/<app>-<env>/40-app.yaml` の 1 行を戻すだけでよい。
 
-```toml
-APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
+```bash
+git -C deploy-repo log -p --follow -- k8s/<app>-<env>/40-app.yaml | grep -n 'image:'
 ```
+
+⚠ **タグ（`sha-…`）ではなく digest が効く。** タグは週次の registry-prune で
+10 世代でローテされるが、**digest 参照は生き残る**。
 
 **DB のスキーマは戻らない。** マイグレーションを含む版から戻すときは、
 その `downgrade()` を先に当てる必要がある。
 
-## 新しいアプリを Komodo に載せたいとき
+## 新しいアプリを k3s に載せたいとき
 
-`deploy/komodo/` の雛形を deploy-repo へ複製する。手順は
-[deploy/komodo/README.md](../deploy/komodo/README.md)。要点だけ:
+`deploy/k8s/` の雛形を deploy-repo の `k8s/<app>-<env>/` へ複製する。手順は
+[deploy/k8s/README.md](../deploy/k8s/README.md)。要点だけ:
 
-- ポートは採番表から**計算**する（空き番号を勝手に取らない）
-- `builds.toml` の `[build.config.pre_build]` を**必ず書く**（版の刻印）
-- `stacks.toml` に `tags = ["managed"]` と `ignore_services = ["init-paths"]`
-- 秘密は Komodo の Variable へ。`JWT_SECRET_KEY` は必ず生成した値を入れる
+- 番号は採番表から**計算**する（NodePort = `30000 +（採番の番号 - 10000）`）
+- build の表（`resources/build-matrix.json`）の `pre_build` を**必ず** `true` に（版の刻印）
+- `image:` は **digest で固定**する（`:latest` だと apply しても版が上がらない）
+- `replicas` を**書かない**（台数の正本は deck の scale だけ）
+- 秘密は**封印して** `25-secrets.yaml` に。`JWT_SECRET_KEY` は必ず生成した値を入れる
 - 公開するときは **Access を作ってから ingress**（逆順は無認証で公開される）
 
 ## システム設定を変更したいとき
@@ -259,7 +292,7 @@ APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 ## アプリを再起動したいとき
 
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
-- ホスト: `docker compose restart app`（デプロイ先は Komodo の画面から）
+- ホスト: `docker compose restart app`（デプロイ先は deck の画面から止めて起こす）
 
 ## API を curl や CI から叩きたいとき
 

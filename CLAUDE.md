@@ -6,16 +6,15 @@
 
 このリポジトリは**テンプレート**である。ここから作ったプロジェクトは、
 **元テンプレートの名前（`fastapitemplate`）を名乗ってはならない。**
-デプロイの名前からはイメージ名・スタック名（＝ compose プロジェクト名）・
-ネットワーク別名・データディレクトリが導かれるため、名乗ったままだとテンプレート由来の
-別プロジェクトと同じホストでそれらを取り合う（ADR-0023）。
+デプロイの名前からは namespace・イメージ名・置き場のディレクトリが導かれるため、
+名乗ったままだとテンプレート由来の別プロジェクトとそれらを取り合う（ADR-0044）。
 
-- **名前を決めるのは deploy-repo のスタック定義**（`resources/stacks.toml` の
-  `APP_STACK_NAME` / `APP_WEB_IMAGE` / `APP_WEB_ALIAS` / `APP_DATA_DIR`）。
-  雛形は `deploy/komodo/stack.toml`。
+- **名前を決めるのは deploy-repo の宣言**（`k8s/<app>-<env>/` の namespace・
+  `image:`・PV の `local.path`）と、build の表（`resources/build-matrix.json` の
+  `name` / `image`）。雛形は `deploy/k8s/`。
 - **⚠ 名前を間違えても自動では止まらない。** 以前は `deploy.sh` が配置場所から名前を
   決めてテンプレート名なら中断していたが（旧 ADR-0015）、その仕組みごと撤去した。
-  スタックを定義する人が名前を揃える。
+  宣言を書く人が名前を揃える。
 - **アプリ自身の名前は `pyproject.toml` の `[project].name` が正本**（ADR-0031）。
   Swagger の題と外向きの `User-Agent` はここから導く。**コードに名前を直に書かない**
   ——過去に `USER_AGENT = "nolumiawiki"` が居座り、派生アプリが全部その名前で
@@ -25,25 +24,33 @@
   `IMAGE` を新しいプロジェクト名へ揃える。
 
 **サービス名に一般名を使わない。** compose はサービス名を、参加する全ネットワークの
-別名にする。デプロイ先の `edge` ネットワークはホスト全体で共有されるため、`web` /
-`api` / `nginx` / `proxy` / `db` を撒くと他スタックのコンテナを掴む・掴まれる
-（実際に他プロジェクトの本番が全断している）。このテンプレートは `app` / `front` を使い、
-upstream は `APP_WEB_ALIAS`（スタック固有名）で引く。
+別名にする。ローカル開発でも、共有ネットワークに `web` / `api` / `nginx` / `proxy` /
+`db` を撒くと他のコンテナを掴む・掴まれる（デプロイ先が compose だった頃、実際に
+他プロジェクトの本番が全断している）。このテンプレートは `app` / `front` を使う。
+k3s では namespace で分かれるが、**名前を変えると nginx の ConfigMap 側の
+`proxy_pass`（`app.<app>-<env>.svc.cluster.local`）も変わる。**
 
 ## ビルドとデプロイ
 
-**成果物はコンテナイメージ 1 つ**で、Komodo（nolumialab）が焼いてレジストリ
-`hub.nolumia.com:5000/komodo/<app>` へ push する（ADR-0023）。定義の雛形と手順は
-`deploy/komodo/`。
+**成果物はコンテナイメージ 1 つ**で、置き場は `hub.nolumia.com:5000/app/<image>`、
+タグは `sha-<コミット>`（ADR-0044）。**デプロイ先は k3s** で、稼働状態の正は
+deploy-repo の `k8s/<app>-<env>/`。宣言の雛形と手順は `deploy/k8s/`。
 
+- **押す口は deck**（`https://deck.nolumia.com`）。段は **build → pin → deploy**。
+  ⚠ **Komodo は停止している。起こさない。**
 - **バージョン情報はビルドの前に生成する。** `scripts/generate_version.sh` が
-  `shared/kernel/version.json` を作る。Komodo Build の `pre_build` に**必ず**書くこと。
-  無いとイメージが `version=dev` を名乗る（ビルドは緑のまま気付けない）。
-- **`--build-arg` でビルド情報を渡さない。** 渡す側ごとに名前がずれて壊れた実績がある。
+  `shared/kernel/version.json` を作る。build の表（`resources/build-matrix.json`）の
+  `pre_build` を**必ず** `true` にすること。無いとイメージが `version=dev` を名乗る
+  （ビルドは緑のまま気付けない）。
+- **`--build-arg` でビルド情報を渡さない。** 渡す側ごとに名前がずれて壊れた実績がある
+  （⚠ build の workflow は互換のため `COMMIT_HASH` などを渡してくるが、この
+  `Dockerfile` は受け取る `ARG` を持たないので無視される。**受け口を足さないこと**）。
 - **生成物 `shared/kernel/version.json` をコミットしない**（`.gitignore` 済み）。
-- **イメージと compose は対で合わせる。** 実行ユーザーの UID（`Dockerfile` の
-  `ARG APP_UID`）とデータディレクトリの所有者（compose の `init-paths`）、
-  マイグレーション所要時間と healthcheck の `start_period` は片方だけ変えると壊れる。
+- **イメージと宣言は対で合わせる。** 実行ユーザーの UID（`Dockerfile` の
+  `ARG APP_UID`）と置き場の所有者・`fsGroup`、マイグレーション所要時間と
+  `livenessProbe` の `initialDelaySeconds` は片方だけ変えると壊れる。
+- **版は digest で固定する。** `:latest` だと宣言が変わらず `kubectl apply` でも
+  rollout が起きない（＝版が上がらない）。書き換えるのは pin の段の仕事。
 
 ## ドキュメント運用
 

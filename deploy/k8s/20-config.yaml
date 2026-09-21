@@ -1,0 +1,99 @@
+# 秘密でない設定と、nginx の設定。
+#
+# ⚠ **ここに並べていないキーはコンテナへ届かない。** アプリの設定キーの一覧と意味は
+#   `.env.example` と `shared/kernel/settings/system_settings_defaults.py`。
+#
+# ⚠ **画面（DB）に入れた値のほうが強い**（ADR-0034）。ここを直したのに変わらない
+#   ときは、管理画面の設定に同じ鍵が入っていないかを先に見る。
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: <app>-env
+  namespace: <app>-<env>
+data:
+  TZ: "UTC"
+  APP_ENV: "production"        # stg なら staging
+  # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（ADR-0013）。
+  TRUSTED_PROXY_HOPS: "1"
+  APP_BASE_URL: "https://<host>"
+  CORS_ALLOWED_ORIGINS: '["https://<host>"]'
+  SESSION_COOKIE_SECURE: "true"
+  # ⚠ **パスキーはこの名前に結び付いている。** 変えると登録済みのものが全部
+  #   使えなくなる。**公開する名前を決めてから載せる。**
+  WEBAUTHN_RP_ID: "<host>"
+  WEBAUTHN_ORIGIN: "https://<host>"
+  WEBAUTHN_RP_NAME: "<App>"
+  TOTP_ISSUER: "<App>"
+  ACCESS_TOKEN_ISSUER: "<app>-<env>"
+  ACCESS_TOKEN_AUDIENCE: "<app>-<env>"
+  LOG_LEVEL: "INFO"
+  # ── 外部 IdP を使うなら（ADR-0025 / ADR-0026）────────────────
+  # ⚠ **鍵そのものはここに書かない。** `private_key_jwt` の秘密鍵はホストの
+  #   `/srv/secrets/oidc` を Pod へ貸す（`40-app.yaml` のコメント）。
+  # OIDC_ENABLED: "true"
+  # OIDC_ISSUER: "https://identity.nolumia.com/<テナント UUID>"
+  # OIDC_CLIENT_ID: "…"
+  # OIDC_REDIRECT_URI: "https://<host>/api/auth/sso/callback"
+  # OIDC_CLIENT_AUTH_METHOD: "private_key_jwt"
+  # OIDC_PRIVATE_KEY_FILE: "/run/oidc/client.key"
+  # OIDC_PRIVATE_KEY_KID: "…"
+  # ⚠ 既定は false。idp に口座があるだけでは入れない（管理画面から足す）
+  # OIDC_AUTO_PROVISION: "false"
+---
+# nginx の設定。⚠ **ローカル開発の `docker/nginx/default.conf.template` とは別物。**
+# 共有していたのは compose で配っていた頃の話で、いまは bind mount が無い
+# （inode 固定で差し替えが届かない）。**片方を直したらもう片方も直す。**
+#
+# ⚠ **`resolver` は CoreDNS（10.43.0.10）。** イメージの既定は docker の
+#   `127.0.0.11` で、k8s には居ない。変数経由の `proxy_pass` と**セット**
+#   ——`upstream` ブロックに戻すと nginx が起動時に 1 度だけ解決してキャッシュし、
+#   app の Pod が入れ替わるたびに 502 を返し続ける。
+# ⚠ **上流は FQDN で書く。** nginx の resolver は `/etc/resolv.conf` の `search` を
+#   見ないので、短い `app` では同じ namespace でも引けない。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: <app>-nginx
+  namespace: <app>-<env>
+data:
+  default.conf: |
+    resolver 10.43.0.10 valid=10s ipv6=off;
+
+    server {
+        listen 80;
+        server_name _;
+
+        # ⚠ **公開するスタックだけ入れる。** 公開経路が無い（LAN 直叩きだけの）
+        #    スタックに書くと、書いた分がそのまま穴になる
+        #    ——前段が居ないので `X-Forwarded-For` は誰も付けていない。
+        # ⚠ 10.42.0.1 は cbr0。docker の前段（cloudflared / edge-*）から来る通信は
+        #    必ずこのアドレスに化ける（2026-09-06 実測）。
+        # ⚠ 10.201.0.0/24 は remote_addr には現れないが、**前段の edge-* が XFF に
+        #    自分のアドレスを書き足す**ので、読み飛ばす先として要る。
+        set_real_ip_from 10.42.0.1;
+        set_real_ip_from 10.201.0.0/24;
+        real_ip_header X-Forwarded-For;
+        real_ip_recursive on;
+
+        client_max_body_size 100m;
+
+        # ⚠ 外へ出さない（Progress の T7）
+        location = /metrics {
+            return 404;
+        }
+
+        location / {
+            set $app_upstream http://app.<app>-<env>.svc.cluster.local:8000;
+            proxy_pass $app_upstream;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            proxy_connect_timeout 30s;
+            proxy_read_timeout 120s;
+            proxy_send_timeout 120s;
+        }
+    }

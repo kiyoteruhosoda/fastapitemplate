@@ -1,3 +1,29 @@
+## 2026-09-21（Komodo 前提の文書を k3s の実態へ揃えた。ADR-0044）
+
+- ⚠ **Komodo は 2026-09-08 に停止していたのに、文書がそのままだった。** README・CLAUDE.md・
+  OPERATIONS.md・`.env.example`・`Dockerfile`・`scripts/` が「Komodo Build が焼く」
+  「秘密は Komodo の Variable」「`stacks.toml` にスタックを足す」と説明し続けており、
+  **ここから作ったアプリを載せる手順として 1 つも通らなかった**。
+- **デプロイ先は k3s、押す口は deck**（`https://deck.nolumia.com`）に書き換えた。段は
+  **build → pin → deploy**。稼働状態の正は deploy-repo の `k8s/<app>-<env>/`。
+- **`deploy/komodo/` を `deploy/k8s/` に置き換えた。** compose・`build.toml`・`stack.toml` を
+  消し、宣言一式（namespace / PV・PVC / ConfigMap / MariaDB / app・front ＋ NodePort）の
+  雛形を置いた。秘密は**封印して** `25-secrets.yaml` に置く（平文の `kind: Secret` は CI が落とす）。
+- ⚠ **`docker/nginx/default.conf.template` は共有ではなくなった。** デプロイ先の nginx は
+  ConfigMap で、**resolver が違う**（`127.0.0.11` → CoreDNS の `10.43.0.10`）。片方を直したら
+  もう片方も直す旨を両側に書いた。
+- ⚠ **`init-paths` は要らなくなった**（所有者合わせは `fsGroup`）。⚠ **`replicas` は宣言に
+  書かない**（台数の正本は deck の scale。書くと `apply` が止めてある環境を起こす）。
+- **成果物の置き場とタグが変わった。** `hub.nolumia.com:5000/komodo/<app>`（`latest` /
+  `<コミット>` / `0.0.N`）→ **`hub.nolumia.com:5000/app/<image>`（`sha-<コミット>`）**。
+  ⚠ **版は digest で固定する** ——`:latest` だと宣言が変わらず `kubectl apply` でも
+  rollout が起きない。戻すのは前の digest に戻すこと（タグはローテされるが digest は残る）。
+- ADR-0023 を**廃止**にし（ADR-0044 で置き換え）、引き継ぐ 3 点（成果物はイメージ 1 つ／
+  版の刻印はビルドの前／サービス名に一般名を使わない）を新しい ADR に明記した。
+- ついでに 2 つ直した: `.github/dependabot.yml` を置くという T8 の記述（**forge では
+  動かない**。版上げは Renovate が既に見ている）と、ソースの正本が GitHub だという記述
+  （**forge が正本**で GitHub は押し出しミラー）。
+
 ## 2026-09-16（IdP で止まった人を、毎時聞き直して止める。ADR-0043）
 
 - ⚠ **停止の通知（ADR-0036）は、届いたときにしか効かなかった。** assay が送れない・こちらが
