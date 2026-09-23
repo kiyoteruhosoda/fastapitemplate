@@ -38,10 +38,12 @@ if command -v git >/dev/null 2>&1 && [ -d "$PROJECT_ROOT/.git" ]; then
         BRANCH="$BRANCH_OVERRIDE"
     fi
 
+    # ⚠ 接頭辞の `v` は付けない。意味のある版数（v1.2.3）ではなくコミットの短縮
+    #   ハッシュなので、`v` があると「そういう版がある」と読めてしまう。
     if [ "$BRANCH" = "main" ]; then
-        VERSION="v$COMMIT_HASH"
+        VERSION="$COMMIT_HASH"
     else
-        VERSION="v$COMMIT_HASH-$BRANCH"
+        VERSION="$COMMIT_HASH-$BRANCH"
     fi
     SOURCE="git"
 elif [ -s "$VERSION_FILE" ] && grep -q '"commit_hash"' "$VERSION_FILE"; then
