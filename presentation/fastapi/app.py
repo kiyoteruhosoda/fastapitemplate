@@ -57,6 +57,8 @@ from presentation.fastapi.routers.admin.permissions import (
 from presentation.fastapi.routers.admin.roles import router as admin_roles_router
 from presentation.fastapi.routers.admin.system import router as admin_system_router
 from presentation.fastapi.routers.admin.users import router as admin_users_router
+from presentation.fastapi.routers.app_links import router as app_links_router
+from presentation.fastapi.routers.app_session import router as app_session_router
 from presentation.fastapi.routers.auth import router as auth_router
 from presentation.fastapi.routers.health import router as health_router
 from presentation.fastapi.routers.ui_settings import router as ui_settings_router
@@ -94,6 +96,8 @@ def _include_routers(app: FastAPI) -> None:
     """ルーターの登録。**SPA より前**に並べる（SPA は catch-all のため）。"""
     for router in (
         health_router,
+        app_links_router,
+        app_session_router,
         ui_settings_router,
         auth_router,
         passkey_login_router,

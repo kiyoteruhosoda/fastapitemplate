@@ -294,6 +294,26 @@ git -C deploy-repo log -p --follow -- k8s/<app>-<env>/40-app.yaml | grep -n 'ima
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
 - ホスト: `docker compose restart app`（デプロイ先は deck の画面から止めて起こす）
 
+## Android アプリからの呼び出しを受けたいとき
+
+ADR-0045。アプリは assay に直接ログインし、`AppOrWebPrincipalDep` を付けた口だけを assay の
+アクセストークンで叩く。⚠ **3 つの設定がどれも空なら何もしない**（既定）。
+deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 は deck が済ませる。
+
+1. assay にアプリ用の **public client** を登録する（PKCE、scope は `openid profile email offline_access`、
+   redirect URI は `https://<ホスト>/app/oauth2redirect`）。Web と同じ assay のアプリに結び付けて名簿を 1 つにする。
+2. 環境変数を入れて再起動する（⚠ 管理画面からは入れられない）:
+   - `APP_CLIENT_IDS` —— 1 で出た `client_id`（JSON の配列）
+   - `ANDROID_APP_PACKAGE` / `ANDROID_APP_CERT_FINGERPRINTS` —— App Links の検証ファイルの中身
+     （パッケージ名と、署名証明書の SHA-256 指紋の配列）
+3. アプリから叩かせたい口に `AppOrWebPrincipalDep` を付ける（例は `presentation/fastapi/routers/app_session.py`
+   の `GET /api/app/me`）。付けない口は、これまでどおりこのアプリのトークンだけを受ける。
+4. 確かめる:
+   ```bash
+   curl -s https://<ホスト>/.well-known/assetlinks.json                                          # 200 と JSON
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer x' https://<ホスト>/api/app/me   # 401
+   ```
+
 ## API を curl や CI から叩きたいとき
 
 トークンは応答本文に載らず **Cookie で運ばれる**（ADR-0028）。Cookie を保持して叩く。

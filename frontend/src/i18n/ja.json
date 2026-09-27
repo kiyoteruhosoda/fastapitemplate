@@ -274,5 +274,8 @@
   "error.sso_callback_invalid": "SSO でのログインに失敗しました。もう一度お試しください。",
   "error.local_login_disabled": "パスワードとパスキーでのログインは無効です。",
   "update.available": "新しい版があります。",
-  "update.reload": "再読み込み"
+  "update.reload": "再読み込み",
+  "appReturn.title": "アプリへ戻ります",
+  "appReturn.body": "この画面は、スマートフォンのアプリへログインを引き渡すためのものです。この画面が表示された場合は、アプリを開いてもう一度ログインしてください。パソコンでは Web 版を使ってください。",
+  "appReturn.openWeb": "Web 版を開く"
 }

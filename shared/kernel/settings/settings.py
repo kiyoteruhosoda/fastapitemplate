@@ -198,6 +198,25 @@ class ApplicationSettings:
     def admin_initial_password(self) -> str | None:
         return self._env.get("ADMIN_INITIAL_PASSWORD") or None
 
+    @property
+    def app_client_ids(self) -> frozenset[str]:
+        """assay のアクセストークンを受け取ってよいクライアント（アプリ）の ``client_id``（ADR-0045）。
+
+        ⚠ **環境変数だけ。** 画面から足せると、別のクライアント宛てのトークンがこのアプリの
+        API を通る。空なら assay のトークンは一切受け取らない。
+        """
+        return frozenset(_env_list(self._env.get("APP_CLIENT_IDS")))
+
+    @property
+    def android_app_package(self) -> str:
+        """App Links で戻す Android アプリのパッケージ名（``assetlinks.json``。ADR-0045）。"""
+        return (self._env.get("ANDROID_APP_PACKAGE") or "").strip()
+
+    @property
+    def android_app_cert_fingerprints(self) -> tuple[str, ...]:
+        """そのアプリの署名証明書の SHA-256 指紋（``AA:BB:…`` 形式）。"""
+        return tuple(_env_list(self._env.get("ANDROID_APP_CERT_FINGERPRINTS")))
+
     # ------------------------------------------------------------------
     # 認証
     # ------------------------------------------------------------------
@@ -528,6 +547,18 @@ class ApplicationSettings:
         （環境変数は DB の設定より優先される）。
         """
         return self.get_bool("LOCAL_LOGIN_ENABLED", True)
+
+
+def _env_list(raw: str | None) -> list[str]:
+    """環境変数のリスト（JSON の配列か、カンマ区切り）。空の要素は捨てる。"""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        parsed = raw.split(",")
+    items = parsed if isinstance(parsed, list) else [parsed]
+    return [str(item).strip() for item in items if str(item).strip()]
 
 
 settings = ApplicationSettings()
