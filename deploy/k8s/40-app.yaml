@@ -1,0 +1,159 @@
+# app（FastAPI）と front（nginx）。
+#
+# ⚠ **サービス名に一般名を使わない**（ADR-0023 から引き継ぐ）。`app` / `front` は
+#   namespace で分かれているので衝突しないが、名前を変えると `20-config.yaml` の
+#   `proxy_pass` の FQDN も変わる。
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: <app>-<env>
+spec:
+  selector: {app: app}
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: <app>-<env>
+  labels:
+    nolumia.dev/service: app
+spec:
+  # ⚠ **台数は宣言しない**（`30-db.yaml` と同じ理由）。
+  selector:
+    matchLabels: {app: app}
+  strategy: {type: Recreate}
+  template:
+    metadata:
+      labels: {app: app}
+    spec:
+      securityContext:
+        # イメージの appuser は uid/gid 5678（`Dockerfile` の ARG APP_UID）。
+        # ⚠ **`10-storage.yaml` の chown と揃える。** 片方だけ変えると書けなくなる。
+        runAsUser: 5678
+        runAsGroup: 5678
+        # ⚠ **compose の `init-paths` はこれで要らなくなった。**
+        fsGroup: 5678
+        # ⚠ 既定（Always）だとマウントのたびに再帰 chown する。データが増えるほど
+        #   起動が遅くなる。
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: app
+          # ⚠ **digest で固定する。** `:latest` だと宣言が変わらないので
+          #   `kubectl apply` しても rollout が起きず、古い Pod のまま残る。
+          #   **この行を書き換えるのが「版を上げる」ことで、それは deck の pin の段が
+          #   機械的に行う**（手で書くのは最初の 1 回だけ）。
+          image: hub.nolumia.com:5000/app/<image>:sha-<コミット>@sha256:<digest>
+          args: ["web"]
+          envFrom:
+            - configMapRef: {name: <app>-env}
+            - secretRef: {name: <app>-app}
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - {name: app-data, mountPath: /app/data}
+            # 外部 IdP を private_key_jwt で使うときだけ。鍵はホストの
+            # /srv/secrets/oidc（0710）にあり、hostPath で貸す。
+            # - {name: oidc, mountPath: /run/oidc, readOnly: true}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8000}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8000}
+            # ⚠ **長く取る。** 初回起動は entrypoint が `alembic upgrade head` を
+            #   流すので、空の DB だとスキーマ構築ぶんだけ待たされる。短いと
+            #   移行の途中で殺され、永久に立ち上がらない。
+            initialDelaySeconds: 660
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 1Gi}
+      volumes:
+        - name: app-data
+          persistentVolumeClaim: {claimName: app-data}
+        # - name: oidc
+        #   hostPath: {path: /srv/secrets/oidc, type: Directory}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: front
+  namespace: <app>-<env>
+spec:
+  # **LAN へ出しているのはこの Service。**
+  #
+  # ⚠ **番号は NodePort の既定の帯（30000-32767）。** 採番との対応は
+  #   **`30000 +（採番の番号 - 10000）`** ——採番表の 10510 なら 30510。
+  #   採番の正本は Wiki「ポート採番」で、**空き番号を勝手に取らない。**
+  #   compose は 10000 番台なので、**docker と番号が構造的に重ならない。**
+  # ⚠ **`nodePort` を必ず書く。** 省くと帯のどこかが自動で割り当たり、採番との
+  #   対応が崩れる。
+  # ⚠ **`externalTrafficPolicy: Local`。** 既定の `Cluster` だと kube-proxy が
+  #   SNAT して、送信元が**全部 `10.42.0.1` に潰れる**（LAN からの直叩きも）。
+  #   `set_real_ip_from` の前提ごと崩れる。
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: {app: front}
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 3xx10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: front
+  namespace: <app>-<env>
+  labels:
+    nolumia.dev/service: front
+spec:
+  # ⚠ **台数は宣言しない**（`30-db.yaml` と同じ理由）。
+  selector:
+    matchLabels: {app: front}
+  # 番号は Service が持つので Pod は番号に縛られず、RollingUpdate が使える。
+  # `maxUnavailable: 0` で、**新しい Pod が Ready になってから古いほうを消す**。
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {app: front}
+    spec:
+      # ⚠ **`preStop` を外さない。** Pod を消す指示と kube-proxy が経路から外すのは
+      #   **非同期**なので、無いと「先に落ちてから経路が外れる」窓ができ、入れ替えの
+      #   あいだ散発的に失敗する（実測 0.8% → `preStop` 有りで 0.1%）。
+      #   **まとまって落ちないぶん、気づきにくい落ち方**になる。
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: front
+          image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+          ports:
+            # ⚠ **`hostPort` は張らない**（番号は Service が持つ）。
+            - containerPort: 80
+          volumeMounts:
+            - {name: conf, mountPath: /etc/nginx/conf.d, readOnly: true}
+          lifecycle:
+            preStop:
+              exec: {command: ["sleep", "5"]}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 80}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 70
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+      volumes:
+        - name: conf
+          configMap: {name: <app>-nginx}

@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
+from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
+    FederatedLogin,
+)
 from bounded_contexts.identity_federation.domain.value_objects.login_transaction import (
     LoginTransaction,
 )
@@ -57,13 +61,32 @@ class SsoHandoffDto:
 
 @dataclass(frozen=True)
 class SsoSessionDto:
-    """引き換え券から取り出したログイン結果。"""
+    """引き換え券から取り出したログイン結果。
+
+    ``login`` は発行するトークンへ刻む（ADR-0036）。刻んでおかないと、停止の通知が
+    届いても**どのトークンを無効にすればよいかが分からない**。
+    """
 
     user_id: int
     redirect_to: str
+    login: FederatedLogin
+
+
+@dataclass(frozen=True)
+class FederatedLinkDto:
+    """設定画面に出す「自分の連携の状態」（ADR-0040）。
+
+    ``available`` が偽なら、画面はこの区画そのものを出さない（SSO が無効）。
+    """
+
+    available: bool
+    display_name: str = ""
+    linked: bool = False
+    linked_at: datetime | None = None
 
 
 __all__ = [
+    "FederatedLinkDto",
     "ResolvedAccountDto",
     "SsoAuthorizationDto",
     "SsoHandoffDto",

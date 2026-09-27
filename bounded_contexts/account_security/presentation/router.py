@@ -51,7 +51,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
     AuditTargetType,
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
-from presentation.fastapi.dependencies.auth import get_current_principal
+from presentation.fastapi.dependencies.auth import get_settled_principal
 from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.schemas.auth import StatusResponse
 from shared.application.authenticated_principal import AuthenticatedPrincipal
@@ -59,7 +59,10 @@ from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(prefix="/api/account/security", tags=["account-security"])
 
-PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_current_principal)]
+#: ⚠ **資格情報を作り替える経路の関門**（ADR-0041 決定 6）。二要素認証やパスキーの
+#: 登録・解除は「新しい入り口を作る」操作なので、**いまの状態を確かめてから通す**
+#: ——止められた利用者でも、手元のアクセストークンは寿命まで通るためである。
+PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_settled_principal)]
 
 
 def _to_passkey_response(summary: PasskeySummaryDto) -> PasskeyResponse:

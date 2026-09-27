@@ -63,7 +63,10 @@ class ResolveFederatedAccount:
         known = self._known_account(issuer, user.subject)
         if known is not None:
             self._ensure_active(known)
-            self._synchronize_roles(known, user)
+            # ⚠ **写しは IdP を正とする**（ADR-0042）。ここで上書きしないと、
+            #   向こうで改名・メール変更をしても表示が永久に古いままになる。
+            self.directory.refresh_profile(known.user_id, email=user.email, username=user.username)
+            self._synchronize_roles(known)
             return ResolvedAccountDto(user_id=known.user_id)
         return self._attach(issuer, user)
 
@@ -82,7 +85,7 @@ class ResolveFederatedAccount:
         self.identities.touch(identity)
         return account
 
-    def _synchronize_roles(self, account: FederatedAccount, user: FederatedUser) -> None:
+    def _synchronize_roles(self, account: FederatedAccount) -> None:
         """IdP を正とする運用のときだけ、ロールを毎回引き直す。
 
         既定（``sync_on_login`` が偽）では触らない。管理画面で足したロールを
@@ -90,13 +93,19 @@ class ResolveFederatedAccount:
         """
         if not self.roles.sync_on_login:
             return
-        self.directory.apply_roles(account.user_id, self.roles.roles_for(user.groups))
+        self.directory.apply_roles(account.user_id, self.roles.roles())
 
     # ------------------------------------------------------------------
     # まだ結び付いていない相手
     # ------------------------------------------------------------------
 
     def _attach(self, issuer: str, user: FederatedUser) -> ResolvedAccountDto:
+        # ⚠ **メールアドレスが要るのはここだけである**（ADR-0042）。既に結び付いて
+        #   いる相手は ``sub`` で引けるので、無くても入れる。
+        if user.email is None:
+            # 寄せる先も探せないし、作ることもできない（``users.email`` は必須）。
+            # ⚠ **理由を分けない** ——本人にできることは「管理者に頼む」で同じである。
+            raise SsoAccountNotLinkedError
         existing = self.directory.find_by_email(user.email)
         if existing is not None:
             return self._link_existing(issuer, user, existing)
@@ -107,7 +116,7 @@ class ResolveFederatedAccount:
             NewFederatedAccount(
                 email=user.email,
                 username=user.username,
-                roles=self.roles.roles_for(user.groups),
+                roles=self.roles.roles(),
             )
         )
         self._link(issuer, user, created.user_id)

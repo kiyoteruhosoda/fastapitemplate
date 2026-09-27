@@ -33,8 +33,10 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import (
     REFRESH_TOKEN_COOKIE,
+    CurrentSession,
     clear_access_token_cookie,
     get_current_principal,
+    get_current_session,
     get_current_user,
 )
 from presentation.fastapi.dependencies.local_login import require_local_login
@@ -64,6 +66,7 @@ logger = logging.getLogger(__name__)
 DbDep = Annotated[Session, Depends(get_db)]
 PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_current_principal)]
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+CurrentSessionDep = Annotated[CurrentSession, Depends(get_current_session)]
 
 
 def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
@@ -75,6 +78,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
         scopes=sorted(principal.permissions),
         roles=list(user.role_names),
         active_role=principal.active_role,
+        has_password=user.has_local_password,
         rp_logout_enabled=settings.oidc_rp_logout_enabled,
     )
 
@@ -104,8 +108,12 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
-    user, active_role = refreshed
-    return establish_session(response, user, active_role=active_role)
+    return establish_session(
+        response,
+        refreshed.user,
+        active_role=refreshed.active_role,
+        federated_login=refreshed.federated_login,
+    )
 
 
 @router.post("/logout", response_model=StatusResponse)
@@ -123,19 +131,27 @@ async def me(principal: PrincipalDep, user: CurrentUserDep) -> MeResponse:
 async def switch_role(
     body: RoleSwitchRequest,
     response: Response,
-    user: CurrentUserDep,
+    current: CurrentSessionDep,
     audit: AuditRecorderDep,
 ) -> SessionResponse:
     """アクティブロールを切り替え、新しいトークンを発行する（ADR-0017）。
 
     ``role`` が ``null`` なら「すべてのロール」（保有権限の和集合）に戻す。
     保有していないロールへは切り替えられない（権限は増えない）。
+
+    ⚠ **入り口（IdP のセッション）はそのまま引き継ぐ**（ADR-0036）。
     """
+    user = current.user
     if body.role is not None and body.role not in user.role_names:
         audit.execute(AuditEventType.ROLE_SWITCHED, AuditResult.FAILURE, reason="role_not_granted")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "role_not_granted"})
 
-    session = establish_session(response, user, active_role=body.role)
+    session = establish_session(
+        response,
+        user,
+        active_role=body.role,
+        federated_login=current.federated_login,
+    )
     audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
     logger.info("active_role_switched")
     return session
@@ -188,7 +204,9 @@ async def change_password(
     audit: AuditRecorderDep,
 ) -> StatusResponse:
     user = db.get(User, principal.user_id)
-    if user is None or not check_password_hash(user.password_hash, body.current_password):
+    if user is None or user.password_hash is None or not check_password_hash(user.password_hash, body.current_password):
+        # ⚠ **パスワードを持たない利用者もここで断る**（ADR-0038）。理由は分けない
+        # ——「持っていない」を教えると、入り口の有無を外から数えられる。
         audit.execute(
             AuditEventType.PASSWORD_CHANGED,
             AuditResult.FAILURE,

@@ -50,16 +50,31 @@ class StartSsoLogin:
             code_verifier=new_code_verifier(),
             redirect_to=RedirectTarget.parse(redirect_to).path,
         )
-        authorization_url = self.gateway.authorization_url(
-            AuthorizationRequest(
-                provider=provider,
-                state=transaction.state,
-                nonce=transaction.nonce,
-                code_challenge=code_challenge_of(transaction.code_verifier),
-                acr_values=self.acr_values,
-            )
+        return authorization_for(provider, self.gateway, transaction, self.acr_values)
+
+
+def authorization_for(
+    provider: IdentityProvider,
+    gateway: OidcProviderGateway,
+    transaction: LoginTransaction,
+    acr_values: tuple[str, ...],
+) -> SsoAuthorizationDto:
+    """往復状態から認可要求の URL を組む。
+
+    ログインの往復と連携の往復（ADR-0040）で**まったく同じ**なので 1 か所に置く。
+    違うのは往復状態の中身（``purpose`` と ``user_id``）だけで、IdP へ送るものは
+    変わらない ——戻り先の URI も 1 つしか登録しない。
+    """
+    authorization_url = gateway.authorization_url(
+        AuthorizationRequest(
+            provider=provider,
+            state=transaction.state,
+            nonce=transaction.nonce,
+            code_challenge=code_challenge_of(transaction.code_verifier),
+            acr_values=acr_values,
         )
-        return SsoAuthorizationDto(authorization_url=authorization_url, transaction=transaction)
+    )
+    return SsoAuthorizationDto(authorization_url=authorization_url, transaction=transaction)
 
 
-__all__ = ["StartSsoLogin"]
+__all__ = ["StartSsoLogin", "authorization_for"]

@@ -134,8 +134,8 @@ uv run alembic revision --autogenerate -m "<description>"
 make image           # scripts/generate_version.sh → docker build -t fastapitemplate:dev .
 ```
 
-**手元での確認用**（Dockerfile が壊れていないか）。デプロイに使う成果物は Komodo が
-焼いてレジストリへ push する（ADR-0023）。
+**手元での確認用**（Dockerfile が壊れていないか）。デプロイに使う成果物は
+LAN の中の build が焼いてレジストリへ push する（ADR-0044）。
 
 ## docker compose でローカル起動したいとき
 
@@ -150,9 +150,11 @@ docker compose up -d             # db / app / front が起動
 ホストへ公開されるのは `front` だけ。`app` と `db` は Docker ネットワーク内部からのみ
 到達できる（ADR-0010）。
 
-**この compose はローカル開発専用。** デプロイ先の compose は
-`deploy/komodo/compose.yaml`（deploy-repo の `stacks/<app>/compose.yaml`）。
-サービス名・ネットワーク別名・nginx 設定は両者で揃えてある。
+**この compose はローカル開発専用。** デプロイ先に compose は無い（k3s の宣言。
+ADR-0044）。⚠ **nginx の設定は共有ではない** ——デプロイ先のものは deploy-repo の
+`k8s/<app>-<env>/20-config.yaml`（ConfigMap）にあり、**resolver が違う**
+（docker の `127.0.0.11` ではなく CoreDNS の `10.43.0.10`）。片方を直したら
+もう片方も直す。
 
 ## DB を操作したいとき（SQL を流す・ダンプを取る）
 
@@ -176,8 +178,21 @@ docker compose exec -T db \
   sh -c 'exec mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"' > dump.sql
 ```
 
-デプロイ先（Komodo）では compose プロジェクトがスタック名で分かれている。
-nolumialab 上で `docker compose -p <スタック名> exec ...` として実行する。
+デプロイ先（k3s）では namespace で分かれている。**引用を重ねると必ず壊れる**ので、
+**先に Pod の中へ入ってから**叩く（資格情報はコンテナの中で展開させる）。
+
+```bash
+ssh -t nolumialab 'sudo k3s kubectl -n <app>-<env> exec -it deploy/db -- bash'
+# ↓ ここからは Pod の中
+exec mariadb -u root -p"$MARIADB_ROOT_PASSWORD" "$MARIADB_DATABASE"
+```
+
+ダンプを手元へ取るときは、`-i`（標準入出力だけ）を使う。
+
+```bash
+ssh nolumialab 'sudo k3s kubectl -n <app>-<env> exec -i deploy/db -- \
+  sh -c "exec mariadb-dump -u root -p\"\$MARIADB_ROOT_PASSWORD\" \"\$MARIADB_DATABASE\""' > dump.sql
+```
 
 ## DB へホストのツールから一時的につなぎたいとき
 
@@ -196,53 +211,71 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 
 ## デプロイしたいとき
 
-**Komodo（https://komodo.nolumia.com）から行う。** 手順の正本は deploy-repo の
-`docs/new-stack.md`、このテンプレート固有の点は `deploy/komodo/README.md`（ADR-0023）。
+**deck（https://deck.nolumia.com）の画面から行う。** 環境（`<app>/<env>`）を選んで
+版を上げると、**build → pin → deploy** の 3 段が LAN の中で走る（ADR-0044）。
 
 ```
-1. ソースを push        → Komodo Build がイメージを焼いてレジストリへ push
-                          （webhook を付けていなければ Komodo の画面から Build を実行）
-2. Komodo の画面で対象スタックを Deploy   → 新しいイメージを pull して入れ替わる
-3. 疎通確認  curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<PORT>/healthz
+1. 変更を main へマージする（forge: git.nolumia.com/kyon/<app>）
+2. deck で環境を選び、版を上げる
+     build   イメージを焼いて hub.nolumia.com:5000/app/<image>:sha-<コミット> へ push
+     pin     その digest を deploy-repo の k8s/<app>-<env>/40-app.yaml へ書き戻す
+     deploy  k8s/<app>-<env>/ をクラスタへ apply する
+3. 疎通確認  curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<NodePort>/healthz
 ```
 
-**本番スタックの入れ替えは自動化していない。** push のたびに本番が差し替わるのを
-避けるため、ビルドと定義同期までを自動にしてある。
+**マージしただけでは配られない。** 押すのは人（ADR-0035）。
 
 マイグレーションは `app` の entrypoint が起動時に流す（`alembic upgrade head`）。
 デプロイの手順としては分かれていない。
 
+⚠ **deck が落ちているときの退避経路**は deploy-repo の workflow 2 つ
+（`build-image.yml` → `apply-manifests.yml`。どちらも手押し）。⚠ **どちらも既定が
+安全側**（apply は `mode=plan`、build の pin は `*-stg`）なので、**prod へ入れるには
+2 つとも明示が要る** ——明示しないと**何も入らないまま success が返る**。
+
 ## デプロイした版を確認したいとき
 
 ```bash
-curl -s http://10.10.2.11:<PORT>/info        # version / commit / branch / build_date
+curl -s http://10.10.2.11:<NodePort>/info    # version / commit / branch / build_date
 ```
 
-`version` が `dev` になっている場合、その Build 定義に `pre_build` が無い
-（`deploy/komodo/README.md`「pre_build（版の刻印）」）。ビルドは成功するのに版だけが
-分からない状態なので、気付いたら Build 定義を直して焼き直す。
+⚠ **成功表示を証拠にしない。** 押した digest と、実際に動いている Pod を突き合わせる。
+
+```bash
+ssh nolumialab "sudo k3s kubectl -n <app>-<env> get po \
+  -o jsonpath='{.items[*].status.containerStatuses[*].imageID}'"
+```
+
+`version` が `dev` になっている場合、build の表（deploy-repo の
+`resources/build-matrix.json`）でこのアプリの `pre_build` が `true` になっていない
+（`deploy/k8s/README.md`「3. build の表」）。ビルドは成功するのに版だけが
+分からない状態なので、気付いたら表を直して焼き直す。
 
 ## 前の版へ戻したいとき
 
-Komodo はビルドのたびに `latest` / `<コミット>` / `0.0.N` のタグを打つ。
-戻したい版のタグをスタックの `APP_IMAGE_TAG` に指定して Deploy する。
+**宣言の `image:` を前の digest に戻して apply する。** 履歴は deploy-repo の
+git に残っているので、`k8s/<app>-<env>/40-app.yaml` の 1 行を戻すだけでよい。
 
-```toml
-APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
+```bash
+git -C deploy-repo log -p --follow -- k8s/<app>-<env>/40-app.yaml | grep -n 'image:'
 ```
+
+⚠ **タグ（`sha-…`）ではなく digest が効く。** タグは週次の registry-prune で
+10 世代でローテされるが、**digest 参照は生き残る**。
 
 **DB のスキーマは戻らない。** マイグレーションを含む版から戻すときは、
 その `downgrade()` を先に当てる必要がある。
 
-## 新しいアプリを Komodo に載せたいとき
+## 新しいアプリを k3s に載せたいとき
 
-`deploy/komodo/` の雛形を deploy-repo へ複製する。手順は
-[deploy/komodo/README.md](../deploy/komodo/README.md)。要点だけ:
+`deploy/k8s/` の雛形を deploy-repo の `k8s/<app>-<env>/` へ複製する。手順は
+[deploy/k8s/README.md](../deploy/k8s/README.md)。要点だけ:
 
-- ポートは採番表から**計算**する（空き番号を勝手に取らない）
-- `builds.toml` の `[build.config.pre_build]` を**必ず書く**（版の刻印）
-- `stacks.toml` に `tags = ["managed"]` と `ignore_services = ["init-paths"]`
-- 秘密は Komodo の Variable へ。`JWT_SECRET_KEY` は必ず生成した値を入れる
+- 番号は採番表から**計算**する（NodePort = `30000 +（採番の番号 - 10000）`）
+- build の表（`resources/build-matrix.json`）の `pre_build` を**必ず** `true` に（版の刻印）
+- `image:` は **digest で固定**する（`:latest` だと apply しても版が上がらない）
+- `replicas` を**書かない**（台数の正本は deck の scale だけ）
+- 秘密は**封印して** `25-secrets.yaml` に。`JWT_SECRET_KEY` は必ず生成した値を入れる
 - 公開するときは **Access を作ってから ingress**（逆順は無認証で公開される）
 
 ## システム設定を変更したいとき
@@ -259,7 +292,7 @@ APP_IMAGE_TAG = a3817d5      # deploy-repo の resources/stacks.toml
 ## アプリを再起動したいとき
 
 - 画面: `/admin/config` の再起動ボタン、または `POST /api/admin/system/restart`
-- ホスト: `docker compose restart app`（デプロイ先は Komodo の画面から）
+- ホスト: `docker compose restart app`（デプロイ先は deck の画面から止めて起こす）
 
 ## API を curl や CI から叩きたいとき
 
@@ -314,6 +347,17 @@ Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログ�
 
 3. 起動時のログで `sso_ready` を確かめる。`sso_disabled_by_configuration` なら
    設定が欠けている。`sso_private_key_unreadable` なら鍵が読めていない。
+
+⚠ **初めて SSO で入る人は、同じメールアドレスのローカル口座があっても結び付かない**
+（`sso_error=sso_account_not_linked`。ADR-0037）。寄せてよいと判断したときだけ開ける。
+
+```
+OIDC_LINK_BY_EMAIL=true
+```
+
+⚠ **開ける前に、つないだ IdP で `email_verified` がどう立つのかを確かめること。**
+自前 idp (assay) のこの値は「テナント管理者がそう主張している」であって、本人が
+所有を証明したという意味ではない（**管理者がメールを変更してもこの値は維持される**）。
 
 ## SSO で `private_key_jwt` を使いたいとき
 
@@ -377,6 +421,76 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 
 **「このアプリだけ毎回名乗り直させたい」だけなら、こちらではない。** 認可要求の
 `prompt=login` のほうが、共有の SSO セッションを壊さずに済む。
+
+## SSO でしか入れない利用者にしたいとき（ADR-0038）
+
+`users.password_hash` を NULL にする。NULL の利用者は**パスワードで入れない・変更
+できない・リセットでも生やせない**。
+
+```sql
+UPDATE users SET password_hash = NULL WHERE email = '<メールアドレス>';
+```
+
+逆に**ローカル口座を持たせたい**なら、管理画面（またはユーザー API）でパスワードを
+設定する。これは監査に残る明示的な操作である。
+
+⚠ **移行（`0008_password_is_optional`）が触るのは、利用者の行と IdP との結び付きが
+60 秒以内に作られた利用者だけ**である。⚠ **知らない方言の DB では移行が
+何もしない**ので、上の SQL を手で流す。対象は「SSO で作られた利用者」で、次で拾える。
+
+```sql
+SELECT u.id, u.email FROM users u JOIN federated_identities f ON f.user_id = u.id;
+```
+
+## IdP で止めた利用者を、このアプリでも止めたいとき（ADR-0036）
+
+受け口は `POST <APP_BASE_URL>/api/auth/sso/backchannel-logout` で、**設定は要らない**
+（常に受ける）。**IdP 側の登録だけが栓**になる。
+
+```bash
+curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
+     -H "Authorization: Bearer <管理トークン>" \
+     -H 'Content-Type: application/json' \
+     -d '{"backchannel_logout_uri":"https://<ホスト>/api/auth/sso/backchannel-logout"}'
+```
+
+⚠ **IdP からこのアプリへ届く経路が要る**（利用者のブラウザは通らない）。IdP が
+外へ出られない構成なら、内部の名前で登録する。
+
+確かめ方は、IdP で対象の利用者をサインアウトさせてから、そのセッションで
+`GET /api/auth/me` を叩く（401 になれば届いている）。受けた側のログは
+`sso_backchannel_logout_received`、検証に落ちたものは `sso_logout_token_rejected`。
+
+通知が届かなかったぶんは、次の「定期的に拾い直したいとき」で拾う。
+
+## IdP で止めた利用者を、定期的に拾い直したいとき（ADR-0043）
+
+照合は **SSO が使えて `MACHINE_CLIENT_ID` が入っていれば毎時**聞きに行く。止めるのは
+**SSO で始まったセッションだけ**で、ローカルのパスワード・パスキーでは今までどおり入れる。
+
+1. assay でこのアプリの**サービスアカウント**を登録する（`client_credentials` を許し、
+   `OIDC_PRIVATE_KEY_FILE` と対になる公開鍵を載せる）。ログイン用の登録とは別にする
+2. ⚠ **assay の管理コンソールで、アプリの詳細画面「このアプリの名乗り」区画に、そのサービスアカウントを結び付ける。**
+   結び付けるまでは 403 が返り、照合は `sso_reconciliation_not_bound`（info）を残して何も変えずに終わる
+3. 設定を入れる
+
+   ```
+   MACHINE_CLIENT_ID=<サービスアカウントの client_id>
+   ```
+
+   鍵は `OIDC_PRIVATE_KEY_FILE` / `OIDC_PRIVATE_KEY_KID` を使う（ログインの方式が
+   `client_secret_basic` でも、鍵のファイルは要る）
+4. 次の周回（1 時間ごと。すぐ見たいなら再起動）でログを確かめる
+
+| ログ | 意味 |
+|---|---|
+| `sso_reconciliation_finished` | 照合した（`checked` / `revoked` / `unlinked` / `held_back` の件数つき） |
+| `sso_reconciliation_not_bound` | assay でサービスアカウントがまだアプリに結び付いていない（手順 2） |
+| `sso_reconciliation_skipped` | assay に聞けなかった。**何も変えていない**（`assay_admin_token_failed` / `sso_roster_request_failed` が前に出る） |
+| `sso_reconciliation_everyone_unknown` | ⚠ 全員が「居ない」と返った。**何も変えていない**。`OIDC_ISSUER` のテナントと、結び付けたアプリを確かめる |
+
+止まった人を戻すのは assay 側だけでよい（こちらの操作は要らない）。消えた人（`unknown`）は結び付きが
+外れるので、同じ人が IdP で作り直されたら、本人がログインしたうえで結び付け直す。
 
 ## パスワードでのログインを止めたいとき（SSO 専用にする）
 

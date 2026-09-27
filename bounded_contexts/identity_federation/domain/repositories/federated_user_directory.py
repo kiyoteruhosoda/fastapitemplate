@@ -26,6 +26,17 @@ class FederatedUserDirectory(Protocol):
     def provision(self, account: NewFederatedAccount) -> FederatedAccount:
         """利用者を作る。パスワードでは入れない状態で作ること。"""
 
+    def refresh_profile(self, user_id: int, *, email: str | None, username: str) -> None:
+        """IdP が名乗った名前とメールアドレスを写しへ上書きする（ADR-0042）。
+
+        ⚠ **写しは IdP を正とする**（idp の ADR-0049 I5）。書かないと、向こうで
+        改名・メール変更をしても**こちらの表示は永久に古いまま**になる。
+
+        ⚠ **他の利用者とぶつかる値は書かない。** ``users.email`` は一意なので、
+        ぶつかったまま書くと**ログインが 500 で落ちる** ——写しの更新でログインを
+        壊してはいけないので、その項目だけ黙って見送る。
+        """
+
     def apply_roles(self, user_id: int, roles: Sequence[str]) -> FederatedAccount:
         """ロールを与え直す（IdP を正とする運用のとき）。
 

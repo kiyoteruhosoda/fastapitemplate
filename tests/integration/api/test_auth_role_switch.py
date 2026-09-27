@@ -115,7 +115,12 @@ def test_revoking_the_active_role_drops_its_scopes(
     admin_headers: dict[str, str],
     db_session: Session,
 ) -> None:
-    """切り替えた後にロールを外されたら、そのトークンの権限は残らない。"""
+    """切り替えた後にロールを外されたら、**次の更新で**そのトークンの権限は残らない。
+
+    ⚠ **手元のアクセストークンは寿命まで効いたままである**（ADR-0041）。検証が DB を
+    引かなくなったので、外した瞬間には反映されない。上限はアクセストークンの寿命
+    （既定 5 分）で、**引き締めているのは更新の側**である。
+    """
     _create_multi_role_user(client, admin_headers)
     # Cookie でセッションを持つので、利用者ごとにクライアントを分ける（ADR-0028）。
     _switch(other_client, _sign_in(other_client), "member")
@@ -128,6 +133,12 @@ def test_revoking_the_active_role_drops_its_scopes(
         json={"roles": ["manager"]},
     )
     assert updated.status_code == 200
+
+    # ⚠ 外した直後は、まだ効いている（引き受けた緩さ）。
+    assert other_client.get("/api/auth/me").json()["scopes"]
+
+    refreshed = other_client.post("/api/auth/refresh", headers={CSRF_HEADER: other_client.cookies[CSRF_COOKIE]})
+    assert refreshed.status_code == 200, refreshed.text
 
     me = other_client.get("/api/auth/me").json()
     assert me["scopes"] == []

@@ -13,7 +13,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "JWT_SECRET_KEY": "default-jwt-secret-change-me-in-production",
     "ACCESS_TOKEN_ISSUER": "fastapitemplate",
     "ACCESS_TOKEN_AUDIENCE": "fastapitemplate",
-    "ACCESS_TOKEN_EXPIRES_SECONDS": 900,
+    "ACCESS_TOKEN_EXPIRES_SECONDS": 300,
     "REFRESH_TOKEN_EXPIRES_SECONDS": 14 * 24 * 3600,
     "SESSION_COOKIE_SECURE": False,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS": 3600,
@@ -80,6 +80,11 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # IdP に鍵が複数登録されているときに、どれで検証するかを示す（RFC 7638 の
     # サムプリント）。1 つしか無ければ空でよい。
     "OIDC_PRIVATE_KEY_KID": "",
+    # このアプリが**機械として** IdP を呼ぶときの client_id（ADR-0043）。assay で
+    # サービスアカウントとして登録したもので、ログイン用の OIDC_CLIENT_ID とは別の登録。
+    # 鍵は上の OIDC_PRIVATE_KEY_FILE / KID を共有し、方式は常に private_key_jwt。
+    # 空なら定期照合は走らない。⚠ assay でアプリの「名乗り」に結び付けるまでは 403 で見送る。
+    "MACHINE_CLIENT_ID": "",
     "OIDC_SCOPES": ["openid", "profile", "email"],
     # IdP に登録するリダイレクト URI。空なら APP_BASE_URL + /api/auth/sso/callback。
     "OIDC_REDIRECT_URI": "",
@@ -101,9 +106,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # クレーム名の対応付け（IdP ごとに異なる）
     "OIDC_EMAIL_CLAIM": "email",
     "OIDC_USERNAME_CLAIM": "name",
-    "OIDC_GROUPS_CLAIM": "groups",
     # IdP のグループ -> このアプリのロール。"<グループ>=<ロール>" の並び。
-    "OIDC_ROLE_MAPPING": [],
     # 対応付けに当たらなかった利用者へ与えるロール
     "OIDC_DEFAULT_ROLES": [],
     # 毎回のログインでロールを IdP のグループから引き直す（IdP を正とする）。
@@ -113,8 +116,11 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # ⚠ **未知の利用者を初回ログインで作るか。既定は false。** IdP がテナント共用の
     #   場合、true は「IdP に口座がある人は全員このアプリに入れる」を意味する。
     "OIDC_AUTO_PROVISION": False,
-    # 既存のローカルアカウントと**検証済みの**メールアドレスで結び付ける
-    "OIDC_LINK_BY_EMAIL": True,
+    # ⚠ **初回ログインで既存のローカルアカウントへ寄せるか。既定は false**（ADR-0037）。
+    #   条件の email_verified は、自前 idp (assay) では「テナント管理者がそう主張して
+    #   いる」であって本人の証明ではない。開けるなら、つないだ IdP でこの値がどう立つ
+    #   のかまで確かめること。
+    "OIDC_LINK_BY_EMAIL": False,
     # 受け入れるメールアドレスのドメイン（空 = 制限しない）
     "OIDC_ALLOWED_EMAIL_DOMAINS": [],
     # 認可要求 -> コールバックの往復に許す時間（署名付き Cookie の寿命）

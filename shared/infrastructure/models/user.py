@@ -22,12 +22,24 @@ class User(Base):
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
     username: Mapped[str] = mapped_column(sa.String(100), nullable=False)
-    password_hash: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    #: ⚠ **NULL は「ローカルのパスワードが無い」**（ADR-0038）。「空のパスワード」でも
+    #: 「誰も知らない値が入っている」でもない。判定は :attr:`has_local_password` を通す。
+    password_hash: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=True, server_default=sa.true())
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
     updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
     roles = relationship("Role", secondary=user_roles, lazy="selectin")
+
+    @property
+    def has_local_password(self) -> bool:
+        """パスワードでこのアプリへ入れるか（ADR-0038）。
+
+        ⚠ **偽を「まだ決めていない」と読まないこと。** 偽は「この利用者に
+        パスワードという入り口は無い」であり、リセットでも生やさない。持たせるのは
+        管理者が明示的にパスワードを設定したときだけ。
+        """
+        return self.password_hash is not None
 
     @property
     def permission_codes(self) -> frozenset[str]:

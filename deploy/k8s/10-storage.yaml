@@ -1,0 +1,72 @@
+# 置き場。**2 つ**（DB とアプリのデータ）。
+#
+# ⚠ **ディレクトリと持ち主は人が先に作る。** PV は作るだけで掘らない。
+#
+#     ssh nolumialab 'sudo mkdir -p /srv/k8s-local/<app>-<env>-db /srv/k8s-local/<app>-<env>-data'
+#     ssh nolumialab 'sudo chown 999:999 /srv/k8s-local/<app>-<env>-db \
+#       && sudo chmod 770 /srv/k8s-local/<app>-<env>-db'
+#     ssh nolumialab 'sudo chown 5678:5678 /srv/k8s-local/<app>-<env>-data'
+#
+#   999 は MariaDB のイメージの `mysql`、5678 はこのイメージの `appuser`
+#   （`Dockerfile` の `ARG APP_UID`）。**片方だけ変えるとアプリが書けなくなる。**
+#
+# ⚠ **`local.path` は後から変えられない。** 置き場を移すときは PV と PVC を
+#   作り直す。`reclaimPolicy: Retain` なので中身は残る（既定の `Delete` だと消える）。
+#
+# ⚠ **本番の DB は iSCSI LUN に置くことがある**（NAS 側で 1 本切る）。
+#   宣言の形は変わらない ——`local.path` が `/srv/lun/<app>-<env>-db/db` になるだけ。
+#   手順は deploy-repo の `k8s/lun/`。
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: <app>-<env>-db
+spec:
+  capacity: {storage: 5Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: node-local
+  local: {path: /srv/k8s-local/<app>-<env>-db}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - {key: kubernetes.io/hostname, operator: In, values: [nolumialab]}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: <app>-<env>-data
+spec:
+  capacity: {storage: 5Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: node-local
+  local: {path: /srv/k8s-local/<app>-<env>-data}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - {key: kubernetes.io/hostname, operator: In, values: [nolumialab]}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-data
+  namespace: <app>-<env>
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: node-local
+  volumeName: <app>-<env>-db
+  resources: {requests: {storage: 5Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+  namespace: <app>-<env>
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: node-local
+  volumeName: <app>-<env>-data
+  resources: {requests: {storage: 5Gi}}

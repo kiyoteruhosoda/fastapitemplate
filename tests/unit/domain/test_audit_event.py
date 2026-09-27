@@ -27,6 +27,7 @@ _EXPECTED_EVENT_TYPES = {
     "sso_login.failed",
     "sso_user.provisioned",
     "sso_identity.linked",
+    "sso_identity.unlinked",
     "two_factor.enabled",
     "two_factor.disabled",
     "passkey.registered",

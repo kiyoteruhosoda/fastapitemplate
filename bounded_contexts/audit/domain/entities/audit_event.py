@@ -42,6 +42,8 @@ class AuditEventType(StrEnum):
     # IdP の名乗りから利用者を作った／既存の利用者へ結び付けた。どちらも初回だけ起きる。
     SSO_USER_PROVISIONED = "sso_user.provisioned"
     SSO_IDENTITY_LINKED = "sso_identity.linked"
+    # 本人が設定画面から結び付けた／外した（ADR-0040）。
+    SSO_IDENTITY_UNLINKED = "sso_identity.unlinked"
     # --- 二要素認証・パスキー ---
     TWO_FACTOR_ENABLED = "two_factor.enabled"
     TWO_FACTOR_DISABLED = "two_factor.disabled"

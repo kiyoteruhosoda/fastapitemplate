@@ -1,8 +1,9 @@
 name: Image
 
 # Dockerfile まわりを触った PR / main への push だけで動く。
-# 本番のビルドは Komodo（nolumialab）が行い、成果物はレジストリのイメージ（ADR-0023）。
-# ここで焼くイメージは **push しない**。目的は「Komodo に着く前に壊れているかを知る」こと。
+# 本番のビルドは deploy-repo の build が行い、成果物はレジストリのイメージ（ADR-0044）。
+# ここで焼くイメージは **push しない**。目的は「デプロイの経路へ着く前に壊れているかを
+# 知る」こと。
 on:
   push:
     branches: [main]
@@ -43,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # Komodo Build の pre_build と同じ手順。ここを省くとイメージが版を名乗れない。
+      # build の「版を刻む」段と同じ手順。ここを省くとイメージが版を名乗れない。
       - name: バージョン情報を生成
         run: bash scripts/generate_version.sh
         env:

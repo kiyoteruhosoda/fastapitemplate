@@ -43,6 +43,12 @@ from bounded_contexts.identity_federation.domain.value_objects.authentication_co
 from bounded_contexts.identity_federation.domain.value_objects.claims_mapping import (
     ClaimsMapping,
 )
+from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
+    FederatedLogin,
+)
+from bounded_contexts.identity_federation.domain.value_objects.federated_session import (
+    FederatedSession,
+)
 from bounded_contexts.identity_federation.domain.value_objects.identity_provider import (
     IdentityProvider,
     require_usable,
@@ -87,17 +93,33 @@ class CompleteSsoLogin:
             )
         )
         self.requested_context.ensure_satisfied(claims.get("acr"))
-        account = self.accounts.execute(issuer=provider.issuer, user=self.claims.apply(claims))
+        federated_user = self.claims.apply(claims)
+        account = self.accounts.execute(issuer=provider.issuer, user=federated_user)
         ticket = new_secret()
+        started_at = utcnow()
         self.tickets.issue(
             SsoLoginTicket(
                 ticket_hash=hash_secret(ticket),
                 user_id=account.user_id,
                 redirect_to=transaction.redirect_to,
-                expires_at=utcnow() + timedelta(seconds=self.ticket_ttl_seconds),
+                expires_at=started_at + timedelta(seconds=self.ticket_ttl_seconds),
+                login=FederatedLogin(
+                    session=_federated_session(provider.issuer, federated_user.subject, claims.get("sid")),
+                    started_at=started_at,
+                ),
             )
         )
         return SsoHandoffDto(ticket=ticket, redirect_to=transaction.redirect_to, account=account)
+
+
+def _federated_session(issuer: str, subject: str, sid: object) -> FederatedSession:
+    """ID トークンの ``sid`` を宛名へ写す（ADR-0036）。
+
+    ``sid`` を出さない IdP もあるので、無ければ ``None`` のまま進む
+    （その IdP では**利用者単位でしか**止められない）。
+    """
+    session_id = sid.strip() if isinstance(sid, str) else ""
+    return FederatedSession(issuer=issuer, subject=subject, session_id=session_id or None)
 
 
 __all__ = ["CompleteSsoLogin"]

@@ -57,6 +57,10 @@ class LoginService:
             self._reject(None, "unknown_email")
         if not user.is_active:
             self._reject(user, "inactive_user")
+        if user.password_hash is None:
+            # パスワードという入り口を持たない利用者（ADR-0038）。照合する相手が
+            # 無いので、ここで断る。
+            self._reject(user, "no_local_password")
         if not check_password_hash(user.password_hash, credentials.password):
             self._reject(user, "invalid_password")
 

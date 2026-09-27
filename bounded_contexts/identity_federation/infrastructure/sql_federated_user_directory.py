@@ -7,13 +7,12 @@ Domain / Application 層はこの実装を知らない。
 from __future__ import annotations
 
 import logging
-import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from werkzeug.security import generate_password_hash
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from bounded_contexts.identity_federation.domain.entities.federated_account import (
     FederatedAccount,
@@ -22,10 +21,6 @@ from bounded_contexts.identity_federation.domain.entities.federated_account impo
 from shared.infrastructure.models import Role, User
 
 logger = logging.getLogger(__name__)
-
-# SSO で作った利用者に与えるパスワード。誰も知らない値を入れることで、
-# パスワード認証の口からは入れない状態にする（``password_hash`` は NOT NULL）。
-_UNUSABLE_PASSWORD_BYTES = 48
 
 
 @dataclass(frozen=True)
@@ -62,9 +57,10 @@ class SqlFederatedUserDirectory:
         user = User(
             email=account.email,
             username=account.username,
-            # 平文はどこにも残さない。ローカルのパスワードを使いたい利用者は
-            # パスワードリセットで自分で設定する。
-            password_hash=generate_password_hash(secrets.token_urlsafe(_UNUSABLE_PASSWORD_BYTES)),
+            # ⚠ **ランダム値で埋めない**（ADR-0038）。埋めると「パスワードが無い」と
+            # 「誰も知らないパスワードがある」が区別できなくなり、画面に変更の導線が
+            # 出る・監査で入れる手段が読めない、という歪みが出る。
+            password_hash=None,
             is_active=True,
         )
         user.roles = self._roles_named(account.roles)
@@ -72,6 +68,30 @@ class SqlFederatedUserDirectory:
         self.session.flush()
         logger.info("sso_user_provisioned")
         return _require_account(user)
+
+    def refresh_profile(self, user_id: int, *, email: str | None, username: str) -> None:
+        """名前とメールアドレスを写しへ上書きする（ADR-0042）。
+
+        ⚠ **ぶつかる値は書かない。** ``users.email`` も ``users.username`` も一意なので、
+        別の利用者が既に持っている値をそのまま書くと**ログインが 500 で落ちる**。
+        写しの更新でログインを壊すのは本末転倒なので、その項目だけ見送って記録に残す。
+        """
+        user = self.session.get(User, user_id)
+        if user is None:  # pragma: no cover - 直前に引けた利用者が消えた場合のみ
+            return
+        if email is not None and email != user.email and self._is_free(User.email, email, user_id):
+            user.email = email
+        if username and username != user.username and self._is_free(User.username, username, user_id):
+            user.username = username
+        self.session.flush()
+
+    def _is_free(self, column: InstrumentedAttribute[str], value: str, user_id: int) -> bool:
+        taken = self.session.scalar(select(User.id).where(column == value).where(User.id != user_id))
+        if taken is not None:
+            # ⚠ 値そのものは残さない（PII）。どの項目が見送られたかだけ分かればよい。
+            logger.warning("federated_profile_conflict", extra={"field": column.key})
+            return False
+        return True
 
     def apply_roles(self, user_id: int, roles: Sequence[str]) -> FederatedAccount:
         user = self.session.get(User, user_id)

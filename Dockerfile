@@ -35,14 +35,16 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 ENV PATH="/app/.venv/bin:$PATH"
 
 # バージョン情報（shared/kernel/version.json）は **ビルドの前に生成してコンテキストへ入れる**。
-# Komodo Build の pre_build が scripts/generate_version.sh を実行し、その出力がここへ
-# COPY されてくる（ADR-0023）。この RUN は「無かったときに dev として印を付ける」だけで、
+# build の「版を刻む」段が scripts/generate_version.sh を実行し、その出力がここへ
+# COPY されてくる（ADR-0044）。この RUN は「無かったときに dev として印を付ける」だけで、
 # 既にある内容は書き換えない。イメージには .git が入らないので、ここで git は引けない。
+# ⚠ **ビルド情報を受け取る ARG を足さない。** 渡す側ごとに名前がずれて壊れた実績がある
+#   （CLAUDE.md「ビルドとデプロイ」）。
 RUN bash scripts/generate_version.sh
 
 RUN chmod +x /app/scripts/entrypoint.sh
-# 実行ユーザーの UID。データディレクトリの所有者（compose の init-paths）と揃える必要が
-# あるため、値を変えるときは deploy/komodo/stack.toml の APP_UID / APP_GID も揃える。
+# 実行ユーザーの UID。置き場の所有者と揃える必要があるため、値を変えるときは
+# deploy/k8s/10-storage.yaml の chown と 40-app.yaml の fsGroup も揃える。
 ARG APP_UID=5678
 RUN adduser -u "$APP_UID" --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser

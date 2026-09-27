@@ -2,7 +2,7 @@
 
 FastAPI + DDD のアプリケーションテンプレートです（photonest の構成・設計思想がベース）。
 認証認可（JWT + scope）・システム設定管理・構造化ログ・管理画面 SPA・
-Docker と Komodo へのデプロイ定義まで含んだ状態から開発を始められます。
+k3s へのデプロイ定義まで含んだ状態から開発を始められます。
 
 ## 技術スタック
 
@@ -67,15 +67,21 @@ make format             # 整形の指摘を自動修正
 
 ## Docker / デプロイ
 
-**ビルドとデプロイは Komodo（nolumialab）で行います。成果物はコンテナイメージです**
-（[ADR-0023](docs/decisions/ADR-0023-komodo-build-and-deploy.md)）。
+**デプロイ先は nolumialab の k3s で、成果物はコンテナイメージ 1 つです**
+（[ADR-0044](docs/decisions/ADR-0044-build-and-apply-on-k3s.md)）。
 
 ```
-GitHub のソース ──push──▶ Komodo Build ──push──▶ hub.nolumia.com:5000/komodo/<app>
-                                                  ＝ 成果物（タグ: latest / <コミット> / 0.0.N）
-                                                            │ pull
-                      deploy-repo ──ResourceSync──▶ Komodo Stack ──┘
+forge のソース ──▶ build ──▶ hub.nolumia.com:5000/app/<image>:sha-<コミット>
+（git.nolumia.com）             ＝ 成果物（コンテナイメージ）
+                                         │ digest
+                                         ▼
+    deploy-repo の k8s/<app>-<env>/ ──apply──▶ k3s（nolumialab）
+    ＝ 稼働状態の正（宣言）
 ```
+
+押す口は **deck（https://deck.nolumia.com）** で、環境を選ぶと
+**build → pin → deploy** の 3 段が走ります。⚠ **Komodo は 2026-09-08 に停止
+しました**（起こさないでください）。
 
 手元で動かすときは compose を使います（デプロイには使いません）。
 
@@ -85,13 +91,12 @@ cp .env.example .env
 docker compose up -d            # db / app / front が起動 → http://127.0.0.1:8080
 ```
 
-デプロイ定義の雛形（compose・Komodo の Build / Stack 定義）は
-[deploy/komodo/](deploy/komodo/README.md) に入っています。deploy-repo へ複製して使います。
+デプロイ定義の雛形（k8s の宣言一式）は [deploy/k8s/](deploy/k8s/README.md) に
+入っています。deploy-repo の `k8s/<app>-<env>/` へ複製して使います。
 
-**このテンプレートから作ったプロジェクトは名前を変えてください。** イメージ名・
-スタック名・ネットワーク別名・データディレクトリがその名前から派生します。
-`fastapitemplate` のまま Komodo に登録すると、テンプレート由来の別プロジェクトと
-イメージとエイリアスを取り合います。
+**このテンプレートから作ったプロジェクトは名前を変えてください。** namespace・
+イメージ名・データディレクトリがその名前から派生します。`fastapitemplate` のまま
+登録すると、テンプレート由来の別プロジェクトとイメージと置き場を取り合います。
 
 **`pyproject.toml` の `[project].name` も同時に変えてください。** ここがアプリ自身の
 名前の正本で、Swagger の題と、外へ出るときに名乗る `User-Agent` がここから導かれます
@@ -108,7 +113,7 @@ docker compose up -d            # db / app / front が起動 → http://127.0.0.
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作手順書 |
 | [docs/Progress.md](docs/Progress.md) | 進行中タスク |
 | [docs/decisions/](docs/decisions/) | 設計判断（ADR） |
-| [deploy/komodo/README.md](deploy/komodo/README.md) | Komodo でのビルドとデプロイ（定義の雛形つき） |
+| [deploy/k8s/README.md](deploy/k8s/README.md) | k3s へのデプロイ（宣言の雛形つき） |
 | [frontend/README.md](frontend/README.md) | 画面遷移図・画面仕様・操作マニュアル |
 
 ## ライセンス

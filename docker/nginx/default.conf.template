@@ -5,9 +5,11 @@
 # 使う。置換されるのは **環境変数として定義されている名前だけ**なので、$host や
 # $remote_addr のような nginx 変数はそのまま残る。
 #
-# ⚠ このファイルはローカル開発（docker-compose.yml）と Komodo のスタック
-#   （deploy/komodo/compose.yaml）の**両方が同じものをマウントする**。片方だけ直すと
-#   「手元では動くのに本番で 502」になるので、複製せず 1 つを共有している。
+# ⚠ **このファイルはローカル開発（docker-compose.yml）専用。** デプロイ先の nginx
+#   設定は deploy-repo の `k8s/<app>-<env>/20-config.yaml`（ConfigMap。雛形は
+#   deploy/k8s/20-config.yaml）にあり、**resolver が違う**——下の docker 組み込み DNS
+#   ではなく CoreDNS（10.43.0.10）で、上流も FQDN で書く。共有できないので、
+#   **片方を直したらもう片方も直す**（片方だけだと「手元では動くのに本番で 502」）。
 
 # Docker 組み込み DNS。valid=10s で再解決させる。IPv6 はこの環境では未使用。
 # ⚠ この resolver と下の変数経由 proxy_pass はセット。upstream ブロックに戻すと

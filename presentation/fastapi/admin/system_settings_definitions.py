@@ -25,6 +25,9 @@ _RESTART_WEB: tuple[str, ...] = (RestartScope.WEB.value,)
 SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     # --- 認証 ---
     {
+        # ⚠ **これが「止めたら効くまで」の上限時間になる**（ADR-0041）。検証は DB を
+        #   引かないので、止められた利用者が弾かれるのは次の更新のときである。
+        #   長くするほど、停止・権限の取り上げが遅れて効く。
         "key": "ACCESS_TOKEN_EXPIRES_SECONDS",
         "category": "auth",
         "label": "Access token lifetime (seconds)",
@@ -195,6 +198,12 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Private key ID (kid)",
         "value_type": "string",
     },
+    {
+        "key": "MACHINE_CLIENT_ID",
+        "category": "sso",
+        "label": "Service account client ID (empty = do not reconcile with the identity provider)",
+        "value_type": "string",
+    },
     {"key": "OIDC_SCOPES", "category": "sso", "label": "Requested scopes", "value_type": "list"},
     {"key": "OIDC_REDIRECT_URI", "category": "sso", "label": "Redirect URI", "value_type": "string"},
     {
@@ -222,23 +231,18 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Display name claim",
         "value_type": "string",
     },
-    {"key": "OIDC_GROUPS_CLAIM", "category": "sso", "label": "Groups claim", "value_type": "string"},
-    {
-        "key": "OIDC_ROLE_MAPPING",
-        "category": "sso",
-        "label": "Group to role mapping (<group>=<role>)",
-        "value_type": "list",
-    },
     {
         "key": "OIDC_DEFAULT_ROLES",
         "category": "sso",
-        "label": "Roles granted when no mapping matches",
+        "label": "Roles granted on first login",
         "value_type": "list",
     },
     {
+        # ⚠ **引き直すのは既定のロールだけである**（ADR-0042）。真にすると、
+        #   管理画面で足したロールが**毎回のログインで消える**。
         "key": "OIDC_ROLE_SYNC",
         "category": "sso",
-        "label": "Re-apply roles from groups on every login",
+        "label": "Re-apply the default roles on every login",
         "value_type": "boolean",
     },
     {
@@ -250,7 +254,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     {
         "key": "OIDC_LINK_BY_EMAIL",
         "category": "sso",
-        "label": "Link to an existing account by verified email",
+        "label": "Link to an existing account by verified email (check what the IdP means by verified)",
         "value_type": "boolean",
     },
     {

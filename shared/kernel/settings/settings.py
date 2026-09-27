@@ -412,6 +412,16 @@ class ApplicationSettings:
         return str(self._get("OIDC_PRIVATE_KEY_KID") or "")
 
     @property
+    def machine_client_id(self) -> str:
+        """このアプリが**機械として**名乗る ``client_id``（ADR-0043）。
+
+        ⚠ 利用者のログイン用（``OIDC_CLIENT_ID``）とは**別の登録**。鍵だけを共有する。
+        ⚠ **用途の名前を付けない**（``RECONCILE_…`` にしない）。どのアプリのものかは
+        assay が決めることで、こちらが用途ごとに名乗りを使い分けて申告するものではない。
+        """
+        return str(self._get("MACHINE_CLIENT_ID") or "")
+
+    @property
     def oidc_scopes(self) -> Sequence[str]:
         return self.get_list("OIDC_SCOPES")
 
@@ -472,15 +482,6 @@ class ApplicationSettings:
         return str(self._get("OIDC_USERNAME_CLAIM") or "name")
 
     @property
-    def oidc_groups_claim(self) -> str:
-        return str(self._get("OIDC_GROUPS_CLAIM") or "groups")
-
-    @property
-    def oidc_role_mapping(self) -> Sequence[str]:
-        """``"<グループ>=<ロール>"`` の並び。"""
-        return self.get_list("OIDC_ROLE_MAPPING")
-
-    @property
     def oidc_default_roles(self) -> Sequence[str]:
         return self.get_list("OIDC_DEFAULT_ROLES")
 
@@ -494,7 +495,12 @@ class ApplicationSettings:
 
     @property
     def oidc_link_by_email(self) -> bool:
-        return self.get_bool("OIDC_LINK_BY_EMAIL", True)
+        """初回ログインで、同じメールアドレスの既存の利用者へ寄せるか（ADR-0037）。
+
+        ⚠ **既定は寄せない。** 条件の ``email_verified`` の意味が IdP 側と食い違って
+        いると、相手のアドレスを名乗るだけで他人のアカウントへ入れる経路になる。
+        """
+        return self.get_bool("OIDC_LINK_BY_EMAIL", False)
 
     @property
     def oidc_allowed_email_domains(self) -> Sequence[str]:

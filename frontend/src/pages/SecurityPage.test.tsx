@@ -1,7 +1,8 @@
 /**
  * セキュリティ画面（`/profile/security`）。
  *
- * パスワード変更・二要素認証・パスキーが 1 つの画面に並ぶこと（ADR-0020）と、
+ * パスワード変更・二要素認証・パスキー・IdP との連携が 1 つの画面に並ぶこと
+ * （ADR-0020 / ADR-0040）と、
  * それぞれが正しい API を叩くことを確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -10,7 +11,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToastProvider } from '../components/ToastNotification'
 import { I18nProvider } from '../i18n'
+import { AuthProvider, type Me, useAuth } from '../store/AuthContext'
 import { SecurityPage } from './SecurityPage'
+
+/** 実アプリと同じく、`/me` の解決後にだけページをマウントする（RequireAuth 相当）。 */
+function Gate() {
+  const { user } = useAuth()
+  if (!user) return null
+  return <SecurityPage />
+}
+
+const ME: Me = {
+  user_id: 1,
+  email: 'admin@example.com',
+  username: 'admin',
+  scopes: [],
+  roles: [],
+  active_role: null,
+  has_password: true,
+  rp_logout_enabled: false,
+}
 
 const { apiGet, apiPost, apiDelete } = vi.hoisted(() => ({
   apiGet: vi.fn(),
@@ -29,10 +49,19 @@ vi.mock('../services/webauthn', () => ({
   isPasskeySupported: () => true,
 }))
 
-/** この画面が開いたときに引く 2 本（二要素認証の状態・パスキーの一覧）。 */
-function respondToGet(path: string) {
+/** この画面が開いたときに引く 4 本（本人・二要素認証・連携の状態・パスキーの一覧）。 */
+function respondToGet(path: string, me: Me = ME) {
+  if (path === '/api/auth/me') return Promise.resolve(me)
   if (path === '/api/account/security/two-factor')
     return Promise.resolve({ enabled: false, enrolling: false })
+  if (path === '/api/auth/sso/link')
+    return Promise.resolve({
+      available: true,
+      display_name: 'Example IdP',
+      linked: false,
+      linked_at: null,
+      can_unlink: false,
+    })
   return Promise.resolve([])
 }
 
@@ -42,9 +71,11 @@ async function renderPage() {
   render(
     <MemoryRouter initialEntries={['/profile/security']}>
       <I18nProvider settings={SETTINGS}>
-        <ToastProvider>
-          <SecurityPage />
-        </ToastProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <Gate />
+          </ToastProvider>
+        </AuthProvider>
       </I18nProvider>
     </MemoryRouter>,
   )
@@ -60,18 +91,35 @@ describe('SecurityPage', () => {
     apiPost.mockResolvedValue({})
   })
 
-  it('パスワード変更・二要素認証・パスキーが 1 つの画面に並ぶ', async () => {
+  it('パスワード変更・二要素認証・パスキー・連携が 1 つの画面に並ぶ', async () => {
     await renderPage()
 
     expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Two-factor authentication' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Passkeys' })).toBeInTheDocument()
     expect(screen.getByText('No passkeys registered yet.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Single sign-on' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Link with Example IdP' })).toBeInTheDocument()
     // プロフィールへ戻る導線がある
     expect(screen.getByRole('link', { name: 'Back to profile' })).toHaveAttribute(
       'href',
       '/profile',
     )
+  })
+
+  it('パスワードを持たない利用者には変更フォームを出さない', async () => {
+    // ⚠ 出すと、「今のパスワード」を入力できない相手に絶対に通らない入力欄を見せる
+    //   ことになる（ADR-0038）。
+    apiGet.mockImplementation((path: string) => respondToGet(path, { ...ME, has_password: false }))
+    await renderPage()
+
+    expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'You sign in with your identity provider, so there is no password to change here.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('パスワードを変更すると POST /api/auth/change-password が飛ぶ', async () => {

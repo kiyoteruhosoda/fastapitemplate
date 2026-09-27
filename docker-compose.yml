@@ -1,9 +1,11 @@
 # ローカル開発用の compose。**デプロイには使わない。**
 #
-# デプロイ先（Komodo）の compose は deploy/komodo/compose.yaml で、そちらは
-# deploy-repo の stacks/<app>/compose.yaml として置かれる（ADR-0023）。
-# サービス名・ネットワーク別名・nginx 設定はデプロイ側と同じ形に揃えてある。
-# 「手元では動くのにデプロイすると 502」を避けるため、構成をわざと二重化していない。
+# デプロイ先は k3s で、compose は無い（宣言は deploy-repo の k8s/<app>-<env>/。
+# 雛形は deploy/k8s/。ADR-0044）。サービス名（app / front）・上流の引き方・
+# 前段 1 段だけを信用する形は、デプロイ側と同じになるよう揃えてある
+# ——「手元では動くのにデプロイすると 502」を避けるため。
+# ⚠ **nginx の設定だけは共有していない**（resolver が docker と k8s で違う）。
+#   片方を直したらもう片方も直す。
 #
 # 使い方:
 #   docker build -t fastapitemplate:dev .   （または make image）
@@ -34,7 +36,7 @@ services:
     environment:
       - TZ=UTC
       # 初期設定のみ（.env 未作成／項目未記入）でも DB が初期化されるようデフォルト値を
-      # 持つ。既定の資格情報は開発向け。デプロイ先では Komodo の Variable から渡す。
+      # 持つ。既定の資格情報は開発向け。デプロイ先では封印した Secret から渡す。
       - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-template123}
       - MARIADB_USER=${MARIADB_USER:-web_user}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-template123}
@@ -66,7 +68,7 @@ services:
   app:
     image: ${WEB_IMAGE:-fastapitemplate:dev}
     networks:
-      # front はこの別名で引く。デプロイ側と同じ形（deploy/komodo/compose.yaml のコメント参照）。
+      # front はこの別名で引く（デプロイ側では namespace の中の Service 名 `app`）。
       default:
         aliases:
           - ${APP_WEB_ALIAS:-fastapitemplate-app}

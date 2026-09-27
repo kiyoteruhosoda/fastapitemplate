@@ -23,7 +23,11 @@ class ExchangeSsoTicket:
 
     def execute(self, *, ticket: str) -> SsoSessionDto:
         redeemed = self.tickets.redeem(hash_secret(ticket))
-        return SsoSessionDto(user_id=redeemed.user_id, redirect_to=redeemed.redirect_to)
+        return SsoSessionDto(
+            user_id=redeemed.user_id,
+            redirect_to=redeemed.redirect_to,
+            login=redeemed.login,
+        )
 
 
 __all__ = ["ExchangeSsoTicket"]

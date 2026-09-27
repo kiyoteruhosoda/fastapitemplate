@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
+    FederatedLogin,
+)
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
@@ -84,9 +88,13 @@ def _extract_token(
 async def get_current_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
-    db: Session = Depends(get_db),
 ) -> AuthenticatedPrincipal:
-    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。"""
+    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。
+
+    ⚠ **DB を引かない**（ADR-0041）。認可の材料はすべてトークンのクレームに
+    載っている。利用者の行そのものが要る経路は :func:`get_current_user` を使う
+    ——そちらは 1 件引くが、**認可の判定ではない**。
+    """
     from presentation.fastapi.services.token_service import TokenService
 
     token = _extract_token(credentials, access_token_cookie)
@@ -97,7 +105,7 @@ async def get_current_principal(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    principal, reason = TokenService.verify_access_token_with_reason(token, session=db)
+    principal, reason = TokenService.verify_access_token_with_reason(token)
     if not principal:
         logger.debug("JWT 認証失敗: %s", reason)
         raise HTTPException(
@@ -129,6 +137,99 @@ async def get_current_user(
             detail={"error": "invalid_token"},
         )
     return user
+
+
+async def get_current_user_or_none(
+    access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """入っていれば利用者を、入っていなければ ``None`` を返す（401 にしない）。
+
+    ⚠ **これを認可に使わない。** 用があるのは**ブラウザの画面遷移**で戻ってくる
+    経路だけである（ADR-0040 の連携の戻り）。そこで 401 を返すと、利用者には
+    JSON の生文字列が見えるだけで、やり直す導線も出せない。認可が要る口は
+    :func:`get_current_principal` 系を使う。
+    """
+    from presentation.fastapi.services.token_service import TokenService
+
+    if not access_token_cookie:
+        return None
+    principal, _ = TokenService.verify_access_token_with_reason(access_token_cookie)
+    if principal is None:
+        return None
+    return db.get(User, principal.user_id)
+
+
+@dataclass(frozen=True)
+class CurrentSession:
+    """いま操作している利用者と、その入り口（ADR-0036）。
+
+    ``federated_login`` が ``None`` ならローカルのログイン。新しいトークンを
+    出し直す口（ロールの切り替え）は、**これをそのまま引き継ぐ**。
+    """
+
+    user: User
+    federated_login: FederatedLogin | None
+
+
+async def get_current_session(
+    user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+    db: Session = Depends(get_db),
+) -> CurrentSession:
+    """認証済みの利用者と、そのセッションがどこから始まったかを返す。
+
+    トークンは :func:`get_current_principal` が既に検証している（同じリクエストの
+    同じ値）。ここで読むのは宛名のクレームだけで、認証をやり直しているのではない。
+
+    ⚠ **ここは「新しいトークンを出す」経路のためにある**（ロールの切り替え）。
+    アクセストークンの検証が DB を引かなくなったので（ADR-0041）、**出し直しの
+    経路だけは止まっていないことを確かめる** ——確かめないと、止められた利用者が
+    切り替えを繰り返すだけで**いつまでも新しいトークンを受け取れる**。
+    **寿命による上限が、そこで破れる。**
+    """
+    from presentation.fastapi.services.token_service import TokenService
+
+    token = _extract_token(credentials, access_token_cookie)
+    if token and TokenService.session_is_revoked(token, session=db):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token", "reason": "session_revoked"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return CurrentSession(
+        user=user,
+        federated_login=TokenService.federated_login_of(token) if token else None,
+    )
+
+
+async def get_settled_principal(
+    # ⚠ **値は使わない。関門として通すためだけに置いてある**（名前の ``_`` はその印）。
+    _session: CurrentSession = Depends(get_current_session),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
+) -> AuthenticatedPrincipal:
+    """**資格情報を作り替える経路**のための関門（ADR-0041 決定 6）。
+
+    二要素認証やパスキーの登録・解除は「新しい入り口を作る」操作である。
+    ⚠ **アクセストークンの検証が DB を引かなくなったので、止められた利用者でも
+    手元の 1 枚は寿命まで通る。** その 1 枚で新しい入り口を作られては、止めた意味が
+    半分無くなる ——ここだけは、いまの状態を確かめてから通す。
+
+    確かめているのは :func:`get_current_session` である（利用者が生きていること、
+    IdP 側で止められていないこと）。**出し直しの経路と同じ関門**を使う。
+    """
+    from presentation.fastapi.services.token_service import TokenService
+
+    token = _extract_token(credentials, access_token_cookie)
+    principal, _ = TokenService.verify_access_token_with_reason(token or "")
+    if principal is None:  # pragma: no cover - 関門を通った時点で必ず読める
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token"},
+        )
+    return principal
 
 
 def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
@@ -187,8 +288,10 @@ __all__ = [
     "ACCESS_TOKEN_COOKIE",
     "REFRESH_COOKIE_PATH",
     "REFRESH_TOKEN_COOKIE",
+    "CurrentSession",
     "clear_access_token_cookie",
     "get_current_principal",
+    "get_current_session",
     "get_current_user",
     "require_any_permission",
     "require_permission",
