@@ -282,6 +282,7 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 ```python
 # OK
 from shared.kernel.settings.settings import settings
+
 value = settings.some_property
 
 # NG

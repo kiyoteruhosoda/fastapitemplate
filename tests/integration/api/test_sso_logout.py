@@ -14,7 +14,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-import httpx
+import httpx2
 import pytest
 import sqlalchemy as sa
 from fastapi import FastAPI
@@ -99,7 +99,7 @@ def make_client(
     return _make
 
 
-def _logout(client: TestClient, *, site: str | None = "same-origin") -> httpx.Response:
+def _logout(client: TestClient, *, site: str | None = "same-origin") -> httpx2.Response:
     headers = {} if site is None else {"Sec-Fetch-Site": site}
     return client.get("/api/auth/sso/logout", follow_redirects=False, headers=headers)
 

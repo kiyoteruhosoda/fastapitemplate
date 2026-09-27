@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 import pyotp
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +11,7 @@ from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 from shared.domain.auth import master_data
 
 
-def _login(client: TestClient, **extra: object) -> httpx.Response:
+def _login(client: TestClient, **extra: object) -> httpx2.Response:
     return client.post(
         "/api/auth/login",
         json={"email": "admin@example.com", "password": master_data.DEFAULT_ADMIN_PASSWORD, **extra},

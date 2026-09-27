@@ -11,7 +11,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -102,7 +102,7 @@ def _register(
     headers: dict[str, str],
     credential_id: str = "credential-1",
     **extra: object,
-) -> httpx.Response:
+) -> httpx2.Response:
     challenge = client.post("/api/account/security/passkeys/registration", headers=headers)
     assert challenge.status_code == 200, challenge.text
     return client.post(

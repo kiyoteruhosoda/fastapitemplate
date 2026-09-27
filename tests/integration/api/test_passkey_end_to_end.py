@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
@@ -29,7 +29,7 @@ def _register(
     headers: dict[str, str],
     authenticator: SoftwareAuthenticator,
     name: str | None,
-) -> httpx.Response:
+) -> httpx2.Response:
     challenge = client.post("/api/account/security/passkeys/registration", headers=headers)
     assert challenge.status_code == 200, challenge.text
     body = challenge.json()
