@@ -139,6 +139,15 @@ class SsoAccountInactiveError(IdentityFederationError):
     code = "sso_account_inactive"
 
 
+class AppAccessTokenRejectedError(IdentityFederationError):
+    """アプリから来た assay のアクセストークンを受け取らない（ADR-0045）。
+
+    理由（署名・宛先・クライアント・停止）は応答で区別しない。401 になる。
+    """
+
+    code = "invalid_token"
+
+
 class MachineNotBoundToApplicationError(IdentityFederationError):
     """名乗ったサービスアカウントが、assay でどのアプリにも結び付いていない（管理 API の 403。ADR-0043）。
 

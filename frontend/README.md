@@ -61,6 +61,7 @@ flowchart TD
         Reset["/reset-password?token=…<br/>新しいパスワード設定"]
         SsoCallback["/login/sso?ticket=…<br/>SSO の戻り（引き換え）"]
         Idp[["外部 IdP<br/>（別サイト）"]]
+        AppReturn["/app/oauth2redirect<br/>アプリへ戻る案内"]
     end
 
     subgraph private["認証済み（Header + Sidebar + Footer レイアウト）"]
@@ -85,6 +86,7 @@ flowchart TD
     Login -->|"パスワードをお忘れですか"| Forgot
     Forgot -->|"メール内のリンク"| Reset
     Reset -->|"更新完了"| Login
+    AppReturn -->|"Web 版を開く"| Dashboard
 
     private -.->|"未認証・トークン失効"| Login
     Dashboard -->|"ログアウト"| Login
@@ -127,6 +129,7 @@ flowchart TD
 | S2  | パスワードリセット申請 | `/forgot-password`        | 不要 | —                                                   | —          |
 | S3  | パスワード再設定       | `/reset-password?token=…` | 不要 | —                                                   | —          |
 | S15 | SSO の戻り             | `/login/sso?ticket=…`     | 不要 | —                                                   | —          |
+| S16 | アプリへ戻る案内       | `/app/oauth2redirect`     | 不要 | —                                                   | —          |
 | S4  | ダッシュボード         | `/`                       | 必要 | `dashboard:view`                                    | ✅         |
 | S5  | アイテム               | `/items`                  | 必要 | `item:view`（追加は `item:manage`）                 | ✅         |
 | S6  | プロフィール           | `/profile`                | 必要 | —                                                   | —          |
@@ -197,6 +200,14 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **備考**: **URL に載るのは券だけでトークンは載らない**（URL は履歴・Referer・
   プロキシのログに残るため）。券は 1 回限りで、React の開発時の二重実行でも
   2 度換えにいかないよう画面側で控えている。
+
+### S16 アプリへ戻る案内（`/app/oauth2redirect`）
+
+- **目的**: Android アプリが assay でログインしたあとの戻り先（App Links。ADR-0045）。
+  ふだんは Android がアプリへ渡すので**この画面は出ない**。出るのは PC で開いた・
+  アプリが入っていない・結び付けの確認（`/.well-known/assetlinks.json`）が済んでいない
+  ときだけで、**ここではログインを続けない**（認可コードはアプリしか引き換えられない）。
+- **操作**: 「Web 版を開く」で `/` へ。
 
 ### S2 パスワードリセット申請（`/forgot-password`）
 
@@ -481,6 +492,12 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 
 > パスワード欄が出ていないときは、ローカルの入口が閉じられている（`LOCAL_LOGIN_ENABLED`）。
 > SSO のボタンからログインする。
+
+### アプリでログインしたのに「アプリへ戻ります」と出たとき
+
+スマートフォンにアプリが入っていないか、アプリとこのサイトの結び付けがまだ確かめられて
+いない（Android が `/.well-known/assetlinks.json` を読めていない）状態です。アプリを開いて
+もう一度ログインしてください。パソコンでは「Web 版を開く」を押してください。
 
 ### パスワードを忘れたとき
 

@@ -274,5 +274,8 @@
   "error.sso_callback_invalid": "Single sign-on failed. Please try again.",
   "error.local_login_disabled": "Password and passkey sign-in are turned off.",
   "update.available": "A new version is available.",
-  "update.reload": "Reload"
+  "update.reload": "Reload",
+  "appReturn.title": "Return to the app",
+  "appReturn.body": "This page hands the sign-in back to the app on your phone. If you see it, open the app and sign in again. On a computer, use the web version instead.",
+  "appReturn.openWeb": "Open the web version"
 }

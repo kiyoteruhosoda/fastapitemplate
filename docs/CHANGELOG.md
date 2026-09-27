@@ -1,3 +1,12 @@
+## 2026-09-27（Android アプリが assay に直接ログインして API を叩けるようにした。ADR-0045）
+
+- foodexpiryweb の ADR-0047 の実装を雛形へ持ち上げた（任意の機能）。
+  `/.well-known/assetlinks.json`、`Authorization: Bearer` の assay のトークンを `client_id` で受ける関門
+  （`AppOrWebPrincipalDep`）、例の口 `GET /api/app/me`、戻り先の案内画面 S16（`/app/oauth2redirect`）。
+- 設定 3 つ（`APP_CLIENT_IDS` / `ANDROID_APP_PACKAGE` / `ANDROID_APP_CERT_FINGERPRINTS`）は環境変数だけ。
+  ⚠ **どれも空なら何もしない**ので、使わない派生は取り込んでも振る舞いが変わらない。
+- deck の画面から「Web と SSO つき Android アプリの対」を作るため（nolumiadeck ADR-0114）。
+
 ## 2026-09-23（版はコミットの短縮ハッシュ 1 つ。`v` も括弧も付けない）
 
 - ⚠ **フッターに `vv11eeceb (11eeceb)` と出ていた。** `v` が 2 つ付き、同じ値が

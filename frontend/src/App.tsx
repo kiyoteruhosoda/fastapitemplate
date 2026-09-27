@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { useI18n } from './i18n'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { AppReturnPage } from './pages/AppReturnPage'
 import { AuditLogsPage } from './pages/AuditLogsPage'
 import { ConfigPage } from './pages/ConfigPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -36,6 +37,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/sso" element={<SsoCallbackPage />} />
+      <Route path="/app/oauth2redirect" element={<AppReturnPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<RequireAuth />}>
