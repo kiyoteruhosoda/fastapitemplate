@@ -34,6 +34,7 @@ tests/
 # Example
 from src.domain.value_objects.item_name import ItemName
 
+
 def test_empty_name_raises() -> None:
     with pytest.raises(ValueError):
         ItemName("")
