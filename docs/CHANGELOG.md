@@ -1,3 +1,9 @@
+## 2026-09-28（main でも新しい push で古い検査を取り消す。ADR-0009 の改訂）
+
+- `ci.yml` と `image.yml` の `concurrency.cancel-in-progress` を `main` でも `true` にした。
+  `main` への push が続いた日に、もう意味の無い古いコミットの検証が共有のランナーの列を塞がない。
+- ⚠ 間のコミットの合否は残らない。PR 側の検証とマージ後の最新コミットの検証は残る。
+
 ## 2026-09-27（Android アプリが assay に直接ログインして API を叩けるようにした。ADR-0045）
 
 - foodexpiryweb の ADR-0047 の実装を雛形へ持ち上げた（任意の機能）。
