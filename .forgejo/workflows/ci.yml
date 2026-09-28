@@ -9,11 +9,12 @@ on:
     branches: [main]
   pull_request:
 
-# 同じ PR（push は同じブランチ）への連続 push では、古い実行を止めて最新だけを検証する。
-# main は「どのコミットが緑だったか」の記録を残したいのでキャンセルしない。
+# 同じ枝（PR）へ続けて push したら、古い実行は取り消して最新の commit だけを検査する。
+# ⚠ **main も取り消す**（2026-09-28 の決定）。間の commit には合否が残らない代わりに、
+#   main への push が続いた日に古い検査がランナーの列を塞がない。副作用のある workflow には当てない。
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 # 品質ゲート（CLAUDE.md「テスト」／docs/OPERATIONS.md 参照）
 #   Backend : Ruff Format → Ruff Check → MyPy → PyTest
