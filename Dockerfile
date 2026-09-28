@@ -1,6 +1,6 @@
 # ===== frontend build stage =====
 # Node / node_modules はビルドにしか使わないため、最終イメージには含めない。
-FROM node:24-slim AS frontend-builder
+FROM node:24-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS frontend-builder
 
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
@@ -9,7 +9,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ===== application image =====
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
 
 EXPOSE 8000
 
@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
 
 # uv（依存管理）。依存レイヤーを分けてキャッシュを効かせる。
 # ⚠ 版を固定する。`:latest` だと同じコミットからでも解決器の版が変わりうる。
-COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.5@sha256:e85be844203885286c60ffad8a858d48afb6c5a5c237ca0e67f12e74b8f174b1 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
