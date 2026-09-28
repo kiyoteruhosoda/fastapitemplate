@@ -29,9 +29,12 @@ on:
       - "frontend/package-lock.json"
       - ".forgejo/workflows/image.yml"
 
+# 同じ枝（PR）へ続けて push したら、古い実行は取り消して最新の commit だけを検査する。
+# ⚠ **main も取り消す**（2026-09-28 の決定）。間の commit には合否が残らない代わりに、
+#   main への push が続いた日に古い検査がランナーの列を塞がない。副作用のある workflow には当てない。
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   build:
