@@ -277,5 +277,7 @@
   "update.reload": "Reload",
   "appReturn.title": "Return to the app",
   "appReturn.body": "This page hands the sign-in back to the app on your phone. If you see it, open the app and sign in again. On a computer, use the web version instead.",
-  "appReturn.openWeb": "Open the web version"
+  "appReturn.openWeb": "Open the web version",
+  "appReturn.tapToReturn": "You are signed in. Tap the button below to return to the app and finish signing in.",
+  "appReturn.returnToApp": "Return to the app and finish signing in"
 }
