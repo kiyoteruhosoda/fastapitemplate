@@ -277,5 +277,7 @@
   "update.reload": "再読み込み",
   "appReturn.title": "アプリへ戻ります",
   "appReturn.body": "この画面は、スマートフォンのアプリへログインを引き渡すためのものです。この画面が表示された場合は、アプリを開いてもう一度ログインしてください。パソコンでは Web 版を使ってください。",
-  "appReturn.openWeb": "Web 版を開く"
+  "appReturn.openWeb": "Web 版を開く",
+  "appReturn.tapToReturn": "ログインは済んでいます。下のボタンを押すと、アプリに戻ってログインを終えます。",
+  "appReturn.returnToApp": "アプリに戻ってログインを終える"
 }
