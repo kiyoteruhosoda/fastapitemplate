@@ -90,7 +90,7 @@ export function NotificationBell() {
           setOpen((value) => !value)
         }}
       >
-        <span aria-hidden="true">🔔</span>
+        <BellIcon />
         {unread > 0 && (
           <span aria-hidden="true" className="notification-badge">
             {badge}
@@ -150,5 +150,30 @@ export function NotificationBell() {
         </div>
       )}
     </div>
+  )
+}
+
+
+/**
+ * ベルのアイコン。⚠ 絵文字（🔔）にしない ——端末ごとに色付きの絵になり、ほかの線のアイコン
+ * （パスワード欄の目）と揃わない。色は `currentColor`（ボタンの文字色）に任せる。
+ */
+function BellIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="1.15em"
+      height="1.15em"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 1.8H4.4Z" />
+      <path d="M10 20.5a2.1 2.1 0 0 0 4 0" />
+    </svg>
   )
 }
