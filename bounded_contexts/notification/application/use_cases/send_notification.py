@@ -20,7 +20,7 @@ from bounded_contexts.notification.domain.entities.notification import Notificat
 from bounded_contexts.notification.domain.exceptions import NotificationValidationError
 from bounded_contexts.notification.domain.repositories.notification_repository import INotificationRepository
 from bounded_contexts.notification.domain.repositories.recipient_directory import IRecipientDirectory
-from bounded_contexts.notification.domain.services.push_sender import PushSender
+from bounded_contexts.notification.domain.services.push_sender import PushChannels
 from bounded_contexts.notification.domain.value_objects.audience import Audience, AudienceKind
 from bounded_contexts.notification.domain.value_objects.channel import NotificationChannel
 from bounded_contexts.notification.domain.value_objects.content import NotificationContent
@@ -57,15 +57,15 @@ class SendNotification:
         self,
         notifications: INotificationRepository,
         recipients: IRecipientDirectory,
-        push_sender: PushSender,
+        push: PushChannels,
     ) -> None:
         self._notifications = notifications
         self._recipients = recipients
-        self._push_sender = push_sender
+        self._push = push
 
     def execute(self, command: SendNotificationCommand, now: datetime) -> SendResultDTO:
         channels = _channels(command.channels)
-        if NotificationChannel.PUSH in channels and not self._push_sender.enabled:
+        if NotificationChannel.PUSH in channels and not self._push.enabled:
             # 選べてしまうと「送った」のに誰にも届かない。画面は選ばせないが、API も断る。
             raise NotificationValidationError("push_not_configured")
         notification = Notification(

@@ -3,6 +3,7 @@
 - ``notifications`` —— 送ったお知らせ 1 通 1 行
 - ``notification_deliveries`` —— 宛先の 1 人ずつ（送った時点の顔ぶれ）。既読・閉じたかを持つ
 - ``web_push_subscriptions`` —— 端末（ブラウザ）1 つの購読
+- ``app_device_tokens`` —— スマホアプリ 1 台の FCM の登録トークン（ADR-0049）
 
 チャネルは列を分けて持つ（``in_bell`` / ``in_banner`` / ``by_push``）。「ベルに出る未読の数」を
 文字列の部分一致ではなく素直な条件で数えるため。
@@ -68,4 +69,28 @@ class WebPushSubscriptionModel(Base):
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
-__all__ = ["AUDIENCE_KIND", "NotificationDeliveryModel", "NotificationModel", "WebPushSubscriptionModel"]
+class AppDeviceTokenModel(Base):
+    """スマホアプリ 1 台（ADR-0049）。トークンも長いので、一意は sha256 の列で取る。"""
+
+    __tablename__ = "app_device_tokens"
+
+    id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_sha256: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    token: Mapped[str] = mapped_column(sa.Text(), nullable=False)
+    platform: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
+    #: 最後に登録し直された時刻。アプリは起動のたびに登録し直すので、古いままの行は
+    #: 使われなくなった端末の目安になる。
+    updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
+
+
+__all__ = [
+    "AUDIENCE_KIND",
+    "AppDeviceTokenModel",
+    "NotificationDeliveryModel",
+    "NotificationModel",
+    "WebPushSubscriptionModel",
+]

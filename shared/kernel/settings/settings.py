@@ -395,6 +395,11 @@ class ApplicationSettings:
         """通知サービスへ名乗る連絡先（``mailto:`` / ``https:``）。"""
         return self._text("WEB_PUSH_SUBJECT")
 
+    @property
+    def fcm_service_account_file(self) -> str:
+        """Firebase のサービスアカウントの鍵（JSON）のファイルの場所。空ならアプリへ送らない（ADR-0049）。"""
+        return self._text("FCM_SERVICE_ACCOUNT_FILE")
+
     # ------------------------------------------------------------------
     # スマホアプリの最新版（ADR-0048）
     # ------------------------------------------------------------------

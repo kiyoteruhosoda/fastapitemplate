@@ -354,6 +354,26 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
 - 送るのは応答を返した後。何台に届いたかは `notification_push_delivered`（`delivered` / `gone` /
   `failed`）の記録で見る。`gone` の購読（端末でデータを消した・通知を切った）は自動で外れる。
 
+## スマホアプリへ通知（FCM）を送りたいとき（ADR-0049）
+
+お知らせの「端末への通知」を、flutterbase から作った Android アプリにも届ける。
+⚠ **鍵のファイルが空なら FCM へは送らない**（既定）。Firebase のプロジェクトは人が作る。
+
+1. [Firebase コンソール](https://console.firebase.google.com/) でプロジェクトを作り（アナリティクスは不要）、
+   **Android アプリを追加**する。パッケージ名はアプリの `applicationId`（`ANDROID_APP_PACKAGE` と同じ）。
+   `google-services.json` は**リポジトリに置かない**。中の値をアプリの `--dart-define` に渡す
+   （`FIREBASE_API_KEY` / `FIREBASE_APP_ID` / `FIREBASE_MESSAGING_SENDER_ID` / `FIREBASE_PROJECT_ID`。
+   flutterbase の `docs/CUSTOMISATION.md`）。
+2. 「プロジェクトの設定」→「サービス アカウント」→「新しい秘密鍵を生成」で JSON を落とす。
+   ⚠ **値を画面・チャット・git に出さない。** ホストへ置き（`chmod 600`）、k3s なら SealedSecret にして
+   ファイルとしてマウントする。
+3. システム設定（通知）の `FCM_SERVICE_ACCOUNT_FILE` に、2 のファイルの場所（コンテナの中のパス）を入れる。
+4. 確かめる: アプリでサインインし直す（トークンが登録される）→「お知らせの配信」で自分宛てに
+   「端末への通知」を送る → 端末に通知が出る。何台に届いたかは `notification_push_delivered` の記録。
+- 送れないときは `fcm_unavailable`（鍵が読めない・Google の OAuth に断られた）か `fcm_failed`
+  （FCM の答え。`status` と `error_code`）が記録に出る。
+- ⚠ FCM の通知の中身は Google から読める。お知らせに秘密を書かない。
+
 ## API を curl や CI から叩きたいとき
 
 トークンは応答本文に載らず **Cookie で運ばれる**（ADR-0028）。Cookie を保持して叩く。

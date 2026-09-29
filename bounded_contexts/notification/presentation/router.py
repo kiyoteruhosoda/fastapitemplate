@@ -26,13 +26,18 @@ from bounded_contexts.notification.application.use_cases.manage_inbox import (
     MarkNotificationRead,
 )
 from bounded_contexts.notification.application.use_cases.manage_push_subscription import (
+    RegisterDevice,
     SubscribeToPush,
+    UnregisterDevice,
     UnsubscribeFromPush,
 )
 from bounded_contexts.notification.application.use_cases.send_notification import SendNotificationCommand
 from bounded_contexts.notification.presentation.dependencies import (
     DbDep,
+    DevicePushSenderDep,
+    DeviceTokenRepoDep,
     NotificationRepoDep,
+    PushChannelsDep,
     PushSenderDep,
     PushSubscriptionRepoDep,
     SendAndDeliverPushDep,
@@ -42,6 +47,8 @@ from bounded_contexts.notification.presentation.schemas import (
     AudienceOptionsResponse,
     AudienceSchema,
     AudienceUserSchema,
+    DeviceRegisterRequest,
+    DeviceUnregisterRequest,
     InboxItemSchema,
     InboxResponse,
     NotificationSchema,
@@ -100,9 +107,11 @@ async def dismiss(notification_id: int, principal: AppOrWebPrincipalDep, repo: N
 
 
 @router.get("/push", response_model=PushConfigResponse)
-async def push_config(_principal: AppOrWebPrincipalDep, sender: PushSenderDep) -> PushConfigResponse:
-    public_key = sender.public_key() if sender.enabled else None
-    return PushConfigResponse(enabled=public_key is not None, public_key=public_key)
+async def push_config(_principal: AppOrWebPrincipalDep, channels: PushChannelsDep) -> PushConfigResponse:
+    public_key = channels.web.public_key() if channels.web.enabled else None
+    return PushConfigResponse(
+        enabled=public_key is not None, public_key=public_key, device_enabled=channels.device.enabled
+    )
 
 
 @router.post("/push/subscribe", status_code=status.HTTP_204_NO_CONTENT)
@@ -132,6 +141,28 @@ async def push_status(
     前の人のものになっている。画面のスイッチはこの答えで出す。
     """
     return PushStatusResponse(subscribed=subscriptions.exists(principal.user_id, body.endpoint))
+
+
+# --- スマホアプリの通知（FCM）の登録（ADR-0049） ---------------------------------
+
+
+@router.post("/device/register", status_code=status.HTTP_204_NO_CONTENT)
+async def register_device(
+    body: DeviceRegisterRequest,
+    principal: AppOrWebPrincipalDep,
+    devices: DeviceTokenRepoDep,
+    sender: DevicePushSenderDep,
+) -> None:
+    """アプリが起動・サインインのたびに呼ぶ（トークンは FCM の都合で変わるため）。"""
+    RegisterDevice(devices, sender).execute(principal.user_id, body.token, body.platform)
+
+
+@router.post("/device/unregister", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister_device(
+    body: DeviceUnregisterRequest, principal: AppOrWebPrincipalDep, devices: DeviceTokenRepoDep
+) -> None:
+    """サインアウトのときに呼ぶ（その端末に前の人のお知らせが届き続けないように）。"""
+    UnregisterDevice(devices).execute(principal.user_id, body.token)
 
 
 # --- 管理画面からの配信 -------------------------------------------------------

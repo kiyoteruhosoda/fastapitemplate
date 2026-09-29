@@ -309,7 +309,7 @@
   "notifications.audience.user": "個人",
   "notifications.audience.groupOf": "グループ: {name}",
   "notifications.audience.userOf": "個人: {name}",
-  "notifications.pushNotConfigured": "端末への通知は使えません。システム設定で Web Push の鍵を設定すると選べるようになります。",
+  "notifications.pushNotConfigured": "端末への通知は使えません。システム設定で Web Push の鍵か Firebase の鍵を設定すると選べるようになります。",
   "notifications.send": "送る",
   "notifications.sent": "{count} 人に送りました。",
   "notifications.history": "送ったお知らせ",
@@ -361,5 +361,9 @@
   "error.group_not_found": "そのグループは見つかりません。",
   "error.user_not_found": "その利用者は見つかりません。",
   "error.group_already_exists": "同じ名前のグループが既にあります。",
-  "error.unknown_users": "選んだ人の中に、見つからない人がいます。"
+  "error.unknown_users": "選んだ人の中に、見つからない人がいます。",
+  "config.field.FCM_SERVICE_ACCOUNT_FILE": "スマホアプリへの通知に使う Firebase のサービスアカウント鍵のファイル（JSON）",
+  "error.device_push_not_configured": "このサーバーではアプリへの通知が設定されていません。",
+  "error.invalid_device_token": "この端末の通知の宛先を受け付けられませんでした。",
+  "error.unknown_platform": "端末の種類の指定が正しくありません。"
 }

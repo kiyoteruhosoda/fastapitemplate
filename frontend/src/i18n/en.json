@@ -309,7 +309,7 @@
   "notifications.audience.user": "One person",
   "notifications.audience.groupOf": "Group: {name}",
   "notifications.audience.userOf": "Person: {name}",
-  "notifications.pushNotConfigured": "Device notifications are off: set the Web Push key in System settings to use them.",
+  "notifications.pushNotConfigured": "Device notifications are off: set the Web Push key or the Firebase key in System settings to use them.",
   "notifications.send": "Send",
   "notifications.sent": "Sent to {count} people.",
   "notifications.history": "Sent notifications",
@@ -361,5 +361,9 @@
   "error.group_not_found": "That group no longer exists.",
   "error.user_not_found": "That person no longer exists.",
   "error.group_already_exists": "A group with this name already exists.",
-  "error.unknown_users": "Some chosen people no longer exist."
+  "error.unknown_users": "Some chosen people no longer exist.",
+  "config.field.FCM_SERVICE_ACCOUNT_FILE": "Firebase service account key file (JSON) for app notifications",
+  "error.device_push_not_configured": "App notifications are not set up on this server.",
+  "error.invalid_device_token": "This device's notification token was not accepted.",
+  "error.unknown_platform": "Unknown kind of device."
 }

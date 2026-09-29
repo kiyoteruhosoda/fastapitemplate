@@ -40,6 +40,17 @@ erDiagram
     notifications ||--o{ notification_deliveries : "配られる"
     users ||--o{ notification_deliveries : "受け取る"
     users ||--o{ web_push_subscriptions : "端末で購読する"
+    users ||--o{ app_device_tokens : "アプリを入れた端末"
+
+    app_device_tokens {
+        bigint id PK
+        bigint user_id FK
+        varchar(64) token_sha256 UK
+        text token "FCM の登録トークン"
+        varchar(16) platform "android"
+        datetime created_at "UTC"
+        datetime updated_at "UTC（最後に登録し直した時刻）"
+    }
 
     user_groups {
         bigint id PK
@@ -265,9 +276,10 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 | `notifications` | 送ったお知らせ 1 通 1 行。出す場所は列を分けて持つ（`in_bell` / `in_banner` / `by_push`）。宛先と送り手は**FK を張らない**（相手を消しても「誰に・誰が送ったか」を残す） |
 | `notification_deliveries` | 宛先の 1 人ずつ。**送った時点の顔ぶれ**で書く（あとからグループに入った人には届かない）。`read_at` が NULL で `in_bell` なら未読としてベルに数える。`dismissed_at` が NULL で `in_banner` なら画面上部に出す |
 | `web_push_subscriptions` | 端末（ブラウザ）1 つの Web Push の購読。⚠ `endpoint` は数百文字で索引の上限を超えるので、一意は `endpoint_sha256` で取る。同じ端末で別の人がログインし直して購読すると、後の人のものに書き換わる |
+| `app_device_tokens` | スマホアプリ 1 台の FCM の登録トークン（ADR-0049）。アプリが起動・サインインのたびに登録し直し、`updated_at` が進む。一意は `token_sha256` で取る。FCM が `UNREGISTERED` と答えたら消す |
 
-`users.id` への FK は `notification_deliveries` と `web_push_subscriptions` の 2 つで、どちらも
-`ON DELETE CASCADE`。
+`users.id` への FK は `notification_deliveries` と `web_push_subscriptions` と `app_device_tokens` の 3 つで、
+どれも `ON DELETE CASCADE`。
 
 ### 運用・その他
 
