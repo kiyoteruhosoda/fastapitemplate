@@ -7,9 +7,15 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+from bounded_contexts.notification.domain.entities.device_token import DeviceToken
 from bounded_contexts.notification.domain.entities.push_subscription import PushSubscription
-from bounded_contexts.notification.domain.services.push_sender import PushMessage, PushOutcome, PushSender
-from bounded_contexts.notification.presentation.dependencies import get_push_sender
+from bounded_contexts.notification.domain.services.push_sender import (
+    DevicePushSender,
+    PushMessage,
+    PushOutcome,
+    PushSender,
+)
+from bounded_contexts.notification.presentation.dependencies import get_device_push_sender, get_push_sender
 from tests.conftest import sign_in
 
 _PASSWORD = "member-password-1"
@@ -232,7 +238,11 @@ _KEYS = {"p256dh": "BKeyForTests", "auth": "authForTests"}
 
 
 def test_push_is_off_without_a_key(client: TestClient, admin_headers: dict[str, str]) -> None:
-    assert client.get("/api/notifications/push").json() == {"enabled": False, "public_key": None}
+    assert client.get("/api/notifications/push").json() == {
+        "enabled": False,
+        "public_key": None,
+        "device_enabled": False,
+    }
     response = client.post(
         "/api/notifications/push/subscribe", json={"endpoint": _ENDPOINT, "keys": _KEYS}, headers=admin_headers
     )
@@ -243,7 +253,11 @@ def test_push_is_off_without_a_key(client: TestClient, admin_headers: dict[str, 
 def test_a_subscribed_device_receives_the_push(
     client: TestClient, admin_headers: dict[str, str], push_sender: _FakePushSender
 ) -> None:
-    assert client.get("/api/notifications/push").json() == {"enabled": True, "public_key": "BPublicKeyForTests"}
+    assert client.get("/api/notifications/push").json() == {
+        "enabled": True,
+        "public_key": "BPublicKeyForTests",
+        "device_enabled": False,
+    }
     response = client.post(
         "/api/notifications/push/subscribe", json={"endpoint": _ENDPOINT, "keys": _KEYS}, headers=admin_headers
     )
@@ -299,3 +313,91 @@ def test_a_plain_http_endpoint_is_refused(
 
 def test_signing_in_is_required(client: TestClient) -> None:
     assert client.get("/api/notifications").status_code == 401
+
+
+# --- スマホアプリへの通知（FCM。ADR-0049） -------------------------------------
+
+
+class _FakeDeviceSender(DevicePushSender):
+    def __init__(self, outcome: PushOutcome = PushOutcome.DELIVERED) -> None:
+        self.outcome = outcome
+        self.sent: list[tuple[str, PushMessage]] = []
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    def send(self, device: DeviceToken, message: PushMessage) -> PushOutcome:
+        self.sent.append((device.token, message))
+        return self.outcome
+
+
+@pytest.fixture
+def device_sender(client: TestClient) -> Iterator[_FakeDeviceSender]:
+    fake = _FakeDeviceSender()
+    client.app.dependency_overrides[get_device_push_sender] = lambda: fake  # type: ignore[attr-defined]
+    yield fake
+    client.app.dependency_overrides.pop(get_device_push_sender, None)  # type: ignore[attr-defined]
+
+
+_DEVICE = "fcm-registration-token-for-tests"
+
+
+def test_device_registration_is_off_without_a_key(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=admin_headers)
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "device_push_not_configured"
+
+
+def test_a_registered_app_receives_the_push(
+    client: TestClient, admin_headers: dict[str, str], device_sender: _FakeDeviceSender
+) -> None:
+    """Web Push の鍵が無くても、FCM だけで「端末への通知」を選べる。"""
+    assert client.get("/api/notifications/push").json()["device_enabled"] is True
+    response = client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=admin_headers)
+    assert response.status_code == 204
+
+    sent = _send(client, admin_headers, channels=["push"])
+
+    assert sent["push_scheduled"] is True
+    [(token, message)] = device_sender.sent
+    assert token == _DEVICE
+    assert message.link_url == "/items"
+
+
+def test_an_unregistered_app_token_is_dropped(
+    client: TestClient, admin_headers: dict[str, str], device_sender: _FakeDeviceSender
+) -> None:
+    client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=admin_headers)
+    device_sender.outcome = PushOutcome.GONE
+    _send(client, admin_headers, channels=["push"])
+    device_sender.outcome = PushOutcome.DELIVERED
+    device_sender.sent.clear()
+
+    _send(client, admin_headers, channels=["push"])
+
+    assert device_sender.sent == []
+
+
+def test_signing_out_of_the_app_unregisters_it(
+    client: TestClient, admin_headers: dict[str, str], device_sender: _FakeDeviceSender
+) -> None:
+    client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=admin_headers)
+    response = client.post("/api/notifications/device/unregister", json={"token": _DEVICE}, headers=admin_headers)
+    assert response.status_code == 204
+
+    _send(client, admin_headers, channels=["push"])
+    assert device_sender.sent == []
+
+
+def test_the_same_phone_moves_to_whoever_signed_in_last(
+    client: TestClient, other_client: TestClient, admin_headers: dict[str, str], device_sender: _FakeDeviceSender
+) -> None:
+    _create_member(client, admin_headers, "alice")
+    client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=admin_headers)
+    alice = sign_in(other_client, "alice@example.com", _PASSWORD)
+    other_client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=alice)
+
+    _send(client, admin_headers, channels=["push"], audience={"kind": "user", "target_id": 1})
+
+    assert device_sender.sent == []

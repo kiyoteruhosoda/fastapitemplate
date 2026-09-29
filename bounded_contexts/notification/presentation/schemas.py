@@ -68,6 +68,8 @@ class PushConfigResponse(BaseModel):
     enabled: bool
     #: ブラウザの ``pushManager.subscribe`` に渡す公開鍵（base64url）。
     public_key: str | None
+    #: スマホアプリへの通知（FCM）を出せる設定か（ADR-0049）。偽ならアプリはトークンを登録しない。
+    device_enabled: bool = False
 
 
 class PushKeysSchema(BaseModel):
@@ -84,6 +86,17 @@ class PushSubscribeRequest(BaseModel):
 
 class PushEndpointRequest(BaseModel):
     endpoint: str = Field(min_length=1, max_length=1000)
+
+
+class DeviceRegisterRequest(BaseModel):
+    """アプリが起動・サインインのたびに送る FCM の登録トークン（ADR-0049）。"""
+
+    token: str = Field(min_length=1, max_length=4096)
+    platform: str = Field(default="android", max_length=16)
+
+
+class DeviceUnregisterRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
 
 
 class PushStatusResponse(BaseModel):

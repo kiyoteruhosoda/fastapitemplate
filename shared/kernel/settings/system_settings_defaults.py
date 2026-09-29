@@ -67,6 +67,9 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # 通知サービス（FCM / Mozilla など）へ名乗る連絡先。``mailto:`` か ``https:``。
     # 送り過ぎたときに通知サービスがここへ連絡してくる。
     "WEB_PUSH_SUBJECT": "",
+    # スマホアプリへの通知（FCM。ADR-0049）。Firebase のサービスアカウントの鍵（JSON）の
+    # ファイルの場所。空なら FCM へは送らない。⚠ 値ではなく場所で持つ。
+    "FCM_SERVICE_ACCOUNT_FILE": "",
     # --- スマホアプリの最新版（ADR-0048） ---
     # 読む先（ENDPOINT_URL / OBJECT_KEY / ACCESS_KEY_ID / SECRET_ACCESS_KEY_FILE）が
     # 1 つでも空なら知らせない。⚠ 秘密の鍵は値ではなくファイルのパスで持つ。

@@ -1,7 +1,7 @@
 # ADR-0047: お知らせは管理画面から送り、ベル・画面上部・端末への通知（Web Push）で届ける
 
 - 日付: 2026-09-29
-- 状態: 承認
+- 状態: 承認（端末への通知の届け先に FCM を足した: [ADR-0049](ADR-0049-app-notifications-go-through-fcm-http-v1.md)）
 - 関連: [ADR-0045](ADR-0045-the-app-signs-in-to-assay-directly.md) / [ADR-0048](ADR-0048-the-app-is-told-a-newer-version-is-out.md) /
   課題 task.nolumia.com #9（FCM は #59 に切り出し）
 

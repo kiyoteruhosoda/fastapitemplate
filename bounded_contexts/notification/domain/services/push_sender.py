@@ -1,4 +1,9 @@
-"""端末への通知を送る窓口（ADR-0047。実装は Infrastructure 層）。"""
+"""端末への通知を送る窓口（実装は Infrastructure 層）。
+
+送り口は 2 つある。ブラウザ・PWA へは Web Push（:class:`PushSender`。ADR-0047）、
+スマホアプリへは FCM（:class:`DevicePushSender`。ADR-0049）。お知らせの ``push`` は
+両方へ送る（:class:`PushChannels`）。
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 
+from bounded_contexts.notification.domain.entities.device_token import DeviceToken
 from bounded_contexts.notification.domain.entities.push_subscription import PushSubscription
 
 
@@ -39,3 +45,28 @@ class PushSender(ABC):
 
     @abstractmethod
     def send(self, subscription: PushSubscription, message: PushMessage) -> PushOutcome: ...
+
+
+class DevicePushSender(ABC):
+    """スマホアプリへの通知（FCM）。"""
+
+    @property
+    @abstractmethod
+    def enabled(self) -> bool:
+        """送れる設定になっているか（サービスアカウントの鍵が無ければ偽）。"""
+
+    @abstractmethod
+    def send(self, device: DeviceToken, message: PushMessage) -> PushOutcome: ...
+
+
+@dataclass(frozen=True)
+class PushChannels:
+    """``push`` を選んだお知らせの送り口の組。"""
+
+    web: PushSender
+    device: DevicePushSender
+
+    @property
+    def enabled(self) -> bool:
+        """どちらか 1 つでも送れるなら ``push`` を選べる。"""
+        return self.web.enabled or self.device.enabled

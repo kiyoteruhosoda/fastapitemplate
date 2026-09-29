@@ -171,6 +171,13 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Web Push contact (mailto:)",
         "value_type": "string",
     },
+    {
+        # ADR-0049。送るたびに読むので restart_scopes は付けない。
+        "key": "FCM_SERVICE_ACCOUNT_FILE",
+        "category": "notification",
+        "label": "Firebase service account key file (JSON) for app notifications",
+        "value_type": "string",
+    },
     # --- スマホアプリの最新版（ADR-0048） ---
     # 答えは 5 分ごとに読み直すので restart_scopes は付けない。
     {

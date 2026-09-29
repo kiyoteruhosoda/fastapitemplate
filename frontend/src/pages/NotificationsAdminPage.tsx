@@ -41,11 +41,12 @@ export function NotificationsAdminPage() {
   useEffect(() => {
     void reload()
     void notificationsApi.audiences().then(setOptions)
-    // 端末への通知は、サーバーが送れる設定のときだけ選ばせる。
+    // 端末への通知は、サーバーが送れる設定のときだけ選ばせる。ブラウザ（Web Push）と
+    // スマホアプリ（FCM。ADR-0049）のどちらか 1 つでも送れれば選べる。
     void api
-      .get<{ enabled: boolean }>('/api/notifications/push')
+      .get<{ enabled: boolean; device_enabled?: boolean }>('/api/notifications/push')
       .then((config) => {
-        setPushEnabled(config.enabled)
+        setPushEnabled(config.enabled || config.device_enabled === true)
       })
       .catch(() => {
         setPushEnabled(false)

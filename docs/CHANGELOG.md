@@ -1,3 +1,13 @@
+## 2026-09-29（スマホアプリへの通知を FCM で送る。ADR-0049）
+
+- お知らせの「端末への通知」を、Web Push に加えて FCM（Android アプリ）へも送る。どちらか 1 つでも
+  送れる設定なら選べる。
+- アプリの登録口 `POST /api/notifications/device/register` / `…/unregister`、表 `app_device_tokens`
+  （マイグレーション 0010）。`GET /api/notifications/push` に `device_enabled` が増えた。
+- 送るのは FCM HTTP v1 を直接（`firebase-admin` は入れない）。鍵は `FCM_SERVICE_ACCOUNT_FILE`（場所で持つ）。
+  ⚠ 空なら何もしない（既定）。Firebase のプロジェクト作りは `docs/OPERATIONS.md`。
+- アプリ側は flutterbase（ADR-0010）。課題 task #59。
+
 ## 2026-09-29（お知らせの配信・グループ・アプリの最新版の知らせ。ADR-0047 / ADR-0048）
 
 - **お知らせ（`notification` コンテキスト）**: 管理画面（S18、`notification:send`）で書いて送る。
