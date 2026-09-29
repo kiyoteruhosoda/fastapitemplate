@@ -14,8 +14,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 
+import { InboxProvider } from '../store/InboxContext'
 import { Footer } from './Footer'
 import { Header } from './Header'
+import { NotificationBanner } from './NotificationBanner'
 import { Sidebar } from './Sidebar'
 
 const FOCUSABLE_SELECTOR =
@@ -100,23 +102,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, [navOpen])
 
   return (
-    <div className="layout">
-      <Header navOpen={navOpen} onToggleNav={toggleNav} toggleRef={toggleRef} />
-      <div className="layout-body">
-        <Sidebar open={navOpen} onClose={closeNav} navRef={navRef} />
-        {/* ドロワーの外側をタップして閉じるための覆い。読み上げ・キーボードからは
+    // お知らせ（ベルと画面上部）は同じ一覧を見るので、外枠で 1 回だけ取る（ADR-0047）。
+    <InboxProvider>
+      <div className="layout">
+        <Header navOpen={navOpen} onToggleNav={toggleNav} toggleRef={toggleRef} />
+        <div className="layout-body">
+          <Sidebar open={navOpen} onClose={closeNav} navRef={navRef} />
+          {/* ドロワーの外側をタップして閉じるための覆い。読み上げ・キーボードからは
             ドロワー内の閉じるボタンと Esc で閉じられるため、支援技術には出さない。 */}
-        {navOpen && (
-          <div
-            className="nav-overlay"
-            data-testid="nav-overlay"
-            aria-hidden="true"
-            onClick={closeNav}
-          />
-        )}
-        <main className="content">{children}</main>
+          {navOpen && (
+            <div
+              className="nav-overlay"
+              data-testid="nav-overlay"
+              aria-hidden="true"
+              onClick={closeNav}
+            />
+          )}
+          <main className="content">
+            <NotificationBanner />
+            {children}
+          </main>
+        </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
+    </InboxProvider>
   )
 }

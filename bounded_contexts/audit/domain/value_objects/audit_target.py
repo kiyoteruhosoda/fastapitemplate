@@ -24,6 +24,8 @@ class AuditTargetType(StrEnum):
     TWO_FACTOR = "two_factor"
     SYSTEM_SETTINGS = "system_settings"
     SERVICE = "service"
+    GROUP = "group"
+    NOTIFICATION = "notification"
 
 
 @dataclass(frozen=True)

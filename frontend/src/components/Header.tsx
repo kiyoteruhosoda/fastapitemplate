@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
 import { useAuth } from '../store/AuthContext'
+import { NotificationBell } from './NotificationBell'
 import { RoleSwitcher } from './RoleSwitcher'
 
 export function Header({
@@ -45,6 +46,8 @@ export function Header({
           <>
             {/* ロールの切り替え（複数ロールを持つ利用者にだけ出る。ADR-0017） */}
             <RoleSwitcher />
+            {/* お知らせ（ADR-0047） */}
+            <NotificationBell />
             <Link to="/profile" className="header-user">
               <span aria-hidden="true" className="avatar">
                 {user.username.slice(0, 1).toUpperCase()}

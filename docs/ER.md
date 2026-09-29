@@ -35,6 +35,49 @@ erDiagram
     users ||--o{ webauthn_challenges : "発行する（ログイン用は NULL）"
     users ||--o{ federated_identities : "外部 IdP と結び付く"
     users ||--o{ sso_login_tickets : "引き換え券を受け取る"
+    user_groups ||--o{ user_group_members : "束ねる"
+    users ||--o{ user_group_members : "所属する"
+    notifications ||--o{ notification_deliveries : "配られる"
+    users ||--o{ notification_deliveries : "受け取る"
+    users ||--o{ web_push_subscriptions : "端末で購読する"
+
+    user_groups {
+        bigint id PK
+        varchar(100) name UK
+        varchar(255) description
+        datetime created_at "UTC"
+    }
+
+    notifications {
+        bigint id PK
+        varchar(200) title
+        text body
+        varchar(1000) link_url "NULL 可。/パス か http(s)://"
+        boolean in_bell
+        boolean in_banner
+        boolean by_push
+        varchar audience_kind "all / group / user"
+        bigint audience_target_id "FK なし"
+        bigint sender_user_id "FK なし"
+        datetime sent_at "UTC"
+    }
+
+    notification_deliveries {
+        bigint notification_id PK,FK
+        bigint user_id PK,FK
+        datetime read_at "NULL = 未読"
+        datetime dismissed_at "NULL = 上部に出す"
+    }
+
+    web_push_subscriptions {
+        bigint id PK
+        bigint user_id FK
+        varchar(64) endpoint_sha256 UK
+        text endpoint
+        varchar(255) p256dh
+        varchar(255) auth
+        datetime created_at "UTC"
+    }
 
     users {
         bigint id PK
@@ -176,6 +219,8 @@ erDiagram
 | `user_roles` | ユーザー ⇔ ロール（多対多） | `user.py` |
 | `role_permissions` | ロール ⇔ 権限（多対多） | `role.py` |
 | `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ | `user.py` |
+| `user_groups` | グループ（人の束。権限は持たない。ADR-0047）。⚠ 表の名前を `groups` にしない（MySQL 8 / MariaDB の予約語） | `group.py` |
+| `user_group_members` | グループ ⇔ ユーザー（多対多）。どちらの FK も `ON DELETE CASCADE` | `group.py` |
 
 保有権限は**ユーザーが持つ全ロールの権限の和集合**（`User.permission_codes`）。
 実際に有効な scope はアクティブロールで決まり、ロールを 1 つ選んでいるあいだは
@@ -212,6 +257,17 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 ⚠ **`federated_session_revocations` は `users` へ FK を張らない。** 行が指すのは
 **IdP 側の利用者**（`issuer` + `subject`）で、このアプリに対応する行がまだ無い・
 もう無い場合がある。参照整合を取ると、そのとき通知を受けられなくなる。
+
+### お知らせ（`bounded_contexts/notification/infrastructure/`。ADR-0047）
+
+| テーブル | 役割 |
+|---|---|
+| `notifications` | 送ったお知らせ 1 通 1 行。出す場所は列を分けて持つ（`in_bell` / `in_banner` / `by_push`）。宛先と送り手は**FK を張らない**（相手を消しても「誰に・誰が送ったか」を残す） |
+| `notification_deliveries` | 宛先の 1 人ずつ。**送った時点の顔ぶれ**で書く（あとからグループに入った人には届かない）。`read_at` が NULL で `in_bell` なら未読としてベルに数える。`dismissed_at` が NULL で `in_banner` なら画面上部に出す |
+| `web_push_subscriptions` | 端末（ブラウザ）1 つの Web Push の購読。⚠ `endpoint` は数百文字で索引の上限を超えるので、一意は `endpoint_sha256` で取る。同じ端末で別の人がログインし直して購読すると、後の人のものに書き換わる |
+
+`users.id` への FK は `notification_deliveries` と `web_push_subscriptions` の 2 つで、どちらも
+`ON DELETE CASCADE`。
 
 ### 運用・その他
 

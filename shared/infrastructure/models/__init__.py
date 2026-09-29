@@ -5,6 +5,7 @@ Alembic autogenerate・テストが全テーブルを認識できるよう、モ
 ``tests/conftest.py`` 側で import する）。
 """
 
+from shared.infrastructure.models.group import UserGroup, user_group_members
 from shared.infrastructure.models.log import Log
 from shared.infrastructure.models.role import Permission, Role, role_permissions
 from shared.infrastructure.models.system_setting import SystemSetting
@@ -17,6 +18,8 @@ __all__ = [
     "Role",
     "SystemSetting",
     "User",
+    "UserGroup",
     "role_permissions",
+    "user_group_members",
     "user_roles",
 ]

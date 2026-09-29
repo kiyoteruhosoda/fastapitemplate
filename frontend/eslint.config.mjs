@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   // ビルド成果物・依存は解析対象外
   {
-    ignores: ['dist/**', 'coverage/**', 'dev-dist/**', 'node_modules/**'],
+    // public/ はビルドを通らずそのまま配る素の JavaScript（Service Worker に読ませる
+    // push-sw.js など）。型付きの解析の対象にできない。
+    ignores: ['dist/**', 'coverage/**', 'dev-dist/**', 'node_modules/**', 'public/**'],
   },
 
   js.configs.recommended,

@@ -39,11 +39,14 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 - 機能は `bounded_contexts/<context>/` として追加する。1コンテキスト = 1業務領域。
   `bounded_contexts/example/`（Item CRUD）が最小構成の見本。
   現在のコンテキストは `example`（見本）・`account_security`（二要素認証・パスキー）・
-  `audit`（監査ログ／アプリログの記録と閲覧）・`email_sender`（メール送信）。
+  `audit`（監査ログ／アプリログの記録と閲覧）・`email_sender`（メール送信）・
+  `identity_federation`（SSO）・`notification`（お知らせの配信とベル・画面上部・Web Push。ADR-0047）・
+  `app_release`（スマホアプリの最新版を知らせる。ADR-0048）。
 - 複数コンテキストから使う横断的な要素だけを `shared/` に置く:
   - `shared/domain/auth/` — 認可マスタデータ（`master_data.py` が唯一の出所）
   - `shared/infrastructure/models/` — 共有 SQLAlchemy モデル（User / Role / Permission /
-    SystemSetting / Log / PasswordResetToken）
+    UserGroup / SystemSetting / Log / PasswordResetToken）。グループはロールと同じく
+    「人の組み立て」なのでここに置く（通知の概念に閉じない。ADR-0047）
   - `shared/kernel/` — settings / logging / database / restart / scheduling /
     timestamps（技術基盤。ドメイン知識を持たない）
 - `presentation/fastapi/` はコンテキスト横断の API（認証・管理系）と

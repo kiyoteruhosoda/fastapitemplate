@@ -50,6 +50,7 @@ def _load_metadata() -> MetaData:
     from bounded_contexts.audit.infrastructure import audit_log_model
     from bounded_contexts.example.infrastructure import item_model
     from bounded_contexts.identity_federation.infrastructure import identity_federation_models
+    from bounded_contexts.notification.infrastructure import notification_models
     from shared.infrastructure import models as shared_models
     from shared.kernel.database.db import Base
 
@@ -58,6 +59,7 @@ def _load_metadata() -> MetaData:
         audit_log_model,
         item_model,
         identity_federation_models,
+        notification_models,
         shared_models,
     )
     if not _registered:  # pragma: no cover - 参照して import を消させないための行

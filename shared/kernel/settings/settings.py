@@ -378,6 +378,67 @@ class ApplicationSettings:
         return self.get_int("AUDIT_LOG_RETENTION_DAYS", 0)
 
     # ------------------------------------------------------------------
+    # 通知（ADR-0047）
+    # ------------------------------------------------------------------
+
+    @property
+    def web_push_vapid_private_key_file(self) -> str:
+        """Web Push の VAPID 秘密鍵（PEM）のファイルの場所。空なら端末への通知を出さない。
+
+        ⚠ **値ではなく場所で持つ。** 中身は送るたびにファイルから読むので、設定の一覧にも
+        バックアップにも載らない。
+        """
+        return self._text("WEB_PUSH_VAPID_PRIVATE_KEY_FILE")
+
+    @property
+    def web_push_subject(self) -> str:
+        """通知サービスへ名乗る連絡先（``mailto:`` / ``https:``）。"""
+        return self._text("WEB_PUSH_SUBJECT")
+
+    # ------------------------------------------------------------------
+    # スマホアプリの最新版（ADR-0048）
+    # ------------------------------------------------------------------
+
+    @property
+    def app_release_s3_endpoint_url(self) -> str:
+        """スマホアプリの配布面（S3 互換の置き場）の URL。空なら最新版を知らせない。"""
+        return self._text("APP_RELEASE_S3_ENDPOINT_URL")
+
+    @property
+    def app_release_s3_region(self) -> str:
+        """配布面の region。Garage は ``garage``（置き場の ``s3_region`` と揃える）。"""
+        return self._text("APP_RELEASE_S3_REGION")
+
+    @property
+    def app_release_s3_bucket(self) -> str:
+        """配布面のバケット（``artifacts``）。"""
+        return self._text("APP_RELEASE_S3_BUCKET")
+
+    @property
+    def app_release_s3_object_key(self) -> str:
+        """配布手順が最新版を指して書くオブジェクト（``<アプリ名>/latest.json``）。"""
+        return self._text("APP_RELEASE_S3_OBJECT_KEY")
+
+    @property
+    def app_release_s3_access_key_id(self) -> str:
+        """配布面を読む鍵の ID（秘密ではない。秘密は下のファイルの中）。"""
+        return self._text("APP_RELEASE_S3_ACCESS_KEY_ID")
+
+    @property
+    def app_release_s3_secret_access_key_file(self) -> str:
+        """配布面を読む鍵の秘密が入ったファイルのパス（⚠ 値ではなく場所で持つ）。"""
+        return self._text("APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE")
+
+    @property
+    def app_release_download_url(self) -> str:
+        """最新版の知らせを押したときにブラウザで開く先。空なら知らせに行き先を付けない。"""
+        return self._text("APP_RELEASE_DOWNLOAD_URL")
+
+    def _text(self, key: str) -> str:
+        value = self._get(key)
+        return str(value).strip() if value else ""
+
+    # ------------------------------------------------------------------
     # 外部 IdP との SSO（ADR-0025 / ADR-0026）
     # ------------------------------------------------------------------
 

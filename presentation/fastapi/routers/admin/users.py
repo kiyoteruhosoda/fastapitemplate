@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
@@ -47,7 +47,7 @@ from presentation.fastapi.schemas.admin import (
     UserResponse,
     UserUpdateRequest,
 )
-from shared.infrastructure.models import Role, User
+from shared.infrastructure.models import Role, User, user_group_members
 from shared.kernel.database.session import get_db
 
 router = APIRouter(
@@ -179,6 +179,9 @@ async def delete_user(user_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
     user.roles = []
+    # グループには User 側から辿る関係を張っていないので、所属は明示的に外す
+    # （SQLite は外部キーの CASCADE を既定で効かせない）。
+    db.execute(delete(user_group_members).where(user_group_members.c.user_id == user_id))
     db.delete(user)
     audit.execute(
         AuditEventType.USER_DELETED,
