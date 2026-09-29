@@ -21,10 +21,13 @@ dependencies = [
     "qrcode>=8.0",
     # SSO（discovery・トークン交換・UserInfo）。ADR-0025
     "httpx>=0.28.1",
+    "boto3>=1.40",
+    "pywebpush>=2.0",
 ]
 
 [dependency-groups]
 dev = [
+    "boto3-stubs[s3]>=1.43.104",
     "httpx2>=2.13.1",
     "mypy>=1.14",
     "pytest>=9.0.3",
@@ -77,6 +80,11 @@ warn_no_return = true
 warn_unreachable = true
 
 implicit_reexport = false
+
+# pywebpush / py_vapid は型情報（py.typed）を持たない（ADR-0047）。
+[[tool.mypy.overrides]]
+module = ["pywebpush", "py_vapid"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120

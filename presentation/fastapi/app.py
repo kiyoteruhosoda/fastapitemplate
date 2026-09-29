@@ -19,6 +19,7 @@ from bounded_contexts.account_security.presentation.passkey_login_router import 
 from bounded_contexts.account_security.presentation.router import (
     router as account_security_router,
 )
+from bounded_contexts.app_release.presentation.router import router as app_release_router
 from bounded_contexts.audit.presentation.log_retention import (
     start_log_retention_worker,
 )
@@ -42,6 +43,15 @@ from bounded_contexts.identity_federation.presentation.router import (
 from bounded_contexts.identity_federation.presentation.startup_check import (
     report_sso_configuration,
 )
+from bounded_contexts.notification.presentation.error_handling import (
+    register_notification_error_handler,
+)
+from bounded_contexts.notification.presentation.router import (
+    admin_router as admin_notifications_router,
+)
+from bounded_contexts.notification.presentation.router import (
+    router as notifications_router,
+)
 from presentation.fastapi.error_handling import register_error_handling
 from presentation.fastapi.middleware.csrf import CsrfMiddleware
 from presentation.fastapi.middleware.deferred_log_writes import (
@@ -51,6 +61,7 @@ from presentation.fastapi.middleware.internal_error import InternalErrorMiddlewa
 from presentation.fastapi.middleware.request_logging import RequestLoggingMiddleware
 from presentation.fastapi.routers import spa
 from presentation.fastapi.routers.admin.config import router as admin_config_router
+from presentation.fastapi.routers.admin.groups import router as admin_groups_router
 from presentation.fastapi.routers.admin.permissions import (
     router as admin_permissions_router,
 )
@@ -98,6 +109,7 @@ def _include_routers(app: FastAPI) -> None:
         health_router,
         app_links_router,
         app_session_router,
+        app_release_router,
         ui_settings_router,
         auth_router,
         passkey_login_router,
@@ -106,10 +118,13 @@ def _include_routers(app: FastAPI) -> None:
         admin_users_router,
         admin_roles_router,
         admin_permissions_router,
+        admin_groups_router,
         admin_config_router,
         admin_logs_router,
         admin_audit_logs_router,
         admin_system_router,
+        notifications_router,
+        admin_notifications_router,
         items_router,
     ):
         app.include_router(router)
@@ -171,6 +186,7 @@ def create_app() -> FastAPI:
     register_error_handling(app)
     register_account_security_error_handler(app)
     register_identity_federation_error_handler(app)
+    register_notification_error_handler(app)
 
     _include_routers(app)
 

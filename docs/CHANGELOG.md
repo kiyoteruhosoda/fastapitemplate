@@ -1,3 +1,17 @@
+## 2026-09-29（お知らせの配信・グループ・アプリの最新版の知らせ。ADR-0047 / ADR-0048）
+
+- **お知らせ（`notification` コンテキスト）**: 管理画面（S18、`notification:send`）で書いて送る。
+  出す場所は **ベル**（ヘッダー。未読の数）・**画面の上部**（閉じるまで出る）・**端末への通知**
+  （Web Push）から複数選べ、宛先は **全員 / グループ / 個人**。送った時点の顔ぶれに配る。
+  本人の口 `/api/notifications` はアプリの assay のトークンでも通る。
+- **グループ**（S17、`group:manage`）: 人を束ねるだけで権限は持たない。お知らせの宛先に使う。
+- **Web Push**: 鍵（`WEB_PUSH_VAPID_PRIVATE_KEY_FILE`）と連絡先（`WEB_PUSH_SUBJECT`）を入れると
+  選べる。⚠ 空なら端末への通知は出ない（既定）。プロフィールに「この端末への通知」。
+- **アプリの最新版**（photonest ADR-0079 を持ち上げた）: `GET /api/app-release/latest` が配布面の
+  `latest.json` を読んで返す。⚠ 設定が空なら `latest: null`（既定）。アプリ側は flutterbase。
+- マイグレーション `0009_groups_and_notifications`（表 5 つと権限 2 つ）。依存に `pywebpush` / `boto3`。
+- Flutter アプリへの端末通知（FCM）は別の課題（task #59）。
+
 ## 2026-09-28（main でも新しい push で古い検査を取り消す。ADR-0009 の改訂）
 
 - `ci.yml` と `image.yml` の `concurrency.cancel-in-progress` を `main` でも `true` にした。

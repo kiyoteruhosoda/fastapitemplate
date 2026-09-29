@@ -54,6 +54,8 @@ export default defineConfig({
         // API 応答は SW でキャッシュしない（常にネットワークへ）。オフライン時は
         // フロント側のエラーハンドリング（i18n エラーコード変換）に委ねる。
         runtimeCaching: [],
+        // 端末への通知（Web Push）の受け取り（ADR-0047）。生成物に手を入れずに足す。
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

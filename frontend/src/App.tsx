@@ -7,8 +7,10 @@ import { AppReturnPage } from './pages/AppReturnPage'
 import { AuditLogsPage } from './pages/AuditLogsPage'
 import { ConfigPage } from './pages/ConfigPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { GroupsPage } from './pages/GroupsPage'
 import { ItemsPage } from './pages/ItemsPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotificationsAdminPage } from './pages/NotificationsAdminPage'
 import { SsoCallbackPage } from './pages/SsoCallbackPage'
 import { PermissionsPage } from './pages/PermissionsPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -53,6 +55,8 @@ export default function App() {
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/roles" element={<RolesPage />} />
         <Route path="/admin/permissions" element={<PermissionsPage />} />
+        <Route path="/admin/groups" element={<GroupsPage />} />
+        <Route path="/admin/notifications" element={<NotificationsAdminPage />} />
         <Route path="/admin/config" element={<ConfigPage />} />
         <Route path="/admin/logs" element={<SystemLogsPage />} />
         <Route path="/admin/audit-logs" element={<AuditLogsPage />} />

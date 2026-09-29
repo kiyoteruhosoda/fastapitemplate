@@ -61,6 +61,13 @@ class AuditEventType(StrEnum):
     SERVICE_RESTART_REQUESTED = "service.restart_requested"
     # --- プロフィール（本人によるメールアドレス・表示名の変更。ADR-0016） ---
     PROFILE_UPDATED = "profile.updated"
+    # --- グループ・お知らせ（ADR-0047） ---
+    # グループの ``reason`` には所属の人数を入れる（誰が入ったかは ID の並びで長くなる）。
+    GROUP_CREATED = "group.created"
+    GROUP_UPDATED = "group.updated"
+    GROUP_DELETED = "group.deleted"
+    # ``reason`` には宛先・チャネル・配った人数を入れる（本文は入れない）。
+    NOTIFICATION_SENT = "notification.sent"
 
 
 class AuditResult(StrEnum):

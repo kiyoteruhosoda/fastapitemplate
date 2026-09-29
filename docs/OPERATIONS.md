@@ -314,6 +314,46 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
    curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer x' https://<ホスト>/api/app/me   # 401
    ```
 
+## アプリに最新版を知らせたいとき（ADR-0048）
+
+スマホアプリは開いたとき・前面に戻ったときに `GET /api/app-release/latest` を叩き、自分の
+ビルド番号より新しければ画面の上に知らせを出す。サーバーは配布面（Garage の `artifacts`）の
+`latest.json` を読む。⚠ **読む先が 1 つでも空なら何もしない**（既定）。
+
+1. Garage に **`artifacts` の読み取りだけ**を持つ鍵を作る（⚠ 書ける鍵を渡さない。配っている APK を
+   すり替えられる）。秘密はファイルにして read-only で渡す（値を画面にも設定にも置かない）。
+2. システム設定（スマホアプリの配布）に入れる:
+   - `APP_RELEASE_S3_ENDPOINT_URL` —— 例 `http://garage.blob-prod.svc.cluster.local:3900`
+   - `APP_RELEASE_S3_OBJECT_KEY` —— `<アプリ名>/latest.json`
+   - `APP_RELEASE_S3_ACCESS_KEY_ID` / `APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE` —— 1 の鍵 ID と秘密のファイルの場所
+   - `APP_RELEASE_DOWNLOAD_URL` —— 知らせを押したときに開く画面（例 share.nolumia.com のアプリのフォルダ）
+3. ⚠ 配布面が k3s の別の namespace にあるなら、そちらの NetworkPolicy にこのアプリからの穴が要る
+   （無いと黙って `latest: null` になる）。
+4. 確かめる（答えは 5 分覚えるので、設定直後は最大 5 分待つ）: ログインした状態で
+   `GET /api/app-release/latest` が `{"latest": {"version": …, "build": …}}` を返す。
+
+## 端末への通知（Web Push）を使いたいとき（ADR-0047）
+
+お知らせの「端末への通知」を選べるようにする。⚠ **鍵か連絡先が空なら選べない**（既定。ベルと
+画面上部の知らせは設定なしで動く）。
+
+1. VAPID の鍵（P-256 の秘密鍵）を作る。⚠ **値を画面に出さない**。ホストの上で作り、ファイルのまま渡す:
+   ```bash
+   openssl ecparam -name prime256v1 -genkey -noout -out vapid.pem
+   chmod 600 vapid.pem
+   ```
+   k3s なら Secret（SealedSecret）にしてファイルとしてマウントする。
+2. システム設定（通知）に入れる:
+   - `WEB_PUSH_VAPID_PRIVATE_KEY_FILE` —— 1 のファイルの場所（コンテナの中のパス）
+   - `WEB_PUSH_SUBJECT` —— 通知サービスへ名乗る連絡先（`mailto:ops@example.com`）
+3. 確かめる: プロフィールの「この端末への通知」に「受け取る」が出る。押して許可し、
+   「お知らせの配信」で自分宛てに「端末への通知」を送る。
+- ⚠ **鍵を替えると、いまある購読はすべて届かなくなる**（購読は公開鍵に結び付いている）。
+  利用者がプロフィールで「受け取る」を押し直すまで端末への通知は出ない。
+- ⚠ ファイルが読めないと、送るたびに `web_push_key_unreadable` が記録に出る（鍵を作り直したりはしない）。
+- 送るのは応答を返した後。何台に届いたかは `notification_push_delivered`（`delivered` / `gone` /
+  `failed`）の記録で見る。`gone` の購読（端末でデータを消した・通知を切った）は自動で外れる。
+
 ## API を curl や CI から叩きたいとき
 
 トークンは応答本文に載らず **Cookie で運ばれる**（ADR-0028）。Cookie を保持して叩く。

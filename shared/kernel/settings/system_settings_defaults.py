@@ -59,6 +59,26 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "LOG_RETENTION_DAYS": 0,
     # 監査ログはアプリログと分けて持つ（少量・長命で、間引いてよい行が無い）。
     "AUDIT_LOG_RETENTION_DAYS": 0,
+    # --- 通知（ADR-0047） ---
+    # Web Push（端末への通知）の VAPID 秘密鍵（PEM）のファイルの場所。空なら端末への
+    # 通知は出せない（ベル・画面上部の知らせは動く）。⚠ 値ではなく場所で持つ。
+    # 作り方は docs/OPERATIONS.md。公開鍵は秘密鍵から導くので設定は要らない。
+    "WEB_PUSH_VAPID_PRIVATE_KEY_FILE": "",
+    # 通知サービス（FCM / Mozilla など）へ名乗る連絡先。``mailto:`` か ``https:``。
+    # 送り過ぎたときに通知サービスがここへ連絡してくる。
+    "WEB_PUSH_SUBJECT": "",
+    # --- スマホアプリの最新版（ADR-0048） ---
+    # 読む先（ENDPOINT_URL / OBJECT_KEY / ACCESS_KEY_ID / SECRET_ACCESS_KEY_FILE）が
+    # 1 つでも空なら知らせない。⚠ 秘密の鍵は値ではなくファイルのパスで持つ。
+    # ⚠ 鍵には artifacts の読み取りだけを持たせる（書けると配っている APK をすり替えられる）。
+    "APP_RELEASE_S3_ENDPOINT_URL": "",
+    "APP_RELEASE_S3_REGION": "garage",
+    "APP_RELEASE_S3_BUCKET": "artifacts",
+    "APP_RELEASE_S3_OBJECT_KEY": "",  # 例: <アプリ名>/latest.json
+    "APP_RELEASE_S3_ACCESS_KEY_ID": "",
+    "APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE": "",
+    # 知らせを押したときにブラウザで開く先（APK を人が取りに行く画面）。
+    "APP_RELEASE_DOWNLOAD_URL": "",
     # --- 外部 IdP との SSO（ADR-0025 / ADR-0026） ---
     # ⚠ **既定は無効。** テンプレートは連携先を知らない。設定が空のまま有効にすると、
     #   起動はするのにログインだけが失敗する状態になる。

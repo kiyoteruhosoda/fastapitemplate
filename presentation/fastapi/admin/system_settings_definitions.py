@@ -157,6 +157,59 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Keep audit logs for (days, 0 = forever)",
         "value_type": "integer",
     },
+    # --- 通知（ADR-0047） ---
+    # 送るたびに読むので restart_scopes は付けない。
+    {
+        "key": "WEB_PUSH_VAPID_PRIVATE_KEY_FILE",
+        "category": "notification",
+        "label": "Web Push VAPID private key file (PEM)",
+        "value_type": "string",
+    },
+    {
+        "key": "WEB_PUSH_SUBJECT",
+        "category": "notification",
+        "label": "Web Push contact (mailto:)",
+        "value_type": "string",
+    },
+    # --- スマホアプリの最新版（ADR-0048） ---
+    # 答えは 5 分ごとに読み直すので restart_scopes は付けない。
+    {
+        "key": "APP_RELEASE_S3_ENDPOINT_URL",
+        "category": "app_release",
+        "label": "Release storage endpoint",
+        "value_type": "string",
+    },
+    {
+        "key": "APP_RELEASE_S3_REGION",
+        "category": "app_release",
+        "label": "Release storage region",
+        "value_type": "string",
+    },
+    {"key": "APP_RELEASE_S3_BUCKET", "category": "app_release", "label": "Release bucket", "value_type": "string"},
+    {
+        "key": "APP_RELEASE_S3_OBJECT_KEY",
+        "category": "app_release",
+        "label": "Latest release manifest (latest.json)",
+        "value_type": "string",
+    },
+    {
+        "key": "APP_RELEASE_S3_ACCESS_KEY_ID",
+        "category": "app_release",
+        "label": "Release storage access key ID (read-only key)",
+        "value_type": "string",
+    },
+    {
+        "key": "APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE",
+        "category": "app_release",
+        "label": "Release storage secret key file",
+        "value_type": "string",
+    },
+    {
+        "key": "APP_RELEASE_DOWNLOAD_URL",
+        "category": "app_release",
+        "label": "Download page URL",
+        "value_type": "string",
+    },
     # --- SSO（外部 IdP との連携。ADR-0025 / ADR-0026） ---
     # 接続先とクライアント認証の方式は起動時にしか読まれないわけではないが、
     # 実際に効くのは次の認可要求からなので再起動は要らない。

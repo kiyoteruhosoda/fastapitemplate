@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
 import { PreferenceControls } from '../components/PreferenceControls'
+import { PushNotificationControls } from '../components/PushNotificationControls'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
@@ -86,6 +87,11 @@ export function ProfilePage() {
       <section className="settings-section">
         <h2>{t('profile.preferences')}</h2>
         <PreferenceControls />
+      </section>
+
+      <section className="settings-section">
+        <h2>{t('push.title')}</h2>
+        <PushNotificationControls />
       </section>
 
       <section className="settings-section">

@@ -29,6 +29,8 @@ const GROUPS: Group[] = [
       { to: '/admin/users', labelKey: 'nav.users', scopes: ['user:manage'] },
       { to: '/admin/roles', labelKey: 'nav.roles', scopes: ['role:manage'] },
       { to: '/admin/permissions', labelKey: 'nav.permissions', scopes: ['permission:manage'] },
+      { to: '/admin/groups', labelKey: 'nav.groups', scopes: ['group:manage'] },
+      { to: '/admin/notifications', labelKey: 'nav.notifications', scopes: ['notification:send'] },
     ],
   },
   {
