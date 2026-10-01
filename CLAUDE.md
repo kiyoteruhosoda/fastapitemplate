@@ -395,6 +395,8 @@ tests/
 手元では `make check` で同じ順序・同じコマンドを流せる（`make format` で自動整形）。
 CI が走るのは **PR に対してと `main` への push だけ**（ADR-0009）。PR を作る前の
 ブランチ push では走らないので、その間は `make check` で確認する。
+⚠ **CI は GitHub から何も取らない**（task #171）。uv 本体と Python は forge の置き場から
+（`ci.yml` の `version` 固定・`manifest-file`・`UV_PYTHON_INSTALL_MIRROR`）、Node は台の像のものを使う（setup-node に `node-version` を書かない）。
 
 | 対象 | 順 | ゲート | コマンド |
 |---|---|---|---|
