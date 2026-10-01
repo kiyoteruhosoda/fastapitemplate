@@ -49,6 +49,10 @@ deploy-repo の `k8s/<app>-<env>/`。宣言の雛形と手順は `deploy/k8s/`�
 - **イメージと宣言は対で合わせる。** 実行ユーザーの UID（`Dockerfile` の
   `ARG APP_UID`）と置き場の所有者・`fsGroup`、マイグレーション所要時間と
   `livenessProbe` の `initialDelaySeconds` は片方だけ変えると壊れる。
+- **uv は PyPI から入れる。** `Dockerfile` は `ARG UV_VERSION` の版を `pip install` し、
+  `uv sync` と同じ `RUN` の中で消す（最終イメージに uv は残らない）。⚠ **`ghcr.io/astral-sh/uv`
+  の像から `COPY --from` しない**（像のビルドを GitHub に頼らせない。task #172）。
+  版は CI の setup-uv の `version` と揃える。
 - **版は digest で固定する。** `:latest` だと宣言が変わらず `kubectl apply` でも
   rollout が起きない（＝版が上がらない）。書き換えるのは pin の段の仕事。
 

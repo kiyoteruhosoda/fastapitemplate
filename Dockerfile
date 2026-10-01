@@ -24,11 +24,20 @@ RUN apt-get update && apt-get install -y \
 
 # uv（依存管理）。依存レイヤーを分けてキャッシュを効かせる。
 # ⚠ 版を固定する。`:latest` だと同じコミットからでも解決器の版が変わりうる。
-COPY --from=ghcr.io/astral-sh/uv:0.12.20@sha256:100047e74f30778ab704942321a09750d6158739573ff58bf3924085cc6cd2d8 /uv /uvx /usr/local/bin/
+#   CI（setup-uv の version）と同じ版に揃える。
+# ⚠ **ghcr.io の像から COPY しない。** 像のビルドが GitHub に頼らないよう、
+#   PyPI の wheel から入れる（task #172）。
+# uv は依存を入れるときにしか使わないので、/tmp に入れて同じ RUN の中で消す
+# （最終イメージに残さない）。
+# renovate: datasource=pypi depName=uv
+ARG UV_VERSION=0.12.5
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN python -m pip install --no-cache-dir --disable-pip-version-check --root-user-action=ignore \
+      --target /tmp/uv "uv==${UV_VERSION}" \
+    && /tmp/uv/bin/uv sync --frozen --no-dev --no-install-project \
+    && rm -rf /tmp/uv
 
 COPY . /app
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
