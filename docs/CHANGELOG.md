@@ -1,3 +1,10 @@
+## 2026-10-01（CI が uv・Python・Node を GitHub から取らないようにした。task #171）
+
+- `ci.yml` の setup-uv に `version: "0.12.5"`・`manifest-file`（forge の `astral-sh/uv` の `uv.ndjson`）・
+  `download-from-astral-mirror: false` を足し、backend ジョブに `UV_PYTHON_INSTALL_MIRROR`（forge の
+  python-build-standalone）を置いた。版を上げるときは forge の置き場にも足す。
+- setup-node の `node-version` を外した。書くと api.github.com の一覧を引く。台の像の Node 24 を使う。
+
 ## 2026-09-29（ヘッダーのベルを線のアイコンにする）
 
 - ベルを絵文字（🔔）から線だけの SVG に替えた。絵文字は端末ごとに色付きの絵になり、ほかのアイコン

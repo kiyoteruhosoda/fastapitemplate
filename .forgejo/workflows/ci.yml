@@ -28,6 +28,10 @@ jobs:
     runs-on: [self-hosted, nolumialab]
     # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
     timeout-minutes: 25
+    env:
+      # uv が入れる Python も forge から（既定は GitHub の python-build-standalone）。
+      # 版を上げて落ちたら、その tag のファイルを astral-sh/python-build-standalone のリリースに足す。
+      UV_PYTHON_INSTALL_MIRROR: "https://git.nolumia.com/astral-sh/python-build-standalone/releases/download"
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +47,12 @@ jobs:
         # ⚠ **鏡に無いので自前の鏡を完全な URL で指す**（forge へ移したため）。
         uses: https://git.nolumia.com/astral-sh/setup-uv@v10.0.1
         with:
+          # ⚠ **版を固定する**。省くと最新版を GitHub の API へ匿名で聞きに行く。
+          version: "0.12.5"
+          # ⚠ **本体は forge から取る**（GitHub に依存しない）。置き場は astral-sh/uv の
+          #   リリース、その一覧が uv.ndjson。版を上げるときは両方に足す。
+          manifest-file: "https://git.nolumia.com/astral-sh/uv/raw/branch/main/uv.ndjson"
+          download-from-astral-mirror: false
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
@@ -65,24 +75,21 @@ jobs:
         run: uv run pytest -v --tb=short
 
   frontend:
-    name: Frontend (Node ${{ matrix.node-version }})
+    name: Frontend
     # ⚠ **自前の台で回す**（forge へ移したとき変えた）。
     runs-on: [self-hosted, nolumialab]
     timeout-minutes: 25
     defaults:
       run:
         working-directory: frontend
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ["24"]
 
     steps:
       - uses: actions/checkout@v6
 
+      # ⚠ **node-version は書かない**。書くと setup-node は鏡を指しても先に api.github.com の
+      #   一覧を引く（GitHub に依存する）。台の像（node:24-bookworm）の Node 24 をそのまま使う。
       - uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
