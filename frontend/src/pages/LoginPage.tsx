@@ -8,7 +8,7 @@ import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
 import { fetchSsoProvider, startSsoLogin, type SsoProvider } from '../services/sso'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
-import { useAuth } from '../store/AuthContext'
+import { RECONNECT_INTERVAL_MS, useAuth } from '../store/AuthContext'
 
 /** 資格情報の入力 → （二要素認証が有効なら）ワンタイムコードの入力。 */
 type Step = 'credentials' | 'totp'
@@ -25,19 +25,33 @@ export function LoginPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [params] = useSearchParams()
   // SSO の設定は起動後に変えられるので、画面を開くたびに問い合わせる。
-  // 取れないうちは**ローカルの入口を出したままにする**（問い合わせに失敗しただけで
-  // 全員が締め出されるのを避ける）。
-  const [sso, setSso] = useState<SsoProvider>({
-    enabled: false,
-    display_name: '',
-    local_login_enabled: true,
-    rp_logout_enabled: false,
-  })
+  // ⚠ **取れないうちは入口を出さない。** 取れないのはサーバーに届かないとき（リリース中など）で、
+  // そのときはどの入口を押しても通らない。既定の入口（パスワード欄）を出すと、サーバーが戻っても
+  // IdP のボタンの無い画面に取り残される。つながるまで聞き直す。
+  const [sso, setSso] = useState<SsoProvider | null>(null)
+  const [ssoUnreachable, setSsoUnreachable] = useState(false)
 
   useEffect(() => {
-    fetchSsoProvider()
-      .then(setSso)
-      .catch(() => undefined)
+    let timer: number | undefined
+    let cancelled = false
+    const ask = () => {
+      fetchSsoProvider()
+        .then((provider) => {
+          if (cancelled) return
+          setSso(provider)
+          setSsoUnreachable(false)
+        })
+        .catch(() => {
+          if (cancelled) return
+          setSsoUnreachable(true)
+          timer = window.setTimeout(ask, RECONNECT_INTERVAL_MS)
+        })
+    }
+    ask()
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [])
 
   // サーバー側の往復（``/api/auth/sso/callback``）が失敗すると、ここへ
@@ -95,6 +109,19 @@ export function LoginPage() {
     setStep('credentials')
     setTotpCode('')
     setError(null)
+  }
+
+  if (!sso) {
+    return (
+      <div className="auth-page">
+        <div className="card">
+          <h1>{t('login.title')}</h1>
+          <p className={ssoUnreachable ? 'hint' : 'loading'}>
+            {t(ssoUnreachable ? 'common.unreachable' : 'common.loading')}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

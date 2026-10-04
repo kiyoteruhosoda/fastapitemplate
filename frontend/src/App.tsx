@@ -23,9 +23,11 @@ import { UsersPage } from './pages/UsersPage'
 import { useAuth } from './store/AuthContext'
 
 function RequireAuth() {
-  const { user, loading } = useAuth()
+  const { user, loading, unreachable } = useAuth()
   const { t } = useI18n()
   if (loading) return <p className="loading">{t('common.loading')}</p>
+  // 届かないだけならログイン画面へ送らない（リリース中など。つながれば自動で戻る）
+  if (!user && unreachable) return <p className="loading">{t('common.unreachable')}</p>
   if (!user) return <Navigate to="/login" replace />
   return (
     <AppLayout>

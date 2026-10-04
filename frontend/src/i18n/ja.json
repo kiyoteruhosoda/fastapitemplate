@@ -235,6 +235,7 @@
   "common.theme": "テーマ",
   "common.processing": "処理中...",
   "common.loading": "読み込み中...",
+  "common.unreachable": "サーバーにつながりません（新しい版を配っている最中かもしれません）。自動でつなぎ直します…",
   "common.saved": "保存しました。",
   "error.invalid_credentials": "メールアドレスまたはパスワードが正しくありません。",
   "error.invalid_token": "セッションの有効期限が切れました。再度ログインしてください。",
