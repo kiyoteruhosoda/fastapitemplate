@@ -97,14 +97,27 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).not.toBeInTheDocument()
   })
 
-  it('問い合わせに失敗してもローカルの入口は出したままにする', async () => {
-    // ここで欄を隠すと、問い合わせが落ちただけで全員が締め出される。
-    fetchSsoProvider.mockRejectedValue(new Error('offline'))
+  it('問い合わせが届かないうちは入口を出さず、つながったら IdP の入口を出す', async () => {
+    // リリース中はサーバーに届かない。既定の入口（パスワード欄）を出すと、サーバーが戻っても
+    // IdP のボタンの無い画面に取り残される。
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    fetchSsoProvider.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({
+      enabled: true,
+      display_name: 'Nolumia',
+      local_login_enabled: false,
+    })
     renderPage()
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+      expect(screen.getByText(/Cannot reach the server/)).toBeInTheDocument()
     })
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sign in with Nolumia' })).toBeInTheDocument()
+    })
+    vi.useRealTimers()
   })
 
   it('IdP でサインアウトして戻ると ?signed_out を文言にして出す', async () => {

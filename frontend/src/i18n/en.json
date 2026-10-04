@@ -235,6 +235,7 @@
   "common.theme": "Theme",
   "common.processing": "Processing...",
   "common.loading": "Loading...",
+  "common.unreachable": "Cannot reach the server (a new version may be rolling out). Reconnecting automatically…",
   "common.saved": "Saved.",
   "error.invalid_credentials": "Invalid email or password.",
   "error.invalid_token": "Session expired. Please sign in again.",

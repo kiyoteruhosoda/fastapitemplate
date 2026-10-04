@@ -1,3 +1,11 @@
+## 2026-10-04（サーバーに届かないことをログアウトとして扱わない。ADR-0050）
+
+- `/api/auth/me` が 5xx・通信の失敗なら、未ログインとみなさずログイン画面へも送らない。「サーバーに
+  つながりません」を出して 5 秒ごとに聞き直す（`AuthContext` の `unreachable`）。4xx は従来どおり未ログイン。
+- ログイン画面は、入口の問い合わせ（`/api/auth/sso/provider`）が届くまでどの入口も出さない。これまでの
+  「失敗したらパスワード欄を出したまま」をやめた（リリース中に SSO の入口の無い画面へ取り残されたため）。
+- 文言 `common.unreachable` を足した。
+
 ## 2026-10-01（CI が uv・Python・Node を GitHub から取らないようにした。task #171）
 
 - `ci.yml` の setup-uv に `version: "0.12.5"`・`manifest-file`（forge の `astral-sh/uv` の `uv.ndjson`）・
