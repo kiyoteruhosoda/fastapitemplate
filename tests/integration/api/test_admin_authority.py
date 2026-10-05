@@ -64,10 +64,10 @@ def test_user_admin_cannot_grant_a_stronger_role(
     created = other_client.post(
         "/api/admin/users",
         headers=headers,
-        json={"email": "boss@example.com", "username": "boss", "password": _PASSWORD, "roles": ["admin"]},
+        json={"email": "boss@example.com", "username": "boss", "password": _PASSWORD, "roles": ["owner"]},
     )
     raised = other_client.put(f"/api/admin/users/{member_id}", headers=headers, json={"roles": ["manager"]})
-    self_raised = other_client.put(f"/api/admin/users/{helpdesk_id}", headers=headers, json={"roles": ["admin"]})
+    self_raised = other_client.put(f"/api/admin/users/{helpdesk_id}", headers=headers, json={"roles": ["owner"]})
 
     assert created.status_code == 403
     assert _error(created.json()) == "beyond_your_permissions"
@@ -105,7 +105,7 @@ def test_role_keeper_cannot_put_codes_they_lack_into_a_role(
     _add_user(client, admin_headers, "keeper", ["role-keeper"])
     headers = sign_in(other_client, "keeper@example.com", _PASSWORD)
     admin_role_id = next(
-        r["id"] for r in client.get("/api/admin/roles", headers=admin_headers).json() if r["name"] == "admin"
+        r["id"] for r in client.get("/api/admin/roles", headers=admin_headers).json() if r["name"] == "owner"
     )
 
     escalated = other_client.post(
@@ -144,7 +144,7 @@ def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers:
     response = client.put(
         f"/api/admin/users/{admin_id}",
         headers=admin_headers,
-        json={"username": "owner", "roles": ["admin"]},
+        json={"username": "owner", "roles": ["owner"]},
     )
 
     assert response.status_code == 200, response.text
@@ -155,7 +155,7 @@ def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers:
 
 def test_the_last_administrator_role_cannot_be_hollowed_out(client: TestClient, admin_headers: dict[str, str]) -> None:
     roles = client.get("/api/admin/roles", headers=admin_headers).json()
-    admin_role = next(r for r in roles if r["name"] == "admin")
+    admin_role = next(r for r in roles if r["name"] == "owner")
     without_core = [code for code in admin_role["permissions"] if code != "role:manage"]
 
     hollowed = client.put(
@@ -166,7 +166,7 @@ def test_the_last_administrator_role_cannot_be_hollowed_out(client: TestClient, 
     assert hollowed.status_code == 409
     assert _error(hollowed.json()) == "last_administrator"
     assert deleted.status_code == 409
-    after = next(r for r in client.get("/api/admin/roles", headers=admin_headers).json() if r["name"] == "admin")
+    after = next(r for r in client.get("/api/admin/roles", headers=admin_headers).json() if r["name"] == "owner")
     assert "role:manage" in after["permissions"]
 
 
@@ -178,10 +178,10 @@ def test_a_stale_token_cannot_disable_the_last_administrator(
     その古い 1 枚で残った 1 人を止めると、誰も権限を配り直せなくなる。
     """
     admin_id = _admin_id(client, admin_headers)
-    second_id = _add_user(client, admin_headers, "second", ["admin"])
+    second_id = _add_user(client, admin_headers, "second", ["owner"])
     second_headers = sign_in(other_client, "second@example.com", _PASSWORD)
 
-    # second が既定の管理者から admin を外す（有効な管理者は second だけになる）
+    # second が既定の管理者から owner を外す（有効な管理者は second だけになる）
     demoted = other_client.put(f"/api/admin/users/{admin_id}", headers=second_headers, json={"roles": ["member"]})
     assert demoted.status_code == 200, demoted.text
 

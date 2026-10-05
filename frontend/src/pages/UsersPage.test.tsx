@@ -81,12 +81,12 @@ describe('UsersPage のロール列', () => {
 
   it('ロール一覧を読めればその全ロールが列になる', async () => {
     mockApi([
-      { id: 1, name: 'admin' },
+      { id: 1, name: 'owner' },
       { id: 2, name: 'manager' },
     ])
     await renderPage()
 
-    expect(screen.getByRole('checkbox', { name: 'multi: admin' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'multi: owner' })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'multi: manager' })).toBeChecked()
   })
 
@@ -99,7 +99,7 @@ describe('UsersPage のロール列', () => {
 
   it('更新中の行は操作を受け付けない（古い値から差分を作らない）', async () => {
     mockApi([
-      { id: 1, name: 'admin' },
+      { id: 1, name: 'owner' },
       { id: 2, name: 'manager' },
     ])
     await renderPage()
@@ -114,14 +114,14 @@ describe('UsersPage のロール列', () => {
         }
       }),
     )
-    fireEvent.click(screen.getByRole('checkbox', { name: 'multi: admin' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'multi: owner' }))
     await waitFor(() => {
       expect(screen.getByRole('checkbox', { name: 'multi: manager' })).toBeDisabled()
     })
     fireEvent.click(screen.getByRole('checkbox', { name: 'multi: manager' }))
 
     expect(apiPut).toHaveBeenCalledTimes(1)
-    expect(apiPut).toHaveBeenCalledWith('/api/admin/users/1', { roles: ['manager', 'admin'] })
+    expect(apiPut).toHaveBeenCalledWith('/api/admin/users/1', { roles: ['manager', 'owner'] })
 
     first.finish()
     await waitFor(() => {

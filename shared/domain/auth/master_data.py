@@ -20,7 +20,7 @@ from collections.abc import Mapping, Sequence
 #
 # ロールは「何を扱うか」の系統で分ける（ADR-0051）。
 #
-# - 全体:       admin（全権限。持ち主・最後の砦）
+# - 全体:       owner（全権限。持ち主・最後の砦。ADR-0052）
 # - システム:   system-admin（設定・再起動・アプリログ）
 # - 人:         user-admin（利用者・グループの管理と、自分の範囲内のロールの付け外し）
 # - 監査:       auditor（監査ログ・アプリログを読むだけ）
@@ -29,7 +29,7 @@ from collections.abc import Mapping, Sequence
 # 派生アプリでは、コンテンツの系統を自分の資源に合わせて組み替える
 # （例: editor / publisher / moderator）。系統をまたぐロールは作らない。
 ROLES: Sequence[tuple[int, str]] = (
-    (1, "admin"),
+    (1, "owner"),
     (2, "manager"),
     (3, "member"),
     (4, "guest"),
@@ -64,7 +64,7 @@ PERMISSION_CODES: Sequence[str] = (
 # --- ロールへの権限付与 ------------------------------------------------------
 # ロール名 -> 付与する権限コードの集合。有効 scope は所属ロールの和集合。
 ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
-    "admin": tuple(PERMISSION_CODES),  # 全権限
+    "owner": tuple(PERMISSION_CODES),  # 全権限
     "manager": (
         "item:view",
         "item:manage",
@@ -119,7 +119,7 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
 DEFAULT_ADMIN_ID: int = 1
 DEFAULT_ADMIN_EMAIL: str = "admin@example.com"
 DEFAULT_ADMIN_USERNAME: str = "admin"
-DEFAULT_ADMIN_ROLE: str = "admin"
+DEFAULT_ADMIN_ROLE: str = "owner"
 DEFAULT_ADMIN_PASSWORD: str = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD_HASH: str = (
     "scrypt:32768:8:1$KdSu5I3W0KXRnlgp$"

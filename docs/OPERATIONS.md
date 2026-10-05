@@ -654,7 +654,7 @@ docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' app \
 ```
 
 作り直したユーザーの ID は `master_data.DEFAULT_ADMIN_ID`（= 1）で固定されるため、
-`admin` ロールの付与も含めて元の状態に戻る。二要素認証・パスキーの登録は消える。
+`owner` ロールの付与も含めて元の状態に戻る。二要素認証・パスキーの登録は消える。
 
 ## 二要素認証・パスキーを設定したいとき
 
