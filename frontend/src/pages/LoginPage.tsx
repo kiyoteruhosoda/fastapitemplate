@@ -117,6 +117,7 @@ export function LoginPage() {
         <div className="card">
           <h1>{t('login.title')}</h1>
           <p className={ssoUnreachable ? 'hint' : 'loading'}>
+            <span className="spinner" aria-hidden="true" />{' '}
             {t(ssoUnreachable ? 'common.unreachable' : 'common.loading')}
           </p>
         </div>
