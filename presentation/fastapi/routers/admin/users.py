@@ -7,6 +7,10 @@
 2 つある以上、開いている口の数は並べて見ないと分からない。材料は
 **それぞれのコンテキストに聞く** ——パスワードは ``users`` の列、TOTP と
 パスキーは account_security、IdP との結び付きは identity_federation。
+
+ロールの付け外し・停止・削除には、scope とは別に関門を掛ける（ADR-0051）。
+自分が持っていない権限は配れず、自分より強い利用者には触れず、自分自身は
+変えられず、「管理の要」を持つ人を 0 人にはできない。
 """
 
 from __future__ import annotations
@@ -41,12 +45,18 @@ from bounded_contexts.identity_federation.infrastructure.sql_federated_issuer_di
     SqlFederatedIssuerDirectory,
 )
 from presentation.fastapi.dependencies.auth import require_permission
+from presentation.fastapi.routers.admin.authority_guard import (
+    Administration,
+    AdministrationDep,
+    permissions_of,
+)
 from presentation.fastapi.schemas.admin import (
     SignInEntrances,
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
 )
+from shared.domain.auth.authority import changed
 from shared.infrastructure.models import Role, User, user_group_members
 from shared.kernel.database.session import get_db
 
@@ -123,8 +133,25 @@ async def list_users(db: DbDep) -> list[UserResponse]:
     return [_to_response(u, inventory) for u in users]
 
 
+def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest) -> list[Role] | None:
+    """更新の関門（ADR-0051）。通れば、付け替え後のロール（変えないなら ``None``）を返す。"""
+    # 自分より強い利用者のパスワードを書き換えれば、その人の権限を丸ごと取れる。
+    if user.id != admin.actor.user_id:
+        admin.ensure_within_authority(permissions_of(user.roles))
+    if body.is_active is False:
+        admin.ensure_not_yourself(user)
+    if body.roles is None:
+        return None
+    new_roles = _resolve_roles(admin.db, body.roles)
+    if {r.name for r in new_roles} != {r.name for r in user.roles}:
+        admin.ensure_not_yourself(user)
+    admin.ensure_within_authority(changed(permissions_of(user.roles), permissions_of(new_roles)))
+    return new_roles
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
-async def create_user(body: UserCreateRequest, db: DbDep, audit: AuditRecorderDep) -> UserResponse:
+async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> UserResponse:
+    db = admin.db
     if db.scalar(select(User).where(User.email == body.email)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -136,7 +163,9 @@ async def create_user(body: UserCreateRequest, db: DbDep, audit: AuditRecorderDe
         password_hash=generate_password_hash(body.password),
         is_active=True,
     )
-    user.roles = _resolve_roles(db, body.roles)
+    roles = _resolve_roles(db, body.roles)
+    admin.ensure_within_authority(permissions_of(roles))
+    user.roles = roles
     db.add(user)
     db.flush()
     audit.execute(
@@ -150,21 +179,23 @@ async def create_user(body: UserCreateRequest, db: DbDep, audit: AuditRecorderDe
 async def update_user(
     user_id: int,
     body: UserUpdateRequest,
-    db: DbDep,
+    admin: AdministrationDep,
     audit: AuditRecorderDep,
 ) -> UserResponse:
+    db = admin.db
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
+    new_roles = _authorize_update(admin, user, body)
     if body.username is not None:
         user.username = body.username
     if body.is_active is not None:
         user.is_active = body.is_active
-    if body.roles is not None:
-        user.roles = _resolve_roles(db, body.roles)
+    if new_roles is not None:
+        user.roles = new_roles
     if body.password is not None:
         user.password_hash = generate_password_hash(body.password)
-    db.flush()
+    admin.ensure_an_administrator_remains()
     audit.execute(
         AuditEventType.USER_UPDATED,
         target=AuditTarget.of(AuditTargetType.USER, user_id),
@@ -174,15 +205,19 @@ async def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
+async def delete_user(user_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
+    db = admin.db
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
+    admin.ensure_not_yourself(user)
+    admin.ensure_within_authority(permissions_of(user.roles))
     user.roles = []
     # グループには User 側から辿る関係を張っていないので、所属は明示的に外す
     # （SQLite は外部キーの CASCADE を既定で効かせない）。
     db.execute(delete(user_group_members).where(user_group_members.c.user_id == user_id))
     db.delete(user)
+    admin.ensure_an_administrator_remains()
     audit.execute(
         AuditEventType.USER_DELETED,
         target=AuditTarget.of(AuditTargetType.USER, user_id),

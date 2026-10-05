@@ -17,11 +17,25 @@ from collections.abc import Mapping, Sequence
 
 # --- ロール ------------------------------------------------------------------
 # id は外部参照（user_roles 等）の安定キーとして固定する。
+#
+# ロールは「何を扱うか」の系統で分ける（ADR-0051）。
+#
+# - 全体:       admin（全権限。持ち主・最後の砦）
+# - システム:   system-admin（設定・再起動・アプリログ）
+# - 人:         user-admin（利用者・グループの管理と、自分の範囲内のロールの付け外し）
+# - 監査:       auditor（監査ログ・アプリログを読むだけ）
+# - コンテンツ: manager（中身の管理）/ member（読む）/ guest（入れるだけ）
+#
+# 派生アプリでは、コンテンツの系統を自分の資源に合わせて組み替える
+# （例: editor / publisher / moderator）。系統をまたぐロールは作らない。
 ROLES: Sequence[tuple[int, str]] = (
     (1, "admin"),
     (2, "manager"),
     (3, "member"),
     (4, "guest"),
+    (5, "system-admin"),
+    (6, "user-admin"),
+    (7, "auditor"),
 )
 
 # --- 権限コード（scope） -----------------------------------------------------
@@ -64,6 +78,31 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
         "gui:view",
     ),
     "guest": (
+        "dashboard:view",
+        "gui:view",
+    ),
+    # システムの系統。中身（item:*）にも人（user:* / role:*）にも触れない。
+    "system-admin": (
+        "admin:system-settings",
+        "system:manage",
+        "log:view",
+        "dashboard:view",
+        "gui:view",
+    ),
+    # 人の系統。配れるのは自分が持つ権限の範囲のロールだけなので（ADR-0051）、
+    # member と同じ閲覧の権限を持たせ、member・guest を割り当てられるようにしてある。
+    # manager・admin への引き上げは、それを持つ人の仕事。
+    "user-admin": (
+        "user:manage",
+        "group:manage",
+        "item:view",
+        "dashboard:view",
+        "gui:view",
+    ),
+    # 監査の系統。読むだけ。変える権限は 1 つも持たせない（職務の分離）。
+    "auditor": (
+        "audit:view",
+        "log:view",
         "dashboard:view",
         "gui:view",
     ),

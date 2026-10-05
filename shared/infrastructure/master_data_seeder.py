@@ -29,7 +29,10 @@ def seed_master_data(session: Session) -> None:
     for role_id, name in master_data.ROLES:
         role = session.scalar(select(Role).where(Role.name == name))
         if role is None:
-            role = Role(id=role_id, name=name)
+            # 固定の id が、運用中に足したロールで既に埋まっていることがある。
+            # そのときは採番に任せる（名前が安定キーで、id は参照の都合でしかない）。
+            taken = session.get(Role, role_id) is not None
+            role = Role(name=name) if taken else Role(id=role_id, name=name)
             session.add(role)
         roles[name] = role
 
