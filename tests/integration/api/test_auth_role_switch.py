@@ -84,7 +84,7 @@ def test_switching_back_restores_the_union(client: TestClient, admin_headers: di
 
 def test_cannot_switch_to_a_role_not_granted(client: TestClient, admin_headers: dict[str, str]) -> None:
     _create_multi_role_user(client, admin_headers)
-    response = client.post("/api/auth/switch-role", headers=_sign_in(client), json={"role": "admin"})
+    response = client.post("/api/auth/switch-role", headers=_sign_in(client), json={"role": "owner"})
 
     assert response.status_code == 403
     assert response.json()["detail"]["error"] == "role_not_granted"

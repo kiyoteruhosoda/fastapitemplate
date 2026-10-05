@@ -17,8 +17,8 @@ def test_every_role_has_permission_assignment() -> None:
     assert role_names == set(master_data.ROLE_PERMISSIONS)
 
 
-def test_admin_role_has_all_permissions() -> None:
-    assert set(master_data.ROLE_PERMISSIONS["admin"]) == set(master_data.PERMISSION_CODES)
+def test_owner_role_has_all_permissions() -> None:
+    assert set(master_data.ROLE_PERMISSIONS["owner"]) == set(master_data.PERMISSION_CODES)
 
 
 def test_default_admin_role_exists() -> None:
@@ -30,12 +30,12 @@ def test_default_admin_password_hash_matches_documented_password() -> None:
     assert check_password_hash(master_data.DEFAULT_ADMIN_PASSWORD_HASH, master_data.DEFAULT_ADMIN_PASSWORD)
 
 
-def test_only_admin_holds_the_whole_administration_core() -> None:
-    """人とロールの両方を配れるのは admin だけ。ほかの雛形は系統をまたがない（ADR-0051）。"""
+def test_only_owner_holds_the_whole_administration_core() -> None:
+    """人とロールの両方を配れるのは owner だけ。ほかの雛形は系統をまたがない（ADR-0051）。"""
     from shared.domain.auth.authority import ADMINISTRATION_CORE
 
     holders = {role for role, codes in master_data.ROLE_PERMISSIONS.items() if set(ADMINISTRATION_CORE) <= set(codes)}
-    assert holders == {"admin"}
+    assert holders == {"owner"}
 
 
 def test_system_admin_touches_neither_people_nor_content() -> None:

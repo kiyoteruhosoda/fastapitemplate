@@ -19,7 +19,7 @@ def beyond(actor: Collection[str], required: Iterable[str]) -> frozenset[str]:
 
     **自分が持っていない権限は、配ることも取り上げることもできない。**
     付けるときに見ないと昇格の経路になり（``user:manage`` だけの人が自分に
-    ``admin`` を付ける）、外すときに見ないと格上の人を無力化できる。
+    ``owner`` を付ける）、外すときに見ないと格上の人を無力化できる。
     """
     return frozenset(code for code in required if code not in actor)
 
