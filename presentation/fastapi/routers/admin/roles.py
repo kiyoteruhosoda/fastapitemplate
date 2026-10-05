@@ -6,6 +6,10 @@
 ロールへの権限（scope）付与は実質的な権限変更なので、作成・更新・削除を監査ログ
 へ残す。更新時の ``reason`` には**付与後の権限コード**を入れる（誰が何の権限を
 与えたかを後から検証できるようにするため。権限コードは PII ではない）。
+
+権限の中身を変える操作には、scope とは別に関門を掛ける（ADR-0051）。自分が
+持っていない権限は足すことも外すこともできず、「管理の要」を持つ人を 0 人に
+する変更は通さない。
 """
 
 from __future__ import annotations
@@ -23,11 +27,13 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import require_any_permission, require_permission
+from presentation.fastapi.routers.admin.authority_guard import AdministrationDep, permissions_of
 from presentation.fastapi.schemas.admin import (
     RoleCreateRequest,
     RoleResponse,
     RoleUpdateRequest,
 )
+from shared.domain.auth.authority import changed
 from shared.infrastructure.models import Permission, Role
 from shared.kernel.database.session import get_db
 
@@ -75,14 +81,17 @@ async def list_roles(db: DbDep) -> list[RoleResponse]:
     response_model=RoleResponse,
     dependencies=[_MANAGE_ROLES],
 )
-async def create_role(body: RoleCreateRequest, db: DbDep, audit: AuditRecorderDep) -> RoleResponse:
+async def create_role(body: RoleCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> RoleResponse:
+    db = admin.db
     if db.scalar(select(Role).where(Role.name == body.name)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "role_already_exists"},
         )
+    permissions = _resolve_permissions(db, body.permissions)
+    admin.ensure_within_authority(p.code for p in permissions)
     role = Role(name=body.name)
-    role.permissions = _resolve_permissions(db, body.permissions)
+    role.permissions = permissions
     db.add(role)
     db.flush()
     audit.execute(
@@ -97,17 +106,20 @@ async def create_role(body: RoleCreateRequest, db: DbDep, audit: AuditRecorderDe
 async def update_role(
     role_id: int,
     body: RoleUpdateRequest,
-    db: DbDep,
+    admin: AdministrationDep,
     audit: AuditRecorderDep,
 ) -> RoleResponse:
+    db = admin.db
     role = db.get(Role, role_id)
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
     if body.name is not None:
         role.name = body.name
     if body.permissions is not None:
-        role.permissions = _resolve_permissions(db, body.permissions)
-    db.flush()
+        permissions = _resolve_permissions(db, body.permissions)
+        admin.ensure_within_authority(changed(permissions_of([role]), (p.code for p in permissions)))
+        role.permissions = permissions
+    admin.ensure_an_administrator_remains()
     audit.execute(
         AuditEventType.ROLE_UPDATED,
         target=AuditTarget.of(AuditTargetType.ROLE, role_id),
@@ -117,12 +129,15 @@ async def update_role(
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MANAGE_ROLES])
-async def delete_role(role_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
+async def delete_role(role_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
+    db = admin.db
     role = db.get(Role, role_id)
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
+    admin.ensure_within_authority(permissions_of([role]))
     role.permissions = []
     db.delete(role)
+    admin.ensure_an_administrator_remains()
     audit.execute(
         AuditEventType.ROLE_DELETED,
         target=AuditTarget.of(AuditTargetType.ROLE, role_id),

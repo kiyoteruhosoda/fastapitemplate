@@ -102,7 +102,7 @@ erDiagram
 
     roles {
         bigint id PK
-        varchar(50) name UK "admin / manager / member / guest"
+        varchar(50) name UK "admin / manager / member / guest / system-admin / user-admin / auditor（ADR-0051）"
     }
 
     permissions {

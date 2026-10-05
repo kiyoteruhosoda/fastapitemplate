@@ -7,7 +7,7 @@ def test_role_crud(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/api/admin/roles",
         headers=admin_headers,
-        json={"name": "auditor", "permissions": ["log:view", "dashboard:view"]},
+        json={"name": "log-reader", "permissions": ["log:view", "dashboard:view"]},
     )
     assert response.status_code == 201, response.text
     role_id = response.json()["id"]

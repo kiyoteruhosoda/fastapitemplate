@@ -252,6 +252,13 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - 権限の検証は依存関数で行い、ルーター本体には検証済みの
   `AuthenticatedPrincipal` のみ渡す。
 - JWT 発行時の scope はユーザーの保有権限の範囲内で指定。未指定・空 = 権限なし。
+- **ロールは扱うものの系統で分ける**（システム / 人 / 監査 / コンテンツ。ADR-0051）。
+  雛形は `shared/domain/auth/master_data.py`。系統をまたぐロールを作らない。
+- **権限を動かす操作には scope と別の関門を掛ける**（ADR-0051。
+  `presentation/fastapi/routers/admin/authority_guard.py` の `Administration`）。
+  自分が持っていない権限は配れず・取り上げられず、格上の利用者には触れず、自分自身の
+  ロール・有効状態・存在は変えられず、「管理の要」を持つ有効な利用者を 0 人にできない。
+  派生アプリで権限やロールを付け外しする口を足すときも、これを通す。
 
 ---
 
