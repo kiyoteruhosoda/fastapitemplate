@@ -6,8 +6,9 @@ scope を持っていても、自分の権限を超えて配る・格上に触�
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi.testclient import TestClient
-from httpx import Response
 
 from shared.domain.auth import master_data
 from tests.conftest import sign_in
@@ -26,8 +27,8 @@ def _add_user(client: TestClient, headers: dict[str, str], name: str, roles: lis
     return user_id
 
 
-def _error(response: Response) -> str:
-    return str(response.json()["detail"]["error"])
+def _error(body: Any) -> str:
+    return str(body["detail"]["error"])
 
 
 def _admin_id(client: TestClient, headers: dict[str, str]) -> int:
@@ -69,10 +70,10 @@ def test_user_admin_cannot_grant_a_stronger_role(
     self_raised = other_client.put(f"/api/admin/users/{helpdesk_id}", headers=headers, json={"roles": ["admin"]})
 
     assert created.status_code == 403
-    assert _error(created) == "beyond_your_permissions"
+    assert _error(created.json()) == "beyond_your_permissions"
     assert "role:manage" in created.json()["detail"]["permissions"]
     assert raised.status_code == 403
-    assert _error(raised) == "beyond_your_permissions"
+    assert _error(raised.json()) == "beyond_your_permissions"
     assert self_raised.status_code == 403
 
 
@@ -88,7 +89,7 @@ def test_user_admin_cannot_touch_a_stronger_user(
     removed = other_client.delete(f"/api/admin/users/{admin_id}", headers=headers)
 
     assert password.status_code == 403
-    assert _error(password) == "beyond_your_permissions"
+    assert _error(password.json()) == "beyond_your_permissions"
     assert removed.status_code == 403
 
 
@@ -116,7 +117,7 @@ def test_role_keeper_cannot_put_codes_they_lack_into_a_role(
     )
 
     assert escalated.status_code == 403
-    assert _error(escalated) == "beyond_your_permissions"
+    assert _error(escalated.json()) == "beyond_your_permissions"
     assert stripped.status_code == 403
     assert within.status_code == 201, within.text
 
@@ -133,7 +134,7 @@ def test_an_admin_cannot_change_their_own_standing(client: TestClient, admin_hea
         client.delete(f"/api/admin/users/{admin_id}", headers=admin_headers),
     ):
         assert response.status_code == 403
-        assert _error(response) == "cannot_change_yourself"
+        assert _error(response.json()) == "cannot_change_yourself"
 
 
 def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers: dict[str, str]) -> None:
@@ -163,7 +164,7 @@ def test_the_last_administrator_role_cannot_be_hollowed_out(client: TestClient, 
     deleted = client.delete(f"/api/admin/roles/{admin_role['id']}", headers=admin_headers)
 
     assert hollowed.status_code == 409
-    assert _error(hollowed) == "last_administrator"
+    assert _error(hollowed.json()) == "last_administrator"
     assert deleted.status_code == 409
     after = next(r for r in client.get("/api/admin/roles", headers=admin_headers).json() if r["name"] == "admin")
     assert "role:manage" in after["permissions"]
@@ -188,6 +189,6 @@ def test_a_stale_token_cannot_disable_the_last_administrator(
     response = client.put(f"/api/admin/users/{second_id}", headers=admin_headers, json={"is_active": False})
 
     assert response.status_code == 409
-    assert _error(response) == "last_administrator"
+    assert _error(response.json()) == "last_administrator"
     users = other_client.get("/api/admin/users").json()
     assert next(u for u in users if u["id"] == second_id)["is_active"] is True
