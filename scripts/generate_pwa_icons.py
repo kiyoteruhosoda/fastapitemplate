@@ -12,6 +12,10 @@
     pwa-512x512.png              同（大）
     pwa-maskable-512x512.png     maskable 用（全面塗り・セーフゾーンを取った小さめの図形）
     apple-touch-icon.png         iOS ホーム画面用（OS 側で角丸に切られるため全面塗り）
+
+画面の中の像（ヘッダー・サインイン前の画面。`frontend/src/components/AppMark.tsx`）も
+favicon.svg をそのまま読む。図柄や色を変えるときはここだけを直して出力し直せばよく、
+画面側に同じ絵を書き起こさない。
 """
 
 from __future__ import annotations

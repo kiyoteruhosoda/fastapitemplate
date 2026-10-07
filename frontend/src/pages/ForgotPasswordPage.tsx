@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
+import { AppMark } from '../components/AppMark'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api } from '../services/api'
@@ -19,6 +20,7 @@ export function ForgotPasswordPage() {
   return (
     <div className="auth-page">
       <form className="card" onSubmit={submit}>
+        <AppMark size={44} />
         <h1>{t('forgot.title')}</h1>
         {sent ? (
           <p>{t('forgot.sent')}</p>
