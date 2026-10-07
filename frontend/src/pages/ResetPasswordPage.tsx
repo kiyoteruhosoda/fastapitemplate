@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
+import { AppMark } from '../components/AppMark'
 import { PasswordInput } from '../components/PasswordInput'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
@@ -33,6 +34,7 @@ export function ResetPasswordPage() {
   return (
     <div className="auth-page">
       <form className="card" onSubmit={submit}>
+        <AppMark size={44} />
         <h1>{t('reset.title')}</h1>
         {error && <p className="error">{t(error)}</p>}
         <div className="field">

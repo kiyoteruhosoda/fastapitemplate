@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
+import { AppMark } from '../components/AppMark'
 import { PasswordInput } from '../components/PasswordInput'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
@@ -115,6 +116,7 @@ export function LoginPage() {
     return (
       <div className="auth-page">
         <div className="card">
+          <AppMark size={44} />
           <h1>{t('login.title')}</h1>
           <p className={ssoUnreachable ? 'hint' : 'loading'}>
             <span className="spinner" aria-hidden="true" />{' '}
@@ -128,6 +130,7 @@ export function LoginPage() {
   return (
     <div className="auth-page">
       <form className="card" onSubmit={submit}>
+        <AppMark size={44} />
         <h1>{step === 'totp' ? t('login.totpTitle') : t('login.title')}</h1>
         {notice && <p className="hint">{t(notice)}</p>}
         {error && <p className="error">{t(error)}</p>}

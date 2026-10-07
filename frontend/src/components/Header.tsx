@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import { useI18n } from '../i18n'
 import { useAuth } from '../store/AuthContext'
+import { AppMark } from './AppMark'
 import { NotificationBell } from './NotificationBell'
 import { RoleSwitcher } from './RoleSwitcher'
 
@@ -37,7 +38,8 @@ export function Header({
           <span aria-hidden="true">☰</span>
         </button>
         <Link to="/" className="header-title">
-          {t('app.title')}
+          <AppMark size={28} />
+          <span className="header-title-text">{t('app.title')}</span>
         </Link>
       </div>
       <div className="header-actions">

@@ -349,10 +349,19 @@ input[type='radio'] {
 }
 
 .header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-weight: 700;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
   text-decoration: none;
+}
+
+/* アプリの像（AppMark）。絵は favicon.svg で、角丸と地の色も絵の側に入っている。 */
+.app-mark {
+  display: block;
+  flex-shrink: 0;
 }
 
 .header-actions {
@@ -1561,7 +1570,11 @@ button.notification-banner-text:hover:not(:disabled) {
 
   .header-title {
     /* min-width の既定（auto）だと単語 1 つ分より狭くならず、ヘッダーが
-     * 折り返してしまう。縮めたうえで末尾を省略する。 */
+     * 折り返してしまう。縮めたうえで末尾を省略する（像は縮めない）。 */
+    min-width: 0;
+  }
+
+  .header-title-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
