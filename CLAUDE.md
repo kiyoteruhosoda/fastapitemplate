@@ -188,7 +188,7 @@ Swagger UI（`/docs`）・`/openapi.json` が唯一の出所。
 
 | 項目 | バージョン |
 |---|---|
-| Python | 3.12 以上（`python:3.12-slim` ベース） |
+| Python | 3.14（`python:3.14-slim` ベース。CI も `.python-version` の同じ版で試験する） |
 | 依存管理 | uv（`uv sync` / `uv run`） |
 | DB（本番） | MariaDB 10.11.x |
 | DB（開発・テスト） | SQLite（`with_variant` で両立。ADR-0001 参照） |
