@@ -1,3 +1,8 @@
+## 2026-10-17（Komodo の名残りを消し、配り方の説明を今の形にする。task #455）
+
+- Komodo は 2026-09-08 に止めた。README・CLAUDE.md・手順書などに残っていた「Komodo で焼いて配る」の
+  説明と定義の雛形を消し、main へのマージで deck が build → pin → deploy を走らせる今の形に直した。
+
 ## 2026-10-17（CI の Python を本番のイメージと同じ 3.14 に。task #461）
 
 - CI は 3.12 のまま、本番のイメージだけ Renovate が 3.14 に上げていた。試験は `.python-version` の版で走り、
