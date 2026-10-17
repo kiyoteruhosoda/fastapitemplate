@@ -42,6 +42,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,json}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [
+          /^\/api\//,
           /^\/docs/,
           /^\/redoc/,
           /^\/openapi\.json/,
