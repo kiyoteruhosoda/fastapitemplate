@@ -12,17 +12,15 @@ forge のソース ──▶ build ──▶ hub.nolumia.com:5000/app/<image>:sh
      ＝ 稼働状態の正（宣言）
 ```
 
-**押す口は deck（https://deck.nolumia.com）。** 環境を選んで版を上げると、
-**build → pin → deploy** の 3 段が LAN の中で走る。
+**main へのマージで、deck（https://deck.nolumia.com）が build → pin → deploy の
+3 段を LAN の中で自動で走らせる**（`resources/projects.json` に載せたプロジェクトの prod。
+deck の ADR-0119）。stg などを手で上げるときは deck の画面で環境を選ぶ。
 
 | 段 | 何をするか |
 |---|---|
 | **build** | イメージを焼いて registry へ push する（タグは `sha-<コミット>`）|
 | **pin** | その digest を `k8s/<app>-<env>/40-app.yaml` に書き戻して main へ commit する |
 | **deploy** | `k8s/<app>-<env>/` をクラスタへ `apply` する |
-
-⚠ **Komodo は 2026-09-08 に停止した。起こさないこと**（compose 側が k3s と同じ
-データを掴みに行く）。
 
 ⚠ **退避経路は deploy-repo の workflow 2 つ**（`build-image.yml` /
 `apply-manifests.yml`。どちらも手押し）。**deck が落ちている日のためのもの**で、
@@ -83,39 +81,30 @@ NodePort  = 30000 +（採番の番号 - 10000）
 
 ### 3. build の表
 
-build が引く表は deploy-repo の `resources/build-matrix.json`。⚠ **これを手で
-書かない** ——いまの正本は `resources/builds.toml`（Komodo 時代の名残）で、JSON は
-`python3 bin/check-build-matrix.py --write` で起こす。CI が両者のずれを落とす。
+build が引く表は deploy-repo の `resources/build-matrix.json`（**これが正本**）。1 件足す。
 
-正本のほうに 1 件足す。
-
-```toml
-[[build]]
-name = "<app>"
-[build.config]
-repo = "kiyoteruhosoda/<repo>"
-branch = "main"
-build_path = "."
-dockerfile_path = "Dockerfile"
-image_name = "<app>"
-
-# ⚠ **これが無いと `/info` が版を答えられない。**
-[build.config.pre_build]
-path = "."
-command = "bash scripts/generate_version.sh"
+```json
+{
+  "name": "<app>",
+  "repo": "kyon/<repo>",
+  "branch": "main",
+  "context": ".",
+  "dockerfile": "Dockerfile",
+  "image": "<app>",
+  "target": "",
+  "pre_build": true,
+  "private": false
+}
 ```
 
-⚠ **`pre_build` を必ず書く。** これが**版の刻印**で、無いとイメージが
-`version=dev` を名乗り続ける（[scripts/README.md](../../scripts/README.md)）。
+⚠ **`pre_build` を必ず `true` にする。** これが**版の刻印**（`scripts/generate_version.sh`）で、
+無いとイメージが `version=dev` を名乗り続ける（[scripts/README.md](../../scripts/README.md)）。
 **ビルドは緑のままなので気付けない。**
 
-⚠ **`repo` は GitHub の綴りのままでよい。** build は**まず forge
-（`kyon/<名前>`）を見て、無ければ GitHub（押し出しミラー）へ落ちる**ので、
-移送が済んでいれば勝手に forge 側から取る。
+⚠ **`repo` は forge の綴り（`kyon/<名前>`）だけ。** build は表の `repo` を forge から clone する。
+表の形は `python3 bin/check-build-matrix.py` が検査し、CI でも落とす。
 
-⚠ **push 先はこの表では決まらない。** build は常に
-`hub.nolumia.com:5000/app/<image>` へ押す（`komodo_namespace` は Komodo 時代の
-名残で、いまは使われていない）。
+⚠ **push 先はこの表では決まらない。** build は常に `hub.nolumia.com:5000/app/<image>` へ押す。
 
 ### 4〜5. 宣言と置き場
 

@@ -36,8 +36,9 @@ k3s では namespace で分かれるが、**名前を変えると nginx の Conf
 タグは `sha-<コミット>`（ADR-0044）。**デプロイ先は k3s** で、稼働状態の正は
 deploy-repo の `k8s/<app>-<env>/`。宣言の雛形と手順は `deploy/k8s/`。
 
-- **押す口は deck**（`https://deck.nolumia.com`）。段は **build → pin → deploy**。
-  ⚠ **Komodo は停止している。起こさない。**
+- **main へのマージで、deck（`https://deck.nolumia.com`）が build → pin → deploy を
+  自動で走らせる**（deploy-repo の `resources/projects.json` に載ったプロジェクトの prod。
+  deck の ADR-0119）。手で押すのは deck の画面から。
 - **バージョン情報はビルドの前に生成する。** `scripts/generate_version.sh` が
   `shared/kernel/version.json` を作る。build の表（`resources/build-matrix.json`）の
   `pre_build` を**必ず** `true` にすること。無いとイメージが `version=dev` を名乗る

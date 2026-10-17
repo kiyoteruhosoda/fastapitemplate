@@ -79,9 +79,9 @@ forge のソース ──▶ build ──▶ hub.nolumia.com:5000/app/<image>:sh
     ＝ 稼働状態の正（宣言）
 ```
 
-押す口は **deck（https://deck.nolumia.com）** で、環境を選ぶと
-**build → pin → deploy** の 3 段が走ります。⚠ **Komodo は 2026-09-08 に停止
-しました**（起こさないでください）。
+**main へのマージで、deck（https://deck.nolumia.com）が build → pin → deploy の
+3 段を自動で走らせます**（deploy-repo の `resources/projects.json` に載せたプロジェクトの
+prod）。手で押すとき（stg を上げるときなど）は deck の画面で環境を選びます。
 
 手元で動かすときは compose を使います（デプロイには使いません）。
 
