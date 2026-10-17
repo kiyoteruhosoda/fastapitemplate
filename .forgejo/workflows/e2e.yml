@@ -1,0 +1,77 @@
+name: E2E
+
+# 本物のサーバーを立て、実ブラウザ（Playwright）で画面を通す煙試験（ADR-0054）。
+# ci.yml の Backend / Frontend とは別の workflow にして、速い検査を待たせない。
+# トリガーと取り消しは ci.yml と同じ（ADR-0009）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E (Playwright)
+    runs-on: [self-hosted, nolumialab]
+    # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
+    timeout-minutes: 25
+    # ジョブごと Playwright 公式の像の中で走らせる（ブラウザと OS 側の依存、Node 24 入り）。
+    # 版と digest は photonest と揃えてある（台に同じ像が残っていれば引き直さずに済む）。
+    # ⚠ 像の版は `@playwright/test` の版と揃える（下の照合の段が見張る）。
+    # `--ipc=host` は Chromium が共有メモリ不足で落ちるのを避けるため（Playwright 公式の推奨）。
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      options: --ipc=host
+    env:
+      PLAYWRIGHT_VERSION: "1.64.1"
+      # uv が入れる Python も forge から（ci.yml と同じ）。
+      UV_PYTHON_INSTALL_MIRROR: "https://git.nolumia.com/astral-sh/python-build-standalone/releases/download"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # 版・置き場は ci.yml と同じ（理由もそちら）。
+      - name: Set up uv
+        uses: https://git.nolumia.com/astral-sh/setup-uv@v10.0.1
+        with:
+          version: "0.12.5"
+          manifest-file: "https://git.nolumia.com/astral-sh/uv/raw/branch/main/uv.ndjson"
+          download-from-astral-mirror: false
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          cd frontend && npm ci
+
+      # 像のタグと `@playwright/test` の版がずれると、ブラウザが見つからず
+      # 「Executable doesn't exist」で落ちる。原因が分かる形で先に止める。
+      - name: Playwright の版が像と揃っているか
+        working-directory: frontend
+        run: |
+          installed="$(npx playwright --version | awk '{print $2}' | tr -d '\r')"
+          if [ "$installed" != "$PLAYWRIGHT_VERSION" ]; then
+            echo "::error::@playwright/test は ${installed}、像は ${PLAYWRIGHT_VERSION}。e2e.yml の image と PLAYWRIGHT_VERSION を揃える"
+            exit 1
+          fi
+
+      # 画面のビルド → マイグレーション → サーバーの起動は playwright.config.ts の webServer が行う。
+      - name: E2E (Playwright)
+        working-directory: frontend
+        env:
+          CI: "true"
+        run: npm run test:e2e
+
+      # レポートは結果の表示であって合否ではない。上げられなくてもジョブの赤の理由を上書きしない。
+      # ⚠ v4 は forge では動かない（GHES と見なして警告だけ出し、上げない）。v3 を使う。
+      - name: Keep the Playwright report
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v3.2.2
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
+          if-no-files-found: warn

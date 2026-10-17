@@ -54,6 +54,20 @@ uv run pytest                    # smtp マーカーは既定で除外
 cd frontend && npm run test      # Vitest
 ```
 
+## 実ブラウザの E2E を流したいとき（ADR-0054）
+
+画面のビルドとサーバーの起動（使い捨ての SQLite）は試験が自分で行う。`make check` には入っていない。
+
+```bash
+make test-e2e                    # = cd frontend && npm run test:e2e
+```
+
+- 初めてのときはブラウザを入れる: `cd frontend && npx playwright install chromium`。
+  入れずに手元の Chrome を使うなら `PLAYWRIGHT_CHROMIUM_EXECUTABLE=<chrome の実行ファイル>` を付ける。
+- 8100 番が塞がっているときは `E2E_PORT=<番号>` を付ける。
+- 試験は `frontend/e2e/*.spec.ts` に置く。CI で落ちたときのレポートは、その実行の成果物
+  `playwright-report` にある。
+
 ## 品質ゲートを手元で確認したいとき
 
 CI と同じ順序・同じコマンドを流す。落ちたらマージできない（ADR-0006）。

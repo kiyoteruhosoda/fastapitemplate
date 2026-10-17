@@ -1,3 +1,10 @@
+## 2026-10-17（実ブラウザの E2E 試験を置いた。ADR-0054・task #494）
+
+- Vitest（jsdom）には Service Worker が無く、SW と配り方の壊れ方は CI で捕まらなかった。
+  Playwright の煙試験を `frontend/e2e/` に置き、PR ごとに `.forgejo/workflows/e2e.yml` で回す。
+  本物のサーバー（使い捨ての SQLite・ビルドした画面）を立て、ログイン・ログアウト、SW の下での
+  無い API の 404、新しい版の知らせ（ADR-0035）を通す。
+
 ## 2026-10-17（Komodo の名残りを消し、配り方の説明を今の形にする。task #455）
 
 - Komodo は 2026-09-08 に止めた。README・CLAUDE.md・手順書などに残っていた「Komodo で焼いて配る」の
