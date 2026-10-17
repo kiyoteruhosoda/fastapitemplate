@@ -6,7 +6,7 @@
 	check check-backend check-frontend \
 	format format-backend format-frontend \
 	lint typecheck test \
-	lint-frontend typecheck-frontend test-frontend
+	lint-frontend typecheck-frontend test-frontend test-e2e
 
 # --------------------------------
 # イメージ（手元での確認用）
@@ -55,6 +55,10 @@ typecheck-frontend:
 
 test-frontend:
 	cd frontend && npm run test
+
+# 実ブラウザの E2E（ADR-0054）。重いので check には入れない
+test-e2e:
+	cd frontend && npm run test:e2e
 
 # --------------------------------
 # 自動整形（コミット前に流す）

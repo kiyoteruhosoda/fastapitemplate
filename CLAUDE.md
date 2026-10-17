@@ -399,6 +399,10 @@ tests/
 
 フロントエンドのテストは `frontend/src/**/*.test.ts(x)`（Vitest + jsdom + Testing Library）。
 
+実ブラウザの E2E は `frontend/e2e/*.spec.ts`（Playwright。ADR-0054）。本物のサーバーを立てて
+ログイン・Service Worker・新しい版の知らせを通す**煙試験だけ**を置く。CI では `e2e.yml` の
+別ジョブで回り、これも落ちたらマージしない。足すのはどのアプリにも共通して壊れうる道に限る。
+
 ---
 
 ## 品質ゲート

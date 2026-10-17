@@ -4,3 +4,6 @@ node_modules/
 node_modules
 dist/
 *.local
+# E2E（Playwright）の結果
+playwright-report/
+test-results/

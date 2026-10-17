@@ -8,7 +8,15 @@ export default tseslint.config(
   {
     // public/ はビルドを通らずそのまま配る素の JavaScript（Service Worker に読ませる
     // push-sw.js など）。型付きの解析の対象にできない。
-    ignores: ['dist/**', 'coverage/**', 'dev-dist/**', 'node_modules/**', 'public/**'],
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'dev-dist/**',
+      'node_modules/**',
+      'public/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
   },
 
   js.configs.recommended,
