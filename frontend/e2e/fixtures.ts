@@ -11,6 +11,12 @@ export const test = base.extend<{ watchForFaults: undefined }>({
       page.on('pageerror', (error) => {
         faults.push(`pageerror: ${error.message}`)
       })
+      // CSP（ADR-0059）に断られた読み込み・実行は、画面が動いて見えても落とす
+      page.on('console', (message) => {
+        if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+          faults.push(`csp: ${message.text()}`)
+        }
+      })
       page.on('response', (response) => {
         if (response.status() >= 500) faults.push(`${response.status()} ${response.url()}`)
       })

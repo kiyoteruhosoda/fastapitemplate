@@ -59,6 +59,7 @@ from presentation.fastapi.middleware.deferred_log_writes import (
 )
 from presentation.fastapi.middleware.internal_error import InternalErrorMiddleware
 from presentation.fastapi.middleware.request_logging import RequestLoggingMiddleware
+from presentation.fastapi.middleware.security_headers import SecurityHeadersMiddleware
 from presentation.fastapi.routers import spa
 from presentation.fastapi.routers.admin.config import router as admin_config_router
 from presentation.fastapi.routers.admin.groups import router as admin_groups_router
@@ -183,6 +184,10 @@ def create_app() -> FastAPI:
     # ``Authorization`` ヘッダーで来たリクエストには求めない（ヘッダーは自動では
     # 送られないので CSRF が成立しない）。
     app.add_middleware(CsrfMiddleware)
+
+    # 守りのヘッダ（CSP・枠への埋め込み禁止など。ADR-0059）。いちばん外側に置き、
+    # CSRF で断った応答にも付ける。
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # 失敗の記録（4xx・入力検証）と、ミドルウェアより外側で落ちたとき用の保険。
     # 個別のドメイン例外ハンドラが優先される。
