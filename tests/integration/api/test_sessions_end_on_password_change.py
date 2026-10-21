@@ -44,9 +44,11 @@ def _refresh(client: TestClient) -> int:
 
 def _stolen_session(other_client: TestClient, email: str, password: str) -> None:
     """盗まれた側のセッション。パスワードを変えるより前に張られている。"""
+    # ⚠ 更新も時計を戻したまま行う。戻さずに更新すると、新しいトークンに入れ替わって
+    #   「前に始まったログイン」ではなくなる
     with _issued_earlier(10):
         sign_in(other_client, email, password)
-    assert _refresh(other_client) == 200
+        assert _refresh(other_client) == 200
 
 
 def test_changing_the_password_ends_earlier_sessions_but_keeps_this_one(

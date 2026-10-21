@@ -9,7 +9,7 @@ from shared.infrastructure.models.group import UserGroup, user_group_members
 from shared.infrastructure.models.log import Log
 from shared.infrastructure.models.role import Permission, Role, role_permissions
 from shared.infrastructure.models.system_setting import SystemSetting
-from shared.infrastructure.models.user import PasswordResetToken, User, user_roles
+from shared.infrastructure.models.user import PasswordResetToken, User, UserSessionBoundary, user_roles
 
 __all__ = [
     "Log",
@@ -19,6 +19,7 @@ __all__ = [
     "SystemSetting",
     "User",
     "UserGroup",
+    "UserSessionBoundary",
     "role_permissions",
     "user_group_members",
     "user_roles",

@@ -281,7 +281,7 @@ def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
 
 
 def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> bool:
-    """利用者の区切り（``sessions_valid_from``）より前に出したトークンか（ADR-0057）。
+    """利用者の区切り（``user_session_boundaries``）より前に出したトークンか（ADR-0057）。
 
     ``iat`` は秒までしか持たないので、区切りも秒に切り捨てて比べる。切り上げると、
     区切った直後に**同じ秒の中で出し直した自分のトークン**まで断ってしまう。

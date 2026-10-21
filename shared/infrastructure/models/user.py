@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,14 +28,14 @@ class User(Base):
     #: 「誰も知らない値が入っている」でもない。判定は :attr:`has_local_password` を通す。
     password_hash: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=True, server_default=sa.true())
-    #: この時刻より前に出したトークンでは更新させない（ADR-0057）。NULL は「区切り無し」。
-    #: サーバーにセッションの控えが無いので、パスワードを変えたときに前のログインを
-    #: 終わらせる手段はこれだけ。書くのは :meth:`end_sessions` だけ。
-    sessions_valid_from = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
     updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
     roles = relationship("Role", secondary=user_roles, lazy="selectin")
+    #: ログインの区切り（ADR-0057）。無ければ区切り無し。触れたときだけ引く。
+    session_boundary: Mapped[UserSessionBoundary | None] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
     def end_sessions(self) -> None:
         """いまより前に始まったログインを、次の更新で全部終わらせる（ADR-0057）。
@@ -42,7 +44,15 @@ class User(Base):
         更新とトークンの出し直しで、手元のアクセストークンは寿命（既定 5 分）まで
         通る（ADR-0041）。
         """
-        self.sessions_valid_from = utcnow()
+        if self.session_boundary is None:
+            self.session_boundary = UserSessionBoundary(valid_from=utcnow())
+        else:
+            self.session_boundary.valid_from = utcnow()
+
+    @property
+    def sessions_valid_from(self) -> datetime | None:
+        """この時刻より前に出したトークンでは更新させない。``None`` は区切り無し（ADR-0057）。"""
+        return self.session_boundary.valid_from if self.session_boundary is not None else None
 
     @property
     def has_local_password(self) -> bool:
@@ -76,6 +86,24 @@ class User(Base):
         return frozenset(p.code for r in self.roles if r.name == role_name for p in r.permissions)
 
 
+class UserSessionBoundary(Base):
+    """ログインの区切り（ADR-0057）。1 人 1 行。
+
+    **これより前に出したトークンでは更新・出し直しをさせない。** サーバーにセッションの
+    控えが無いので、パスワードを変えたときに前のログインを終わらせる手段はこれだけ。
+
+    ⚠ **``users`` の列にしない。** 古い移行（据え付けの ``0002``）がこのモデルで
+    ``users`` を書くので、列を足すと「列を足す移行」より前の段で落ちる。
+    """
+
+    __tablename__ = "user_session_boundaries"
+
+    user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    valid_from = mapped_column(sa.DateTime(), nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="session_boundary")
+
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
@@ -87,4 +115,4 @@ class PasswordResetToken(Base):
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
-__all__ = ["PasswordResetToken", "User", "user_roles"]
+__all__ = ["PasswordResetToken", "User", "UserSessionBoundary", "user_roles"]
