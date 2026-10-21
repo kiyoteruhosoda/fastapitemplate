@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+from hmac import compare_digest
 from typing import NoReturn
 
 from fastapi import HTTPException, status
@@ -36,7 +37,10 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
     AuditTargetType,
 )
 from presentation.fastapi.schemas.auth import LoginRequest
+from shared.domain.auth import master_data
 from shared.infrastructure.models import User
+from shared.kernel.settings.secret_guard import PRODUCTION
+from shared.kernel.version import load_build_info
 
 
 class LoginService:
@@ -63,6 +67,8 @@ class LoginService:
             self._reject(user, "no_local_password")
         if not check_password_hash(user.password_hash, credentials.password):
             self._reject(user, "invalid_password")
+        if _is_published_default(credentials.password):
+            self._reject(user, "default_password")
 
         self._verify_second_factor(user, credentials.totp_code)
         # どの入口で入ったかを残す（ADR-0026 決定 1）。入口ごとに認証の強度が違うため、
@@ -105,6 +111,18 @@ class LoginService:
             target=AuditTarget.of(AuditTargetType.USER, user.id) if user is not None else None,
             reason=reason,
         )
+
+
+def _is_published_default(password: str) -> bool:
+    """本番で、公開されている既定のパスワードで入ろうとしているか（ADR-0056）。
+
+    既定の管理者は ``ADMIN_INITIAL_PASSWORD`` を渡し忘れると、リポジトリに載っている
+    パスワードのまま全権で据わる。**本番ではその値では入れない**ようにして、渡し忘れを
+    「誰でも入れる」ではなく「誰も入れない」に倒す。開発では今までどおり入れる。
+    """
+    if load_build_info().environment != PRODUCTION:
+        return False
+    return compare_digest(password.encode(), master_data.DEFAULT_ADMIN_PASSWORD.encode())
 
 
 __all__ = ["LoginService"]

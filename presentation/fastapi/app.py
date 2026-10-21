@@ -80,6 +80,7 @@ from shared.kernel.restart import (
     stop_restart_watchers,
 )
 from shared.kernel.scheduling import stop_interval_workers
+from shared.kernel.settings.secret_guard import require_usable_secret
 from shared.kernel.settings.settings import settings
 from shared.kernel.version import load_build_info
 
@@ -137,6 +138,8 @@ def create_app() -> FastAPI:
     )
 
     build_info = load_build_info()
+    # 本番で既定の署名鍵なら、ここで起動を止める（ADR-0056）
+    require_usable_secret(settings.jwt_secret_key, build_info.environment)
     app = FastAPI(
         # ⚠ 名前を直に書かない。`pyproject.toml` の `[project].name` から導く
         #   （ADR-0031）。書くと、テンプレートから起こしたアプリの Swagger が

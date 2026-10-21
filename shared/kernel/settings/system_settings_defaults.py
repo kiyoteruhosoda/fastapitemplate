@@ -10,6 +10,7 @@ from __future__ import annotations
 DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # --- 認証 ---
     "SECRET_KEY": "default-secret-key",
+    # ⚠ **本番（APP_ENV=production）ではこの値のまま起動できない**（ADR-0056）。
     "JWT_SECRET_KEY": "default-jwt-secret-change-me-in-production",
     "ACCESS_TOKEN_ISSUER": "fastapitemplate",
     "ACCESS_TOKEN_AUDIENCE": "fastapitemplate",
