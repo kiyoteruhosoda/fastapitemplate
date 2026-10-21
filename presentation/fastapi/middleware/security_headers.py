@@ -51,13 +51,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        # ⚠ 設定は**応答の前に**読む。後で読むと、設定の読み直しが要求の DB の書き込みより
+        #   先に接続を返し、確定前の書き込みを巻き戻すことがある（接続を共有する SQLite）
+        served_over_https = settings.session_cookie_secure
         response = await call_next(request)
         for name, value in _ALWAYS.items():
             response.headers.setdefault(name, value)
         if request.url.path not in _DOCUMENTATION_PATHS:
             # 個別の応答が自分の CSP を持つ（より厳しい）なら、それを残す
             response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
-        if settings.session_cookie_secure:
+        if served_over_https:
             response.headers.setdefault("Strict-Transport-Security", STRICT_TRANSPORT_SECURITY)
         return response
 
