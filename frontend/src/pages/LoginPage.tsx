@@ -80,7 +80,7 @@ export function LoginPage() {
     setNotice(null)
     try {
       await login(email, password, step === 'totp' ? totpCode : undefined)
-      navigate(destination)
+      void navigate(destination)
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'unknown_error'
       if (code === 'totp_required') {
@@ -99,7 +99,7 @@ export function LoginPage() {
     setError(null)
     try {
       await loginWithPasskey()
-      navigate(destination)
+      void navigate(destination)
     } catch (err) {
       if (isPasskeyCancellation(err)) {
         setError('error.passkey_cancelled')

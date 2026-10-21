@@ -25,7 +25,7 @@ export function ResetPasswordPage() {
         token: params.get('token') ?? '',
         new_password: password,
       })
-      navigate('/login')
+      void navigate('/login')
     } catch (err) {
       setError(errorMessageKey(err))
     }
