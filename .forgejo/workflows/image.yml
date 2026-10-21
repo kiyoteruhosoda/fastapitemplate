@@ -41,7 +41,11 @@ jobs:
     name: Docker build
     # ⚠ **docker を使うので専用の台へ**（ジョブのイメージに docker が入っている）。
     #   ⚠ ここへ来たジョブは**ホスト root 相当**になる。
-    runs-on: [self-hosted, nolumialab-docker]
+    runs-on: [nolumialab-docker]
+    # ⚠ **Renovate の PR では走らせない**（task #603）。この台はジョブに docker.sock を
+    #   渡す ——版上げの PR は人が見る前に CI が走るので、依存に悪意の版が混ざると
+    #   その場でホスト root を取られる。飛ばしたジョブは緑に数えられる。
+    if: github.event.pull_request.user.login != 'renovate'
     # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
     timeout-minutes: 20
     steps:
