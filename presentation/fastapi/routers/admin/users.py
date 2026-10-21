@@ -195,6 +195,8 @@ async def update_user(
         user.roles = new_roles
     if body.password is not None:
         user.password_hash = generate_password_hash(body.password)
+        # 乗っ取られた口座を付け直す場面で、乗っ取った側のログインを残さない（ADR-0057）
+        user.end_sessions()
     admin.ensure_an_administrator_remains()
     audit.execute(
         AuditEventType.USER_UPDATED,

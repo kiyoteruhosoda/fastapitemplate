@@ -199,12 +199,17 @@ async def update_me(
 @router.post("/change-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
 async def change_password(
     body: ChangePasswordRequest,
-    principal: PrincipalDep,
-    db: DbDep,
+    response: Response,
+    current: CurrentSessionDep,
     audit: AuditRecorderDep,
 ) -> StatusResponse:
-    user = db.get(User, principal.user_id)
-    if user is None or user.password_hash is None or not check_password_hash(user.password_hash, body.current_password):
+    """パスワードを変え、**それより前に始まった他のログインを終わらせる**（ADR-0057）。
+
+    盗まれた更新トークンを止めるのが目的なので、変えた本人のこのセッションだけは
+    新しいトークンを出し直して続ける（ロールと入り口は引き継ぐ）。
+    """
+    user = current.user
+    if user.password_hash is None or not check_password_hash(user.password_hash, body.current_password):
         # ⚠ **パスワードを持たない利用者もここで断る**（ADR-0038）。理由は分けない
         # ——「持っていない」を教えると、入り口の有無を外から数えられる。
         audit.execute(
@@ -217,6 +222,8 @@ async def change_password(
             detail={"error": "invalid_current_password"},
         )
     user.password_hash = generate_password_hash(body.new_password)
+    user.end_sessions()
+    establish_session(response, user, active_role=current.active_role, federated_login=current.federated_login)
     logger.info("password_changed")
     audit.execute(AuditEventType.PASSWORD_CHANGED)
     return StatusResponse(status="ok")

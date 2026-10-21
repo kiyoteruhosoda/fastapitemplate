@@ -269,9 +269,34 @@ def _from_microseconds(value: int) -> datetime:
 
 
 def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
-    """このトークンのセッションが IdP 側で止められていないか（ADR-0036）。"""
+    """このトークンのセッションが終わっていないか。
+
+    終わっているのは 2 通り: パスワードを変えるなどして、利用者がそれより前の
+    ログインを終わらせた（ADR-0057）／IdP 側で止められた（ADR-0036）。
+    """
+    if _issued_before_sessions_ended(claims, session):
+        return True
     check = CheckSessionRevocation(revocations=SqlSessionRevocationRepository(session))
     return check.execute(_federated_login_of(claims))
+
+
+def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> bool:
+    """利用者の区切り（``user_session_boundaries``）より前に出したトークンか（ADR-0057）。
+
+    ``iat`` は秒までしか持たないので、区切りも秒に切り捨てて比べる。切り上げると、
+    区切った直後に**同じ秒の中で出し直した自分のトークン**まで断ってしまう。
+    同じ秒の中で出た古いトークンは通るが、それは 1 秒に満たない幅である。
+    """
+    try:
+        user = session.get(User, int(claims.get("sub", "")))
+    except ValueError:
+        return True
+    if user is None or user.sessions_valid_from is None:
+        return False
+    issued_at = claims.get("iat")
+    if not isinstance(issued_at, int):
+        return True
+    return issued_at < int(user.sessions_valid_from.replace(tzinfo=UTC).timestamp())
 
 
 def _active_role_of(claims: dict[str, Any]) -> str | None:
