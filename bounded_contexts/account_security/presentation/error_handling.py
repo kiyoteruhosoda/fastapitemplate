@@ -21,6 +21,7 @@ from bounded_contexts.account_security.domain.exceptions import (
     PasskeyAlreadyRegisteredError,
     PasskeyNotFoundError,
     PasskeyVerificationError,
+    TooManyAttemptsError,
     TotpAlreadyEnabledError,
     TotpNotEnrolledError,
     TotpRequiredError,
@@ -36,6 +37,7 @@ _STATUS_BY_ERROR: dict[type[AccountSecurityError], int] = {
     TotpAlreadyEnabledError: status.HTTP_409_CONFLICT,
     TotpNotEnrolledError: status.HTTP_409_CONFLICT,
     TotpRequiredError: status.HTTP_401_UNAUTHORIZED,
+    TooManyAttemptsError: status.HTTP_429_TOO_MANY_REQUESTS,
 }
 
 
@@ -48,7 +50,13 @@ def register_account_security_error_handler(app: FastAPI) -> None:
     async def _handle(request: Request, error: AccountSecurityError) -> JSONResponse:
         status_code = status_for(error)
         log_failed_request(request, status_code, error.code)
-        return JSONResponse(status_code=status_code, content={"detail": {"error": error.code}})
+        detail: dict[str, str | int] = {"error": error.code}
+        headers: dict[str, str] = {}
+        if isinstance(error, TooManyAttemptsError):
+            # いつまで待てばよいかを返す（ADR-0058）。画面はこれを待ち時間として出せる
+            detail["retry_after_seconds"] = error.retry_after_seconds
+            headers["Retry-After"] = str(error.retry_after_seconds)
+        return JSONResponse(status_code=status_code, content={"detail": detail}, headers=headers)
 
 
 __all__ = ["register_account_security_error_handler", "status_for"]

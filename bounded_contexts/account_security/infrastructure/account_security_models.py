@@ -9,6 +9,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
+from bounded_contexts.account_security.domain.entities.login_attempts import ATTEMPT_PURPOSES
 from bounded_contexts.account_security.domain.entities.webauthn_challenge import (
     CHALLENGE_PURPOSES,
 )
@@ -84,7 +85,27 @@ class WebAuthnChallengeRecord(Base):
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
+class LoginAttemptRecord(Base):
+    """宛名ごとの失敗の控え（ADR-0058）。
+
+    宛名は**送られてきたメールアドレス**で、``users`` とは結ばない。実在する
+    アカウントだけを数えると、断られるかどうかで存在が分かってしまう。
+    期限切れの行は書き込みのたびに掃除する。
+    """
+
+    __tablename__ = "login_attempts"
+    __table_args__ = (sa.CheckConstraint(f"purpose IN {ATTEMPT_PURPOSES}", name="ck_login_attempts_purpose"),)
+
+    purpose: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    identifier: Mapped[str] = mapped_column(sa.String(255), primary_key=True)
+    failures: Mapped[int] = mapped_column(sa.Integer(), nullable=False, default=0, server_default="0")
+    window_started_at = mapped_column(sa.DateTime(), nullable=True)
+    locked_until = mapped_column(sa.DateTime(), nullable=True)
+    updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
+
+
 __all__ = [
+    "LoginAttemptRecord",
     "PasskeyCredentialRecord",
     "TotpSecretRecord",
     "WebAuthnChallengeRecord",

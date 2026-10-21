@@ -673,6 +673,18 @@ docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' app \
 作り直したユーザーの ID は `master_data.DEFAULT_ADMIN_ID`（= 1）で固定されるため、
 `owner` ロールの付与も含めて元の状態に戻る。二要素認証・パスキーの登録は消える。
 
+## ログインが「失敗が続いたため受け付けていません」で断られるとき（ADR-0058）
+
+宛名ごとの失敗が上限に達している。`LOGIN_LOCK_SECONDS`（既定 900 秒）待てば解ける。
+すぐ解きたいときは、その宛名の控えを消す（`<email>` は送ったとおりの小文字のメールアドレス）。
+
+```sql
+DELETE FROM login_attempts WHERE purpose = 'login' AND identifier = '<email>';
+```
+
+上限・窓・断る長さは管理画面の設定（`LOGIN_MAX_FAILURES` / `LOGIN_FAILURE_WINDOW_SECONDS` /
+`LOGIN_LOCK_SECONDS`）で変える。⚠ `LOGIN_MAX_FAILURES` を 0 にすると数えない（本番で 0 にしない）。
+
 ## 二要素認証・パスキーを設定したいとき
 
 利用者自身が `/security`（プロフィール → セキュリティ）から操作する。

@@ -19,6 +19,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 _EXPECTED_EVENT_TYPES = {
     "login.succeeded",
     "login.failed",
+    "login.locked",
     "password.changed",
     "password_reset.requested",
     "password_reset.completed",

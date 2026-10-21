@@ -169,6 +169,15 @@ erDiagram
         datetime created_at
     }
 
+    login_attempts {
+        varchar(32) purpose PK "login / password_reset（CHECK 付き）"
+        varchar(255) identifier PK "送られてきたメールアドレス（users とは結ばない）"
+        int failures
+        datetime window_started_at "NULL 可"
+        datetime locked_until "NULL 可。これより前は断る"
+        datetime updated_at
+    }
+
     system_settings {
         varchar(100) setting_key PK
         json setting_json
@@ -253,6 +262,7 @@ JWT のクレームでありテーブルには持たない（セッションご�
 | `totp_secrets` | TOTP 共有鍵。`user_id` が主キー（1 ユーザー 1 行）。`confirmed_at` が NULL のあいだは登録手続き中で二要素認証は未有効 |
 | `passkey_credentials` | WebAuthn 資格情報。`credential_id`（base64url）で持ち主を引く。`sign_count` はリプレイ検知用 |
 | `webauthn_challenges` | 発行済みチャレンジ。複数ワーカー構成でも検証できるようプロセスメモリではなく DB に置く。ログイン用は発行時点で相手が不明なため `user_id` が NULL |
+| `login_attempts` | 宛名ごとの失敗の控え（ADR-0058）。窓の中で上限まで失敗したら `locked_until` まで断る。宛名は送られてきたメールアドレスで、実在するアカウントとは結ばない（断られ方で存在が分からないように）。期限切れの行は書き込みのたびに掃除する | `account_security_models.py` |
 
 `users.id` への FK は 3 つとも `ON DELETE CASCADE`（ユーザー削除で資格情報も消える）。
 経緯は ADR-0003。

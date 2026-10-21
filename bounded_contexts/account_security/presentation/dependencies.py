@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import Depends
@@ -30,9 +31,11 @@ from bounded_contexts.account_security.application.use_cases.register_passkey im
     CompletePasskeyRegistration,
     StartPasskeyRegistration,
 )
+from bounded_contexts.account_security.application.use_cases.throttle_login import ThrottleLogin
 from bounded_contexts.account_security.application.use_cases.verify_second_factor import (
     VerifySecondFactor,
 )
+from bounded_contexts.account_security.domain.entities.login_attempts import ThrottlePolicy
 from bounded_contexts.account_security.domain.services.totp_authenticator import (
     TotpAuthenticator,
 )
@@ -45,6 +48,9 @@ from bounded_contexts.account_security.infrastructure.py_webauthn_relying_party 
 from bounded_contexts.account_security.infrastructure.pyotp_totp_authenticator import (
     PyotpTotpAuthenticator,
 )
+from bounded_contexts.account_security.infrastructure.sql_login_attempt_repository import (
+    SqlLoginAttemptRepository,
+)
 from bounded_contexts.account_security.infrastructure.sql_passkey_credential_repository import (
     SqlPasskeyCredentialRepository,
 )
@@ -54,6 +60,7 @@ from bounded_contexts.account_security.infrastructure.sql_totp_secret_repository
 from bounded_contexts.account_security.infrastructure.sql_webauthn_challenge_repository import (
     SqlWebAuthnChallengeRepository,
 )
+from shared.kernel.database.db import get_session_factory
 from shared.kernel.database.session import get_db
 from shared.kernel.settings.settings import settings
 
@@ -99,6 +106,22 @@ def disable_totp(db: DbDep, authenticator: TotpAuthenticatorDep) -> DisableTotp:
 
 def verify_second_factor(db: DbDep, authenticator: TotpAuthenticatorDep) -> VerifySecondFactor:
     return VerifySecondFactor(repository=SqlTotpSecretRepository(db), authenticator=authenticator)
+
+
+def throttle_policy() -> ThrottlePolicy:
+    """窓・上限・断る長さ。**設定は呼ばれるたびに読む**（再起動を要らなくする）。"""
+    return ThrottlePolicy(
+        max_failures=settings.login_max_failures,
+        window=timedelta(seconds=settings.login_failure_window_seconds),
+        lock_duration=timedelta(seconds=settings.login_lock_seconds),
+    )
+
+
+def throttle_login() -> ThrottleLogin:
+    # ⚠ リクエストのセッションは渡さない。失敗の記録は 401 と一緒に返る（例外で
+    # 抜ける）ので、リクエストのセッションでは rollback で消える。控えは自前の
+    # 短いセッションで commit する（ADR-0058）
+    return ThrottleLogin(SqlLoginAttemptRepository(get_session_factory()), throttle_policy())
 
 
 # --- パスキー -----------------------------------------------------------
@@ -160,5 +183,7 @@ __all__ = [
     "start_passkey_authentication",
     "start_passkey_registration",
     "start_totp_enrollment",
+    "throttle_login",
+    "throttle_policy",
     "verify_second_factor",
 ]

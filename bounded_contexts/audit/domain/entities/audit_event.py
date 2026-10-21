@@ -28,6 +28,8 @@ class AuditEventType(StrEnum):
     # 「誰が」を特定できないため（ADR-0013）。
     LOGIN_SUCCEEDED = "login.succeeded"
     LOGIN_FAILED = "login.failed"
+    # 失敗が続いたので、その宛名をしばらく断り始めた（ADR-0058）
+    LOGIN_LOCKED = "login.locked"
     PASSWORD_CHANGED = "password.changed"
     PASSWORD_RESET_REQUESTED = "password_reset.requested"
     PASSWORD_RESET_COMPLETED = "password_reset.completed"
