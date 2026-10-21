@@ -61,6 +61,20 @@ class PasskeyNotFoundError(AccountSecurityError):
     code = "passkey_not_found"
 
 
+class TooManyAttemptsError(AccountSecurityError):
+    """短い時間に失敗しすぎたので、しばらく断る（ADR-0058）。
+
+    ``401`` に紛れ込ませない。断られていることが分からないと、正しいパスワードを
+    入れても弾かれ続けて「忘れた」と誤解し、再設定へ流れる。
+    """
+
+    code = "too_many_attempts"
+
+    def __init__(self, retry_after_seconds: int) -> None:
+        super().__init__(f"retry after {retry_after_seconds}s")
+        self.retry_after_seconds = retry_after_seconds
+
+
 __all__ = [
     "AccountSecurityError",
     "ChallengeNotFoundError",
@@ -68,6 +82,7 @@ __all__ = [
     "PasskeyAlreadyRegisteredError",
     "PasskeyNotFoundError",
     "PasskeyVerificationError",
+    "TooManyAttemptsError",
     "TotpAlreadyEnabledError",
     "TotpNotEnrolledError",
     "TotpRequiredError",

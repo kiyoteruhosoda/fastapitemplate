@@ -253,6 +253,19 @@ class ApplicationSettings:
     def password_reset_token_ttl_seconds(self) -> int:
         return self.get_int("PASSWORD_RESET_TOKEN_TTL_SECONDS", 3600)
 
+    @property
+    def login_max_failures(self) -> int:
+        """窓の中で何回まで失敗を許すか。``0`` で数えない（本番で 0 にしない。ADR-0058）。"""
+        return max(self.get_int("LOGIN_MAX_FAILURES", 5), 0)
+
+    @property
+    def login_failure_window_seconds(self) -> int:
+        return max(self.get_int("LOGIN_FAILURE_WINDOW_SECONDS", 900), 1)
+
+    @property
+    def login_lock_seconds(self) -> int:
+        return max(self.get_int("LOGIN_LOCK_SECONDS", 900), 1)
+
     # ------------------------------------------------------------------
     # 二要素認証（TOTP）
     # ------------------------------------------------------------------

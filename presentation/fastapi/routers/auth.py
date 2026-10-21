@@ -22,6 +22,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from bounded_contexts.account_security.application.use_cases.throttle_login import ThrottleLogin
+from bounded_contexts.account_security.domain.entities.login_attempts import PURPOSE_PASSWORD_RESET
+from bounded_contexts.account_security.presentation import dependencies as security
 from bounded_contexts.audit.domain.entities.audit_event import (
     AuditEventType,
     AuditResult,
@@ -59,6 +62,7 @@ from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
 from shared.kernel.settings.settings import settings
+from shared.kernel.timestamps import utcnow
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -230,13 +234,22 @@ async def change_password(
 
 
 @router.post("/forgot-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
-async def forgot_password(body: ForgotPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    db: DbDep,
+    audit: AuditRecorderDep,
+    throttle: Annotated[ThrottleLogin, Depends(security.throttle_login)],
+) -> StatusResponse:
     """再設定リンクを送る。
 
     未認証のエンドポイントなので、監査ログでは要求されたアカウントを**対象**として
     記録し、実行者は空のままにする。メールアドレスを知っていれば誰でも叩けるため、
     アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0013）。
     """
+    # 宛名ごとに数える。**成功も数える** ——成功しても相手にメールが届くので、
+    # 数えないと宛名を知っているだけで受信箱を埋められる（ADR-0058）
+    throttle.require_allowed(PURPOSE_PASSWORD_RESET, body.email, utcnow())
+    throttle.record_attempt(PURPOSE_PASSWORD_RESET, body.email, utcnow())
     # ユーザーの存在有無に関わらず同じ応答を返す（列挙攻撃対策）
     user_id = PasswordResetService().request_reset(db, body.email)
     audit.execute(
