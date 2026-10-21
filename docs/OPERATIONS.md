@@ -614,6 +614,9 @@ docker compose restart app
 メール送信が有効なら `/forgot-password` から再設定する。無効なとき
 （`MAIL_ENABLED` が off）は以下のいずれかで復旧する。
 
+⚠ **本番（`APP_ENV=production`）では、既定のパスワード（`admin@example.com`）では入れない**
+（ADR-0056）。`ADMIN_INITIAL_PASSWORD` を渡し忘れて据えた管理者も、この手順で付け直す。
+
 > **`scripts/seed_master_data.py` の再実行では復旧しない。** 投入は冪等で既存ユーザーを
 > 変更しないため、`ADMIN_INITIAL_PASSWORD` は**ユーザーが存在しないときだけ**使われる。
 > 実行は成功するが、パスワードは元のまま。
