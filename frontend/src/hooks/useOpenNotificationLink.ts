@@ -12,7 +12,7 @@ export function useOpenNotificationLink(): (link: string | null) => void {
     (link: string | null) => {
       if (!link) return
       if (isInAppLink(link)) {
-        navigate(link)
+        void navigate(link)
         return
       }
       window.open(link, '_blank', 'noopener,noreferrer')
