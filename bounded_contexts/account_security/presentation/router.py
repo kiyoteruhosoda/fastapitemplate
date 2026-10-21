@@ -51,7 +51,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
     AuditTargetType,
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
-from presentation.fastapi.dependencies.auth import get_settled_principal
+from presentation.fastapi.dependencies.auth import get_settled_principal, require_recent_sign_in
 from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.schemas.auth import StatusResponse
 from shared.application.authenticated_principal import AuthenticatedPrincipal
@@ -150,7 +150,10 @@ async def list_registered_passkeys(
 
 
 @router.post(
-    "/passkeys/registration", response_model=PasskeyChallengeResponse, dependencies=[Depends(require_local_login)]
+    "/passkeys/registration",
+    response_model=PasskeyChallengeResponse,
+    # 入り口を足す操作。入り直したばかりのときだけ（ADR-0060）
+    dependencies=[Depends(require_local_login), Depends(require_recent_sign_in)],
 )
 async def start_passkey_registration(
     principal: PrincipalDep,
@@ -169,6 +172,7 @@ async def start_passkey_registration(
     "/passkeys",
     response_model=PasskeyResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_recent_sign_in)],
 )
 async def complete_passkey_registration(
     body: PasskeyRegistrationRequest,
@@ -189,7 +193,12 @@ async def complete_passkey_registration(
     return _to_passkey_response(summary)
 
 
-@router.delete("/passkeys/{passkey_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/passkeys/{passkey_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    # 本人のパスキーを消して締め出す操作も、入り直したばかりのときだけ（ADR-0060）
+    dependencies=[Depends(require_recent_sign_in)],
+)
 async def delete_registered_passkey(
     passkey_id: int,
     principal: PrincipalDep,

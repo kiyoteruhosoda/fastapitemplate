@@ -254,6 +254,11 @@ class ApplicationSettings:
         return self.get_int("PASSWORD_RESET_TOKEN_TTL_SECONDS", 3600)
 
     @property
+    def recent_sign_in_seconds(self) -> int:
+        """入り口を作り替える操作を許す、サインインからの秒数（ADR-0060）。"""
+        return max(self.get_int("RECENT_SIGN_IN_SECONDS", 600), 1)
+
+    @property
     def login_max_failures(self) -> int:
         """窓の中で何回まで失敗を許すか。``0`` で数えない（本番で 0 にしない。ADR-0058）。"""
         return max(self.get_int("LOGIN_MAX_FAILURES", 5), 0)

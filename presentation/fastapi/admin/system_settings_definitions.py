@@ -52,6 +52,12 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "integer",
     },
     {
+        "key": "RECENT_SIGN_IN_SECONDS",
+        "category": "auth",
+        "label": "Seconds after sign-in that passkey and email changes are allowed",
+        "value_type": "integer",
+    },
+    {
         "key": "LOGIN_MAX_FAILURES",
         "category": "auth",
         "label": "Login failures allowed per window (0 = unlimited)",

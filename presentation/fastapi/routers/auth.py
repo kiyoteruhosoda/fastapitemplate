@@ -38,6 +38,7 @@ from presentation.fastapi.dependencies.auth import (
     REFRESH_TOKEN_COOKIE,
     CurrentSession,
     clear_access_token_cookie,
+    ensure_recent_sign_in,
     get_current_principal,
     get_current_session,
     get_current_user,
@@ -56,6 +57,7 @@ from presentation.fastapi.schemas.auth import (
     StatusResponse,
 )
 from presentation.fastapi.services.password_reset_service import PasswordResetService
+from presentation.fastapi.services.session_carry_over import SessionCarryOver
 from presentation.fastapi.services.session_cookies import establish_session
 from presentation.fastapi.services.token_service import TokenService
 from shared.application.authenticated_principal import AuthenticatedPrincipal
@@ -112,12 +114,8 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
-    return establish_session(
-        response,
-        refreshed.user,
-        active_role=refreshed.active_role,
-        federated_login=refreshed.federated_login,
-    )
+    # 更新は入り直しではない。最後に実際にサインインした時刻も引き継ぐ（ADR-0060）
+    return establish_session(response, refreshed.user, refreshed.carry)
 
 
 @router.post("/logout", response_model=StatusResponse)
@@ -153,8 +151,11 @@ async def switch_role(
     session = establish_session(
         response,
         user,
-        active_role=body.role,
-        federated_login=current.federated_login,
+        SessionCarryOver(
+            active_role=body.role,
+            federated_login=current.federated_login,
+            authenticated_at=current.authenticated_at,
+        ),
     )
     audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
     logger.info("active_role_switched")
@@ -176,6 +177,9 @@ async def update_me(
     user = db.get(User, principal.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
+    if body.email != user.email:
+        # メールは再設定のメールの宛先。替えるのは入り直したばかりのときだけ（ADR-0060）
+        ensure_recent_sign_in(principal)
     taken = db.scalar(select(User).where(User.email == body.email, User.id != user.id))
     if taken is not None:
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
@@ -227,7 +231,10 @@ async def change_password(
         )
     user.password_hash = generate_password_hash(body.new_password)
     user.end_sessions()
-    establish_session(response, user, active_role=current.active_role, federated_login=current.federated_login)
+    # 今のパスワードを確かめた直後なので、入り直したものとして扱う（ADR-0060）
+    establish_session(
+        response, user, SessionCarryOver(active_role=current.active_role, federated_login=current.federated_login)
+    )
     logger.info("password_changed")
     audit.execute(AuditEventType.PASSWORD_CHANGED)
     return StatusResponse(status="ok")

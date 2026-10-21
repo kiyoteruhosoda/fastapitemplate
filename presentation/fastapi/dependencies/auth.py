@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -172,6 +173,8 @@ class CurrentSession:
     federated_login: FederatedLogin | None
     #: いまのアクティブロール（ADR-0017）。出し直すときに引き継ぐ。
     active_role: str | None = None
+    #: 本人が最後に実際にサインインした時刻（ADR-0060）。出し直すときに引き継ぐ。
+    authenticated_at: datetime | None = None
 
 
 async def get_current_session(
@@ -205,6 +208,7 @@ async def get_current_session(
         user=user,
         federated_login=TokenService.federated_login_of(token) if token else None,
         active_role=principal.active_role if principal is not None else None,
+        authenticated_at=principal.authenticated_at if principal is not None else None,
     )
 
 
@@ -233,6 +237,34 @@ async def get_settled_principal(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
+    return principal
+
+
+REAUTHENTICATION_REQUIRED = "reauthentication_required"
+
+
+def ensure_recent_sign_in(principal: AuthenticatedPrincipal) -> None:
+    """**入り口そのものを作り替える操作**の前に、入り直したばかりかを確かめる（ADR-0060）。
+
+    盗まれたセッションでパスキーを足す・メールを替えると、そのあとはパスワードも
+    二要素も無しに入り続けられる。「最後に実際にサインインしてから
+    ``RECENT_SIGN_IN_SECONDS`` 以内」でなければ 403 で断り、画面は入り直しへ送る。
+    パスワードを持たない（SSO だけの）利用者にも同じように効く。
+    """
+    signed_in_at = principal.authenticated_at
+    limit = timedelta(seconds=settings.recent_sign_in_seconds)
+    if signed_in_at is None or datetime.now(UTC) - signed_in_at > limit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": REAUTHENTICATION_REQUIRED},
+        )
+
+
+async def require_recent_sign_in(
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+) -> AuthenticatedPrincipal:
+    """:func:`ensure_recent_sign_in` を関門として掛ける依存関数。"""
+    ensure_recent_sign_in(principal)
     return principal
 
 
@@ -290,15 +322,18 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
 
 __all__ = [
     "ACCESS_TOKEN_COOKIE",
+    "REAUTHENTICATION_REQUIRED",
     "REFRESH_COOKIE_PATH",
     "REFRESH_TOKEN_COOKIE",
     "CurrentSession",
     "clear_access_token_cookie",
+    "ensure_recent_sign_in",
     "get_current_principal",
     "get_current_session",
     "get_current_user",
     "require_any_permission",
     "require_permission",
+    "require_recent_sign_in",
     "set_access_token_cookie",
     "set_refresh_token_cookie",
 ]

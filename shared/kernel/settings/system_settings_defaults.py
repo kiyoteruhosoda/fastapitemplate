@@ -18,6 +18,8 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "REFRESH_TOKEN_EXPIRES_SECONDS": 14 * 24 * 3600,
     "SESSION_COOKIE_SECURE": False,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS": 3600,
+    # パスキーの追加・削除とメールの変更は、サインインからこの秒数以内に限る（ADR-0060）
+    "RECENT_SIGN_IN_SECONDS": 600,
     # 宛名ごとの失敗の上限（ADR-0058）。窓の中で上限まで失敗したら、しばらく断る
     "LOGIN_MAX_FAILURES": 5,
     "LOGIN_FAILURE_WINDOW_SECONDS": 900,
