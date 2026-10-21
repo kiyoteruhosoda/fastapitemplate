@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 
 import { AppLayout } from './components/AppLayout'
 import { useI18n } from './i18n'
@@ -20,11 +20,13 @@ import { SecurityPage } from './pages/SecurityPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
 import { SystemStatusPage } from './pages/SystemStatusPage'
 import { UsersPage } from './pages/UsersPage'
+import { signInPathFor } from './services/returnTo'
 import { useAuth } from './store/AuthContext'
 
 function RequireAuth() {
   const { user, loading, unreachable } = useAuth()
   const { t } = useI18n()
+  const location = useLocation()
   if (loading) return <p className="loading">{t('common.loading')}</p>
   // 届かないだけならログイン画面へ送らない（リリース中など。つながれば自動で戻る）
   if (!user && unreachable)
@@ -33,7 +35,8 @@ function RequireAuth() {
         <span className="spinner" aria-hidden="true" /> {t('common.unreachable')}
       </p>
     )
-  if (!user) return <Navigate to="/login" replace />
+  // 開こうとしていた画面を持たせて送る（ADR-0055）。持たせないと、サインインした先は着地になる。
+  if (!user) return <Navigate to={signInPathFor(location)} replace />
   return (
     <AppLayout>
       <Outlet />

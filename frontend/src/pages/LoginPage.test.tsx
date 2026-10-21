@@ -4,7 +4,7 @@
  * SSO のボタンを出すか、パスワード欄を出すかは**サーバーに聞く**
  * （`GET /api/auth/sso/provider`）。設定は起動後にも変わるため、画面に焼き込まない。
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -150,5 +150,21 @@ describe('LoginPage', () => {
         ),
       ).toBeInTheDocument()
     })
+  })
+
+  it.each([
+    ['/login?redirect_to=%2Fitems%3Fq%3Da', '/items?q=a'],
+    ['/login', '/'],
+    ['/login?redirect_to=https%3A%2F%2Fevil.example%2F', '/'],
+  ])('SSO の入口へ開こうとしていた画面を渡す（%s → %s。ADR-0055）', async (entry, expected) => {
+    fetchSsoProvider.mockResolvedValue({
+      enabled: true,
+      display_name: 'Nolumia',
+      local_login_enabled: true,
+    })
+    renderPage(entry)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Nolumia' }))
+    expect(startSsoLogin).toHaveBeenCalledWith(expected)
   })
 })

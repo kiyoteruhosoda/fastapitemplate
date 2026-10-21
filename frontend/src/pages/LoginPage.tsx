@@ -7,6 +7,7 @@ import { PasswordInput } from '../components/PasswordInput'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
+import { REDIRECT_TO_PARAM, sanitizeRedirectTo } from '../services/returnTo'
 import { fetchSsoProvider, startSsoLogin, type SsoProvider } from '../services/sso'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
 import { RECONNECT_INTERVAL_MS, useAuth } from '../store/AuthContext'
@@ -25,6 +26,8 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [params] = useSearchParams()
+  // 開こうとしていた画面（ADR-0055）。どの入口で入っても、入れたらここへ戻す。
+  const destination = sanitizeRedirectTo(params.get(REDIRECT_TO_PARAM))
   // SSO の設定は起動後に変えられるので、画面を開くたびに問い合わせる。
   // ⚠ **取れないうちは入口を出さない。** 取れないのはサーバーに届かないとき（リリース中など）で、
   // そのときはどの入口を押しても通らない。既定の入口（パスワード欄）を出すと、サーバーが戻っても
@@ -77,7 +80,7 @@ export function LoginPage() {
     setNotice(null)
     try {
       await login(email, password, step === 'totp' ? totpCode : undefined)
-      navigate('/')
+      navigate(destination)
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'unknown_error'
       if (code === 'totp_required') {
@@ -96,7 +99,7 @@ export function LoginPage() {
     setError(null)
     try {
       await loginWithPasskey()
-      navigate('/')
+      navigate(destination)
     } catch (err) {
       if (isPasskeyCancellation(err)) {
         setError('error.passkey_cancelled')
@@ -140,7 +143,7 @@ export function LoginPage() {
             type="button"
             pending={false}
             onClick={() => {
-              startSsoLogin('/')
+              startSsoLogin(destination)
             }}
           >
             {t('login.withSso', { provider: sso.display_name })}
