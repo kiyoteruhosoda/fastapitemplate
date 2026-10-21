@@ -30,7 +30,7 @@ export function useReauthentication(): (error: unknown) => boolean {
     (error: unknown) => {
       if (codeOf(error) !== REAUTHENTICATION_REQUIRED) return false
       notify('error', t(`error.${REAUTHENTICATION_REQUIRED}`))
-      navigate(signInPathFor(location))
+      void navigate(signInPathFor(location))
       return true
     },
     [location, navigate, notify, t],
