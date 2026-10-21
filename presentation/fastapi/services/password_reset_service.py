@@ -105,6 +105,8 @@ class PasswordResetService:
             # 通さない。
             return None
         user.password_hash = generate_password_hash(new_password)
+        # 再設定の前に始まったログインは、次の更新で終わる（ADR-0057）
+        user.end_sessions()
         row.used_at = utcnow()
         session.flush()
         return user.id

@@ -170,6 +170,8 @@ class CurrentSession:
 
     user: User
     federated_login: FederatedLogin | None
+    #: いまのアクティブロール（ADR-0017）。出し直すときに引き継ぐ。
+    active_role: str | None = None
 
 
 async def get_current_session(
@@ -198,9 +200,11 @@ async def get_current_session(
             detail={"error": "invalid_token", "reason": "session_revoked"},
             headers={"WWW-Authenticate": "Bearer"},
         )
+    principal, _ = TokenService.verify_access_token_with_reason(token or "")
     return CurrentSession(
         user=user,
         federated_login=TokenService.federated_login_of(token) if token else None,
+        active_role=principal.active_role if principal is not None else None,
     )
 
 

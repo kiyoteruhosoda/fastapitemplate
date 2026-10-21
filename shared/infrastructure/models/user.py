@@ -26,10 +26,23 @@ class User(Base):
     #: 「誰も知らない値が入っている」でもない。判定は :attr:`has_local_password` を通す。
     password_hash: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False, default=True, server_default=sa.true())
+    #: この時刻より前に出したトークンでは更新させない（ADR-0057）。NULL は「区切り無し」。
+    #: サーバーにセッションの控えが無いので、パスワードを変えたときに前のログインを
+    #: 終わらせる手段はこれだけ。書くのは :meth:`end_sessions` だけ。
+    sessions_valid_from = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
     updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
     roles = relationship("Role", secondary=user_roles, lazy="selectin")
+
+    def end_sessions(self) -> None:
+        """いまより前に始まったログインを、次の更新で全部終わらせる（ADR-0057）。
+
+        パスワードを変えた・再設定した・管理者が付け直したときに呼ぶ。止まるのは
+        更新とトークンの出し直しで、手元のアクセストークンは寿命（既定 5 分）まで
+        通る（ADR-0041）。
+        """
+        self.sessions_valid_from = utcnow()
 
     @property
     def has_local_password(self) -> bool:
