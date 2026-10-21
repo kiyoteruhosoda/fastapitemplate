@@ -6,7 +6,7 @@
  * 別画面で入口だけがあること（ADR-0020）を確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToastProvider } from '../components/ToastNotification'
@@ -48,6 +48,12 @@ vi.mock('../services/api', () => ({
 
 const SETTINGS = { languages: ['en'], default_locale: 'en', default_theme: 'light' }
 
+/** いまの場所（入り直しへ送られたかを見る）。 */
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
+}
+
 async function renderPage() {
   render(
     <MemoryRouter initialEntries={['/profile']}>
@@ -56,6 +62,7 @@ async function renderPage() {
           <AuthProvider>
             <ToastProvider>
               <Gate />
+              <LocationProbe />
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
@@ -109,6 +116,22 @@ describe('ProfilePage', () => {
     await waitFor(() => {
       expect(screen.getByText('Something went wrong.')).toBeInTheDocument()
     })
+  })
+
+  it('入り直しを求められたら、知らせてログイン画面へ送り、戻り先にこの画面を持たせる', async () => {
+    await renderPage()
+    apiPut.mockRejectedValueOnce(
+      Object.assign(new Error('403'), { code: 'reauthentication_required' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/login?redirect_to=%2Fprofile')
+    })
+    expect(
+      screen.getByText('For your security, please sign in again and retry.'),
+    ).toBeInTheDocument()
   })
 
   it('言語・テーマの選択がこのページに出る', async () => {

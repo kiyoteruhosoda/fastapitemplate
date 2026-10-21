@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,9 @@ class AuthenticatedPrincipal:
     permissions: frozenset[str] = field(default_factory=frozenset)
     # None = すべてのロール（保有権限の和集合）で操作している
     active_role: str | None = None
+    #: 本人が最後に**実際に**サインインした時刻（UTC・aware。ADR-0060）。更新やロールの
+    #: 切り替えでは新しくならない。``None`` は分からない（この仕組みより前のトークン）。
+    authenticated_at: datetime | None = None
 
     @property
     def id_hash(self) -> str:

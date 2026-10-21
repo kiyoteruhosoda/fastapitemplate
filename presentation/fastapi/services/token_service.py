@@ -32,6 +32,7 @@ from bounded_contexts.identity_federation.domain.value_objects.federated_session
 from bounded_contexts.identity_federation.infrastructure.sql_session_revocation_repository import (
     SqlSessionRevocationRepository,
 )
+from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.kernel.settings.settings import settings
@@ -50,6 +51,11 @@ CLAIM_SESSION_ID = "sid"
 # セッションが始まった時刻（エポックからのマイクロ秒）。``iat`` は秒までしか持たず、
 # 止めた直後の同じ秒に入り直した利用者を巻き添えにするため、別に持つ。
 CLAIM_FEDERATED_ISSUED_AT = "fed_iat"
+# 本人が最後に実際にサインインした時刻（エポック秒。OIDC と同じ綴り。ADR-0060）。
+# 更新・ロールの切り替えでは引き継ぎ、新しくしない。
+CLAIM_AUTHENTICATED_AT = "auth_time"
+#: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
+SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -63,6 +69,17 @@ class RefreshedSession:
     user: User
     active_role: str | None
     federated_login: FederatedLogin | None
+    #: 本人が最後に実際にサインインした時刻（ADR-0060）。更新でも引き継ぐ
+    authenticated_at: datetime = SIGNED_IN_LONG_AGO
+
+    @property
+    def carry(self) -> SessionCarryOver:
+        """新しいトークンへ引き継ぐもの（ロール・入り口・サインインした時刻）。"""
+        return SessionCarryOver(
+            active_role=self.active_role,
+            federated_login=self.federated_login,
+            authenticated_at=self.authenticated_at,
+        )
 
 
 class TokenService:
@@ -71,15 +88,14 @@ class TokenService:
         user: User,
         *,
         scopes: list[str] | None = None,
-        active_role: str | None = None,
-        federated_login: FederatedLogin | None = None,
+        carry: SessionCarryOver = FRESH_SIGN_IN,
     ) -> dict[str, object]:
         """access / refresh トークンを発行する。
 
         ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
         ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0036）。
         """
-        granted = user.permission_codes_of(active_role)
+        granted = user.permission_codes_of(carry.active_role)
         effective = sorted(granted if scopes is None else granted & set(scopes))
         now = datetime.now(UTC)
         base_claims = {
@@ -87,8 +103,10 @@ class TokenService:
             "iss": settings.access_token_issuer,
             "aud": settings.access_token_audience,
             "iat": now,
-            CLAIM_ACTIVE_ROLE: active_role,
-            **_federation_claims(federated_login),
+            # ``None`` は「いまサインインした」（パスワード・パスキー・SSO の入口）
+            CLAIM_AUTHENTICATED_AT: int((carry.authenticated_at or now).timestamp()),
+            CLAIM_ACTIVE_ROLE: carry.active_role,
+            **_federation_claims(carry.federated_login),
         }
         access = jwt.encode(
             {
@@ -164,6 +182,7 @@ class TokenService:
                 username=str(claims.get("username") or ""),
                 permissions=frozenset(claims.get("scope") or ()),
                 active_role=_active_role_of(claims),
+                authenticated_at=_authenticated_at_of(claims),
             ),
             None,
         )
@@ -188,6 +207,7 @@ class TokenService:
             user=user,
             active_role=_active_role_of(claims),
             federated_login=_federated_login_of(claims),
+            authenticated_at=_authenticated_at_of(claims),
         )
 
     @classmethod
@@ -299,6 +319,18 @@ def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> b
     return issued_at < int(user.sessions_valid_from.replace(tzinfo=UTC).timestamp())
 
 
+def _authenticated_at_of(claims: dict[str, Any]) -> datetime:
+    """本人が最後に実際にサインインした時刻。無い・読めないものは「ずっと前」（ADR-0060）。
+
+    ⚠ **無いときに「いま」へ倒さない。** 倒すと、この仕組みより前のトークンが更新 1 回で
+    「入り直したばかり」に化ける。
+    """
+    value = claims.get(CLAIM_AUTHENTICATED_AT)
+    if not isinstance(value, int):
+        return SIGNED_IN_LONG_AGO
+    return datetime.fromtimestamp(value, UTC)
+
+
 def _active_role_of(claims: dict[str, Any]) -> str | None:
     """クレームのアクティブロール。無い・文字列でないものは「すべてのロール」扱い。
 
@@ -310,10 +342,12 @@ def _active_role_of(claims: dict[str, Any]) -> str | None:
 
 __all__ = [
     "CLAIM_ACTIVE_ROLE",
+    "CLAIM_AUTHENTICATED_AT",
     "CLAIM_FEDERATED_ISSUED_AT",
     "CLAIM_FEDERATED_ISSUER",
     "CLAIM_FEDERATED_SUBJECT",
     "CLAIM_SESSION_ID",
+    "SIGNED_IN_LONG_AGO",
     "TYPE_ACCESS",
     "TYPE_REFRESH",
     "RefreshedSession",

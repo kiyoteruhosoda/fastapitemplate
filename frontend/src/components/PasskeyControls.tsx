@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { usePendingAction } from '../hooks/usePendingAction'
+import { useReauthentication } from '../hooks/useReauthentication'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import {
@@ -80,6 +81,7 @@ function PasskeyTable({
 export function PasskeyControls() {
   const { t } = useI18n()
   const { notify } = useToast()
+  const reauthenticate = useReauthentication()
   const [passkeys, setPasskeys] = useState<Passkey[]>([])
   const [name, setName] = useState('')
   const [removingId, setRemovingId] = useState<number | null>(null)
@@ -116,6 +118,7 @@ export function PasskeyControls() {
       await reload()
       notify('success', t('security.passkeyRegistered'))
     } catch (err) {
+      if (reauthenticate(err)) return
       setError(isPasskeyCancellation(err) ? 'error.passkey_cancelled' : errorMessageKey(err))
     }
   })
@@ -127,6 +130,7 @@ export function PasskeyControls() {
       await api.delete(`/api/account/security/passkeys/${id}`)
       await reload()
     } catch (err) {
+      if (reauthenticate(err)) return
       setError(errorMessageKey(err))
     } finally {
       setRemovingId(null)

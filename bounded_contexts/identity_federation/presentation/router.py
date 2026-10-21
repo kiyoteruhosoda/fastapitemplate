@@ -113,6 +113,7 @@ from presentation.fastapi.dependencies.auth import (
     get_current_user_or_none,
 )
 from presentation.fastapi.schemas.auth import StatusResponse
+from presentation.fastapi.services.session_carry_over import SessionCarryOver
 from presentation.fastapi.services.session_cookies import establish_session
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
@@ -409,7 +410,7 @@ async def exchange_ticket(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_credentials"},
         )
-    established = establish_session(response, user, federated_login=session.login)
+    established = establish_session(response, user, SessionCarryOver(federated_login=session.login))
     logger.info("sso_login_succeeded")
     return SsoSessionResponse(expires_in=established.expires_in, redirect_to=session.redirect_to)
 

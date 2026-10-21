@@ -14,6 +14,7 @@ import { PreferenceControls } from '../components/PreferenceControls'
 import { PushNotificationControls } from '../components/PushNotificationControls'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
+import { useReauthentication } from '../hooks/useReauthentication'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
@@ -21,6 +22,7 @@ import { useAuth } from '../store/AuthContext'
 export function ProfilePage() {
   const { t } = useI18n()
   const { notify } = useToast()
+  const reauthenticate = useReauthentication()
   const { user, refreshMe } = useAuth()
   const [email, setEmail] = useState(user?.email ?? '')
   const [username, setUsername] = useState(user?.username ?? '')
@@ -32,6 +34,7 @@ export function ProfilePage() {
       await refreshMe()
       notify('success', t('common.saved'))
     } catch (err) {
+      if (reauthenticate(err)) return
       notify('error', t(errorMessageKey(err)))
     }
   })

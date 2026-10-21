@@ -16,15 +16,13 @@ import secrets
 
 from fastapi import Response
 
-from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
-    FederatedLogin,
-)
 from presentation.fastapi.dependencies.auth import (
     set_access_token_cookie,
     set_refresh_token_cookie,
 )
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE
 from presentation.fastapi.schemas.auth import SessionResponse
+from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
 from shared.infrastructure.models import User
 from shared.kernel.settings.settings import settings
 
@@ -32,19 +30,19 @@ from shared.kernel.settings.settings import settings
 def establish_session(
     response: Response,
     user: User,
-    *,
-    active_role: str | None = None,
-    federated_login: FederatedLogin | None = None,
+    carry: SessionCarryOver = FRESH_SIGN_IN,
 ) -> SessionResponse:
     """トークン対を発行し、Cookie へ載せて寿命だけを返す。
 
-    ``federated_login`` は IdP 経由で始まったセッションのときだけ渡す（ADR-0036）。
-    ⚠ **更新・ロールの切り替えでは必ず引き継ぐこと。** 落とすと、そのトークンは
-    停止の伝播が効かない別物になる。
+    ``carry`` は前のセッションから引き継ぐもの（ロール・IdP のセッション・最後に実際に
+    サインインした時刻）。⚠ **更新・ロールの切り替えでは必ず全部引き継ぐこと**
+    （:mod:`~presentation.fastapi.services.session_carry_over`）。既定は「いま入口から
+    入った」で、そのまま使ってよいのはパスワード・パスキーの入口だけ（SSO は IdP の
+    セッションを渡す）。
     """
     from presentation.fastapi.services.token_service import TokenService
 
-    pair = TokenService.create_token_pair(user, active_role=active_role, federated_login=federated_login)
+    pair = TokenService.create_token_pair(user, carry=carry)
     set_access_token_cookie(response, str(pair["access_token"]))
     set_refresh_token_cookie(response, str(pair["refresh_token"]))
     _set_csrf_cookie(response)
