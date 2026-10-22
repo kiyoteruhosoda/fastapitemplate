@@ -110,8 +110,9 @@ def _to_response(user: User, inventory: _Inventory) -> UserResponse:
     )
 
 
-def _resolve_roles(db: Session, names: list[str]) -> list[Role]:
-    roles = db.scalars(select(Role).where(Role.name.in_(names))).all()
+def _resolve_roles(admin: Administration, names: list[str]) -> list[Role]:
+    """自分のテナントで使えるロールだけを引く（ADR-0063）。システムのロールは使えない。"""
+    roles = admin.members.roles_named(names)
     missing = set(names) - {r.name for r in roles}
     if missing:
         raise HTTPException(
@@ -143,7 +144,7 @@ def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest
         admin.ensure_not_yourself(user)
     if body.roles is None:
         return None
-    new_roles = _resolve_roles(admin.db, body.roles)
+    new_roles = _resolve_roles(admin, body.roles)
     if {r.name for r in new_roles} != {r.name for r in user.roles}:
         admin.ensure_not_yourself(user)
     admin.ensure_within_authority(changed(permissions_of(user.roles), permissions_of(new_roles)))
@@ -164,7 +165,7 @@ async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: 
         password_hash=generate_password_hash(body.password),
         is_active=True,
     )
-    roles = _resolve_roles(db, body.roles)
+    roles = _resolve_roles(admin, body.roles)
     admin.ensure_within_authority(permissions_of(roles))
     user.roles = roles
     admin.members.admit(user)

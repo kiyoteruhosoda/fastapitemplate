@@ -153,7 +153,10 @@ def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers:
 # --- 最後の管理者を失わない --------------------------------------------------
 
 
-def test_the_last_administrator_role_cannot_be_hollowed_out(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_the_shared_administrator_role_cannot_be_hollowed_out(
+    client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """雛形のロールは全テナントが共有するので、テナントの管理者からは変えられない（ADR-0063）。"""
     roles = client.get("/api/admin/roles", headers=admin_headers).json()
     admin_role = next(r for r in roles if r["name"] == "owner")
     without_core = [code for code in admin_role["permissions"] if code != "role:manage"]
@@ -163,9 +166,9 @@ def test_the_last_administrator_role_cannot_be_hollowed_out(client: TestClient, 
     )
     deleted = client.delete(f"/api/admin/roles/{admin_role['id']}", headers=admin_headers)
 
-    assert hollowed.status_code == 409
-    assert _error(hollowed.json()) == "last_administrator"
-    assert deleted.status_code == 409
+    assert hollowed.status_code == 403
+    assert _error(hollowed.json()) == "shared_role"
+    assert deleted.status_code == 403
     after = next(r for r in client.get("/api/admin/roles", headers=admin_headers).json() if r["name"] == "owner")
     assert "role:manage" in after["permissions"]
 

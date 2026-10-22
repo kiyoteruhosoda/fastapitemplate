@@ -47,6 +47,13 @@ erDiagram
     tenants ||--o{ user_groups : "持つ"
     tenants ||--o{ notifications : "持つ"
     tenants ||--o{ items : "持つ"
+    tenants ||--o{ role_tenants : "自分のロールを持つ"
+    roles ||--o| role_tenants : "作ったテナント（無ければ共有の雛形）"
+
+    role_tenants {
+        bigint role_id PK,FK "roles.id（ON DELETE CASCADE）"
+        bigint tenant_id FK "索引あり"
+    }
 
     tenants {
         bigint id PK
@@ -264,13 +271,14 @@ erDiagram
 
 | 区分 | 意味 | 表 |
 |---|---|---|
-| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `user_groups` / `notifications` / `audit_log` |
+| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
 | 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
 | 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` |
 
 | テーブル | 役割 | モデル |
 |---|---|---|
 | `tenants` | テナント。1 行が assay のテナント 1 つに当たり、発行者（`issuer`）で見分ける。`issuer` が NULL のテナントは SSO を使わない（ローカル口座だけ）。`status` が `suspended` のテナントの人は入れない | `tenant.py` |
+| `role_tenants` | テナントが自分で作ったロールの持ち主（1 ロール 1 行。ADR-0063）。行の無いロールは雛形で全テナントが共有し、テナントの管理者からは中身を変えられない | `tenant.py` |
 | `user_tenants` | 利用者の所属（1 人 1 行）。行が無いのはシステム管理者だけ。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `tenant.py` |
 
 `audit_log.tenant_id` は外部キーを張らない（テナントを消しても記録は残す）。NULL は全体の操作

@@ -185,3 +185,56 @@ def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestCli
     assert response.status_code == 403
     assert response.json()["detail"]["error"] == "tenant_required"
     assert client.get("/api/admin/users").status_code == 403
+
+
+# --- 外側と内側（ADR-0061 決定 4） ---------------------------------------------
+
+
+def test_the_tenant_administrator_no_longer_reaches_the_whole_app(mine: Side) -> None:
+    """テナント管理者（owner）は全体の設定・再起動・アプリログに入れない。"""
+    client, _ = mine
+    for path in ("/api/admin/config", "/api/admin/system/status", "/api/admin/logs"):
+        assert client.get(path).status_code == 403, path
+    scopes = set(client.get("/api/auth/me").json()["scopes"])
+    assert not scopes & set(master_data.SYSTEM_PERMISSIONS)
+
+
+def test_the_system_administrator_sees_no_content(
+    client: TestClient, system_admin_headers: dict[str, str], other: Side
+) -> None:
+    """システム管理者は中身も、テナントの人も見られない。"""
+    assert client.get("/api/admin/config").status_code == 200
+    for path in ("/api/items", "/api/admin/users", "/api/admin/groups", "/api/admin/notifications"):
+        assert client.get(path).status_code == 403, path
+    # 監査ログは全体の記録だけ（テナントの人の記録は出ない）
+    me = client.get("/api/auth/me").json()["user_id"]
+    logins = client.get("/api/admin/audit-logs", params={"event_type": "login.succeeded"}).json()["entries"]
+    assert {e["actor_user_id"] for e in logins} == {me}
+
+
+def test_system_roles_are_not_offered_inside_a_tenant(mine: Side) -> None:
+    client, headers = mine
+    names = {r["name"] for r in client.get("/api/admin/roles").json()}
+    assert "system-admin" not in names
+    codes = {p["code"] for p in client.get("/api/admin/permissions").json()}
+    assert not codes & set(master_data.SYSTEM_PERMISSIONS)
+    granted = client.post(
+        "/api/admin/users",
+        json={"email": "x@example.com", "username": "x", "password": "member-password-1", "roles": ["system-admin"]},
+        headers=headers,
+    )
+    assert granted.status_code == 400
+
+
+def test_a_tenant_role_is_invisible_to_other_tenants(mine: Side, other: Side) -> None:
+    client, headers = mine
+    created = client.post("/api/admin/roles", json={"name": "reader", "permissions": ["item:view"]}, headers=headers)
+    assert created.status_code == 201, created.text
+    role_id = created.json()["id"]
+    other_client, other_headers = other
+    assert "reader" not in {r["name"] for r in other_client.get("/api/admin/roles").json()}
+    assert (
+        other_client.put(f"/api/admin/roles/{role_id}", json={"permissions": []}, headers=other_headers).status_code
+        == 404
+    )
+    assert other_client.delete(f"/api/admin/roles/{role_id}", headers=other_headers).status_code == 404

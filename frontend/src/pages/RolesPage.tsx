@@ -12,6 +12,8 @@ interface Role {
   id: number
   name: string
   permissions: string[]
+  /** 全テナントが共有する雛形。中身は変えられない（ADR-0063）。 */
+  shared: boolean
 }
 
 interface Permission {
@@ -149,14 +151,17 @@ export function RolesPage() {
               return (
                 <tr key={role.id}>
                   {/* 横スクロールしても残す列（`.matrix` が固定する）。 */}
-                  <th scope="row">{role.name}</th>
+                  <th scope="row">
+                    {role.name}
+                    {role.shared && <span className="hint"> {t('roles.shared')}</span>}
+                  </th>
                   {permissions.map((p) => (
                     <td key={p.id}>
                       <input
                         type="checkbox"
                         aria-label={`${role.name}: ${p.code}`}
                         checked={role.permissions.includes(p.code)}
-                        disabled={busy}
+                        disabled={busy || role.shared}
                         onChange={() => {
                           void togglePermission(role, p.code)
                         }}
@@ -164,17 +169,19 @@ export function RolesPage() {
                     </td>
                   ))}
                   <td>
-                    <ActionButton
-                      type="button"
-                      className="button-danger"
-                      pending={rowAction === 'removal'}
-                      disabled={busy}
-                      onClick={() => {
-                        void remove(role)
-                      }}
-                    >
-                      {t('common.delete')}
-                    </ActionButton>
+                    {!role.shared && (
+                      <ActionButton
+                        type="button"
+                        className="button-danger"
+                        pending={rowAction === 'removal'}
+                        disabled={busy}
+                        onClick={() => {
+                          void remove(role)
+                        }}
+                      >
+                        {t('common.delete')}
+                      </ActionButton>
+                    )}
                     {/* チェックの付け外しは押しても表示が変わらないので、行に目印を出す。 */}
                     {rowAction === 'update' && (
                       <span className="spinner" role="status" aria-label={t('common.processing')} />

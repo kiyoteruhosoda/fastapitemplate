@@ -16,10 +16,10 @@ def test_ui_settings_are_public(client: TestClient) -> None:
     }
 
 
-def test_ui_settings_follow_the_admin_configuration(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_ui_settings_follow_the_admin_configuration(client: TestClient, system_admin_headers: dict[str, str]) -> None:
     client.put(
         "/api/admin/config",
-        headers=admin_headers,
+        headers=system_admin_headers,
         json={"values": {"DEFAULT_LOCALE": "ja", "DEFAULT_THEME": "dark"}},
     )
     body = client.get("/api/ui/settings").json()

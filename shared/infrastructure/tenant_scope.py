@@ -17,7 +17,8 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from shared.infrastructure.models import Tenant, User, UserGroup, UserTenant
+from shared.domain.auth import master_data
+from shared.infrastructure.models import Role, RoleTenant, Tenant, User, UserGroup, UserTenant
 
 
 def tenant_admits(session: Session, user: User) -> bool:
@@ -79,6 +80,32 @@ class TenantMembers:
 
     def new_group(self, name: str, description: str) -> UserGroup:
         return UserGroup(tenant_id=self.tenant_id, name=name, description=description)
+
+    def _roles(self) -> sa.Select[tuple[Role]]:
+        """このテナントで使えるロール: 共有の雛形（システムのロールを除く）と、自分で作ったもの（ADR-0063）。"""
+        shared = sa.and_(RoleTenant.tenant_id.is_(None), Role.name.not_in(list(master_data.SYSTEM_ROLES)))
+        return (
+            sa.select(Role)
+            .outerjoin(RoleTenant, RoleTenant.role_id == Role.id)
+            .where(sa.or_(shared, RoleTenant.tenant_id == self.tenant_id))
+        )
+
+    def roles(self) -> Sequence[Role]:
+        return self.session.scalars(self._roles().order_by(Role.id)).all()
+
+    def role(self, role_id: int) -> Role | None:
+        """使えるロール（共有の雛形を含む）。中身を変えてよいかは :meth:`Role.tenant_id` で見る。"""
+        return self.session.scalar(self._roles().where(Role.id == role_id))
+
+    def roles_named(self, names: Sequence[str]) -> Sequence[Role]:
+        if not names:
+            return []
+        return self.session.scalars(self._roles().where(Role.name.in_(list(names)))).all()
+
+    def new_role(self, name: str) -> Role:
+        role = Role(name=name)
+        role.ownership = RoleTenant(tenant_id=self.tenant_id)
+        return role
 
 
 __all__ = ["TenantMembers", "tenant_admits"]

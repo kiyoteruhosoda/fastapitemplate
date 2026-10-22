@@ -7,19 +7,19 @@ def test_role_crud(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/api/admin/roles",
         headers=admin_headers,
-        json={"name": "log-reader", "permissions": ["log:view", "dashboard:view"]},
+        json={"name": "item-reader", "permissions": ["item:view", "dashboard:view"]},
     )
     assert response.status_code == 201, response.text
     role_id = response.json()["id"]
-    assert response.json()["permissions"] == ["dashboard:view", "log:view"]
+    assert response.json()["permissions"] == ["dashboard:view", "item:view"]
 
     response = client.put(
         f"/api/admin/roles/{role_id}",
         headers=admin_headers,
-        json={"permissions": ["log:view"]},
+        json={"permissions": ["item:view"]},
     )
     assert response.status_code == 200
-    assert response.json()["permissions"] == ["log:view"]
+    assert response.json()["permissions"] == ["item:view"]
 
     assert client.delete(f"/api/admin/roles/{role_id}", headers=admin_headers).status_code == 204
 

@@ -17,8 +17,19 @@ def test_every_role_has_permission_assignment() -> None:
     assert role_names == set(master_data.ROLE_PERMISSIONS)
 
 
-def test_owner_role_has_all_permissions() -> None:
-    assert set(master_data.ROLE_PERMISSIONS["owner"]) == set(master_data.PERMISSION_CODES)
+def test_owner_holds_everything_inside_the_tenant() -> None:
+    """owner はテナント管理者。内側の全権限を持ち、全体の権限は持たない（ADR-0061）。"""
+    inside = set(master_data.PERMISSION_CODES) - set(master_data.SYSTEM_PERMISSIONS)
+    assert set(master_data.ROLE_PERMISSIONS["owner"]) == inside
+
+
+def test_only_system_roles_hold_system_permissions() -> None:
+    """全体の権限をテナントの中のロールに持たせると、ほかのテナントまで動かせる。"""
+    for role, codes in master_data.ROLE_PERMISSIONS.items():
+        if role in master_data.SYSTEM_ROLES:
+            assert set(master_data.SYSTEM_PERMISSIONS) <= set(codes)
+        else:
+            assert not set(codes) & set(master_data.SYSTEM_PERMISSIONS), role
 
 
 def test_default_admin_role_exists() -> None:
@@ -39,8 +50,17 @@ def test_only_owner_holds_the_whole_administration_core() -> None:
 
 
 def test_system_admin_touches_neither_people_nor_content() -> None:
+    """システム管理者は中身を見られない（ADR-0061）。監査ログは全体の記録だけが見える。"""
     codes = set(master_data.ROLE_PERMISSIONS["system-admin"])
-    assert not codes & {"user:manage", "role:manage", "permission:manage", "group:manage", "item:manage", "audit:view"}
+    assert not codes & {
+        "user:manage",
+        "role:manage",
+        "permission:manage",
+        "group:manage",
+        "item:view",
+        "item:manage",
+        "notification:send",
+    }
 
 
 def test_auditor_only_reads() -> None:

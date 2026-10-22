@@ -141,7 +141,7 @@ def admin_headers(client: TestClient) -> dict[str, str]:
 SYSTEM_ADMIN_EMAIL = "system-admin@example.com"
 SYSTEM_ADMIN_PASSWORD = "system-admin-password-1"
 #: システム管理者のロール。全体の監査（テナントに属さない記録）を読むのも、ここ。
-SYSTEM_ADMIN_ROLES = ("system-admin", "auditor")
+SYSTEM_ADMIN_ROLES = ("system-admin",)
 
 
 @pytest.fixture

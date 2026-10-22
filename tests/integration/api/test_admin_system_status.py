@@ -36,8 +36,10 @@ def test_status_requires_system_manage(
     assert response.json()["detail"]["error"] == "forbidden"
 
 
-def test_status_reports_build_info_and_component_health(client: TestClient, admin_headers: dict[str, str]) -> None:
-    response = client.get("/api/admin/system/status", headers=admin_headers)
+def test_status_reports_build_info_and_component_health(
+    client: TestClient, system_admin_headers: dict[str, str]
+) -> None:
+    response = client.get("/api/admin/system/status", headers=system_admin_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["version"]

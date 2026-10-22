@@ -63,4 +63,18 @@ class UserTenant(Base):
     tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
 
 
-__all__ = ["Tenant", "TenantStatus", "UserTenant"]
+class RoleTenant(Base):
+    """テナントが自分で作ったロールの持ち主（1 ロール 1 行。ADR-0063）。
+
+    行の無いロールは雛形（``master_data.ROLES``）で、全テナントが共有する。共有のロールの
+    中身はテナントの管理者からは変えられない（変えると、ほかのテナントの権限まで動く）。
+    """
+
+    __tablename__ = "role_tenants"
+    __table_args__ = declared(Tenancy.TENANT)
+
+    role_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
+
+
+__all__ = ["RoleTenant", "Tenant", "TenantStatus", "UserTenant"]

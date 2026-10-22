@@ -292,6 +292,24 @@ git -C deploy-repo log -p --follow -- k8s/<app>-<env>/40-app.yaml | grep -n 'ima
 - 秘密は**封印して** `25-secrets.yaml` に。`JWT_SECRET_KEY` は必ず生成した値を入れる
 - 公開するときは **Access を作ってから ingress**（逆順は無認証で公開される）
 
+## システム管理者を作りたいとき（ADR-0061）
+
+全体の設定・再起動・アプリログ・テナントの管理は、テナントに属さないシステム管理者だけが使える
+（テナント管理者 `owner` には出ない）。最初の 1 人はコンテナの中で作る。
+
+```bash
+ssh -t nolumialab "sudo k3s kubectl -n <app>-<env> exec -it deploy/app -- \
+  env SYSTEM_ADMIN_PASSWORD='<12 文字以上>' python scripts/create_system_admin.py <メールアドレス> [<表示名>]"
+```
+
+- テナントの利用者とは別のメールアドレスにする（同じメールアドレスの人が居れば何もしない）。
+- 作ったら、そのメールアドレスとパスワードでサインインして、サイドバーに「システム設定」が出ることを見る。
+
+### 雛形を取り込んだ派生アプリで
+
+取り込んだ時点で、全員が「既定のテナント」に入り、`owner` はテナント管理者になる。
+`owner` は設定・再起動・アプリログの画面に入れなくなるので、上の手順でシステム管理者を作る。
+
 ## システム設定を変更したいとき
 
 管理画面（`/admin/config`。要 `admin:system-settings` 権限）から編集する。
