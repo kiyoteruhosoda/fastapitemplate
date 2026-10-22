@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 import { ApiError, api } from '../services/api'
 import { exchangeSsoTicket, startSsoLogout } from '../services/sso'
+import { clearSilentSsoMarks, markSignedOut } from '../services/silentSso'
 import { rememberTenant, rememberedTenant } from '../services/tenantEntrance'
 import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
@@ -116,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       tenant: tenant ?? null,
     })
     rememberTenant(tenant)
+    clearSilentSsoMarks()
     await refreshMe()
   }
 
@@ -126,11 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       challenge_id: challenge.challenge_id,
       credential,
     })
+    clearSilentSsoMarks()
     await refreshMe()
   }
 
   const completeSsoLogin = async (ticket: string) => {
     const session = await exchangeSsoTicket(ticket)
+    clearSilentSsoMarks()
     await refreshMe()
     return session.redirect_to
   }
@@ -167,6 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     const toIdp = user?.rp_logout_enabled ?? false
     setUser(null)
+    // IdP の SSO は既定で残るので、ログイン画面を開いてもボタンを押さずに入り直さない（ADR-0066）
+    markSignedOut()
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     await api.post('/api/auth/logout').catch(() => undefined)
     if (toIdp) startSsoLogout(rememberedTenant())

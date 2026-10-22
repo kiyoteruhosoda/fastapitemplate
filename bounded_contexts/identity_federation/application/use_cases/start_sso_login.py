@@ -41,8 +41,11 @@ class StartSsoLogin:
     #: 認可要求に載せる ``acr_values``（空 = 要求しない）。ADR-0026 決定 1。
     acr_values: tuple[str, ...] = ()
 
-    def execute(self, *, redirect_to: str | None = None) -> SsoAuthorizationDto:
-        """IdP へ送り出す URL と、ブラウザへ預ける往復状態を返す。"""
+    def execute(self, *, redirect_to: str | None = None, silent: bool = False) -> SsoAuthorizationDto:
+        """IdP へ送り出す URL と、ブラウザへ預ける往復状態を返す。
+
+        ``silent`` なら IdP に画面を出させない（``prompt=none``。ADR-0066）。
+        """
         provider = require_usable(self.provider)
         transaction = LoginTransaction(
             state=new_secret(),
@@ -50,6 +53,7 @@ class StartSsoLogin:
             code_verifier=new_code_verifier(),
             issuer=provider.issuer,
             redirect_to=RedirectTarget.parse(redirect_to).path,
+            silent=silent,
         )
         return authorization_for(provider, self.gateway, transaction, self.acr_values)
 
@@ -73,6 +77,7 @@ def authorization_for(
             nonce=transaction.nonce,
             code_challenge=code_challenge_of(transaction.code_verifier),
             acr_values=acr_values,
+            silent=transaction.silent,
         )
     )
     return SsoAuthorizationDto(authorization_url=authorization_url, transaction=transaction)

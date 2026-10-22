@@ -35,7 +35,8 @@ class _StubGateway:
     seen: list[CodeExchange]
 
     def authorization_url(self, request: AuthorizationRequest) -> str:
-        return f"{_AUTHORIZE}?state={request.state}&acr_values={' '.join(request.acr_values)}"
+        prompt = "&prompt=none" if request.silent else ""
+        return f"{_AUTHORIZE}?state={request.state}&acr_values={' '.join(request.acr_values)}{prompt}"
 
     def exchange_code(self, exchange: CodeExchange) -> Mapping[str, Any]:
         self.seen.append(exchange)
@@ -138,6 +139,47 @@ def test_a_successful_round_trip_hands_a_ticket_to_the_spa(sso_client: TestClien
 
     # 券は 1 回限り。
     assert sso_client.post("/api/auth/sso/token", json={"ticket": ticket}).status_code == 401
+
+
+def test_a_silent_attempt_asks_the_idp_not_to_show_a_screen(sso_client: TestClient) -> None:
+    """ログイン画面が開いたときの試し（ADR-0066）は ``prompt=none`` で送り出す。"""
+    response = sso_client.get("/api/auth/sso/login?prompt=none", follow_redirects=False)
+    assert response.status_code == 303
+    assert "prompt=none" in response.headers["location"]
+    # ふつうの往復には付けない
+    assert "prompt=" not in sso_client.get("/api/auth/sso/login", follow_redirects=False).headers["location"]
+
+
+@pytest.mark.parametrize(
+    "error", ["login_required", "consent_required", "interaction_required", "account_selection_required"]
+)
+def test_a_declined_silent_attempt_returns_to_the_login_screen_without_an_error(
+    sso_client: TestClient, error: str
+) -> None:
+    """IdP で入っていなかった。失敗ではないので ``sso_error`` を付けず、行き先は持ち帰る。"""
+    response = sso_client.get("/api/auth/sso/login?prompt=none&redirect_to=/items", follow_redirects=False)
+    state = response.headers["location"].split("state=")[1].split("&")[0]
+    back = sso_client.get(f"/api/auth/sso/callback?error={error}&state={state}", follow_redirects=False)
+    assert back.status_code == 303
+    location = back.headers["location"]
+    # 戻す先は往復を始めたテナントの入口（ADR-0064）
+    assert location.endswith("/login?sso_silent=declined&redirect_to=%2Fitems")
+    assert "sso_error" not in location
+    assert transaction_cookie.COOKIE_NAME not in sso_client.cookies
+
+
+def test_a_declined_ordinary_attempt_is_still_an_error(sso_client: TestClient) -> None:
+    """ボタンで始めた往復の ``login_required`` は今までどおりエラーで返す。"""
+    state = _start(sso_client)
+    back = sso_client.get(f"/api/auth/sso/callback?error=login_required&state={state}", follow_redirects=False)
+    assert "sso_error=login_required" in back.headers["location"]
+
+
+def test_a_silent_attempt_that_succeeds_signs_in_as_usual(sso_client: TestClient) -> None:
+    response = sso_client.get("/api/auth/sso/login?prompt=none", follow_redirects=False)
+    state = response.headers["location"].split("state=")[1].split("&")[0]
+    back = sso_client.get(f"/api/auth/sso/callback?code=the-code&state={state}", follow_redirects=False)
+    assert back.headers["location"].startswith("/login/sso?ticket=")
 
 
 def test_by_default_an_unknown_account_is_not_linked_to_a_local_one(

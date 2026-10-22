@@ -8,6 +8,7 @@ import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
 import { REDIRECT_TO_PARAM, sanitizeRedirectTo } from '../services/returnTo'
+import { markSilentSsoTried, maySilentSso } from '../services/silentSso'
 import { fetchSsoProvider, startSsoLogin, type SsoProvider } from '../services/sso'
 import { forgotPasswordPathOf, rememberTenant } from '../services/tenantEntrance'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
@@ -37,6 +38,9 @@ export function LoginPage() {
   // IdP のボタンの無い画面に取り残される。つながるまで聞き直す。
   const [sso, setSso] = useState<SsoProvider | null>(null)
   const [ssoUnreachable, setSsoUnreachable] = useState(false)
+  // IdP で入っていればボタンを押さずに入れる（ADR-0066）。試してよいかは開いたときの URL で決める。
+  // ⚠ **試すと決めたら入口を描かない。** 描いてから飛ぶと、一瞬だけログイン画面が見える。
+  const [silentAllowed] = useState(() => maySilentSso(params))
 
   useEffect(() => {
     let timer: number | undefined
@@ -45,6 +49,11 @@ export function LoginPage() {
       fetchSsoProvider(tenant)
         .then((provider) => {
           if (cancelled) return
+          if (provider.enabled && silentAllowed && markSilentSsoTried()) {
+            rememberTenant(tenant)
+            startSsoLogin(destination, tenant, { silent: true })
+            return
+          }
           setSso(provider)
           setSsoUnreachable(false)
         })
@@ -59,7 +68,7 @@ export function LoginPage() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [tenant])
+  }, [tenant, destination, silentAllowed])
 
   // サーバー側の往復（``/api/auth/sso/callback``）が失敗すると、ここへ
   // ``?sso_error=<コード>`` で戻ってくる。表示文言は画面が決める。

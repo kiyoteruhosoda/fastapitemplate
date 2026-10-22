@@ -3,7 +3,7 @@
 経路は 10。
 
 - ``GET /provider`` — ログイン画面が「SSO で入る」ボタンを出すかを問い合わせる
-- ``GET /login`` — IdP の認可エンドポイントへブラウザを送り出す
+- ``GET /login`` — IdP の認可エンドポイントへブラウザを送り出す（``?prompt=none`` なら画面を出さずに試す）
 - ``GET /callback`` — IdP からの戻り。引き換え券を付けて SPA へ戻す
 - ``POST /token`` — 引き換え券をトークンへ換える（Cookie もここで載せる）
 - ``GET /logout`` — サインアウトを IdP まで通す（**既定では無効**）
@@ -34,7 +34,7 @@ from __future__ import annotations
 import logging
 import re
 from typing import Annotated
-from urllib.parse import parse_qsl, quote
+from urllib.parse import parse_qsl, quote, urlencode
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, status
@@ -130,6 +130,14 @@ SECURITY_SCREEN = "/profile/security"
 # ``$`` は末尾の改行の直前にも当たるため、``match`` だと改行を通してしまう。
 _ERROR_CODE = re.compile(r"[a-z_]{1,64}")
 _GENERIC_ERROR = "sso_error"
+
+#: 画面を出さずに試した往復（``prompt=none``）で、IdP が「画面が要る」と返すコード
+#: （OIDC Core §3.1.2.6）。**失敗ではない**ので、エラーを出さずにログイン画面へ戻す（ADR-0066）。
+_SILENT_DECLINES = frozenset(
+    {"login_required", "consent_required", "interaction_required", "account_selection_required"}
+)
+#: 試して戻ってきた印。ログイン画面はこれが付いていると試し直さない（ループ止め）。
+SILENT_DECLINED_PARAM = "sso_silent"
 
 
 class SsoCallbackQuery:
@@ -227,13 +235,17 @@ def start_login(
     use_case: Annotated[StartSsoLogin, Depends(dependencies.start_sso_login)],
     tenant: dependencies.EntranceDep,
     redirect_to: Annotated[str | None, Query(max_length=255)] = None,
+    # 知らない値は無視する（画面遷移なので 422 の JSON を見せない）
+    prompt: Annotated[str | None, Query(max_length=16)] = None,
 ) -> RedirectResponse:
     """IdP へ送り出す。設定が無い・IdP と話せない場合はログイン画面へ戻す。
 
     送り出す先は入口で選んだテナントの発行者（``?tenant=<slug>``。ADR-0061 決定 8）。
+    ``?prompt=none`` はログイン画面が開いたときに自分で付ける（ADR-0066）。IdP で入って
+    いればボタンを押さずに入れ、入っていなければ画面を出さずに戻ってくる。
     """
     try:
-        authorization = use_case.execute(redirect_to=redirect_to)
+        authorization = use_case.execute(redirect_to=redirect_to, silent=prompt == "none")
     except IdentityFederationError as error:
         logger.warning("sso_start_failed: %s", error.code)
         return _to_login_screen(error.code, _login_screen_of(tenant))
@@ -296,6 +308,8 @@ def _complete_login(
     受けるのは**往復状態に書いた発行者**の連携先（URL から決め直さない。ADR-0064）。
     """
     screen = tools.login_screen(transaction)
+    if transaction is not None and transaction.silent and query.error in _SILENT_DECLINES:
+        return _silently_declined(transaction, screen)
     if query.error is not None or not query.code or not query.state:
         return _failed(tools.audit, query.error or "sso_callback_invalid", screen)
     if transaction is None:
@@ -512,6 +526,17 @@ def _to_login_screen(code: str, screen: str = LOGIN_SCREEN) -> RedirectResponse:
     return _redirect(f"{screen}?sso_error={safe}")
 
 
+def _silently_declined(transaction: LoginTransaction, screen: str) -> RedirectResponse:
+    """画面を出さずに試したが、IdP で入っていなかった（ADR-0066）。
+
+    **失敗として記録しない。** ログイン画面を開いただけの人を監査ログに積むことになる。
+    行き先（``redirect_to``）は持ち帰り、ボタンで入り直したときもそこへ戻れるようにする。
+    """
+    logger.info("sso_silent_login_declined")
+    query = urlencode({SILENT_DECLINED_PARAM: "declined", "redirect_to": transaction.redirect_to})
+    return _redirect(f"{screen}?{query}")
+
+
 def _link_failed(code: str) -> RedirectResponse:
     """連携の失敗を設定画面へ返す。
 
@@ -543,4 +568,4 @@ def _record_success(audit: AuditRecorderDep, account: ResolvedAccountDto) -> Non
     recorder.execute(AuditEventType.SSO_LOGIN_SUCCEEDED, reason="method=sso")
 
 
-__all__ = ["HANDOFF_SCREEN", "LOGIN_SCREEN", "router"]
+__all__ = ["HANDOFF_SCREEN", "LOGIN_SCREEN", "SILENT_DECLINED_PARAM", "router"]
