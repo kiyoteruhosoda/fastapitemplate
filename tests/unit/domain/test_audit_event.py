@@ -46,6 +46,12 @@ _EXPECTED_EVENT_TYPES = {
     "group.updated",
     "group.deleted",
     "notification.sent",
+    "tenant.created",
+    "tenant.updated",
+    "tenant.deleted",
+    "tenant.admin_designated",
+    "system_admin.added",
+    "system_admin.removed",
 }
 
 

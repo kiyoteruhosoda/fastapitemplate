@@ -73,6 +73,8 @@ from presentation.fastapi.routers.app_links import router as app_links_router
 from presentation.fastapi.routers.app_session import router as app_session_router
 from presentation.fastapi.routers.auth import router as auth_router
 from presentation.fastapi.routers.health import router as health_router
+from presentation.fastapi.routers.system.administrators import router as system_administrators_router
+from presentation.fastapi.routers.system.tenants import router as system_tenants_router
 from presentation.fastapi.routers.ui_settings import router as ui_settings_router
 from shared.kernel.logging.logging_config import setup_logging
 from shared.kernel.restart import (
@@ -127,6 +129,8 @@ def _include_routers(app: FastAPI) -> None:
         admin_system_router,
         notifications_router,
         admin_notifications_router,
+        system_tenants_router,
+        system_administrators_router,
         items_router,
     ):
         app.include_router(router)

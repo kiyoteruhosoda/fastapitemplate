@@ -70,6 +70,13 @@ class AuditEventType(StrEnum):
     GROUP_DELETED = "group.deleted"
     # ``reason`` には宛先・チャネル・配った人数を入れる（本文は入れない）。
     NOTIFICATION_SENT = "notification.sent"
+    # テナントの外側（ADR-0061・ADR-0065）。システム管理者の操作
+    TENANT_CREATED = "tenant.created"
+    TENANT_UPDATED = "tenant.updated"
+    TENANT_DELETED = "tenant.deleted"
+    TENANT_ADMIN_DESIGNATED = "tenant.admin_designated"
+    SYSTEM_ADMIN_ADDED = "system_admin.added"
+    SYSTEM_ADMIN_REMOVED = "system_admin.removed"
 
 
 class AuditResult(StrEnum):

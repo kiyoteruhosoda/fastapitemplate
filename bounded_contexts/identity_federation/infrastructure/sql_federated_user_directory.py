@@ -12,18 +12,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import sqlalchemy as sa
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
+from bounded_contexts.account_security.infrastructure.account_security_models import PasskeyCredentialRecord
 from bounded_contexts.identity_federation.domain.entities.federated_account import (
     FederatedAccount,
     NewFederatedAccount,
 )
 from bounded_contexts.identity_federation.domain.exceptions import SsoAccountNotLinkedError
+from bounded_contexts.identity_federation.infrastructure.identity_federation_models import FederatedIdentityRecord
 from shared.infrastructure.models import Role, User
 from shared.infrastructure.tenant_scope import TenantMembers
 
@@ -57,14 +59,24 @@ class SqlFederatedUserDirectory:
         （ログに残す。値は出さない）。
         """
         exact = self.session.scalar(self._users().where(User.email == email))
-        if exact is not None:
-            return _as_account(exact)
-        normalized = email.strip().lower()
-        matches = self.session.scalars(self._users().where(func.lower(User.email) == normalized)).all()
-        if len(matches) > 1:
-            logger.warning("federated_email_ambiguous", extra={"matches": len(matches)})
+        if exact is None:
+            normalized = email.strip().lower()
+            matches = self.session.scalars(self._users().where(func.lower(User.email) == normalized)).all()
+            if len(matches) > 1:
+                logger.warning("federated_email_ambiguous", extra={"matches": len(matches)})
+                return None
+            exact = matches[0] if matches else None
+        if exact is None:
             return None
-        return _as_account(matches[0] if matches else None)
+        return replace(_require_account(exact), awaiting_owner=self._awaiting_owner(exact))
+
+    def _awaiting_owner(self, user: User) -> bool:
+        """指名されたまま、入り口を 1 つも持たない席か（ADR-0065）。"""
+        if user.has_local_password:
+            return False
+        linked = select(FederatedIdentityRecord.user_id).where(FederatedIdentityRecord.user_id == user.id)
+        passkeys = select(PasskeyCredentialRecord.user_id).where(PasskeyCredentialRecord.user_id == user.id)
+        return self.session.scalar(linked.union_all(passkeys).limit(1)) is None
 
     def provision(self, account: NewFederatedAccount) -> FederatedAccount:
         if self.tenant_id is None:

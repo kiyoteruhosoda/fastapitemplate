@@ -139,6 +139,13 @@ class PasswordResetToken(Base):
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(sa.String(64), unique=True, nullable=False)
+    #: ``reset``（本人の申し込み）か ``invitation``（管理者の招待。最初のパスワードを決めさせる。ADR-0065）
+    purpose: Mapped[str] = mapped_column(
+        sa.Enum("reset", "invitation", name="password_token_purpose", native_enum=False),
+        nullable=False,
+        default="reset",
+        server_default="reset",
+    )
     expires_at = mapped_column(sa.DateTime(), nullable=False)
     used_at = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)

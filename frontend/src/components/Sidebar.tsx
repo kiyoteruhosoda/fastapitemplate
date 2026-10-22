@@ -36,6 +36,9 @@ const GROUPS: Group[] = [
   {
     labelKey: 'nav.group.system',
     items: [
+      // テナントの外側（ADR-0061）。システム管理者だけに出る
+      { to: '/system/tenants', labelKey: 'nav.tenants', scopes: ['tenant:manage'] },
+      { to: '/system/administrators', labelKey: 'nav.systemAdmins', scopes: ['system:manage'] },
       { to: '/admin/config', labelKey: 'nav.config', scopes: ['admin:system-settings'] },
       { to: '/admin/logs', labelKey: 'nav.logs', scopes: ['log:view'] },
       { to: '/admin/audit-logs', labelKey: 'nav.auditLogs', scopes: ['audit:view'] },

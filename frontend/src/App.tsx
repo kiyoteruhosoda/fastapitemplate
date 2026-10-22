@@ -17,8 +17,10 @@ import { ProfilePage } from './pages/ProfilePage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RolesPage } from './pages/RolesPage'
 import { SecurityPage } from './pages/SecurityPage'
+import { SystemAdministratorsPage } from './pages/SystemAdministratorsPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
 import { SystemStatusPage } from './pages/SystemStatusPage'
+import { TenantsPage } from './pages/TenantsPage'
 import { UsersPage } from './pages/UsersPage'
 import { signInPathFor } from './services/returnTo'
 import { useAuth } from './store/AuthContext'
@@ -74,6 +76,8 @@ export default function App() {
         <Route path="/admin/logs" element={<SystemLogsPage />} />
         <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
         <Route path="/admin/system-status" element={<SystemStatusPage />} />
+        <Route path="/system/tenants" element={<TenantsPage />} />
+        <Route path="/system/administrators" element={<SystemAdministratorsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

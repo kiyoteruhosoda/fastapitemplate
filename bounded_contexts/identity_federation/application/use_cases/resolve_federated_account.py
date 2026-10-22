@@ -128,7 +128,8 @@ class ResolveFederatedAccount:
         寄せてよい相手でなければ**作り直さずに断る**。メールアドレスは一意なので、
         ここで新しく作ろうとすると一意制約に当たって 500 になる。
         """
-        if not self.linking.may_link(user):
+        claims_seat = existing.awaiting_owner and self.linking.may_claim_seat(user)
+        if not (self.linking.may_link(user) or claims_seat):
             raise SsoAccountNotLinkedError
         self._ensure_active(existing)
         self._link(issuer, user, existing.user_id)
