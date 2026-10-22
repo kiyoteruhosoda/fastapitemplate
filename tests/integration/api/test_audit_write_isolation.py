@@ -30,6 +30,7 @@ import bounded_contexts.example.infrastructure.item_model  # noqa: F401 — メ�
 import shared.infrastructure.models  # noqa: F401 — メタデータ登録
 from shared.domain.auth import master_data
 from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
+from shared.infrastructure.tenant_directory import seat_default_admin
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
 from shared.kernel.settings.settings import settings
@@ -49,6 +50,7 @@ def file_engine(tmp_path: Path) -> Iterator[sa.Engine]:
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     seed_master_data(session)
     ensure_default_admin(session)
+    seat_default_admin(session, issuer="", client_id="")
     session.commit()
     session.close()
     yield engine

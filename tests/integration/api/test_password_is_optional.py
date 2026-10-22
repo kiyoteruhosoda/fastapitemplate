@@ -24,6 +24,7 @@ _SSO_ONLY = "sso-only@example.com"
 def sso_only_user(db_session: Session) -> User:
     """SSO でしか入れない利用者（パスワードを持たない）。"""
     user = User(email=_SSO_ONLY, username="SSO only", password_hash=None, is_active=True)
+    user.join(tenant_of_slug(db_session, DEFAULT_TENANT_SLUG) or 0)
     db_session.add(user)
     db_session.commit()
     return user

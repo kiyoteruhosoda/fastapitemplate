@@ -19,6 +19,7 @@ from bounded_contexts.audit.infrastructure.audit_log_model import AuditLogModel
 from shared.domain.auth import master_data
 from shared.infrastructure.models import Permission, Role, User
 from shared.infrastructure.models.base import utcnow
+from shared.infrastructure.tenant_directory import DEFAULT_TENANT_SLUG, tenant_of_slug
 from tests.conftest import sign_in
 
 
@@ -36,6 +37,8 @@ def _event_types(payload: dict[str, Any]) -> list[str]:
 def _insert_event(engine: sa.Engine, **overrides: object) -> None:
     session = sessionmaker(bind=engine)()
     defaults = {
+        # 既定のテナントの記録（初期管理者が読める）
+        "tenant_id": tenant_of_slug(session, DEFAULT_TENANT_SLUG),
         "occurred_at": utcnow(),
         "event_type": "login.succeeded",
         "result": "success",
@@ -113,12 +116,21 @@ def test_failed_login_is_recorded_against_the_account_not_the_actor(
 
 
 def test_unknown_email_is_recorded_without_an_actor_or_target(
-    client: TestClient, admin_headers: dict[str, str]
+    client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    response = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "whatever"})
+    response = other_client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "whatever"})
     assert response.status_code == 401
 
-    entry = _search(client, admin_headers, "?event_type=login.failed")["entries"][0]
+    # 宛先の分からない失敗はどのテナントのものでもない（ADR-0062）。テナントの管理者には見えない
+    assert _search(client, admin_headers, "?event_type=login.failed")["total"] == 0
+
+
+def test_unknown_email_is_visible_as_a_whole_app_record(
+    client: TestClient, other_client: TestClient, system_admin_headers: dict[str, str]
+) -> None:
+    other_client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "whatever"})
+
+    entry = _search(client, system_admin_headers, "?event_type=login.failed")["entries"][0]
     assert entry["reason"] == "unknown_email"
     assert entry["actor_user_id"] is None
     assert entry["target_id"] is None
