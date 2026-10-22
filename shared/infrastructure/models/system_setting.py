@@ -6,11 +6,13 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.models.base import utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"
+    __table_args__ = declared(Tenancy.GLOBAL)
 
     setting_key: Mapped[str] = mapped_column(sa.String(100), primary_key=True)
     setting_json = mapped_column(sa.JSON(), nullable=False)

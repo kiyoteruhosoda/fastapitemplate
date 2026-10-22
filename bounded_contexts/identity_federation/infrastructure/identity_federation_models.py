@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 
@@ -21,6 +22,7 @@ class FederatedIdentityRecord(Base):
     """
 
     __tablename__ = "federated_identities"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     issuer: Mapped[str] = mapped_column(sa.String(255), primary_key=True)
     subject: Mapped[str] = mapped_column(sa.String(255), primary_key=True)
@@ -43,6 +45,7 @@ class SsoLoginTicketRecord(Base):
     """
 
     __tablename__ = "sso_login_tickets"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     ticket_hash: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(
@@ -71,7 +74,11 @@ class FederatedSessionRevocationRecord(Base):
     """
 
     __tablename__ = "federated_session_revocations"
-    __table_args__ = (sa.Index("ix_federated_session_revocations_subject", "issuer", "subject"),)
+    __table_args__ = (
+        sa.Index("ix_federated_session_revocations_subject", "issuer", "subject"),
+        # 宛名は発行者と subject。発行者がテナントを表すので、テナントの列は持たない
+        declared(Tenancy.GLOBAL),
+    )
 
     jti: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
     issuer: Mapped[str] = mapped_column(sa.String(255), nullable=False)

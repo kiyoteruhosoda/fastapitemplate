@@ -45,6 +45,7 @@ from presentation.fastapi.dependencies.auth import (
 )
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
+from shared.infrastructure.tenant_scope import tenant_admits
 from shared.kernel.logging.request_context import actor_user_id_var, user_id_hash_var
 from shared.kernel.settings.settings import settings
 
@@ -88,6 +89,7 @@ def _principal_of(user: User) -> AuthenticatedPrincipal:
         email=user.email,
         username=user.username,
         permissions=frozenset(user.permission_codes_of(None)),
+        tenant_id=user.tenant_id,
     )
     user_id_hash_var.set(principal.id_hash)
     actor_user_id_var.set(principal.user_id)
@@ -104,7 +106,7 @@ async def get_app_or_web_principal(
     if bearer is None or _is_our_token(bearer) or not settings.app_client_ids:
         return await get_current_principal(credentials, access_token_cookie)
     user = db.get(User, authenticate.execute(bearer))
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or not tenant_admits(db, user):
         logger.info("app_access_token_user_inactive")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

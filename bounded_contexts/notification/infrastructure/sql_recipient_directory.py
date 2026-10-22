@@ -1,35 +1,34 @@
-"""``IRecipientDirectory`` の SQLAlchemy 実装（利用者・グループは shared のテーブル）。"""
+"""``IRecipientDirectory`` の SQLAlchemy 実装（利用者・グループは shared のテーブル）。
+
+宛先に選べるのは送り手のテナントの人とグループだけ（ADR-0061）。別のテナントの
+グループ・利用者は「無い」として断る。
+"""
 
 from __future__ import annotations
-
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
 
 from bounded_contexts.notification.domain.exceptions import AudienceNotFoundError
 from bounded_contexts.notification.domain.repositories.recipient_directory import IRecipientDirectory
 from bounded_contexts.notification.domain.value_objects.audience import Audience, AudienceKind
-from shared.infrastructure.models import User, UserGroup, user_group_members
+from shared.infrastructure.tenant_scope import TenantMembers
 
 
 class SqlRecipientDirectory(IRecipientDirectory):
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(self, members: TenantMembers) -> None:
+        self._members = members
 
     def resolve(self, audience: Audience) -> list[int]:
-        active = sa.select(User.id).where(User.is_active.is_(True))
+        active = [u.id for u in self._members.users(active_only=True)]
         if audience.kind is AudienceKind.ALL:
-            query = active
-        elif audience.kind is AudienceKind.GROUP:
-            if self._session.get(UserGroup, audience.target_id) is None:
+            return active
+        if audience.kind is AudienceKind.GROUP:
+            group = self._members.group(audience.target_id or 0)
+            if group is None:
                 raise AudienceNotFoundError("group")
-            query = active.join(user_group_members, user_group_members.c.user_id == User.id).where(
-                user_group_members.c.group_id == audience.target_id
-            )
-        else:
-            if self._session.get(User, audience.target_id) is None:
-                raise AudienceNotFoundError("user")
-            query = active.where(User.id == audience.target_id)
-        return list(self._session.scalars(query.order_by(User.id)).all())
+            members = {u.id for u in group.members}
+            return [uid for uid in active if uid in members]
+        if self._members.user(audience.target_id or 0) is None:
+            raise AudienceNotFoundError("user")
+        return [uid for uid in active if uid == audience.target_id]
 
 
 __all__ = ["SqlRecipientDirectory"]

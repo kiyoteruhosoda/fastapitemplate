@@ -21,6 +21,7 @@ from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway 
 )
 from bounded_contexts.identity_federation.presentation import dependencies, transaction_cookie
 from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
+from tests.conftest import register_issuer
 
 _ISSUER = "https://idp.example.test"
 _AUTHORIZE = f"{_ISSUER}/authorize"
@@ -69,6 +70,7 @@ def sso_client(
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    register_issuer(_ISSUER)
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
@@ -152,6 +154,7 @@ def test_by_default_an_unknown_account_is_not_linked_to_a_local_one(
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    register_issuer(_ISSUER)
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
@@ -173,6 +176,7 @@ def test_a_requested_acr_is_sent_and_verified(
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    register_issuer(_ISSUER)
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")

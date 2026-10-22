@@ -17,6 +17,7 @@ from bounded_contexts.example.application.use_cases.create_item import CreateIte
 from bounded_contexts.example.application.use_cases.list_items import ListItemsUseCase
 from bounded_contexts.example.infrastructure.sql_item_repository import SqlItemRepository
 from presentation.fastapi.dependencies.auth import require_permission
+from presentation.fastapi.dependencies.tenant import TenantIdDep
 from shared.kernel.database.session import get_db
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -41,8 +42,9 @@ class ItemResponse(BaseModel):
 
 def get_item_repository(
     db: Annotated[Session, Depends(get_db)],
+    tenant_id: TenantIdDep,
 ) -> SqlItemRepository:
-    return SqlItemRepository(db)
+    return SqlItemRepository(db, tenant_id)
 
 
 RepoDep = Annotated[SqlItemRepository, Depends(get_item_repository)]

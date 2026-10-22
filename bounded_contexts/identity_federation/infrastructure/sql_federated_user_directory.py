@@ -2,6 +2,10 @@
 
 ``shared`` の ``User`` / ``Role`` モデルへ触れるのはここだけで、ID 連携の
 Domain / Application 層はこの実装を知らない。
+
+扱うのは**発行者のテナントの利用者だけ**（ADR-0061）。発行者がテナントを表すので、
+別のテナントの人をメールアドレスで寄せることも、別のテナントへ作ることもしない。
+``tenant_id`` が ``None``（登録の無い発行者）なら、誰も引けず、作れもしない。
 """
 
 from __future__ import annotations
@@ -10,7 +14,8 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
+import sqlalchemy as sa
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
@@ -18,7 +23,9 @@ from bounded_contexts.identity_federation.domain.entities.federated_account impo
     FederatedAccount,
     NewFederatedAccount,
 )
+from bounded_contexts.identity_federation.domain.exceptions import SsoAccountNotLinkedError
 from shared.infrastructure.models import Role, User
+from shared.infrastructure.tenant_scope import TenantMembers
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +33,15 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class SqlFederatedUserDirectory:
     session: Session
+    tenant_id: int | None
+
+    def _users(self) -> Select[tuple[User]]:
+        if self.tenant_id is None:
+            return select(User).where(sa.false())
+        return TenantMembers(self.session, self.tenant_id).users_query()
 
     def find_by_id(self, user_id: int) -> FederatedAccount | None:
-        return _as_account(self.session.get(User, user_id))
+        return _as_account(self.session.scalar(self._users().where(User.id == user_id)))
 
     def find_by_email(self, email: str) -> FederatedAccount | None:
         """メールアドレスで引く。**綴りどおりの行を先に、無ければ大小を無視して**引く。
@@ -43,17 +56,20 @@ class SqlFederatedUserDirectory:
         結び付ける相手が実行計画しだいで変わる。**決まらなければ「居ない」として断る**
         （ログに残す。値は出さない）。
         """
-        exact = self.session.scalar(select(User).where(User.email == email))
+        exact = self.session.scalar(self._users().where(User.email == email))
         if exact is not None:
             return _as_account(exact)
         normalized = email.strip().lower()
-        matches = self.session.scalars(select(User).where(func.lower(User.email) == normalized)).all()
+        matches = self.session.scalars(self._users().where(func.lower(User.email) == normalized)).all()
         if len(matches) > 1:
             logger.warning("federated_email_ambiguous", extra={"matches": len(matches)})
             return None
         return _as_account(matches[0] if matches else None)
 
     def provision(self, account: NewFederatedAccount) -> FederatedAccount:
+        if self.tenant_id is None:
+            # 登録の無い発行者。作る先のテナントが無い
+            raise SsoAccountNotLinkedError
         user = User(
             email=account.email,
             username=account.username,
@@ -64,6 +80,7 @@ class SqlFederatedUserDirectory:
             is_active=True,
         )
         user.roles = self._roles_named(account.roles)
+        user.join(self.tenant_id)
         self.session.add(user)
         self.session.flush()
         logger.info("sso_user_provisioned")

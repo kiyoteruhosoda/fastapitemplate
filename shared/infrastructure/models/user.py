@@ -8,6 +8,8 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared, tenancy_info
+from shared.infrastructure.models.tenant import UserTenant
 from shared.kernel.database.db import Base
 
 user_roles = sa.Table(
@@ -15,11 +17,13 @@ user_roles = sa.Table(
     Base.metadata,
     sa.Column("user_id", BigIntPk, sa.ForeignKey("users.id"), primary_key=True),
     sa.Column("role_id", BigIntPk, sa.ForeignKey("roles.id"), primary_key=True),
+    info=tenancy_info(Tenancy.PERSONAL),
 )
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
@@ -36,6 +40,20 @@ class User(Base):
     session_boundary: Mapped[UserSessionBoundary | None] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
+    #: 所属するテナント（ADR-0061）。無いのはシステム管理者だけ。
+    membership: Mapped[UserTenant | None] = relationship(cascade="all, delete-orphan", uselist=False, lazy="selectin")
+
+    @property
+    def tenant_id(self) -> int | None:
+        """所属するテナント。``None`` はテナントに属さない（システム管理者）。"""
+        return self.membership.tenant_id if self.membership is not None else None
+
+    def join(self, tenant_id: int) -> None:
+        """テナントに入れる。利用者はちょうど 1 つのテナントに属する（付け替えはしない）。"""
+        if self.membership is not None and self.membership.tenant_id != tenant_id:
+            raise ValueError("a user belongs to exactly one tenant")
+        if self.membership is None:
+            self.membership = UserTenant(tenant_id=tenant_id)
 
     def end_sessions(self) -> None:
         """いまより前に始まったログインを、次の更新で全部終わらせる（ADR-0057）。
@@ -97,6 +115,7 @@ class UserSessionBoundary(Base):
     """
 
     __tablename__ = "user_session_boundaries"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     valid_from = mapped_column(sa.DateTime(), nullable=False)
@@ -106,6 +125,7 @@ class UserSessionBoundary(Base):
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id"), nullable=False, index=True)

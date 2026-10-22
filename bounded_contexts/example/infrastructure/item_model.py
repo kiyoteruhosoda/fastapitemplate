@@ -11,13 +11,16 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.models.base import BigIntPk
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 
 class ItemModel(Base):
     __tablename__ = "items"
+    __table_args__ = declared(Tenancy.TENANT)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
 
 

@@ -1,4 +1,9 @@
-"""``INotificationRepository`` の SQLAlchemy 実装。"""
+"""``INotificationRepository`` の SQLAlchemy 実装。
+
+お知らせ（``notifications``）はテナントの中身で、送る・送った記録を読むのはテナントの
+管理画面だけ（ADR-0061）。本人の手元（配られたもの）は利用者に付くので、テナントを
+持たずに組み立てても扱える。
+"""
 
 from __future__ import annotations
 
@@ -40,11 +45,19 @@ def _to_entity(row: NotificationModel) -> Notification:
 
 
 class SqlNotificationRepository(INotificationRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, tenant_id: int | None = None) -> None:
+        """``tenant_id`` を省くと、本人の手元（``inbox`` など）だけを扱える。"""
         self._session = session
+        self._tenant_id = tenant_id
+
+    def _tenant(self) -> int:
+        if self._tenant_id is None:
+            raise RuntimeError("sending and the sent list need the tenant")
+        return self._tenant_id
 
     def add(self, notification: Notification, recipient_user_ids: list[int]) -> Notification:
         row = NotificationModel(
+            tenant_id=self._tenant(),
             title=notification.content.title,
             body=notification.content.body,
             link_url=notification.content.link_url,
@@ -140,6 +153,7 @@ class SqlNotificationRepository(INotificationRepository):
                 sa.func.coalesce(counts.c.read, 0),
             )
             .outerjoin(counts, counts.c.notification_id == NotificationModel.id)
+            .where(NotificationModel.tenant_id == self._tenant())
             .order_by(NotificationModel.sent_at.desc(), NotificationModel.id.desc())
             .limit(limit)
         ).all()

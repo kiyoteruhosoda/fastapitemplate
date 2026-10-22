@@ -87,6 +87,7 @@ from bounded_contexts.identity_federation.infrastructure.sql_session_revocation_
 from bounded_contexts.identity_federation.infrastructure.sql_sso_login_ticket_repository import (
     SqlSsoLoginTicketRepository,
 )
+from shared.infrastructure.tenant_directory import tenant_of_issuer
 from shared.kernel.database.session import get_db
 from shared.kernel.settings.settings import settings
 
@@ -214,7 +215,7 @@ def unlink_federated_identity(db: DbDep) -> UnlinkFederatedIdentity:
 def resolve_federated_account(db: DbDep) -> ResolveFederatedAccount:
     return ResolveFederatedAccount(
         identities=SqlFederatedIdentityRepository(db),
-        directory=SqlFederatedUserDirectory(db),
+        directory=SqlFederatedUserDirectory(db, tenant_of_issuer(db, settings.oidc_issuer)),
         linking=account_linking_policy(),
         policy=provisioning_policy(),
         roles=role_assignment(),

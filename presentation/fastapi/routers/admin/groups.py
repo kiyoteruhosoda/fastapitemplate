@@ -10,16 +10,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
 from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget, AuditTargetType
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import require_any_permission, require_permission
+from presentation.fastapi.dependencies.tenant import TenantMembersDep
 from presentation.fastapi.schemas.admin import (
     GroupCreateRequest,
     GroupMemberResponse,
@@ -27,14 +24,12 @@ from presentation.fastapi.schemas.admin import (
     GroupUpdateRequest,
 )
 from shared.infrastructure.models import User, UserGroup
-from shared.kernel.database.session import get_db
+from shared.infrastructure.tenant_scope import TenantMembers
 
 router = APIRouter(prefix="/api/admin/groups", tags=["admin"])
 
 _MANAGE_GROUPS = Depends(require_permission("group:manage"))
 _READ_GROUPS = Depends(require_any_permission("group:manage", "notification:send"))
-
-DbDep = Annotated[Session, Depends(get_db)]
 
 
 def _member(user: User) -> GroupMemberResponse:
@@ -51,9 +46,9 @@ def _to_response(group: UserGroup) -> GroupResponse:
     )
 
 
-def _resolve_members(db: Session, member_ids: list[int]) -> list[User]:
+def _resolve_members(members: TenantMembers, member_ids: list[int]) -> list[User]:
     wanted = set(member_ids)
-    users = db.scalars(select(User).where(User.id.in_(wanted))).all() if wanted else []
+    users = members.users_with_ids(wanted)
     missing = wanted - {u.id for u in users}
     if missing:
         raise HTTPException(
@@ -63,8 +58,8 @@ def _resolve_members(db: Session, member_ids: list[int]) -> list[User]:
     return list(users)
 
 
-def _ensure_unique_name(db: Session, name: str, *, except_id: int | None = None) -> None:
-    existing = db.scalar(select(UserGroup).where(UserGroup.name == name))
+def _ensure_unique_name(members: TenantMembers, name: str, *, except_id: int | None = None) -> None:
+    existing = members.group_named(name)
     if existing is not None and existing.id != except_id:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "group_already_exists"})
 
@@ -75,26 +70,26 @@ def _member_count(group: UserGroup) -> str:
 
 
 @router.get("", response_model=list[GroupResponse], dependencies=[_READ_GROUPS])
-async def list_groups(db: DbDep) -> list[GroupResponse]:
-    groups = db.scalars(select(UserGroup).order_by(UserGroup.name)).all()
+async def list_groups(members: TenantMembersDep) -> list[GroupResponse]:
+    groups = members.groups()
     return [_to_response(g) for g in groups]
 
 
 @router.get("/users", response_model=list[GroupMemberResponse], dependencies=[_MANAGE_GROUPS])
-async def member_candidates(db: DbDep) -> list[GroupMemberResponse]:
-    """所属に選べる利用者（有効な人だけ）。"""
-    users = db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.username, User.id)).all()
+async def member_candidates(members: TenantMembersDep) -> list[GroupMemberResponse]:
+    """所属に選べる利用者（自分のテナントの、有効な人だけ）。"""
+    users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
     return [_member(u) for u in users]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=GroupResponse, dependencies=[_MANAGE_GROUPS])
-async def create_group(body: GroupCreateRequest, db: DbDep, audit: AuditRecorderDep) -> GroupResponse:
+async def create_group(body: GroupCreateRequest, members: TenantMembersDep, audit: AuditRecorderDep) -> GroupResponse:
     name = body.name.strip()
-    _ensure_unique_name(db, name)
-    group = UserGroup(name=name, description=body.description.strip())
-    group.members = _resolve_members(db, body.member_ids)
-    db.add(group)
-    db.flush()
+    _ensure_unique_name(members, name)
+    group = members.new_group(name, body.description.strip())
+    group.members = _resolve_members(members, body.member_ids)
+    members.session.add(group)
+    members.session.flush()
     audit.execute(
         AuditEventType.GROUP_CREATED,
         target=AuditTarget.of(AuditTargetType.GROUP, group.id),
@@ -104,19 +99,21 @@ async def create_group(body: GroupCreateRequest, db: DbDep, audit: AuditRecorder
 
 
 @router.put("/{group_id}", response_model=GroupResponse, dependencies=[_MANAGE_GROUPS])
-async def update_group(group_id: int, body: GroupUpdateRequest, db: DbDep, audit: AuditRecorderDep) -> GroupResponse:
-    group = db.get(UserGroup, group_id)
+async def update_group(
+    group_id: int, body: GroupUpdateRequest, members: TenantMembersDep, audit: AuditRecorderDep
+) -> GroupResponse:
+    group = members.group(group_id)
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "group_not_found"})
     if body.name is not None:
         name = body.name.strip()
-        _ensure_unique_name(db, name, except_id=group_id)
+        _ensure_unique_name(members, name, except_id=group_id)
         group.name = name
     if body.description is not None:
         group.description = body.description.strip()
     if body.member_ids is not None:
-        group.members = _resolve_members(db, body.member_ids)
-    db.flush()
+        group.members = _resolve_members(members, body.member_ids)
+    members.session.flush()
     audit.execute(
         AuditEventType.GROUP_UPDATED,
         target=AuditTarget.of(AuditTargetType.GROUP, group_id),
@@ -126,13 +123,13 @@ async def update_group(group_id: int, body: GroupUpdateRequest, db: DbDep, audit
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MANAGE_GROUPS])
-async def delete_group(group_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
-    group = db.get(UserGroup, group_id)
+async def delete_group(group_id: int, members: TenantMembersDep, audit: AuditRecorderDep) -> None:
+    group = members.group(group_id)
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "group_not_found"})
     # ⚠ SQLite は外部キーの CASCADE を既定で効かせない。所属は明示的に外す。
     group.members = []
-    db.delete(group)
+    members.session.delete(group)
     audit.execute(
         AuditEventType.GROUP_DELETED,
         target=AuditTarget.of(AuditTargetType.GROUP, group_id),

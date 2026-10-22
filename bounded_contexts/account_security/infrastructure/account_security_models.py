@@ -14,6 +14,7 @@ from bounded_contexts.account_security.domain.entities.webauthn_challenge import
     CHALLENGE_PURPOSES,
 )
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 
@@ -21,6 +22,7 @@ class TotpSecretRecord(Base):
     """TOTP 共有鍵（ユーザー 1 人につき 1 行）。"""
 
     __tablename__ = "totp_secrets"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     secret: Mapped[str] = mapped_column(sa.String(64), nullable=False)
@@ -34,6 +36,7 @@ class PasskeyCredentialRecord(Base):
     """WebAuthn 資格情報（パスキー）。"""
 
     __tablename__ = "passkey_credentials"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
@@ -71,6 +74,7 @@ class WebAuthnChallengeRecord(Base):
     """
 
     __tablename__ = "webauthn_challenges"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     challenge_id: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
     challenge: Mapped[str] = mapped_column(sa.String(255), nullable=False)
@@ -94,7 +98,11 @@ class LoginAttemptRecord(Base):
     """
 
     __tablename__ = "login_attempts"
-    __table_args__ = (sa.CheckConstraint(f"purpose IN {ATTEMPT_PURPOSES}", name="ck_login_attempts_purpose"),)
+    __table_args__ = (
+        sa.CheckConstraint(f"purpose IN {ATTEMPT_PURPOSES}", name="ck_login_attempts_purpose"),
+        # 宛名は送られてきたメールアドレスで、利用者にもテナントにも結ばない
+        declared(Tenancy.GLOBAL),
+    )
 
     purpose: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
     identifier: Mapped[str] = mapped_column(sa.String(255), primary_key=True)

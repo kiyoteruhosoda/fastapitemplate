@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
 
 from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
 from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget, AuditTargetType
@@ -33,7 +32,6 @@ from bounded_contexts.notification.application.use_cases.manage_push_subscriptio
 )
 from bounded_contexts.notification.application.use_cases.send_notification import SendNotificationCommand
 from bounded_contexts.notification.presentation.dependencies import (
-    DbDep,
     DevicePushSenderDep,
     DeviceTokenRepoDep,
     NotificationRepoDep,
@@ -41,6 +39,7 @@ from bounded_contexts.notification.presentation.dependencies import (
     PushSenderDep,
     PushSubscriptionRepoDep,
     SendAndDeliverPushDep,
+    SentNotificationRepoDep,
 )
 from bounded_contexts.notification.presentation.schemas import (
     AudienceGroupSchema,
@@ -61,8 +60,8 @@ from bounded_contexts.notification.presentation.schemas import (
     SentNotificationResponse,
 )
 from presentation.fastapi.dependencies.auth import require_permission
+from presentation.fastapi.dependencies.tenant import TenantMembersDep
 from shared.application.authenticated_principal import AuthenticatedPrincipal
-from shared.infrastructure.models import User, UserGroup
 from shared.kernel.timestamps import utcnow
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -169,15 +168,15 @@ async def unregister_device(
 
 
 @admin_router.get("", response_model=list[SentNotificationResponse])
-async def list_sent(_principal: SenderDep, repo: NotificationRepoDep) -> list[SentNotificationResponse]:
+async def list_sent(_principal: SenderDep, repo: SentNotificationRepoDep) -> list[SentNotificationResponse]:
     return [SentNotificationResponse.of(s) for s in ListSentNotifications(repo).execute()]
 
 
 @admin_router.get("/audiences", response_model=AudienceOptionsResponse)
-async def audience_options(_principal: SenderDep, db: DbDep) -> AudienceOptionsResponse:
-    """宛先に選べる相手。``user:manage`` を持たない送り手にも、名前だけは見せる。"""
-    groups = db.scalars(select(UserGroup).order_by(UserGroup.name)).all()
-    users = db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.username, User.id)).all()
+async def audience_options(_principal: SenderDep, members: TenantMembersDep) -> AudienceOptionsResponse:
+    """宛先に選べる相手（送り手のテナントの中だけ）。``user:manage`` を持たない送り手にも、名前だけは見せる。"""
+    groups = members.groups()
+    users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
     return AudienceOptionsResponse(
         groups=[AudienceGroupSchema(id=g.id, name=g.name, member_count=len(g.members)) for g in groups],
         users=[AudienceUserSchema(id=u.id, username=u.username, email=u.email) for u in users],

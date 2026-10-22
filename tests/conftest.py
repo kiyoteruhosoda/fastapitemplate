@@ -25,6 +25,8 @@ from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
 from shared.infrastructure import models as shared_models
 from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
+from shared.infrastructure.models import Tenant
+from shared.infrastructure.tenant_directory import DEFAULT_TENANT_SLUG, seat_default_admin
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
 from shared.kernel.settings.settings import settings
@@ -55,6 +57,7 @@ def engine() -> Iterator[sa.Engine]:
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     seed_master_data(session)
     ensure_default_admin(session)
+    seat_default_admin(session, issuer=settings.oidc_issuer, client_id=settings.oidc_client_id)
     session.commit()
     session.close()
     yield engine
@@ -93,6 +96,20 @@ def other_client(app: FastAPI) -> Iterator[TestClient]:
     """
     with TestClient(app) as c:
         yield c
+
+
+def register_issuer(issuer: str, client_id: str = "rp") -> None:
+    """既定のテナントを、この発行者の assay のテナントとして登録する（ADR-0061）。
+
+    登録の無い発行者のトークンは受け付けない。SSO の試験は ``OIDC_ISSUER`` を
+    フィクスチャの後で差し替えるので、そのときに既定のテナントへ写す。
+    """
+    with sessionmaker(bind=db_module.get_engine())() as session:
+        tenant = session.scalar(sa.select(Tenant).where(Tenant.slug == DEFAULT_TENANT_SLUG))
+        assert tenant is not None
+        tenant.issuer = issuer
+        tenant.client_id = client_id
+        session.commit()
 
 
 def sign_in(client: TestClient, email: str, password: str) -> dict[str, str]:

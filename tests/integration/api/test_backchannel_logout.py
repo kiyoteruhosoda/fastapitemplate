@@ -35,6 +35,7 @@ from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
 from shared.kernel.settings.settings import settings
+from tests.conftest import register_issuer
 
 _ISSUER = "https://idp.example.test"
 _AUTHORIZE = f"{_ISSUER}/authorize"
@@ -97,6 +98,7 @@ def sso_client(
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    register_issuer(_ISSUER)
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
