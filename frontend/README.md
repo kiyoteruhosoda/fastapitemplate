@@ -78,6 +78,8 @@ flowchart TD
         Logs["/admin/logs<br/>システムログ"]
         Audit["/admin/audit-logs<br/>監査ログ"]
         Status["/admin/system-status<br/>システムステータス"]
+        Tenants["/system/tenants<br/>テナント"]
+        SysAdmins["/system/administrators<br/>システム管理者"]
     end
 
     Login -->|"パスワード認証成功"| Dashboard
@@ -104,6 +106,9 @@ flowchart TD
     Dashboard --> Logs
     Dashboard --> Audit
     Dashboard --> Status
+    Dashboard --> Tenants
+    Dashboard --> SysAdmins
+    Tenants -.->|"招待のメール"| Reset
     Logs <-->|"同じ requestId で突き合わせる"| Audit
     Dashboard -->|"ヘッダーのユーザー名"| Profile
     Profile <-->|"「セキュリティ設定を開く」／「プロフィールへ戻る」"| Security
@@ -149,12 +154,14 @@ flowchart TD
 | S12 | システムログ           | `/admin/logs`                                    | 必要 | `log:view`                                          | ✅         |
 | S13 | 監査ログ               | `/admin/audit-logs`                              | 必要 | `audit:view`                                        | ✅         |
 | S14 | システムステータス     | `/admin/system-status`                           | 必要 | `system:manage`                                     | ✅         |
+| S19 | テナント               | `/system/tenants`                                | 必要 | `tenant:manage`                                     | ✅         |
+| S20 | システム管理者         | `/system/administrators`                         | 必要 | `system:manage`                                     | ✅         |
 
-サイドバーの階層: S4・S5 は最上位、S8〜S10・S17・S18 は「管理」、S11〜S14 は「システム管理」の
+サイドバーの階層: S4・S5 は最上位、S8〜S10・S17・S18 は「管理」、S11〜S14・S19・S20 は「システム管理」の
 グループに入る。
 
 **テナントの内側と外側**（ADR-0061）: S5・S8〜S10・S17・S18 と S13 の大半はテナントの中の画面で、
-テナント管理者（`owner`）が使う。S11・S12・S14 はアプリ全体の画面で、システム管理者
+テナント管理者（`owner`）が使う。S11・S12・S14・S19・S20 はアプリ全体の画面で、システム管理者
 （テナントに属さない `system-admin`）だけが使う。システム管理者には中身（S5）も人（S8・S17）も見えず、
 S13 では全体の操作の記録だけが見える。S6・S7 はサイドバーに出さない（scope ではなく本人かどうかで決まる
 画面のため。ADR-0020）。
@@ -483,6 +490,30 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **備考**: DB の状態は `/readyz` と同じ `SELECT 1` で確認する。認証不要の稼働監視には
   この画面ではなく `/healthz`・`/readyz` を使う。
 
+### S19 テナント（`/system/tenants`）
+
+- **目的**: テナント（家族・組織ごとの区切り）の登録・変更・停止・削除と、テナント管理者の指名
+  （ADR-0061・ADR-0065）。システム管理者だけが使う。
+- **表示内容**: テナントごとに表示名・入口の URL（`/t/<短い名前>/login`）・SSO の有無・人数
+  （有効 / 全員）・状態。⚠ **中身と利用者の一覧は出さない。**
+- **操作**:
+  1. 「テナントを登録」で、短い名前・表示名・IdP の発行者とクライアント ID（SSO を使わないなら空）・
+     最初のテナント管理者のメールアドレスと表示名を入れる。指名した人には招待のメールが届き、
+     本人がパスワードを決める。SSO のテナントなら、その人が IdP で初めて入ったときにも受け取れる。
+  2. 「編集」で表示名・発行者・クライアント ID を変える。
+  3. 「管理者を指名」で、テナント管理者の席をもう 1 つ作って招待する（管理者が居なくなったときの立て直し）。
+  4. 「停止」でそのテナントの人を入れなくする（「再開」で戻す）。止めたテナントだけ「削除」が出て、
+     短い名前を入力すると人と中身ごと消える（監査ログは残る）。
+- **使用 API**: `GET|POST /api/system/tenants`, `PUT|DELETE /api/system/tenants/{id}`,
+  `POST /api/system/tenants/{id}/administrators`
+
+### S20 システム管理者（`/system/administrators`）
+
+- **目的**: システム管理者（テナントに属さない人）どうしの付け外し。
+- **操作**: 「システム管理者を追加」でメールアドレスと表示名を入れる。招待のメールが届き、本人が
+  パスワードを決める。自分と最後の 1 人は外せない。
+- **使用 API**: `GET|POST /api/system/administrators`, `DELETE /api/system/administrators/{id}`
+
 ### 共通レイアウト（Header / Sidebar / Footer）
 
 - **Header**: アプリ名（`/` へ戻る）、**ロールの切り替え**、**お知らせのベル**、ユーザー名（頭文字の
@@ -500,7 +531,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
     数を赤い丸で出す。押すと一覧が開き、1 件を押すと既読にして行き先を開く。
     「すべて既読にする」もある。一覧は 1 分ごと・タブを手前に戻したとき・端末への
     通知が届いたときに取り直す。
-- **Sidebar**: S4・S5 と S8〜S14 のうち、**保有 scope に合致する項目だけ**を表示する。
+- **Sidebar**: S4・S5 と S8〜S14・S19・S20 のうち、**保有 scope に合致する項目だけ**を表示する。
   階層は「画面一覧」の節のとおり（管理／システム管理のグループ）。
 - **Footer**: バージョンと git SHA（`GET /info`）。
 - 言語・テーマの初期値はサインイン前に `GET /api/ui/settings` から取得する。

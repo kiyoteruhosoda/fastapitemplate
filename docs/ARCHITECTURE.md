@@ -81,6 +81,25 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 
 サービスアカウント認証・外部 IdP 連携は初期スコープに含めない（ADR-0002）。
 
+## テナントの設計（ADR-0061〜0065）
+
+- **内側と外側。** テナントの内側は上の認証・認可そのもので、テナント管理者（`owner`）が管理する。
+  外側（テナントの登録・停止・削除、テナント管理者の指名、全体の設定・アプリログ）はテナントに
+  属さないシステム管理者（`system-admin`）が持ち、API は `/api/system/*`。2 つの席は兼ねない
+  （付けるロールの選び方と、トークンに載せる権限の両方で守る。ADR-0063）。
+- **主体のテナント**はトークンのクレーム `tenant` に載り、`AuthenticatedPrincipal.tenant_id` で渡る。
+  `None` は「どのテナントでもない」で、全部のテナントではない。
+- **絞りはリポジトリの入口で掛ける**（ADR-0062）。テナントの中身を扱うリポジトリはテナントを
+  コンストラクタで受け取る（見本は `SqlItemRepository`）。テナントは
+  `presentation/fastapi/dependencies/tenant.py` の依存関数が取り出し、テナントに属さない主体は 403。
+  共有の表（利用者・グループ・ロール）は `shared/infrastructure/tenant_scope.py` の `TenantMembers` を
+  入口にし、ルーターで `select(User)` を書かない。
+- **全部の表が誰のものかを宣言する**（`shared/infrastructure/models/tenancy.py`）。テナントの表 /
+  利用者に付く表 / 全体の表。宣言漏れは `tests/integration/test_table_tenancy.py` が落とし、テナントの
+  削除もこの宣言に従って表を消す。
+- **入口**はテナントごと（`/t/<slug>/login`）。SSO の連携先（発行者とクライアント ID）はテナントの行が
+  持つ（ADR-0064）。
+
 ## ログと監査の設計
 
 「システムが何をしたか」（アプリログ・`log`）と「誰が何をしたか」（監査ログ・

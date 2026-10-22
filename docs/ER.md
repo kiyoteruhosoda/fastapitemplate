@@ -159,6 +159,7 @@ erDiagram
         bigint id PK
         bigint user_id FK "索引あり"
         varchar(64) token_hash UK "ハッシュのみ保存"
+        varchar purpose "reset / invitation（CHECK 付き。ADR-0065）"
         datetime expires_at
         datetime used_at "使用済みなら非 NULL"
         datetime created_at
@@ -298,7 +299,7 @@ erDiagram
 | `permissions` | 権限コード（scope）。`code` を安定キーとし `id` は DB 採番 | `role.py` |
 | `user_roles` | ユーザー ⇔ ロール（多対多） | `user.py` |
 | `role_permissions` | ロール ⇔ 権限（多対多） | `role.py` |
-| `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ | `user.py` |
+| `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ。`purpose` が `invitation` の行は管理者の招待で、パスワードを持たない利用者に最初のパスワードを決めさせる（ADR-0065） | `user.py` |
 | `user_groups` | グループ（人の束。権限は持たない。ADR-0047）。名前はテナントの中で一意（`uq_user_groups_tenant_name`）。⚠ 表の名前を `groups` にしない（MySQL 8 / MariaDB の予約語） | `group.py` |
 | `user_group_members` | グループ ⇔ ユーザー（多対多）。どちらの FK も `ON DELETE CASCADE` | `group.py` |
 

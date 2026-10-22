@@ -33,6 +33,10 @@ from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
 
+INVITATION = "invitation"
+#: 招待の有効期限。⚠ 設定にしない（運用で決め直す値ではない）。
+INVITATION_TTL = timedelta(days=7)
+
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
@@ -88,6 +92,42 @@ class PasswordResetService:
             logger.warning("password_reset_mail_disabled")
         return user.id
 
+    def invite(self, session: Session, user: User, *, place: str) -> bool:
+        """招待のメールを送る（ADR-0065）。本人が自分でパスワードを決める。送れたら真。
+
+        ⚠ **招待した人はパスワードを知らない。** システム管理者が最初のテナント管理者を
+        指名するとき、初期パスワードを決めて渡すと、システム管理者がその人として入れて
+        しまう（中身を見ない約束が崩れる。ADR-0061）。
+        ⚠ **リンクを応答に載せない。** 載せると、招待した人がそのまま使える。
+        """
+        token = secrets.token_urlsafe(32)
+        session.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=_hash_token(token),
+                purpose=INVITATION,
+                expires_at=utcnow() + INVITATION_TTL,
+            )
+        )
+        session.flush()
+        link = f"{settings.app_base_url.rstrip('/')}/reset-password?token={token}"
+        try:
+            SendEmail(self._sender).execute(
+                EmailMessage(
+                    to=user.email,
+                    subject="You are invited",
+                    body=(
+                        f"An account was prepared for you ({place}).\n"
+                        f"Open the following link to choose your password:\n{link}\n\n"
+                        f"The link expires in {INVITATION_TTL.days} days."
+                    ),
+                )
+            )
+        except EmailSendingDisabledError:
+            logger.warning("invitation_mail_disabled")
+            return False
+        return True
+
     def reset(self, session: Session, token: str, new_password: str) -> int | None:
         """トークンを検証してパスワードを更新する。
 
@@ -101,9 +141,9 @@ class PasswordResetService:
         user = session.get(User, row.user_id)
         if user is None or not user.is_active:
             return None
-        if not user.has_local_password:
+        if not user.has_local_password and row.purpose != INVITATION:
             # 発行のあとでパスワードを取り上げられた場合（ADR-0038）。券が残っていても
-            # 通さない。
+            # 通さない。招待（ADR-0065）だけは、最初のパスワードを決めるためのもの。
             return None
         user.password_hash = generate_password_hash(new_password)
         # 再設定の前に始まったログインは、次の更新で終わる（ADR-0057）
@@ -113,4 +153,4 @@ class PasswordResetService:
         return user.id
 
 
-__all__ = ["PasswordResetService"]
+__all__ = ["INVITATION", "INVITATION_TTL", "PasswordResetService"]

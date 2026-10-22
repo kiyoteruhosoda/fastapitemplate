@@ -255,6 +255,11 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - JWT 発行時の scope はユーザーの保有権限の範囲内で指定。未指定・空 = 権限なし。
 - **ロールは扱うものの系統で分ける**（システム / 人 / 監査 / コンテンツ。ADR-0051）。
   雛形は `shared/domain/auth/master_data.py`。系統をまたぐロールを作らない。
+- **テナント**（ADR-0061〜0065）: テナントの内側は今の作りで、テナント管理者は `owner`。外側
+  （テナントの台帳・全体の設定・アプリログ）はテナントに属さない `system-admin` だけが持ち、
+  全体に効く権限は `master_data.SYSTEM_PERMISSIONS` に入れる（入れないとテナント管理者が配れる）。
+  **テナントの中身を扱う表は `tenant_id` を持ち、リポジトリはテナントをコンストラクタで受け取る。**
+  表を足すときは区分を宣言する（`shared/infrastructure/models/tenancy.py`。漏れは試験が落とす）。
 - **権限を動かす操作には scope と別の関門を掛ける**（ADR-0051。
   `presentation/fastapi/routers/admin/authority_guard.py` の `Administration`）。
   自分が持っていない権限は配れず・取り上げられず、格上の利用者には触れず、自分自身の

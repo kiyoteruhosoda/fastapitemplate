@@ -51,5 +51,15 @@ class AccountLinkingPolicy:
         """
         return self.link_by_email and user.email_verified
 
+    def may_claim_seat(self, user: FederatedUser) -> bool:
+        """指名された席（入り口をまだ 1 つも持たない利用者）を、受け取ってよいか（ADR-0065）。
+
+        システム管理者が最初のテナント管理者をメールアドレスで指名すると、入り口の無い
+        利用者が先にできる。**寄せる設定（``link_by_email``）とは別に**、検証済みのメール
+        アドレスなら受け取らせる ——席には誰の入り口も無いので、寄せても誰かの口座を
+        奪うことにはならない。
+        """
+        return user.email_verified
+
 
 __all__ = ["AccountLinkingPolicy"]
