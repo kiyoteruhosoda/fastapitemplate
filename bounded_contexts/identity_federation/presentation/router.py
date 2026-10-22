@@ -133,8 +133,15 @@ _GENERIC_ERROR = "sso_error"
 
 #: 画面を出さずに試した往復（``prompt=none``）で、IdP が「画面が要る」と返すコード
 #: （OIDC Core §3.1.2.6）。**失敗ではない**ので、エラーを出さずにログイン画面へ戻す（ADR-0066）。
+#: ``access_denied`` は、Assay に入っているがこのアプリの利用が許可されていないとき（task #648）。
 _SILENT_DECLINES = frozenset(
-    {"login_required", "consent_required", "interaction_required", "account_selection_required"}
+    {
+        "login_required",
+        "consent_required",
+        "interaction_required",
+        "account_selection_required",
+        "access_denied",
+    }
 )
 #: 試して戻ってきた印。ログイン画面はこれが付いていると試し直さない（ループ止め）。
 SILENT_DECLINED_PARAM = "sso_silent"
