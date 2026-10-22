@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
@@ -154,7 +154,8 @@ def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> UserResponse:
     db = admin.db
-    if db.scalar(select(User).where(User.email == body.email)):
+    # メールアドレスはテナントの中で一意（ADR-0064）
+    if admin.members.user_with_email(body.email) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": "email_already_exists"},

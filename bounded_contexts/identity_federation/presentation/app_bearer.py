@@ -18,8 +18,10 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
+import jwt
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
 
 from bounded_contexts.identity_federation.application.use_cases.authenticate_app_access_token import (
     AppTokenAcceptance,
@@ -45,6 +47,7 @@ from presentation.fastapi.dependencies.auth import (
 )
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
+from shared.infrastructure.tenant_directory import tenant_issuing
 from shared.infrastructure.tenant_scope import tenant_admits
 from shared.kernel.logging.request_context import actor_user_id_var, user_id_hash_var
 from shared.kernel.settings.settings import settings
@@ -62,18 +65,30 @@ AppTokenGatewayDep = Annotated[AppTokenGateway, Depends(app_token_gateway)]
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)]
 
 
-def authenticate_app_access_token(db: DbDep, gateway: AppTokenGatewayDep) -> AuthenticateAppAccessToken:
+def authenticate_app_access_token(db: Session, gateway: AppTokenGateway, token: str) -> AuthenticateAppAccessToken:
+    """トークンの発行者のテナントで受ける（ADR-0064）。登録の無い発行者なら受けない。
+
+    ⚠ 発行者は署名を確かめる前に読むが、**その値は鍵を選ぶのにしか使わない**。登録のある
+    発行者を名乗っても、署名はその発行者の鍵でしか通らない。
+    """
+    tenant = tenant_issuing(db, _unverified_issuer_of(token))
+    issuer = tenant.issuer or "" if tenant is not None and tenant.is_active else ""
     return AuthenticateAppAccessToken(
-        acceptance=AppTokenAcceptance(issuer=settings.oidc_issuer, client_ids=settings.app_client_ids),
+        acceptance=AppTokenAcceptance(issuer=issuer, client_ids=settings.app_client_ids),
         gateway=gateway,
         identities=SqlFederatedIdentityRepository(db),
         revocations=SqlSessionRevocationRepository(db),
         claims=claims_mapping(),
-        accounts=resolve_federated_account(db),
+        accounts=resolve_federated_account(db, issuer),
     )
 
 
-AuthenticateDep = Annotated[AuthenticateAppAccessToken, Depends(authenticate_app_access_token)]
+def _unverified_issuer_of(token: str) -> str:
+    try:
+        issuer = jwt.decode(token, options={"verify_signature": False}).get("iss")
+    except jwt.InvalidTokenError:
+        return ""
+    return issuer if isinstance(issuer, str) else ""
 
 
 def _is_our_token(token: str) -> bool:
@@ -98,14 +113,14 @@ def _principal_of(user: User) -> AuthenticatedPrincipal:
 
 async def get_app_or_web_principal(
     credentials: BearerDep,
-    authenticate: AuthenticateDep,
+    gateway: AppTokenGatewayDep,
     db: DbDep,
     access_token_cookie: Annotated[str | None, Cookie(alias=ACCESS_TOKEN_COOKIE)] = None,
 ) -> AuthenticatedPrincipal:
     bearer = credentials.credentials if credentials and credentials.scheme.lower() == "bearer" else None
     if bearer is None or _is_our_token(bearer) or not settings.app_client_ids:
         return await get_current_principal(credentials, access_token_cookie)
-    user = db.get(User, authenticate.execute(bearer))
+    user = db.get(User, authenticate_app_access_token(db, gateway, bearer).execute(bearer))
     if user is None or not user.is_active or not tenant_admits(db, user):
         logger.info("app_access_token_user_inactive")
         raise HTTPException(

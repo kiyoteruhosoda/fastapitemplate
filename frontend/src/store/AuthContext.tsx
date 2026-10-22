@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 import { ApiError, api } from '../services/api'
 import { exchangeSsoTicket, startSsoLogout } from '../services/sso'
+import { rememberTenant, rememberedTenant } from '../services/tenantEntrance'
 import { assertPasskey, type PasskeyChallenge } from '../services/webauthn'
 
 export interface Me {
@@ -42,7 +43,7 @@ interface AuthValue {
    */
   unreachable: boolean
   /** 二要素認証が有効なアカウントでは totpCode が必要（未指定なら totp_required）。 */
-  login: (email: string, password: string, totpCode?: string) => Promise<void>
+  login: (email: string, password: string, totpCode?: string, tenant?: string) => Promise<void>
   loginWithPasskey: () => Promise<void>
   /**
    * SSO の引き換え券をトークンへ換えてログイン状態にする（ADR-0025）。
@@ -106,12 +107,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [refreshMe])
 
-  const login = async (email: string, password: string, totpCode?: string) => {
+  const login = async (email: string, password: string, totpCode?: string, tenant?: string) => {
     await api.post<SessionInfo>('/api/auth/login', {
       email,
       password,
       totp_code: totpCode || null,
+      // 入口のテナント（`/t/<slug>/login`。ADR-0064）
+      tenant: tenant ?? null,
     })
+    rememberTenant(tenant)
     await refreshMe()
   }
 
@@ -165,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     await api.post('/api/auth/logout').catch(() => undefined)
-    if (toIdp) startSsoLogout()
+    if (toIdp) startSsoLogout(rememberedTenant())
   }
 
   const hasScope = (...codes: string[]) =>

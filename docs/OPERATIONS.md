@@ -460,6 +460,12 @@ Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログ�
 3. 起動時のログで `sso_ready` を確かめる。`sso_disabled_by_configuration` なら
    設定が欠けている。`sso_private_key_unreadable` なら鍵が読めていない。
 
+> **発行者とクライアント ID はテナントごと**（ADR-0064）。`OIDC_ISSUER` / `OIDC_CLIENT_ID` は
+> 既定のテナントを作るときの初期値で、移行（0015）がテナントの行へ写す。そのあとで変えるとき・
+> テナントを足すときは、テナントの行（`tenants.issuer` / `client_id`）を変える。鍵（`private_key_jwt`）は
+> アプリで 1 つなので、同じ公開鍵を各テナントのクライアントに登録する。
+> テナントが 2 つ以上あるときは、利用者に自分のテナントの入口 `/t/<短い名前>/login` を知らせる。
+
 ⚠ **初めて SSO で入る人は、同じメールアドレスのローカル口座があっても結び付かない**
 （`sso_error=sso_account_not_linked`。ADR-0037）。寄せてよいと判断したときだけ開ける。
 

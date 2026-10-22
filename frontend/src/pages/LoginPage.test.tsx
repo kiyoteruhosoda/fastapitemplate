@@ -5,7 +5,7 @@
  * （`GET /api/auth/sso/provider`）。設定は起動後にも変わるため、画面に焼き込まない。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '../i18n'
@@ -165,6 +165,33 @@ describe('LoginPage', () => {
     renderPage(entry)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Nolumia' }))
-    expect(startSsoLogin).toHaveBeenCalledWith(expected)
+    expect(startSsoLogin).toHaveBeenCalledWith(expected, undefined)
+  })
+
+  it('テナントの入口では、そのテナントの IdP とパスワードの再設定へつなぐ（ADR-0064）', async () => {
+    fetchSsoProvider.mockResolvedValue({
+      enabled: true,
+      display_name: 'Nolumia',
+      local_login_enabled: true,
+    })
+    render(
+      <MemoryRouter initialEntries={['/t/acme/login']}>
+        <I18nProvider settings={SETTINGS}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/t/:tenant/login" element={<LoginPage />} />
+            </Routes>
+          </AuthProvider>
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in with Nolumia' }))
+    expect(fetchSsoProvider).toHaveBeenCalledWith('acme')
+    expect(startSsoLogin).toHaveBeenCalledWith('/', 'acme')
+    expect(screen.getByRole('link', { name: /forgot/i })).toHaveAttribute(
+      'href',
+      '/t/acme/forgot-password',
+    )
   })
 })

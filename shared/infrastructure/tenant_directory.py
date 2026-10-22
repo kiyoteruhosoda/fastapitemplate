@@ -25,6 +25,31 @@ def tenant_of_slug(session: Session, slug: str) -> int | None:
     return session.scalar(sa.select(Tenant.id).where(Tenant.slug == slug))
 
 
+def tenant_named(session: Session, slug: str) -> Tenant | None:
+    return session.scalar(sa.select(Tenant).where(Tenant.slug == slug))
+
+
+def tenant_issuing(session: Session, issuer: str) -> Tenant | None:
+    """発行者に当たるテナント（行ごと）。"""
+    if not issuer:
+        return None
+    return session.scalar(sa.select(Tenant).where(Tenant.issuer == issuer))
+
+
+def sole_tenant(session: Session) -> Tenant | None:
+    """テナントが 1 つだけならそれ。2 つ以上（または 0）なら ``None``。
+
+    テナントが 1 つだけの環境では、入口の URL にテナントを書かなくてよい（ADR-0061 決定 8）。
+    """
+    tenants = session.scalars(sa.select(Tenant).limit(2)).all()
+    return tenants[0] if len(tenants) == 1 else None
+
+
+def entrance_tenant(session: Session, slug: str | None) -> Tenant | None:
+    """入口で選ばれたテナント。名前が無ければ、テナントが 1 つだけのときのそれ。"""
+    return tenant_named(session, slug) if slug else sole_tenant(session)
+
+
 def ensure_default_tenant(session: Session, *, issuer: str, client_id: str) -> Tenant:
     """既定のテナントが無ければ作る。
 
@@ -61,7 +86,11 @@ __all__ = [
     "DEFAULT_TENANT_NAME",
     "DEFAULT_TENANT_SLUG",
     "ensure_default_tenant",
+    "entrance_tenant",
     "seat_default_admin",
+    "sole_tenant",
+    "tenant_issuing",
+    "tenant_named",
     "tenant_of_issuer",
     "tenant_of_slug",
 ]

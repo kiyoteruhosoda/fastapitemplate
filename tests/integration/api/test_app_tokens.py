@@ -6,6 +6,7 @@ import time
 from collections.abc import Iterator, Mapping
 from typing import Any
 
+import jwt
 import pytest
 import sqlalchemy as sa
 from fastapi import FastAPI
@@ -28,9 +29,14 @@ class _StubAppTokenGateway:
         self.userinfo_calls = 0
 
     def issue(self, name: str, **overrides: Any) -> str:
+        """assay のアクセストークンと同じく JWT の形にする（発行者でテナントを選ぶため。ADR-0064）。
+
+        署名はこの IdP が確かめるので、鍵は何でもよい。
+        """
         claims = {"iss": _ISSUER, "sub": _SUBJECT, "client_id": _APP, "iat": int(time.time()), **overrides}
-        self.tokens[name] = claims
-        return name
+        token = jwt.encode({"iss": claims["iss"], "name": name}, "stub-idp-key", algorithm="HS256")
+        self.tokens[token] = claims
+        return token
 
     def verify_access_token(self, issuer: str, token: str) -> Mapping[str, Any]:
         assert issuer == _ISSUER

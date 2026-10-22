@@ -52,6 +52,7 @@ class StartSsoLink:
             state=new_secret(),
             nonce=new_secret(),
             code_verifier=new_code_verifier(),
+            issuer=provider.issuer,
             purpose=TransactionPurpose.LINK,
             user_id=user_id,
         )

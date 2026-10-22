@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
 import { AppMark } from '../components/AppMark'
@@ -9,6 +9,7 @@ import { useI18n } from '../i18n'
 import { ApiError, errorMessageKey } from '../services/api'
 import { REDIRECT_TO_PARAM, sanitizeRedirectTo } from '../services/returnTo'
 import { fetchSsoProvider, startSsoLogin, type SsoProvider } from '../services/sso'
+import { forgotPasswordPathOf, rememberTenant } from '../services/tenantEntrance'
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
 import { RECONNECT_INTERVAL_MS, useAuth } from '../store/AuthContext'
 
@@ -19,6 +20,8 @@ export function LoginPage() {
   const { t } = useI18n()
   const { login, loginWithPasskey } = useAuth()
   const navigate = useNavigate()
+  // 入口のテナント（`/t/<slug>/login`）。無ければ共通の入口（ADR-0064）
+  const { tenant } = useParams<{ tenant?: string }>()
   const [step, setStep] = useState<Step>('credentials')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -39,7 +42,7 @@ export function LoginPage() {
     let timer: number | undefined
     let cancelled = false
     const ask = () => {
-      fetchSsoProvider()
+      fetchSsoProvider(tenant)
         .then((provider) => {
           if (cancelled) return
           setSso(provider)
@@ -56,7 +59,7 @@ export function LoginPage() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [])
+  }, [tenant])
 
   // サーバー側の往復（``/api/auth/sso/callback``）が失敗すると、ここへ
   // ``?sso_error=<コード>`` で戻ってくる。表示文言は画面が決める。
@@ -79,7 +82,7 @@ export function LoginPage() {
     setError(null)
     setNotice(null)
     try {
-      await login(email, password, step === 'totp' ? totpCode : undefined)
+      await login(email, password, step === 'totp' ? totpCode : undefined, tenant)
       void navigate(destination)
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'unknown_error'
@@ -143,7 +146,8 @@ export function LoginPage() {
             type="button"
             pending={false}
             onClick={() => {
-              startSsoLogin(destination)
+              rememberTenant(tenant)
+              startSsoLogin(destination, tenant)
             }}
           >
             {t('login.withSso', { provider: sso.display_name })}
@@ -186,7 +190,7 @@ export function LoginPage() {
                 {t('login.withPasskey')}
               </ActionButton>
             )}
-            <Link to="/forgot-password">{t('login.forgot')}</Link>
+            <Link to={forgotPasswordPathOf(tenant)}>{t('login.forgot')}</Link>
           </>
         ) : (
           <>

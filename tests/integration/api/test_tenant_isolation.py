@@ -46,7 +46,8 @@ def other(app: FastAPI, engine: sa.Engine) -> Iterator[tuple[TestClient, dict[st
     """もう 1 つのテナントの管理者（別のブラウザ）。"""
     _seed_other_tenant(engine)
     with TestClient(app) as c:
-        yield c, sign_in(c, _OTHER_EMAIL, _OTHER_PASSWORD)
+        # テナントが 2 つになったので、そのテナントの入口から入る（ADR-0064）
+        yield c, sign_in(c, _OTHER_EMAIL, _OTHER_PASSWORD, tenant="other")
 
 
 @pytest.fixture

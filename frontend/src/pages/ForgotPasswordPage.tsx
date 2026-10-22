@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { useParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
 import { AppMark } from '../components/AppMark'
@@ -10,10 +11,12 @@ export function ForgotPasswordPage() {
   const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
+  // 入口と同じテナントで探す（ADR-0064）
+  const { tenant } = useParams<{ tenant?: string }>()
 
   const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
-    await api.post('/api/auth/forgot-password', { email })
+    await api.post('/api/auth/forgot-password', { email, tenant: tenant ?? null })
     setSent(true)
   })
 

@@ -87,7 +87,8 @@ class _Roster:
 def configured(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MACHINE_CLIENT_ID", "app-machine")
     monkeypatch.setenv("REFRESH_TOKEN_EXPIRES_SECONDS", "3600")
-    monkeypatch.setattr(dependencies, "identity_provider", lambda: _Provider())
+    monkeypatch.setenv("OIDC_ENABLED", "true")
+    monkeypatch.setattr(dependencies, "provider_issuing", lambda _session, _issuer: _Provider())
 
 
 def _revocations(engine: sa.Engine) -> int:
@@ -129,7 +130,7 @@ def test_the_job_does_not_ask_assay_without_the_machine_client(
 def test_the_job_does_not_ask_assay_while_sso_is_off(
     engine: sa.Engine, configured: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(dependencies, "identity_provider", lambda: None)
+    monkeypatch.setattr(dependencies, "provider_issuing", lambda _session, _issuer: None)
     roster = _Roster()
 
     reconciliation.reconcile_federated_users_once(roster)

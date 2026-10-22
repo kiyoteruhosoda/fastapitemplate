@@ -80,7 +80,7 @@ class CompleteSsoLogin:
         transaction: LoginTransaction | None,
     ) -> SsoHandoffDto:
         provider = require_usable(self.provider)
-        if transaction is None or not transaction.matches(state):
+        if transaction is None or not transaction.matches(state) or not transaction.is_for(provider.issuer):
             # 往復状態を復元できない = 送り出したブラウザからの戻りではない
             # （あるいは Cookie が落ちた・期限が切れた）。
             raise SsoLoginTransactionInvalidError

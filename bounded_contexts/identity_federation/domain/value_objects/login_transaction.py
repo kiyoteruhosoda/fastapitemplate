@@ -33,6 +33,15 @@ class LoginTransaction:
     #:   往復の途中で別の利用者に入れ替わったブラウザが、**その人の口座へ**
     #:   結び付けてしまう。
     user_id: int | None = None
+    #: 送り出した先の発行者（＝テナント。ADR-0061）。戻りはこの発行者のクライアントで受ける。
+    #:
+    #: ⚠ **戻りのときにクエリから決め直さない。** テナントを URL で選び直せると、あるテナントで
+    #:   始めた往復を別のテナントの利用者として完了させられる。
+    issuer: str = ""
+
+    def is_for(self, issuer: str) -> bool:
+        """この往復が、その発行者へ送り出したものか。"""
+        return bool(self.issuer) and compare_digest(self.issuer, issuer)
 
     def matches(self, state: str) -> bool:
         """戻ってきた ``state`` が、この往復で送り出したものか。

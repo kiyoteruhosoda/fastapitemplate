@@ -30,8 +30,9 @@ export interface SsoSession {
 }
 
 /** SSO が使える構成かを問い合わせる（未認証で呼べる）。 */
-export function fetchSsoProvider(): Promise<SsoProvider> {
-  return api.get<SsoProvider>('/api/auth/sso/provider')
+export function fetchSsoProvider(tenant?: string): Promise<SsoProvider> {
+  const query = tenant ? `?${new URLSearchParams({ tenant }).toString()}` : ''
+  return api.get<SsoProvider>(`/api/auth/sso/provider${query}`)
 }
 
 /**
@@ -40,8 +41,10 @@ export function fetchSsoProvider(): Promise<SsoProvider> {
  * `assign` ではなく `replace` を使う。ログイン画面を履歴に残すと、ログイン後の
  * 「戻る」でログイン画面へ戻ってしまうため。
  */
-export function startSsoLogin(redirectTo: string): void {
+export function startSsoLogin(redirectTo: string, tenant?: string): void {
   const query = new URLSearchParams({ redirect_to: redirectTo })
+  // 送り出す先はテナントの IdP（ADR-0064）
+  if (tenant) query.set('tenant', tenant)
   window.location.replace(`/api/auth/sso/login?${query.toString()}`)
 }
 
@@ -54,8 +57,9 @@ export function startSsoLogin(redirectTo: string): void {
  * `replace` を使う。サインアウトした画面を履歴に残すと、「戻る」でそこへ戻れて
  * しまい、サインアウトしたのかどうかが読めなくなる。
  */
-export function startSsoLogout(): void {
-  window.location.replace('/api/auth/sso/logout')
+export function startSsoLogout(tenant?: string): void {
+  const query = tenant ? `?${new URLSearchParams({ tenant }).toString()}` : ''
+  window.location.replace(`/api/auth/sso/logout${query}`)
 }
 
 /** 引き換え券をトークンへ換える。 */

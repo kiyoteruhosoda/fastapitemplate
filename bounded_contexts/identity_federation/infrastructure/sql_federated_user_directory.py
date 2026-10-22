@@ -103,7 +103,7 @@ class SqlFederatedUserDirectory:
         self.session.flush()
 
     def _is_free(self, column: InstrumentedAttribute[str], value: str, user_id: int) -> bool:
-        taken = self.session.scalar(select(User.id).where(column == value).where(User.id != user_id))
+        taken = self.session.scalar(self._users().with_only_columns(User.id).where(column == value, User.id != user_id))
         if taken is not None:
             # ⚠ 値そのものは残さない（PII）。どの項目が見送られたかだけ分かればよい。
             logger.warning("federated_profile_conflict", extra={"field": column.key})

@@ -56,6 +56,9 @@ class TenantMembers:
     def user(self, user_id: int) -> User | None:
         return self.session.scalar(self.users_query().where(User.id == user_id))
 
+    def user_with_email(self, email: str) -> User | None:
+        return self.session.scalar(self.users_query().where(User.email == email))
+
     def users_with_ids(self, user_ids: set[int]) -> Sequence[User]:
         if not user_ids:
             return []

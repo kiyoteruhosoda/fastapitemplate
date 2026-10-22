@@ -15,7 +15,6 @@ from hmac import compare_digest
 from typing import NoReturn
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -43,6 +42,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 from presentation.fastapi.schemas.auth import LoginRequest
 from shared.domain.auth import master_data
 from shared.infrastructure.models import User
+from shared.infrastructure.sign_in_directory import account_signing_in
 from shared.kernel.settings.secret_guard import PRODUCTION
 from shared.kernel.timestamps import utcnow
 from shared.kernel.version import load_build_info
@@ -77,7 +77,7 @@ class LoginService:
         失敗は宛名ごとに数え、上限に達したらしばらく 429 で断る（ADR-0058）。
         """
         self._require_not_locked(credentials.email)
-        user = self._db.scalar(select(User).where(User.email == credentials.email))
+        user = account_signing_in(self._db, credentials.email, credentials.tenant)
         if user is None:
             # 未知の宛名でも照合の時間を揃える。応答時間で存在が分かるのを防ぐ
             check_password_hash(_DUMMY_HASH, credentials.password)

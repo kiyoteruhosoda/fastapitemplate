@@ -36,6 +36,7 @@ import re
 from typing import Annotated
 from urllib.parse import parse_qsl, quote
 
+import jwt
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -58,12 +59,6 @@ from bounded_contexts.identity_federation.application.dto.sso_dto import (
 from bounded_contexts.identity_federation.application.use_cases.build_rp_logout_url import (
     BuildRpLogoutUrl,
 )
-from bounded_contexts.identity_federation.application.use_cases.complete_sso_link import (
-    CompleteSsoLink,
-)
-from bounded_contexts.identity_federation.application.use_cases.complete_sso_login import (
-    CompleteSsoLogin,
-)
 from bounded_contexts.identity_federation.application.use_cases.describe_federated_link import (
     DescribeFederatedLink,
 )
@@ -72,9 +67,6 @@ from bounded_contexts.identity_federation.application.use_cases.describe_sso_pro
 )
 from bounded_contexts.identity_federation.application.use_cases.exchange_sso_ticket import (
     ExchangeSsoTicket,
-)
-from bounded_contexts.identity_federation.application.use_cases.receive_backchannel_logout import (
-    ReceiveBackchannelLogout,
 )
 from bounded_contexts.identity_federation.application.use_cases.start_sso_link import (
     StartSsoLink,
@@ -89,6 +81,7 @@ from bounded_contexts.identity_federation.domain.exceptions import (
     IdentityFederationError,
     InvalidLogoutTokenError,
     SsoLinkSessionMismatchError,
+    SsoLoginTransactionInvalidError,
     SsoNotConfiguredError,
 )
 from bounded_contexts.identity_federation.domain.value_objects.login_transaction import (
@@ -115,7 +108,8 @@ from presentation.fastapi.dependencies.auth import (
 from presentation.fastapi.schemas.auth import StatusResponse
 from presentation.fastapi.services.session_carry_over import SessionCarryOver
 from presentation.fastapi.services.session_cookies import establish_session
-from shared.infrastructure.models import User
+from shared.infrastructure.models import Tenant, User
+from shared.infrastructure.tenant_directory import tenant_issuing
 from shared.kernel.database.session import get_db
 from shared.kernel.settings.settings import settings
 
@@ -231,14 +225,18 @@ def signed_out() -> RedirectResponse:
 @router.get("/login", include_in_schema=False)
 def start_login(
     use_case: Annotated[StartSsoLogin, Depends(dependencies.start_sso_login)],
+    tenant: dependencies.EntranceDep,
     redirect_to: Annotated[str | None, Query(max_length=255)] = None,
 ) -> RedirectResponse:
-    """IdP へ送り出す。設定が無い・IdP と話せない場合はログイン画面へ戻す。"""
+    """IdP へ送り出す。設定が無い・IdP と話せない場合はログイン画面へ戻す。
+
+    送り出す先は入口で選んだテナントの発行者（``?tenant=<slug>``。ADR-0061 決定 8）。
+    """
     try:
         authorization = use_case.execute(redirect_to=redirect_to)
     except IdentityFederationError as error:
         logger.warning("sso_start_failed: %s", error.code)
-        return _to_login_screen(error.code)
+        return _to_login_screen(error.code, _login_screen_of(tenant))
     response = RedirectResponse(url=authorization.authorization_url, status_code=status.HTTP_303_SEE_OTHER)
     transaction_cookie.issue(response, authorization.transaction, path=router.prefix)
     return response
@@ -253,15 +251,19 @@ class _CallbackTools:
 
     def __init__(
         self,
-        login: Annotated[CompleteSsoLogin, Depends(dependencies.complete_sso_login)],
-        link: Annotated[CompleteSsoLink, Depends(dependencies.complete_sso_link)],
+        completion: Annotated[dependencies.SsoCompletion, Depends(dependencies.sso_completion)],
         audit: AuditRecorderDep,
         viewer: Annotated[User | None, Depends(get_current_user_or_none)] = None,
     ) -> None:
-        self.login = login
-        self.link = link
+        self.completion = completion
         self.audit = audit
         self.viewer = viewer
+
+    def login_screen(self, transaction: LoginTransaction | None) -> str:
+        """失敗を返す先。往復を始めたテナントの入口へ戻す。"""
+        if transaction is None:
+            return LOGIN_SCREEN
+        return _login_screen_of(tenant_issuing(self.completion.db, transaction.issuer))
 
 
 @router.get("/callback", include_in_schema=False)
@@ -289,13 +291,21 @@ def _complete_login(
     tools: _CallbackTools,
     transaction: LoginTransaction | None,
 ) -> RedirectResponse:
-    """引き換え券を付けて SPA へ戻す。"""
+    """引き換え券を付けて SPA へ戻す。
+
+    受けるのは**往復状態に書いた発行者**の連携先（URL から決め直さない。ADR-0064）。
+    """
+    screen = tools.login_screen(transaction)
     if query.error is not None or not query.code or not query.state:
-        return _failed(tools.audit, query.error or "sso_callback_invalid")
+        return _failed(tools.audit, query.error or "sso_callback_invalid", screen)
+    if transaction is None:
+        return _failed(tools.audit, SsoLoginTransactionInvalidError.code, screen)
     try:
-        handoff = tools.login.execute(code=query.code, state=query.state, transaction=transaction)
+        handoff = tools.completion.login(transaction.issuer).execute(
+            code=query.code, state=query.state, transaction=transaction
+        )
     except IdentityFederationError as error:
-        return _failed(tools.audit, error.code)
+        return _failed(tools.audit, error.code, screen)
     _record_success(tools.audit, handoff.account)
     return _redirect(f"{HANDOFF_SCREEN}?ticket={quote(handoff.ticket)}")
 
@@ -318,7 +328,7 @@ def _complete_link(
         return _link_failed(query.error or "sso_callback_invalid")
     callback = SsoCallback(code=query.code, state=query.state, transaction=transaction)
     try:
-        tools.link.execute(callback=callback, user_id=viewer.id)
+        tools.completion.link(transaction.issuer).execute(callback=callback, user_id=viewer.id)
     except IdentityFederationError as error:
         logger.warning("sso_link_failed: %s", error.code)
         return _link_failed(error.code)
@@ -372,7 +382,7 @@ def remove_link(
     db: DbDep,
 ) -> StatusResponse:
     """連携を外す。⚠ **外すと入れなくなる利用者は断る**（ADR-0040）。"""
-    provider = dependencies.identity_provider()
+    provider = dependencies.provider_of(db, user)
     if provider is None:
         raise SsoNotConfiguredError
     use_case.execute(
@@ -425,7 +435,7 @@ _LOGOUT_BODY_MAX_BYTES = 16 * 1024
 @router.post("/backchannel-logout", include_in_schema=False)
 async def receive_backchannel_logout(
     request: Request,
-    use_case: Annotated[ReceiveBackchannelLogout, Depends(dependencies.receive_backchannel_logout)],
+    receiver: Annotated[dependencies.BackchannelLogout, Depends(dependencies.receive_backchannel_logout)],
 ) -> StatusResponse:
     """IdP からの停止の通知を受ける（OpenID Connect Back-Channel Logout 1.0。ADR-0036）。
 
@@ -442,6 +452,8 @@ async def receive_backchannel_logout(
     （``/login`` や ``/callback`` を ``def`` にしているのと同じ理由）。
     """
     logout_token = _logout_token_of(await _bounded_body(request))
+    # 連携先（＝テナント）は通知の発行者で決まる。署名はその連携先の鍵で確かめる
+    use_case = receiver.from_issuer(_unverified_issuer_of(logout_token))
     notice = await run_in_threadpool(use_case.execute, logout_token=logout_token)
     logger.info(
         "sso_backchannel_logout_received: scope=%s",
@@ -469,6 +481,25 @@ def _logout_token_of(body: bytes) -> str:
     return values[0]
 
 
+def _unverified_issuer_of(token: str) -> str:
+    """署名を確かめる前に、どの連携先の鍵で確かめるかを決めるための ``iss``。
+
+    ⚠ **ここで読んだ値を信じない。** 登録の無い発行者なら連携先が無く、検証で落ちる。
+    登録のある発行者を名乗っても、署名はその発行者の鍵でしか通らない。
+    """
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False})
+    except jwt.InvalidTokenError as error:
+        raise InvalidLogoutTokenError from error
+    issuer = claims.get("iss")
+    return issuer if isinstance(issuer, str) else ""
+
+
+def _login_screen_of(tenant: Tenant | None) -> str:
+    """テナントの入口（``/t/<slug>/login``）。テナントが分からなければ共通の入口。"""
+    return f"/t/{tenant.slug}/login" if tenant is not None else LOGIN_SCREEN
+
+
 def _redirect(url: str) -> RedirectResponse:
     """SPA へ戻す。往復状態の Cookie はここで落とす（往復が終わったため）。"""
     response = RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
@@ -476,9 +507,9 @@ def _redirect(url: str) -> RedirectResponse:
     return response
 
 
-def _to_login_screen(code: str) -> RedirectResponse:
+def _to_login_screen(code: str, screen: str = LOGIN_SCREEN) -> RedirectResponse:
     safe = code if _ERROR_CODE.fullmatch(code) else _GENERIC_ERROR
-    return _redirect(f"{LOGIN_SCREEN}?sso_error={safe}")
+    return _redirect(f"{screen}?sso_error={safe}")
 
 
 def _link_failed(code: str) -> RedirectResponse:
@@ -491,7 +522,7 @@ def _link_failed(code: str) -> RedirectResponse:
     return _redirect(f"{SECURITY_SCREEN}?sso_link_error={safe}")
 
 
-def _failed(audit: AuditRecorderDep, reason: str) -> RedirectResponse:
+def _failed(audit: AuditRecorderDep, reason: str, screen: str = LOGIN_SCREEN) -> RedirectResponse:
     """失敗を記録してログイン画面へ戻す。
 
     実行者は入れない。SSO のログインが通っていない時点では「誰が試したか」が
@@ -500,7 +531,7 @@ def _failed(audit: AuditRecorderDep, reason: str) -> RedirectResponse:
     safe = reason if _ERROR_CODE.fullmatch(reason) else _GENERIC_ERROR
     audit.execute(AuditEventType.SSO_LOGIN_FAILED, AuditResult.FAILURE, reason=safe)
     logger.warning("sso_login_failed: %s", safe)
-    return _to_login_screen(safe)
+    return _to_login_screen(safe, screen)
 
 
 def _record_success(audit: AuditRecorderDep, account: ResolvedAccountDto) -> None:

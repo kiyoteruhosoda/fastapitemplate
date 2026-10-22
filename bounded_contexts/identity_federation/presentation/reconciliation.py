@@ -67,12 +67,16 @@ def reconcile_federated_users_once(roster: RosterGateway | None = None) -> None:
 
     ⚠ **assay に聞けなかったら、何も変えずに終わる**（「空」と「引けない」を混ぜない）。
     """
-    provider = dependencies.identity_provider()
-    if not settings.machine_client_id or provider is None or not provider.is_usable:
+    if not settings.machine_client_id or not settings.oidc_enabled:
         # 照合しない設定なら、セッションも開かない。
         return
     session = sessionmaker(bind=get_engine())()
     try:
+        # 照合するのは ``OIDC_ISSUER`` のテナントだけ（サービスアカウントは assay のテナントごとに
+        # 要るので、``MACHINE_CLIENT_ID`` 1 つで聞けるのは 1 テナント。ADR-0064）
+        provider = dependencies.provider_issuing(session, settings.oidc_issuer)
+        if provider is None or not provider.is_usable:
+            return
         outcome = _reconcile(session, provider.issuer, roster or _ROSTER)
     finally:
         session.close()

@@ -10,6 +10,8 @@ class LoginRequest(BaseModel):
     password: str
     # 二要素認証が有効なアカウントでのみ必須（未提示なら totp_required を返す）
     totp_code: str | None = None
+    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0064）
+    tenant: str | None = Field(default=None, max_length=50, pattern=r"^[a-z0-9-]+$")
 
 
 class SessionResponse(BaseModel):
@@ -63,6 +65,8 @@ class ChangePasswordRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0064）
+    tenant: str | None = Field(default=None, max_length=50, pattern=r"^[a-z0-9-]+$")
 
 
 class ResetPasswordRequest(BaseModel):

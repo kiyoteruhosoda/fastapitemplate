@@ -48,6 +48,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* テナントごとの入口（ADR-0064） */}
+      <Route path="/t/:tenant/login" element={<LoginPage />} />
+      <Route path="/t/:tenant/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/login/sso" element={<SsoCallbackPage />} />
       <Route path="/app/oauth2redirect" element={<AppReturnPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />

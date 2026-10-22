@@ -116,14 +116,15 @@ def register_issuer(issuer: str, client_id: str = "rp") -> None:
         session.commit()
 
 
-def sign_in(client: TestClient, email: str, password: str) -> dict[str, str]:
+def sign_in(client: TestClient, email: str, password: str, tenant: str | None = None) -> dict[str, str]:
     """ログインして、更新系に必要なヘッダーを返す（ADR-0028）。
 
     トークンは Cookie で運ばれ ``TestClient`` が保持するので、返すのは CSRF の
     二重送信トークンだけ。**セッションを張り直すたびに読み直す** ——CSRF トークンは
     セッションを作るたびに新しくなる。
     """
-    response = client.post("/api/auth/login", json={"email": email, "password": password})
+    # ``tenant`` は入口のテナント（``/t/<slug>/login``。ADR-0064）。テナントが 2 つ以上のときに要る
+    response = client.post("/api/auth/login", json={"email": email, "password": password, "tenant": tenant})
     assert response.status_code == 200, response.text
     return {CSRF_HEADER: client.cookies[CSRF_COOKIE]}
 
