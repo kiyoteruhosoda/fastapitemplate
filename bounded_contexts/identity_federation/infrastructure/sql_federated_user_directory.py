@@ -125,10 +125,10 @@ class SqlFederatedUserDirectory:
         return _require_account(user)
 
     def _roles_named(self, names: Sequence[str]) -> list[Role]:
-        """名前でロールを引く。存在しない名前は黙って捨てる。"""
-        if not names:
+        """名前でロールを引く。存在しない名前・テナントで使えないロールは黙って捨てる。"""
+        if not names or self.tenant_id is None:
             return []
-        return list(self.session.scalars(select(Role).where(Role.name.in_(list(names)))))
+        return list(TenantMembers(self.session, self.tenant_id).roles_named(names))
 
 
 def _as_account(user: User | None) -> FederatedAccount | None:

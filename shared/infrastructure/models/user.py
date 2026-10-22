@@ -7,6 +7,7 @@ from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from shared.domain.auth.authority import within_the_seat
 from shared.infrastructure.models.base import BigIntPk, utcnow
 from shared.infrastructure.models.tenancy import Tenancy, declared, tenancy_info
 from shared.infrastructure.models.tenant import UserTenant
@@ -100,10 +101,14 @@ class User(Base):
         ``role_name`` が ``None`` なら「すべてのロール」＝保有権限の和集合。
         付与されていないロール名は空集合になる（切り替えた後にそのロールを
         外されても、権限が残らないようにするため）。
+
+        座る場所（テナントの中か外か）で効かない権限は落とす（ADR-0061。兼ねない）。
         """
         if role_name is None:
-            return self.permission_codes
-        return frozenset(p.code for r in self.roles if r.name == role_name for p in r.permissions)
+            granted = self.permission_codes
+        else:
+            granted = frozenset(p.code for r in self.roles if r.name == role_name for p in r.permissions)
+        return within_the_seat(self.tenant_id is not None, granted)
 
 
 class UserSessionBoundary(Base):

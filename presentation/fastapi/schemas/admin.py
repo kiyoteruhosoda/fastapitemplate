@@ -51,6 +51,8 @@ class RoleResponse(BaseModel):
     id: int
     name: str
     permissions: list[str]
+    #: 全テナントが共有する雛形（中身は変えられない。ADR-0063）
+    shared: bool = False
 
 
 class RoleCreateRequest(BaseModel):

@@ -10,6 +10,10 @@
 権限の中身を変える操作には、scope とは別に関門を掛ける（ADR-0051）。自分が
 持っていない権限は足すことも外すこともできず、「管理の要」を持つ人を 0 人に
 する変更は通さない。
+
+扱えるのは**自分のテナントで使えるロールだけ**（ADR-0063）。雛形（``master_data.ROLES``）は
+全テナントが共有するので、一覧には出るが中身は変えられない（403 ``shared_role``）。
+作ったロールは作ったテナントのもので、ほかのテナントからは見えない（404）。
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import require_any_permission, require_permission
-from presentation.fastapi.routers.admin.authority_guard import AdministrationDep, permissions_of
+from presentation.fastapi.routers.admin.authority_guard import Administration, AdministrationDep, permissions_of
 from presentation.fastapi.schemas.admin import (
     RoleCreateRequest,
     RoleResponse,
@@ -50,7 +54,12 @@ _MAX_REASON_LENGTH = 255
 
 
 def _to_response(role: Role) -> RoleResponse:
-    return RoleResponse(id=role.id, name=role.name, permissions=sorted(p.code for p in role.permissions))
+    return RoleResponse(
+        id=role.id,
+        name=role.name,
+        permissions=sorted(p.code for p in role.permissions),
+        shared=role.tenant_id is None,
+    )
 
 
 def _resolve_permissions(db: Session, codes: list[str]) -> list[Permission]:
@@ -70,9 +79,18 @@ def _granted_scopes(role: Role) -> str:
 
 
 @router.get("", response_model=list[RoleResponse], dependencies=[_READ_ROLES])
-async def list_roles(db: DbDep) -> list[RoleResponse]:
-    roles = db.scalars(select(Role).order_by(Role.id)).all()
-    return [_to_response(r) for r in roles]
+async def list_roles(admin: AdministrationDep) -> list[RoleResponse]:
+    return [_to_response(r) for r in admin.members.roles()]
+
+
+def _own_role(admin: Administration, role_id: int) -> Role:
+    """中身を変えてよいロール。見えなければ 404、共有の雛形なら 403。"""
+    role = admin.members.role(role_id)
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
+    if role.tenant_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "shared_role"})
+    return role
 
 
 @router.post(
@@ -90,7 +108,7 @@ async def create_role(body: RoleCreateRequest, admin: AdministrationDep, audit: 
         )
     permissions = _resolve_permissions(db, body.permissions)
     admin.ensure_within_authority(p.code for p in permissions)
-    role = Role(name=body.name)
+    role = admin.members.new_role(body.name)
     role.permissions = permissions
     db.add(role)
     db.flush()
@@ -110,9 +128,7 @@ async def update_role(
     audit: AuditRecorderDep,
 ) -> RoleResponse:
     db = admin.db
-    role = db.get(Role, role_id)
-    if role is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
+    role = _own_role(admin, role_id)
     if body.name is not None:
         role.name = body.name
     if body.permissions is not None:
@@ -131,9 +147,7 @@ async def update_role(
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MANAGE_ROLES])
 async def delete_role(role_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
     db = admin.db
-    role = db.get(Role, role_id)
-    if role is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})
+    role = _own_role(admin, role_id)
     admin.ensure_within_authority(permissions_of([role]))
     role.permissions = []
     db.delete(role)

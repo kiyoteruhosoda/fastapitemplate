@@ -181,15 +181,18 @@ def test_password_change_does_not_record_the_password(client: TestClient, admin_
     assert entry["reason"] is None
 
 
-def test_settings_update_records_only_the_changed_keys(client: TestClient, admin_headers: dict[str, str]) -> None:
+def test_settings_update_records_only_the_changed_keys(
+    client: TestClient, system_admin_headers: dict[str, str]
+) -> None:
+    """設定はシステム管理者が変え、全体の記録として残る（ADR-0061）。"""
     response = client.put(
         "/api/admin/config",
         json={"values": {"LOG_DB_MIN_LEVEL": "WARNING"}},
-        headers=admin_headers,
+        headers=system_admin_headers,
     )
     assert response.status_code == 200, response.text
 
-    entry = _search(client, admin_headers, "?event_type=system_settings.updated")["entries"][0]
+    entry = _search(client, system_admin_headers, "?event_type=system_settings.updated")["entries"][0]
     assert entry["reason"] == "keys=LOG_DB_MIN_LEVEL"
     assert entry["target_type"] == "system_settings"
 

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from collections.abc import Collection, Iterable
 
+from shared.domain.auth.master_data import ROLE_PERMISSIONS, SYSTEM_PERMISSIONS, SYSTEM_ROLES
+
 # 「管理の要」。この 2 つを両方持つ人が居れば、ほかの権限はすべて配り直せる。
 # 有効な利用者のうち、これを持つ人が 0 人になる変更は通さない。
 ADMINISTRATION_CORE: tuple[str, ...] = ("user:manage", "role:manage")
@@ -29,4 +31,28 @@ def changed(before: Iterable[str], after: Iterable[str]) -> frozenset[str]:
     return frozenset(before) ^ frozenset(after)
 
 
-__all__ = ["ADMINISTRATION_CORE", "beyond", "changed"]
+_SYSTEM_SEAT_PERMISSIONS = frozenset(code for role in SYSTEM_ROLES for code in ROLE_PERMISSIONS[role])
+
+
+def within_the_seat(in_tenant: bool, granted: Iterable[str]) -> frozenset[str]:
+    """座る場所（テナントの中か外か）で効く権限だけに絞る（ADR-0061）。
+
+    **システム管理者とテナント管理者は兼ねない。** ロールの付け方を誤っても、
+    テナントの利用者に全体の権限は効かず、テナントに属さない利用者に内側の権限は効かない。
+    ロールの付け外しの関門（:func:`roles_fit_the_seat`）と二重にしてある。
+    """
+    codes = frozenset(granted)
+    if in_tenant:
+        return codes - frozenset(SYSTEM_PERMISSIONS)
+    return codes & _SYSTEM_SEAT_PERMISSIONS
+
+
+def roles_fit_the_seat(in_tenant: bool, role_names: Iterable[str]) -> bool:
+    """テナントの利用者にシステムのロールは付けられず、テナントに属さない利用者には
+    システムのロールしか付けられない（ADR-0061 決定 4）。"""
+    system = frozenset(SYSTEM_ROLES)
+    names = frozenset(role_names)
+    return not (names & system) if in_tenant else names <= system
+
+
+__all__ = ["ADMINISTRATION_CORE", "beyond", "changed", "roles_fit_the_seat", "within_the_seat"]
