@@ -22,10 +22,12 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from presentation.fastapi.dependencies.auth import get_current_principal
+from presentation.fastapi.dependencies.tenant import TENANT_REQUIRED
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.domain.auth.authority import beyond
 from shared.infrastructure.administrator_census import count_active_administrators
 from shared.infrastructure.models import Role, User
+from shared.infrastructure.tenant_scope import TenantMembers
 from shared.kernel.database.session import get_db
 
 
@@ -40,6 +42,13 @@ class Administration:
 
     actor: AuthenticatedPrincipal
     db: Session
+
+    @property
+    def members(self) -> TenantMembers:
+        """操作する人のテナントの利用者・グループ（ADR-0061）。テナントに属さない人は 403。"""
+        if self.actor.tenant_id is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_REQUIRED})
+        return TenantMembers(self.db, self.actor.tenant_id)
 
     def ensure_within_authority(self, required: Iterable[str]) -> None:
         """``required`` をすべて操作する人が持っていなければ 403。
@@ -73,7 +82,7 @@ class Administration:
         例外はリクエストのセッションを rollback させるので、変更は残らない。
         """
         self.db.flush()
-        if count_active_administrators(self.db) == 0:
+        if count_active_administrators(self.db, self.actor.tenant_id) == 0:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"error": "last_administrator"},

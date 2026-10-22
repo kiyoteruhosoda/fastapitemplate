@@ -14,6 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from bounded_contexts.audit.domain.entities.audit_event import AuditResult
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 # DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる。CLAUDE.md「DB モデリング」）。
@@ -27,8 +28,12 @@ _AUDIT_RESULT = sa.Enum(
 
 class AuditLogModel(Base):
     __tablename__ = "audit_log"
+    __table_args__ = declared(Tenancy.TENANT)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    # どのテナントの記録か。NULL は全体の操作（システム管理者・宛先の分からない失敗）。
+    # ⚠ 外部キーを張らない（テナントを消しても記録は残す。ADR-0013 と同じ理由）
+    tenant_id = mapped_column(BigIntPk, nullable=True, index=True)
     occurred_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, index=True)
     event_type: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
     result: Mapped[str] = mapped_column(_AUDIT_RESULT, nullable=False, index=True)

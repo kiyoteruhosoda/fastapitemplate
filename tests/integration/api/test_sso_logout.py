@@ -30,6 +30,7 @@ from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway 
 )
 from bounded_contexts.identity_federation.presentation import dependencies
 from shared.domain.auth import master_data
+from tests.conftest import register_issuer
 
 _ISSUER = "https://idp.example.test"
 _END_SESSION = f"{_ISSUER}/logout"
@@ -87,6 +88,7 @@ def make_client(
         monkeypatch.setenv("APP_BASE_URL", _APP_BASE)
         monkeypatch.setenv("OIDC_ENABLED", "true")
         monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+        register_issuer(_ISSUER)
         monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
         monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
         monkeypatch.setenv("OIDC_REDIRECT_URI", f"{_APP_BASE}/api/auth/sso/callback")

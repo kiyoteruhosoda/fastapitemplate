@@ -97,14 +97,18 @@ def test_a_successful_login_forgets_the_failures(client: TestClient) -> None:
     assert client.post(LOGIN, json=RIGHT).status_code == 200
 
 
-def test_locking_is_recorded_in_the_audit_log(client: TestClient, admin_headers: dict[str, str]) -> None:
-    _fail(client, "nobody@example.com", 3)
+def test_locking_is_recorded_in_the_audit_log(
+    client: TestClient, other_client: TestClient, system_admin_headers: dict[str, str]
+) -> None:
+    _fail(other_client, "nobody@example.com", 3)
     # 断っているあいだの試行も残る（当たられていることが見える）
-    assert client.post(LOGIN, json={"email": "nobody@example.com", "password": "x"}).status_code == 429
+    assert other_client.post(LOGIN, json={"email": "nobody@example.com", "password": "x"}).status_code == 429
 
-    locked = client.get("/api/admin/audit-logs", headers=admin_headers, params={"event_type": "login.locked"}).json()
+    # 宛先の分からない失敗は全体の記録（ADR-0062）。システム管理者が読む
+    headers = system_admin_headers
+    locked = client.get("/api/admin/audit-logs", headers=headers, params={"event_type": "login.locked"}).json()
     assert [entry["reason"] for entry in locked["entries"]] == ["unknown_email"]
-    failed = client.get("/api/admin/audit-logs", headers=admin_headers, params={"event_type": "login.failed"}).json()
+    failed = client.get("/api/admin/audit-logs", headers=headers, params={"event_type": "login.failed"}).json()
     assert [entry["reason"] for entry in failed["entries"]].count("locked") == 1
 
 

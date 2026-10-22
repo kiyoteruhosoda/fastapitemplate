@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from bounded_contexts.identity_federation.domain.exceptions import AppAccessTokenRejectedError
 from bounded_contexts.identity_federation.presentation.app_bearer import app_token_gateway
+from tests.conftest import register_issuer
 
 _ISSUER = "https://idp.example.test/tenant"
 _APP = "exampleapp"
@@ -55,6 +56,7 @@ def app_client(
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    register_issuer(_ISSUER)
     monkeypatch.setenv("OIDC_AUTO_PROVISION", "true")
     monkeypatch.setenv("OIDC_DEFAULT_ROLES", '["member"]')
     monkeypatch.setenv("APP_CLIENT_IDS", f'["{_APP}"]')

@@ -18,6 +18,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 # DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる）
@@ -26,8 +27,10 @@ AUDIENCE_KIND = sa.Enum("all", "group", "user", name="notification_audience_kind
 
 class NotificationModel(Base):
     __tablename__ = "notifications"
+    __table_args__ = declared(Tenancy.TENANT)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(sa.String(200), nullable=False)
     body: Mapped[str] = mapped_column(sa.Text(), nullable=False)
     link_url: Mapped[str | None] = mapped_column(sa.String(1000), nullable=True)
@@ -44,6 +47,7 @@ class NotificationModel(Base):
 
 class NotificationDeliveryModel(Base):
     __tablename__ = "notification_deliveries"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     notification_id: Mapped[int] = mapped_column(
         BigIntPk, sa.ForeignKey("notifications.id", ondelete="CASCADE"), primary_key=True
@@ -57,6 +61,7 @@ class NotificationDeliveryModel(Base):
 
 class WebPushSubscriptionModel(Base):
     __tablename__ = "web_push_subscriptions"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
@@ -73,6 +78,7 @@ class AppDeviceTokenModel(Base):
     """スマホアプリ 1 台（ADR-0049）。トークンも長いので、一意は sha256 の列で取る。"""
 
     __tablename__ = "app_device_tokens"
+    __table_args__ = declared(Tenancy.PERSONAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(

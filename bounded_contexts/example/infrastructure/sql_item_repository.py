@@ -1,4 +1,9 @@
-"""``IItemRepository`` の SQLAlchemy 実装。"""
+"""``IItemRepository`` の SQLAlchemy 実装。
+
+テナントの中身の見本（ADR-0061 決定 5）。**テナントはコンストラクタで受け取り**、
+読み書きのすべてをそのテナントで絞る。メソッドの引数にはしない ——呼び側が渡し忘れる
+余地を作らないため。
+"""
 
 from __future__ import annotations
 
@@ -12,16 +17,19 @@ from bounded_contexts.example.infrastructure.item_model import ItemModel
 
 
 class SqlItemRepository(IItemRepository):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, tenant_id: int) -> None:
         self._session = session
+        self._tenant_id = tenant_id
 
     def save(self, name: str) -> Item:
         validated_name = ItemName(name)  # ドメイン不変条件を DB 書き込み前に強制する
-        row = ItemModel(name=validated_name.value)
+        row = ItemModel(tenant_id=self._tenant_id, name=validated_name.value)
         self._session.add(row)
         self._session.flush()
         return Item(id=row.id, name=validated_name)
 
     def find_all(self) -> list[Item]:
-        rows = self._session.scalars(select(ItemModel).order_by(ItemModel.id)).all()
+        rows = self._session.scalars(
+            select(ItemModel).where(ItemModel.tenant_id == self._tenant_id).order_by(ItemModel.id)
+        ).all()
         return [Item.create(id=row.id, name=row.name) for row in rows]

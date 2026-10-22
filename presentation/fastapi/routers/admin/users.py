@@ -45,6 +45,7 @@ from bounded_contexts.identity_federation.infrastructure.sql_federated_issuer_di
     SqlFederatedIssuerDirectory,
 )
 from presentation.fastapi.dependencies.auth import require_permission
+from presentation.fastapi.dependencies.tenant import TenantMembersDep
 from presentation.fastapi.routers.admin.authority_guard import (
     Administration,
     AdministrationDep,
@@ -127,8 +128,8 @@ def _changed_fields(body: UserUpdateRequest) -> str:
 
 
 @router.get("", response_model=list[UserResponse])
-async def list_users(db: DbDep) -> list[UserResponse]:
-    users = db.scalars(select(User).order_by(User.id)).all()
+async def list_users(db: DbDep, members: TenantMembersDep) -> list[UserResponse]:
+    users = members.users()
     inventory = _Inventory.of(db)
     return [_to_response(u, inventory) for u in users]
 
@@ -166,6 +167,7 @@ async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: 
     roles = _resolve_roles(db, body.roles)
     admin.ensure_within_authority(permissions_of(roles))
     user.roles = roles
+    admin.members.admit(user)
     db.add(user)
     db.flush()
     audit.execute(
@@ -183,7 +185,7 @@ async def update_user(
     audit: AuditRecorderDep,
 ) -> UserResponse:
     db = admin.db
-    user = db.get(User, user_id)
+    user = admin.members.user(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
     new_roles = _authorize_update(admin, user, body)
@@ -209,7 +211,7 @@ async def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(user_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
     db = admin.db
-    user = db.get(User, user_id)
+    user = admin.members.user(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})
     admin.ensure_not_yourself(user)

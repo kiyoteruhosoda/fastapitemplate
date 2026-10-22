@@ -42,6 +42,26 @@ erDiagram
     users ||--o{ notification_deliveries : "受け取る"
     users ||--o{ web_push_subscriptions : "端末で購読する"
     users ||--o{ app_device_tokens : "アプリを入れた端末"
+    tenants ||--o{ user_tenants : "人が属する"
+    users ||--o| user_tenants : "ちょうど 1 つに属する（システム管理者は無し）"
+    tenants ||--o{ user_groups : "持つ"
+    tenants ||--o{ notifications : "持つ"
+    tenants ||--o{ items : "持つ"
+
+    tenants {
+        bigint id PK
+        varchar(50) slug UK "URL に使う短い名前"
+        varchar(100) display_name
+        varchar(255) issuer UK "assay の発行者。NULL = SSO なし"
+        varchar(255) client_id "そのテナントに登録したクライアント ID"
+        varchar status "active / suspended（CHECK 付き）"
+        datetime created_at "UTC"
+    }
+
+    user_tenants {
+        bigint user_id PK,FK "users.id（ON DELETE CASCADE）"
+        bigint tenant_id FK "索引あり"
+    }
 
     app_device_tokens {
         bigint id PK
@@ -55,13 +75,15 @@ erDiagram
 
     user_groups {
         bigint id PK
-        varchar(100) name UK
+        bigint tenant_id FK "索引あり"
+        varchar(100) name "テナントの中で一意"
         varchar(255) description
         datetime created_at "UTC"
     }
 
     notifications {
         bigint id PK
+        bigint tenant_id FK "索引あり"
         varchar(200) title
         text body
         varchar(1000) link_url "NULL 可。/パス か http(s)://"
@@ -201,6 +223,7 @@ erDiagram
 
     audit_log {
         bigint id PK
+        bigint tenant_id "索引あり・FK は張らない。NULL = 全体の操作"
         datetime occurred_at "索引あり・UTC"
         varchar(64) event_type "索引あり（例: login.failed）"
         varchar result "索引あり・success / failure（CHECK 付き）"
@@ -215,11 +238,12 @@ erDiagram
 
     items {
         bigint id PK
+        bigint tenant_id FK "索引あり"
         varchar(255) name
     }
 ```
 
-`system_settings` / `log` / `audit_log` / `items` は他テーブルと FK で結ばれない（意図的）。
+`system_settings` / `log` / `audit_log` は他テーブルと FK で結ばれない（意図的）。
 
 - `log` はユーザーへ FK を張らない。PII を持たず `user_id_hash` だけを記録する方針のため
   （CLAUDE.md「ログ」）。ユーザーを消してもログは残る。
@@ -230,6 +254,27 @@ erDiagram
   絞り込みに入れると、1 リクエストの記録を両側から突き合わせられる。
 - `system_settings` は設定キーごとの上書き値を持つ独立テーブル。
 - `items` は `bounded_contexts/example`（新機能追加の見本）のテーブル。
+
+---
+
+## テナント（ADR-0061・ADR-0062）
+
+全部の表が「誰のものか」を宣言している（`__table_args__` の `info`。`shared/infrastructure/models/tenancy.py`）。
+宣言の無い表・宣言と列が食い違う表は `tests/integration/test_table_tenancy.py` が落とす。
+
+| 区分 | 意味 | 表 |
+|---|---|---|
+| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `user_groups` / `notifications` / `audit_log` |
+| 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
+| 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` |
+
+| テーブル | 役割 | モデル |
+|---|---|---|
+| `tenants` | テナント。1 行が assay のテナント 1 つに当たり、発行者（`issuer`）で見分ける。`issuer` が NULL のテナントは SSO を使わない（ローカル口座だけ）。`status` が `suspended` のテナントの人は入れない | `tenant.py` |
+| `user_tenants` | 利用者の所属（1 人 1 行）。行が無いのはシステム管理者だけ。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `tenant.py` |
+
+`audit_log.tenant_id` は外部キーを張らない（テナントを消しても記録は残す）。NULL は全体の操作
+（システム管理者の操作・宛先の分からない失敗）。
 
 ---
 
@@ -246,7 +291,7 @@ erDiagram
 | `user_roles` | ユーザー ⇔ ロール（多対多） | `user.py` |
 | `role_permissions` | ロール ⇔ 権限（多対多） | `role.py` |
 | `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ | `user.py` |
-| `user_groups` | グループ（人の束。権限は持たない。ADR-0047）。⚠ 表の名前を `groups` にしない（MySQL 8 / MariaDB の予約語） | `group.py` |
+| `user_groups` | グループ（人の束。権限は持たない。ADR-0047）。名前はテナントの中で一意（`uq_user_groups_tenant_name`）。⚠ 表の名前を `groups` にしない（MySQL 8 / MariaDB の予約語） | `group.py` |
 | `user_group_members` | グループ ⇔ ユーザー（多対多）。どちらの FK も `ON DELETE CASCADE` | `group.py` |
 
 保有権限は**ユーザーが持つ全ロールの権限の和集合**（`User.permission_codes`）。
@@ -350,11 +395,14 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 
 1. モデルを追加・変更する（共有なら `shared/infrastructure/models/`、
    コンテキスト固有ならそのコンテキストの `infrastructure/`）。
-2. 共有モデルは `shared/infrastructure/models/__init__.py` に、コンテキスト固有モデルは
+2. **誰のものかを宣言する**（`__table_args__ = declared(Tenancy.TENANT)` など。迷ったら `TENANT`）。
+   テナントの表は `tenant_id`（`tenants.id` への FK・NOT NULL）を持ち、リポジトリは
+   テナントをコンストラクタで受け取って全部の読み書きを絞る（見本は `SqlItemRepository`）。
+3. 共有モデルは `shared/infrastructure/models/__init__.py` に、コンテキスト固有モデルは
    `migrations/env.py` と `tests/conftest.py` に import を追加する
    （Alembic とテストがメタデータを認識できるようにするため）。
-3. Alembic マイグレーションを追加する（`upgrade()` / `downgrade()` の両方を実装）。
+4. Alembic マイグレーションを追加する（`upgrade()` / `downgrade()` の両方を実装）。
    `ALTER TABLE` / `CREATE TABLE` の直接実行は禁止。
-4. **本書（`docs/ER.md`）の ER 図とテーブル定義を更新する。**
-5. `uv run pytest tests/integration/test_migration_model_consistency.py` で乖離が
+5. **本書（`docs/ER.md`）の ER 図とテーブル定義を更新する。**
+6. `uv run pytest tests/integration/test_migration_model_consistency.py` で乖離が
    無いことを確認する。

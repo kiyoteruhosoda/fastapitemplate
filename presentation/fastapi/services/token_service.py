@@ -35,6 +35,7 @@ from bounded_contexts.identity_federation.infrastructure.sql_session_revocation_
 from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
+from shared.infrastructure.tenant_scope import tenant_admits
 from shared.kernel.settings.settings import settings
 
 _ALGORITHM = "HS256"
@@ -54,6 +55,11 @@ CLAIM_FEDERATED_ISSUED_AT = "fed_iat"
 # 本人が最後に実際にサインインした時刻（エポック秒。OIDC と同じ綴り。ADR-0060）。
 # 更新・ロールの切り替えでは引き継ぎ、新しくしない。
 CLAIM_AUTHENTICATED_AT = "auth_time"
+# 所属するテナント（ADR-0061）。テナントに属さない利用者は null。
+# ⚠ **クレームが無いトークン（テナントより前のもの）は受け付けない。** null と読むと
+# 「どのテナントの中身も見えない」まま寿命まで過ごすことになるので、401 で更新させる
+# （更新は DB を引いて、いまの所属で出し直す）。
+CLAIM_TENANT = "tenant"
 #: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
 SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -106,6 +112,7 @@ class TokenService:
             # ``None`` は「いまサインインした」（パスワード・パスキー・SSO の入口）
             CLAIM_AUTHENTICATED_AT: int((carry.authenticated_at or now).timestamp()),
             CLAIM_ACTIVE_ROLE: carry.active_role,
+            CLAIM_TENANT: user.tenant_id,
             **_federation_claims(carry.federated_login),
         }
         access = jwt.encode(
@@ -171,6 +178,8 @@ class TokenService:
             return None, reason
         if claims.get("type") != TYPE_ACCESS:
             return None, "not_access_token"
+        if CLAIM_TENANT not in claims:
+            return None, "token_outdated"
         try:
             user_id = int(claims.get("sub", ""))
         except ValueError:
@@ -183,6 +192,7 @@ class TokenService:
                 permissions=frozenset(claims.get("scope") or ()),
                 active_role=_active_role_of(claims),
                 authenticated_at=_authenticated_at_of(claims),
+                tenant_id=_tenant_of(claims),
             ),
             None,
         )
@@ -243,6 +253,9 @@ class TokenService:
             return None
         user = session.get(User, user_id)
         if user is None or not user.is_active:
+            return None
+        # 止めたテナントの人には出し直さない（ADR-0061）。手元の 1 枚は寿命まで
+        if not tenant_admits(session, user):
             return None
         return user
 
@@ -331,6 +344,11 @@ def _authenticated_at_of(claims: dict[str, Any]) -> datetime:
     return datetime.fromtimestamp(value, UTC)
 
 
+def _tenant_of(claims: dict[str, Any]) -> int | None:
+    value = claims.get(CLAIM_TENANT)
+    return value if isinstance(value, int) else None
+
+
 def _active_role_of(claims: dict[str, Any]) -> str | None:
     """クレームのアクティブロール。無い・文字列でないものは「すべてのロール」扱い。
 
@@ -347,6 +365,7 @@ __all__ = [
     "CLAIM_FEDERATED_ISSUER",
     "CLAIM_FEDERATED_SUBJECT",
     "CLAIM_SESSION_ID",
+    "CLAIM_TENANT",
     "SIGNED_IN_LONG_AGO",
     "TYPE_ACCESS",
     "TYPE_REFRESH",

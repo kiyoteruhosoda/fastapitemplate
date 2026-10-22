@@ -27,7 +27,7 @@ from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway 
 )
 from bounded_contexts.identity_federation.presentation import dependencies, transaction_cookie
 from shared.domain.auth import master_data
-from tests.conftest import sign_in
+from tests.conftest import register_issuer, sign_in
 
 _ISSUER = "https://idp.example.test"
 _AUTHORIZE = f"{_ISSUER}/authorize"
@@ -57,6 +57,7 @@ def sso_app(engine: sa.Engine, gateway: _StubGateway, monkeypatch: pytest.Monkey
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_ISSUER", _ISSUER)
+    register_issuer(_ISSUER)
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
@@ -180,16 +181,17 @@ def _make_second_user(engine: sa.Engine) -> tuple[str, str]:
     from werkzeug.security import generate_password_hash
 
     from shared.infrastructure.models import User
+    from shared.infrastructure.tenant_directory import DEFAULT_TENANT_SLUG, tenant_of_slug
 
     with _open(engine) as session:
-        session.add(
-            User(
-                email=_SECOND_EMAIL,
-                username="second",
-                is_active=True,
-                password_hash=generate_password_hash(_SECOND_PASSWORD),
-            )
+        second = User(
+            email=_SECOND_EMAIL,
+            username="second",
+            is_active=True,
+            password_hash=generate_password_hash(_SECOND_PASSWORD),
         )
+        second.join(tenant_of_slug(session, DEFAULT_TENANT_SLUG) or 0)
+        session.add(second)
         session.commit()
     return _SECOND_EMAIL, _SECOND_PASSWORD
 

@@ -24,6 +24,7 @@ from bounded_contexts.notification.infrastructure.sql_push_subscription_reposito
 )
 from bounded_contexts.notification.infrastructure.sql_recipient_directory import SqlRecipientDirectory
 from bounded_contexts.notification.infrastructure.web_push_sender import WebPushSender
+from presentation.fastapi.dependencies.tenant import TenantIdDep, TenantMembersDep
 from shared.kernel.database.db import get_session_factory
 from shared.kernel.database.session import get_db
 
@@ -43,11 +44,17 @@ def get_device_push_sender() -> DevicePushSender:
 
 
 def get_notification_repository(db: DbDep) -> SqlNotificationRepository:
+    """本人の手元（配られたもの）だけを扱う。送る・送った記録は :func:`get_sent_notification_repository`。"""
     return SqlNotificationRepository(db)
 
 
-def get_recipient_directory(db: DbDep) -> SqlRecipientDirectory:
-    return SqlRecipientDirectory(db)
+def get_sent_notification_repository(db: DbDep, tenant_id: TenantIdDep) -> SqlNotificationRepository:
+    """送り手のテナントで絞ったもの（ADR-0061）。"""
+    return SqlNotificationRepository(db, tenant_id)
+
+
+def get_recipient_directory(members: TenantMembersDep) -> SqlRecipientDirectory:
+    return SqlRecipientDirectory(members)
 
 
 def get_push_subscription_repository(db: DbDep) -> SqlPushSubscriptionRepository:
@@ -57,6 +64,7 @@ def get_push_subscription_repository(db: DbDep) -> SqlPushSubscriptionRepository
 PushSenderDep = Annotated[PushSender, Depends(get_push_sender)]
 DevicePushSenderDep = Annotated[DevicePushSender, Depends(get_device_push_sender)]
 NotificationRepoDep = Annotated[SqlNotificationRepository, Depends(get_notification_repository)]
+SentNotificationRepoDep = Annotated[SqlNotificationRepository, Depends(get_sent_notification_repository)]
 RecipientDirectoryDep = Annotated[SqlRecipientDirectory, Depends(get_recipient_directory)]
 PushSubscriptionRepoDep = Annotated[SqlPushSubscriptionRepository, Depends(get_push_subscription_repository)]
 
@@ -114,7 +122,7 @@ class SendAndDeliverPush:
 
 
 def get_send_and_deliver_push(
-    repo: NotificationRepoDep,
+    repo: SentNotificationRepoDep,
     recipients: RecipientDirectoryDep,
     channels: PushChannelsDep,
     background: BackgroundTasks,
@@ -133,6 +141,7 @@ __all__ = [
     "PushSubscriptionRepoDep",
     "RecipientDirectoryDep",
     "SendAndDeliverPushDep",
+    "SentNotificationRepoDep",
     "deliver_push_after_response",
     "get_device_push_sender",
     "get_push_sender",

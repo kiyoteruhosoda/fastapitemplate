@@ -25,6 +25,9 @@ class AuthenticatedPrincipal:
     #: 本人が最後に**実際に**サインインした時刻（UTC・aware。ADR-0060）。更新やロールの
     #: 切り替えでは新しくならない。``None`` は分からない（この仕組みより前のトークン）。
     authenticated_at: datetime | None = None
+    #: 所属するテナント（ADR-0061）。``None`` はテナントに属さない（システム管理者）。
+    #: ⚠ **``None`` を「全部のテナント」と読まない。** 中身はどのテナントのものも見えない。
+    tenant_id: int | None = None
 
     @property
     def id_hash(self) -> str:

@@ -15,11 +15,13 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
 
 class Log(Base):
     __tablename__ = "log"
+    __table_args__ = declared(Tenancy.GLOBAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, index=True)

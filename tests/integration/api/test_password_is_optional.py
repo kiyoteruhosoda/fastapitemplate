@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from shared.domain.auth import master_data
 from shared.infrastructure.models import PasswordResetToken, User
+from shared.infrastructure.tenant_directory import DEFAULT_TENANT_SLUG, tenant_of_slug
 from tests.conftest import sign_in
 
 _SSO_ONLY = "sso-only@example.com"
@@ -23,6 +24,7 @@ _SSO_ONLY = "sso-only@example.com"
 def sso_only_user(db_session: Session) -> User:
     """SSO でしか入れない利用者（パスワードを持たない）。"""
     user = User(email=_SSO_ONLY, username="SSO only", password_hash=None, is_active=True)
+    user.join(tenant_of_slug(db_session, DEFAULT_TENANT_SLUG) or 0)
     db_session.add(user)
     db_session.commit()
     return user
@@ -37,7 +39,7 @@ def test_an_sso_user_is_provisioned_without_a_password(db_session: Session, engi
         SqlFederatedUserDirectory,
     )
 
-    directory = SqlFederatedUserDirectory(db_session)
+    directory = SqlFederatedUserDirectory(db_session, tenant_of_slug(db_session, DEFAULT_TENANT_SLUG))
     created = directory.provision(NewFederatedAccount(email=_SSO_ONLY, username="SSO only", roles=()))
     db_session.commit()
 

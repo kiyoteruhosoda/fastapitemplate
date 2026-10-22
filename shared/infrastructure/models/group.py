@@ -14,6 +14,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from shared.infrastructure.models.base import BigIntPk, utcnow
+from shared.infrastructure.models.tenancy import Tenancy, declared, tenancy_info
 from shared.kernel.database.db import Base
 
 user_group_members = sa.Table(
@@ -21,14 +22,21 @@ user_group_members = sa.Table(
     Base.metadata,
     sa.Column("group_id", BigIntPk, sa.ForeignKey("user_groups.id", ondelete="CASCADE"), primary_key=True),
     sa.Column("user_id", BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    info=tenancy_info(Tenancy.PERSONAL),
 )
 
 
 class UserGroup(Base):
     __tablename__ = "user_groups"
+    #: 名前はテナントの中で一意（別のテナントの名前とはぶつからない。ADR-0061）
+    __table_args__ = (
+        sa.UniqueConstraint("tenant_id", "name", name="uq_user_groups_tenant_name"),
+        declared(Tenancy.TENANT),
+    )
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(sa.String(100), unique=True, nullable=False)
+    tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     description: Mapped[str] = mapped_column(sa.String(255), nullable=False, default="", server_default="")
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 

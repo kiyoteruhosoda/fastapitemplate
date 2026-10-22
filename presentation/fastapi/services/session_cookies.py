@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import secrets
 
-from fastapi import Response
+from fastapi import HTTPException, Response, status
+from sqlalchemy.orm import object_session
 
 from presentation.fastapi.dependencies.auth import (
     set_access_token_cookie,
@@ -24,6 +25,7 @@ from presentation.fastapi.middleware.csrf import CSRF_COOKIE
 from presentation.fastapi.schemas.auth import SessionResponse
 from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
 from shared.infrastructure.models import User
+from shared.infrastructure.tenant_scope import tenant_admits
 from shared.kernel.settings.settings import settings
 
 
@@ -42,11 +44,22 @@ def establish_session(
     """
     from presentation.fastapi.services.token_service import TokenService
 
+    ensure_tenant_admits(user)
     pair = TokenService.create_token_pair(user, carry=carry)
     set_access_token_cookie(response, str(pair["access_token"]))
     set_refresh_token_cookie(response, str(pair["refresh_token"]))
     _set_csrf_cookie(response)
     return SessionResponse(expires_in=settings.access_token_expires_seconds)
+
+
+TENANT_SUSPENDED = "tenant_suspended"
+
+
+def ensure_tenant_admits(user: User) -> None:
+    """止めたテナントの人にはトークンを出さない（ADR-0061）。入口は全部ここを通る。"""
+    session = object_session(user)
+    if session is not None and not tenant_admits(session, user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_SUSPENDED})
 
 
 def _set_csrf_cookie(response: Response) -> None:

@@ -36,6 +36,8 @@ from bounded_contexts.audit.presentation.pending_events import (
     PendingAuditEvents,
     current_pending_events,
 )
+from presentation.fastapi.dependencies.auth import get_current_principal
+from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.kernel.database.session import get_db
 from shared.kernel.logging.request_context import (
     current_actor_user_id,
@@ -78,8 +80,12 @@ def record_audit_event() -> RecordAuditEvent:
     )
 
 
-def search_audit_logs(db: Annotated[Session, Depends(get_db)]) -> SearchAuditLogs:
-    return SearchAuditLogs(SqlAuditLogQuery(db))
+def search_audit_logs(
+    db: Annotated[Session, Depends(get_db)],
+    principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
+) -> SearchAuditLogs:
+    # 読めるのは自分のテナントの記録だけ（ADR-0061）。絞りはリポジトリの入口で掛ける
+    return SearchAuditLogs(SqlAuditLogQuery(db, principal.tenant_id))
 
 
 def search_application_logs(db: Annotated[Session, Depends(get_db)]) -> SearchApplicationLogs:

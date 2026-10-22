@@ -32,11 +32,13 @@ from bounded_contexts.audit.domain.value_objects.audit_request_context import (
 from bounded_contexts.audit.domain.value_objects.audit_target import (
     MAX_TARGET_ID_LENGTH,
     MAX_TARGET_TYPE_LENGTH,
+    AuditTargetType,
 )
 from bounded_contexts.audit.domain.value_objects.log_search_criteria import (
     AuditLogCriteria,
 )
 from bounded_contexts.audit.infrastructure.audit_log_model import AuditLogModel
+from shared.infrastructure.models import UserTenant
 from shared.kernel.database.db import get_engine
 
 MAX_REASON_LENGTH = 255
@@ -55,15 +57,50 @@ class SqlAuditEventRecorder:
     def record_all(self, events: Sequence[AuditEvent]) -> None:
         if not events:
             return
-        rows = [_to_row(event) for event in events]
         with get_engine().begin() as connection:
+            tenants = _tenants_of(connection, {uid for event in events for uid in _people_of(event)})
+            rows = [_to_row(event, _tenant_of(event, tenants)) for event in events]
             connection.execute(sa.insert(AuditLogModel), rows)
 
 
-def _to_row(event: AuditEvent) -> dict[str, object]:
+def _people_of(event: AuditEvent) -> tuple[int, ...]:
+    """テナントを決める材料になる利用者（実行者・対象の利用者）。"""
+    people: list[int] = []
+    if event.actor_user_id is not None:
+        people.append(event.actor_user_id)
+    target = event.target
+    if target is not None and target.type is AuditTargetType.USER and (target.identifier or "").isdigit():
+        people.append(int(target.identifier or "0"))
+    return tuple(people)
+
+
+def _tenants_of(connection: sa.Connection, user_ids: set[int]) -> dict[int, int]:
+    if not user_ids:
+        return {}
+    rows = connection.execute(
+        sa.select(UserTenant.user_id, UserTenant.tenant_id).where(UserTenant.user_id.in_(user_ids))
+    ).all()
+    return {int(user_id): int(tenant_id) for user_id, tenant_id in rows}
+
+
+def _tenant_of(event: AuditEvent, tenants: dict[int, int]) -> int | None:
+    """どのテナントの記録か（ADR-0061）。
+
+    実行者のテナント。実行者がテナントに属さない（システム管理者・未認証の失敗）ときは、
+    対象の利用者のテナント ——システム管理者がテナントの人に触れた事実は、そのテナントの
+    管理者に見えるようにする。どちらも無ければ全体の記録（``None``）。
+    """
+    for user_id in _people_of(event):
+        if user_id in tenants:
+            return tenants[user_id]
+    return None
+
+
+def _to_row(event: AuditEvent, tenant_id: int | None) -> dict[str, object]:
     """DDL の長さ上限に収めた 1 行分の値。"""
     target = event.target
     return {
+        "tenant_id": tenant_id,
         "occurred_at": event.occurred_at,
         "event_type": str(event.event_type),
         "result": str(event.result),
@@ -78,13 +115,18 @@ def _to_row(event: AuditEvent) -> dict[str, object]:
 
 
 class SqlAuditLogQuery:
-    """条件に一致する監査ログを新しい順に返す。"""
+    """条件に一致する監査ログを新しい順に返す。
 
-    def __init__(self, session: Session) -> None:
+    見えるのは**読む人のテナントの記録だけ**（ADR-0061）。テナントに属さない人
+    （システム管理者）には、全体の記録（``tenant_id`` が NULL）だけが見える。
+    """
+
+    def __init__(self, session: Session, tenant_id: int | None) -> None:
         self._session = session
+        self._tenant_id = tenant_id
 
     def search(self, criteria: AuditLogCriteria) -> AuditLogPage:
-        conditions = _conditions(criteria)
+        conditions = [_within_tenant(self._tenant_id), *_conditions(criteria)]
         total = self._session.scalar(sa.select(sa.func.count()).select_from(AuditLogModel).where(*conditions)) or 0
         rows = self._session.scalars(
             sa.select(AuditLogModel)
@@ -94,6 +136,12 @@ class SqlAuditLogQuery:
             .offset(criteria.page.offset)
         ).all()
         return AuditLogPage(entries=tuple(_to_entry(row) for row in rows), total=total)
+
+
+def _within_tenant(tenant_id: int | None) -> sa.ColumnElement[bool]:
+    if tenant_id is None:
+        return AuditLogModel.tenant_id.is_(None)
+    return AuditLogModel.tenant_id == tenant_id
 
 
 def _conditions(criteria: AuditLogCriteria) -> list[sa.ColumnElement[bool]]:

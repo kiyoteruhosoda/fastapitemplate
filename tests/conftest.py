@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+from werkzeug.security import generate_password_hash
 
 from bounded_contexts.account_security.infrastructure import account_security_models
 from bounded_contexts.audit.infrastructure import audit_log_model
@@ -25,6 +26,8 @@ from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
 from shared.infrastructure import models as shared_models
 from shared.infrastructure.master_data_seeder import ensure_default_admin, seed_master_data
+from shared.infrastructure.models import Role, Tenant, User
+from shared.infrastructure.tenant_directory import DEFAULT_TENANT_SLUG, seat_default_admin
 from shared.kernel.database import db as db_module
 from shared.kernel.database.db import Base
 from shared.kernel.settings.settings import settings
@@ -52,9 +55,13 @@ def engine() -> Iterator[sa.Engine]:
     )
     Base.metadata.create_all(engine)
     db_module.set_engine(engine)
+    # ⚠ **設定はセッションを開く前に読む。** 設定の読み手は DB を別の接続で引くが、
+    # ``StaticPool`` では同じ接続なので、閉じたときに投入途中のセッションが巻き戻る。
+    issuer, client_id = settings.oidc_issuer, settings.oidc_client_id
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     seed_master_data(session)
     ensure_default_admin(session)
+    seat_default_admin(session, issuer=issuer, client_id=client_id)
     session.commit()
     session.close()
     yield engine
@@ -95,6 +102,20 @@ def other_client(app: FastAPI) -> Iterator[TestClient]:
         yield c
 
 
+def register_issuer(issuer: str, client_id: str = "rp") -> None:
+    """既定のテナントを、この発行者の assay のテナントとして登録する（ADR-0061）。
+
+    登録の無い発行者のトークンは受け付けない。SSO の試験は ``OIDC_ISSUER`` を
+    フィクスチャの後で差し替えるので、そのときに既定のテナントへ写す。
+    """
+    with sessionmaker(bind=db_module.get_engine())() as session:
+        tenant = session.scalar(sa.select(Tenant).where(Tenant.slug == DEFAULT_TENANT_SLUG))
+        assert tenant is not None
+        tenant.issuer = issuer
+        tenant.client_id = client_id
+        session.commit()
+
+
 def sign_in(client: TestClient, email: str, password: str) -> dict[str, str]:
     """ログインして、更新系に必要なヘッダーを返す（ADR-0028）。
 
@@ -115,3 +136,28 @@ def admin_headers(client: TestClient) -> dict[str, str]:
     保持するので、**返すのは CSRF の二重送信トークンだけ**でよい。
     """
     return sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
+
+
+SYSTEM_ADMIN_EMAIL = "system-admin@example.com"
+SYSTEM_ADMIN_PASSWORD = "system-admin-password-1"
+#: システム管理者のロール。全体の監査（テナントに属さない記録）を読むのも、ここ。
+SYSTEM_ADMIN_ROLES = ("system-admin", "auditor")
+
+
+@pytest.fixture
+def system_admin_headers(client: TestClient, engine: sa.Engine) -> dict[str, str]:
+    """システム管理者（テナントに属さない利用者。ADR-0061）としてログインする。
+
+    全体の記録（宛先の分からないログイン失敗など）は、テナントの管理者には見えない。
+    """
+    with sessionmaker(bind=engine)() as session:
+        admin = User(
+            email=SYSTEM_ADMIN_EMAIL,
+            username="system-admin",
+            password_hash=generate_password_hash(SYSTEM_ADMIN_PASSWORD),
+            is_active=True,
+        )
+        admin.roles = list(session.scalars(sa.select(Role).where(Role.name.in_(SYSTEM_ADMIN_ROLES))))
+        session.add(admin)
+        session.commit()
+    return sign_in(client, SYSTEM_ADMIN_EMAIL, SYSTEM_ADMIN_PASSWORD)
