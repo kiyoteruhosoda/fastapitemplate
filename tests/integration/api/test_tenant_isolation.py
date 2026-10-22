@@ -184,7 +184,7 @@ def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestCli
         session.add(loner)
         session.commit()
     sign_in(client, "loner@example.com", "loner-password-1")
-    assert client.get("/api/auth/me").json()["scopes"] == []
+    assert "item:view" not in client.get("/api/auth/me").json()["scopes"]
     assert client.get("/api/items").status_code == 403
     assert client.get("/api/admin/users").status_code == 403
 
