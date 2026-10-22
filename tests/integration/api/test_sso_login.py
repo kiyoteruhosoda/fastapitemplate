@@ -162,7 +162,9 @@ def test_a_declined_silent_attempt_returns_to_the_login_screen_without_an_error(
     back = sso_client.get(f"/api/auth/sso/callback?error={error}&state={state}", follow_redirects=False)
     assert back.status_code == 303
     location = back.headers["location"]
-    assert location == "/login?sso_silent=declined&redirect_to=%2Fitems"
+    # 戻す先は往復を始めたテナントの入口（ADR-0064）
+    assert location.endswith("/login?sso_silent=declined&redirect_to=%2Fitems")
+    assert "sso_error" not in location
     assert transaction_cookie.COOKIE_NAME not in sso_client.cookies
 
 
