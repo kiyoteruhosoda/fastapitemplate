@@ -169,7 +169,10 @@ def test_the_administrators_are_counted_per_tenant(mine: Side, other: Side, engi
 
 
 def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestClient, engine: sa.Engine) -> None:
-    """テナントに属さない主体は、中身の口で 403（全部のテナントとして扱わない）。"""
+    """テナントに属さない主体は、中身の口で 403（全部のテナントとして扱わない）。
+
+    内側のロールを（誤って）付けても効かない（ADR-0063）ので、権限の段階で断られる。
+    """
     with sessionmaker(bind=engine)() as session:
         loner = User(
             email="loner@example.com",
@@ -181,9 +184,8 @@ def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestCli
         session.add(loner)
         session.commit()
     sign_in(client, "loner@example.com", "loner-password-1")
-    response = client.get("/api/items")
-    assert response.status_code == 403
-    assert response.json()["detail"]["error"] == "tenant_required"
+    assert client.get("/api/auth/me").json()["scopes"] == []
+    assert client.get("/api/items").status_code == 403
     assert client.get("/api/admin/users").status_code == 403
 
 

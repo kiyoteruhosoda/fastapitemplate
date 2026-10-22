@@ -28,7 +28,8 @@ def test_requesting_a_restart_records_the_request(client: TestClient, system_adm
     assert [item["scope"] for item in body["requests"]] == ["web"]
     assert body["requests"][0]["reason"] == "log level changed"
     # 要求者は PII を含まない主体識別子で記録する
-    assert body["requests"][0]["requested_by"] == "user:1"
+    me = client.get("/api/auth/me").json()["user_id"]
+    assert body["requests"][0]["requested_by"] == f"user:{me}"
 
     status = client.get("/api/admin/system/restart", headers=system_admin_headers).json()
     assert [item["scope"] for item in status["last_requests"]] == ["web"]
