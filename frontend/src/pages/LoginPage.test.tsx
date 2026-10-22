@@ -51,6 +51,10 @@ function renderPage(entry = '/login') {
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+    // 入口の出し分けを見る試験。ボタンを押さずに入る試し（ADR-0066）は済んだことにする
+    window.sessionStorage.setItem('ssoSilentTried', '1')
   })
 
   it('SSO が無効ならボタンを出さず、パスワードで入れる', async () => {
@@ -193,5 +197,72 @@ describe('LoginPage', () => {
       'href',
       '/t/acme/forgot-password',
     )
+  })
+
+  describe('ボタンを押さずに入る試し（ADR-0066）', () => {
+    const PROVIDER = { enabled: true, display_name: 'Nolumia', local_login_enabled: true }
+
+    beforeEach(() => {
+      window.sessionStorage.clear()
+      fetchSsoProvider.mockResolvedValue(PROVIDER)
+    })
+
+    it('開いたら入口を描かずに prompt=none で IdP へ送り出す（行き先は保つ）', async () => {
+      renderPage('/login?redirect_to=%2Fitems')
+
+      await waitFor(() => {
+        expect(startSsoLogin).toHaveBeenCalledWith('/items', undefined, { silent: true })
+      })
+      expect(screen.queryByRole('button', { name: 'Sign in with Nolumia' })).not.toBeInTheDocument()
+      expect(window.sessionStorage.getItem('ssoSilentTried')).toBe('1')
+    })
+
+    it('試して戻ってきたら、エラーを出さずにふつうの入口を出す', async () => {
+      renderPage('/login?sso_silent=declined&redirect_to=%2Fitems')
+
+      expect(
+        await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+      ).toBeInTheDocument()
+      expect(startSsoLogin).not.toHaveBeenCalled()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(document.querySelector('.error')).toBeNull()
+    })
+
+    it('このタブで一度試していたら試さない', async () => {
+      window.sessionStorage.setItem('ssoSilentTried', '1')
+      renderPage('/login')
+
+      expect(
+        await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+      ).toBeInTheDocument()
+      expect(startSsoLogin).not.toHaveBeenCalled()
+    })
+
+    it('サインアウトした後は試さない', async () => {
+      window.localStorage.setItem('ssoSignedOut', '1')
+      renderPage('/login')
+
+      expect(
+        await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+      ).toBeInTheDocument()
+      expect(startSsoLogin).not.toHaveBeenCalled()
+    })
+
+    it('エラーが付いているときは試さない', async () => {
+      renderPage('/login?sso_error=sso_account_not_linked')
+
+      expect(
+        await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+      ).toBeInTheDocument()
+      expect(startSsoLogin).not.toHaveBeenCalled()
+    })
+
+    it('SSO が無効なら試さない', async () => {
+      fetchSsoProvider.mockResolvedValue({ ...PROVIDER, enabled: false })
+      renderPage('/login')
+
+      expect(await screen.findByLabelText('Password')).toBeInTheDocument()
+      expect(startSsoLogin).not.toHaveBeenCalled()
+    })
   })
 })

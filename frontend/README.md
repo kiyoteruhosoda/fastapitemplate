@@ -128,6 +128,8 @@ flowchart TD
 ※ SSO を有効にしている場合、`/login` の「SSO でログイン」から外部 IdP へ出て、
 `/login/sso?ticket=…` へ戻る（ADR-0025）。`Login --> Idp --> SsoCallback --> Dashboard`。
 往復に失敗すると `/login?sso_error=<コード>` へ戻る。
+**IdP で既に入っていれば、ボタンを押さずに同じ道を通る**（`prompt=none`。ADR-0066）。
+入っていなければ `/login?sso_silent=declined&redirect_to=…` へ戻り、エラー無しで入口を出す。
 
 ※ `rp_logout_enabled` が真のとき、ログアウトは `/login` で終わらず IdP へ出て
 `/login?signed_out=1` へ戻る（ADR-0033）。`Dashboard --> Idp --> Login`。
@@ -200,6 +202,12 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
     出して 5 秒ごとに聞き直す（ADR-0050。リリース中に IdP の入口の無い画面へ取り残さないため）。
   - サインイン済みの画面でも、`/api/auth/me` が 5xx・通信の失敗ならログイン画面へ送らず、
     同じ文言を出してつながるまで聞き直す（ADR-0050）。
+  - **ボタンを押さずに入る**（ADR-0066）: SSO が有効で、URL に `redirect_to` 以外が付いておらず、
+    サインアウトした後でもこのタブで試した後でもなければ、**入口を描かずに** `prompt=none` で IdP へ
+    送り出す（「読み込んでいます」のまま）。IdP で入っていればそのまま `redirect_to` の画面へ入る。
+    入っていなければ `?sso_silent=declined` で戻り、エラーを出さずにふつうの入口を出す。
+    IdP では通ったがアプリ側で断られたとき（口座が無い等）は、今までどおり `?sso_error` で出す。
+    印はサインアウトで `localStorage`、試した時に `sessionStorage` に付け、どの入口でも入れたら消す。
   - `?sso_error=<コード>` が付いていれば、`error.<コード>` の文言で失敗を表示する。
   - `?signed_out=1` は IdP でのサインアウトを終えて戻ってきた印（ADR-0033）。
     `login.signedOut` を出す。**出さないと、期限切れで飛ばされたのと見分けが

@@ -37,14 +37,21 @@ export function fetchSsoProvider(tenant?: string): Promise<SsoProvider> {
 
 /**
  * IdP へ送り出す。戻り先は `redirectTo`（アプリ内の経路のみ有効）。
+ * `silent` なら `prompt=none` を付ける（ログイン画面が開いたときの試し。ADR-0066）。
  *
  * `assign` ではなく `replace` を使う。ログイン画面を履歴に残すと、ログイン後の
  * 「戻る」でログイン画面へ戻ってしまうため。
  */
-export function startSsoLogin(redirectTo: string, tenant?: string): void {
+export function startSsoLogin(
+  redirectTo: string,
+  tenant?: string,
+  options: { silent?: boolean } = {},
+): void {
   const query = new URLSearchParams({ redirect_to: redirectTo })
   // 送り出す先はテナントの IdP（ADR-0064）
   if (tenant) query.set('tenant', tenant)
+  // IdP に画面を出させずに試す（ADR-0066。services/silentSso.ts）
+  if (options.silent) query.set('prompt', 'none')
   window.location.replace(`/api/auth/sso/login?${query.toString()}`)
 }
 

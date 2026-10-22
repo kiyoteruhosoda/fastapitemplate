@@ -27,6 +27,8 @@ class AuthorizationRequest:
     code_challenge: str
     #: 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0026 決定 1）。
     acr_values: tuple[str, ...] = ()
+    #: 画面を出さずに試す（``prompt=none``。ADR-0066）。偽なら ``prompt`` を付けない。
+    silent: bool = False
 
 
 @dataclass(frozen=True)

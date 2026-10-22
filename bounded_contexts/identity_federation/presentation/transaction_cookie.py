@@ -46,6 +46,7 @@ def issue(response: Response, transaction: LoginTransaction, *, path: str) -> No
         "purpose": transaction.purpose.value,
         "user_id": transaction.user_id,
         "issuer": transaction.issuer,
+        "silent": transaction.silent,
         "exp": utcnow() + timedelta(seconds=ttl),
     }
     response.set_cookie(
@@ -85,6 +86,8 @@ def read(raw: str | None) -> LoginTransaction | None:
         purpose=purpose,
         user_id=user_id if isinstance(user_id, int) else None,
         issuer=issuer if isinstance(issuer, str) else "",
+        # 試した往復（ADR-0066）より前の Cookie には無い。ふつうの往復として読む
+        silent=claims.get("silent") is True,
     )
 
 

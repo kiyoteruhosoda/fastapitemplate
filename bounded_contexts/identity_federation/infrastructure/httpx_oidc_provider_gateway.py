@@ -74,6 +74,10 @@ class HttpxOidcProviderGateway:
             # 空白区切り（OIDC Core §3.1.2.1）。要求しないときはパラメータごと出さない
             # ——空文字を送ると「空の要求」として扱う IdP がある。
             parameters["acr_values"] = " ".join(request.acr_values)
+        if request.silent:
+            # IdP で入っていればそのまま code が返り、入っていなければ画面を出さずに
+            # ``error=login_required`` などで戻る（OIDC Core §3.1.2.1。ADR-0066）。
+            parameters["prompt"] = "none"
         separator = "&" if "?" in metadata.authorization_endpoint else "?"
         return f"{metadata.authorization_endpoint}{separator}{urlencode(parameters)}"
 
