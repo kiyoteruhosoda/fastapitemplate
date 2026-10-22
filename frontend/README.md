@@ -129,26 +129,26 @@ flowchart TD
 
 ## 画面一覧
 
-| #   | 画面                   | ルート                    | 認証 | 必要 scope                                          | サイドバー |
-| --- | ---------------------- | ------------------------- | ---- | --------------------------------------------------- | ---------- |
-| S1  | サインイン             | `/login`・`/t/:tenant/login` | 不要 | —                                                | —          |
-| S2  | パスワードリセット申請 | `/forgot-password`・`/t/:tenant/forgot-password` | 不要 | —                                    | —          |
-| S3  | パスワード再設定       | `/reset-password?token=…` | 不要 | —                                                   | —          |
-| S15 | SSO の戻り             | `/login/sso?ticket=…`     | 不要 | —                                                   | —          |
-| S16 | アプリへ戻る案内       | `/app/oauth2redirect`     | 不要 | —                                                   | —          |
-| S4  | ダッシュボード         | `/`                       | 必要 | `dashboard:view`                                    | ✅         |
-| S5  | アイテム               | `/items`                  | 必要 | `item:view`（追加は `item:manage`）                 | ✅         |
-| S6  | プロフィール           | `/profile`                | 必要 | —                                                   | —          |
-| S7  | セキュリティ           | `/profile/security`       | 必要 | —                                                   | —          |
-| S8  | ユーザー管理           | `/admin/users`            | 必要 | `user:manage`                                       | ✅         |
-| S9  | ロール管理             | `/admin/roles`            | 必要 | `role:manage`（一覧の取得のみ `user:manage` も可）  | ✅         |
-| S10 | 権限一覧               | `/admin/permissions`      | 必要 | `permission:manage`                                 | ✅         |
-| S17 | グループ管理           | `/admin/groups`           | 必要 | `group:manage`                                      | ✅         |
-| S18 | お知らせの配信         | `/admin/notifications`    | 必要 | `notification:send`                                 | ✅         |
-| S11 | システム設定           | `/admin/config`           | 必要 | `admin:system-settings`（再起動は `system:manage`） | ✅         |
-| S12 | システムログ           | `/admin/logs`             | 必要 | `log:view`                                          | ✅         |
-| S13 | 監査ログ               | `/admin/audit-logs`       | 必要 | `audit:view`                                        | ✅         |
-| S14 | システムステータス     | `/admin/system-status`    | 必要 | `system:manage`                                     | ✅         |
+| #   | 画面                   | ルート                                           | 認証 | 必要 scope                                          | サイドバー |
+| --- | ---------------------- | ------------------------------------------------ | ---- | --------------------------------------------------- | ---------- |
+| S1  | サインイン             | `/login`・`/t/:tenant/login`                     | 不要 | —                                                   | —          |
+| S2  | パスワードリセット申請 | `/forgot-password`・`/t/:tenant/forgot-password` | 不要 | —                                                   | —          |
+| S3  | パスワード再設定       | `/reset-password?token=…`                        | 不要 | —                                                   | —          |
+| S15 | SSO の戻り             | `/login/sso?ticket=…`                            | 不要 | —                                                   | —          |
+| S16 | アプリへ戻る案内       | `/app/oauth2redirect`                            | 不要 | —                                                   | —          |
+| S4  | ダッシュボード         | `/`                                              | 必要 | `dashboard:view`                                    | ✅         |
+| S5  | アイテム               | `/items`                                         | 必要 | `item:view`（追加は `item:manage`）                 | ✅         |
+| S6  | プロフィール           | `/profile`                                       | 必要 | —                                                   | —          |
+| S7  | セキュリティ           | `/profile/security`                              | 必要 | —                                                   | —          |
+| S8  | ユーザー管理           | `/admin/users`                                   | 必要 | `user:manage`                                       | ✅         |
+| S9  | ロール管理             | `/admin/roles`                                   | 必要 | `role:manage`（一覧の取得のみ `user:manage` も可）  | ✅         |
+| S10 | 権限一覧               | `/admin/permissions`                             | 必要 | `permission:manage`                                 | ✅         |
+| S17 | グループ管理           | `/admin/groups`                                  | 必要 | `group:manage`                                      | ✅         |
+| S18 | お知らせの配信         | `/admin/notifications`                           | 必要 | `notification:send`                                 | ✅         |
+| S11 | システム設定           | `/admin/config`                                  | 必要 | `admin:system-settings`（再起動は `system:manage`） | ✅         |
+| S12 | システムログ           | `/admin/logs`                                    | 必要 | `log:view`                                          | ✅         |
+| S13 | 監査ログ               | `/admin/audit-logs`                              | 必要 | `audit:view`                                        | ✅         |
+| S14 | システムステータス     | `/admin/system-status`                           | 必要 | `system:manage`                                     | ✅         |
 
 サイドバーの階層: S4・S5 は最上位、S8〜S10・S17・S18 は「管理」、S11〜S14 は「システム管理」の
 グループに入る。
