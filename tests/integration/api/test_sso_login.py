@@ -151,7 +151,8 @@ def test_a_silent_attempt_asks_the_idp_not_to_show_a_screen(sso_client: TestClie
 
 
 @pytest.mark.parametrize(
-    "error", ["login_required", "consent_required", "interaction_required", "account_selection_required"]
+    "error",
+    ["login_required", "consent_required", "interaction_required", "account_selection_required", "access_denied"],
 )
 def test_a_declined_silent_attempt_returns_to_the_login_screen_without_an_error(
     sso_client: TestClient, error: str
