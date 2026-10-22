@@ -121,6 +121,7 @@ def _callback(*, user_id: int | None = _ME, state: str = "s") -> SsoCallback:
         code_verifier="v",
         purpose=TransactionPurpose.LINK,
         user_id=user_id,
+        issuer=_ISSUER,
     )
     return SsoCallback(code="c", state=state, transaction=transaction)
 
@@ -167,3 +168,19 @@ def test_a_second_account_at_the_same_provider_is_refused() -> None:
     identities = _Identities([FederatedIdentity(_ISSUER, "another-subject", _ME)])
     with pytest.raises(SsoAlreadyLinkedError):
         _use_case(identities).execute(callback=_callback(), user_id=_ME)
+
+
+def test_a_round_trip_sent_to_another_issuer_is_refused() -> None:
+    """往復を送り出した発行者と、受ける連携先が違えば断る（ADR-0064）。"""
+    transaction = LoginTransaction(
+        state="s",
+        nonce="n",
+        code_verifier="v",
+        purpose=TransactionPurpose.LINK,
+        user_id=_ME,
+        issuer="https://another-tenant.example.test",
+    )
+    with pytest.raises(SsoLoginTransactionInvalidError):
+        _use_case(_Identities([])).execute(
+            callback=SsoCallback(code="c", state="s", transaction=transaction), user_id=_ME
+        )

@@ -14,6 +14,7 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+import jwt
 import pytest
 import sqlalchemy as sa
 from fastapi import FastAPI
@@ -67,7 +68,7 @@ class _StubGateway:
         }
 
     def verify_logout_token(self, verification: LogoutTokenVerification) -> Mapping[str, Any]:
-        token = verification.logout_token
+        token = str(jwt.decode(verification.logout_token, options={"verify_signature": False})["raw"])
         if token in self.rejected:
             raise InvalidLogoutTokenError
         sid, _, jti = token.partition("|")
@@ -120,9 +121,14 @@ def _sign_in_with_sso(client: TestClient) -> None:
 
 
 def _post_logout(client: TestClient, logout_token: str) -> int:
-    """IdP のサーバーが叩く経路。**Cookie も CSRF トークンも持たない。**"""
+    """IdP のサーバーが叩く経路。**Cookie も CSRF トークンも持たない。**
+
+    通知は JWT の形で送る（発行者でテナントを選ぶため。ADR-0064）。中身の「``<sid>|<jti>``」は
+    ``raw`` に入れ、検証はスタブの IdP が受け持つ。
+    """
+    signed = jwt.encode({"iss": _ISSUER, "raw": logout_token}, "stub-idp-key", algorithm="HS256")
     with TestClient(client.app) as idp:
-        return idp.post(_LOGOUT, data={"logout_token": logout_token}).status_code
+        return idp.post(_LOGOUT, data={"logout_token": signed}).status_code
 
 
 def _refresh(client: TestClient) -> int:
