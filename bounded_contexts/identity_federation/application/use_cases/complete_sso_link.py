@@ -58,7 +58,7 @@ class CompleteSsoLink:
     def execute(self, *, callback: SsoCallback, user_id: int) -> FederatedIdentity:
         provider = require_usable(self.provider)
         transaction = callback.transaction
-        if transaction is None or not transaction.matches(callback.state):
+        if transaction is None or not transaction.matches(callback.state) or not transaction.is_for(provider.issuer):
             raise SsoLoginTransactionInvalidError
         if not transaction.belongs_to(user_id):
             # ⚠ 往復の途中でサインアウトした・別の利用者で入り直した。**いまの

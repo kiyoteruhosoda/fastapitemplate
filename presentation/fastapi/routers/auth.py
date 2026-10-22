@@ -17,7 +17,6 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -62,6 +61,7 @@ from presentation.fastapi.services.session_cookies import establish_session
 from presentation.fastapi.services.token_service import TokenService
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
+from shared.infrastructure.sign_in_directory import email_taken
 from shared.kernel.database.session import get_db
 from shared.kernel.settings.settings import settings
 from shared.kernel.timestamps import utcnow
@@ -180,8 +180,7 @@ async def update_me(
     if body.email != user.email:
         # メールは再設定のメールの宛先。替えるのは入り直したばかりのときだけ（ADR-0060）
         ensure_recent_sign_in(principal)
-    taken = db.scalar(select(User).where(User.email == body.email, User.id != user.id))
-    if taken is not None:
+    if email_taken(db, body.email, user.tenant_id, except_user_id=user.id):
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"})
 
@@ -258,7 +257,7 @@ async def forgot_password(
     throttle.require_allowed(PURPOSE_PASSWORD_RESET, body.email, utcnow())
     throttle.record_attempt(PURPOSE_PASSWORD_RESET, body.email, utcnow())
     # ユーザーの存在有無に関わらず同じ応答を返す（列挙攻撃対策）
-    user_id = PasswordResetService().request_reset(db, body.email)
+    user_id = PasswordResetService().request_reset(db, body.email, body.tenant)
     audit.execute(
         AuditEventType.PASSWORD_RESET_REQUESTED,
         AuditResult.SUCCESS if user_id is not None else AuditResult.FAILURE,

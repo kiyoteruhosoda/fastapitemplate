@@ -45,6 +45,7 @@ def issue(response: Response, transaction: LoginTransaction, *, path: str) -> No
         "redirect_to": transaction.redirect_to,
         "purpose": transaction.purpose.value,
         "user_id": transaction.user_id,
+        "issuer": transaction.issuer,
         "exp": utcnow() + timedelta(seconds=ttl),
     }
     response.set_cookie(
@@ -78,10 +79,12 @@ def read(raw: str | None) -> LoginTransaction | None:
     if purpose is None:
         return None
     user_id = claims.get("user_id")
+    issuer = claims.get("issuer")
     return LoginTransaction(
         **values,  # type: ignore[arg-type]
         purpose=purpose,
         user_id=user_id if isinstance(user_id, int) else None,
+        issuer=issuer if isinstance(issuer, str) else "",
     )
 
 

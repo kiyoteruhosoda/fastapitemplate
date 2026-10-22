@@ -8,6 +8,7 @@
  * ⚠ **外部 URL へ戻さない。** 正本の検証はサーバ側（`RedirectTarget.parse`）で、
  * ここは同じ形に絞ってから渡すだけ。
  */
+import { loginPathOf, rememberedTenant } from './tenantEntrance'
 
 /** ログイン画面と SSO の入口で使うクエリの名前（両側で同じ綴りを使う）。 */
 export const REDIRECT_TO_PARAM = 'redirect_to'
@@ -41,6 +42,8 @@ export function sanitizeRedirectTo(candidate: string | null | undefined): string
  */
 export function signInPathFor(location: { pathname: string; search?: string }): string {
   const here = sanitizeRedirectTo(`${location.pathname}${location.search ?? ''}`)
-  if (here === LANDING) return '/login'
-  return `/login?${REDIRECT_TO_PARAM}=${encodeURIComponent(here)}`
+  // 前に入った入口（テナント）へ戻す（ADR-0064）
+  const login = loginPathOf(rememberedTenant())
+  if (here === LANDING) return login
+  return `${login}?${REDIRECT_TO_PARAM}=${encodeURIComponent(here)}`
 }

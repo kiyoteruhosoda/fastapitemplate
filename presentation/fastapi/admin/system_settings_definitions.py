@@ -251,8 +251,20 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Sign-in button label",
         "value_type": "string",
     },
-    {"key": "OIDC_ISSUER", "category": "sso", "label": "Issuer URL", "value_type": "string"},
-    {"key": "OIDC_CLIENT_ID", "category": "sso", "label": "Client ID", "value_type": "string"},
+    # 連携先（発行者とクライアント ID）はテナントごとに tenants が持つ（ADR-0064）。ここの 2 つは
+    # 既定のテナントを作るときの初期値で、発行者は定期照合（ADR-0043）の相手にも使う。
+    {
+        "key": "OIDC_ISSUER",
+        "category": "sso",
+        "label": "Issuer URL of the reconciled tenant (each tenant has its own)",
+        "value_type": "string",
+    },
+    {
+        "key": "OIDC_CLIENT_ID",
+        "category": "sso",
+        "label": "Client ID used when the default tenant was created",
+        "value_type": "string",
+    },
     {
         "key": "OIDC_CLIENT_SECRET",
         "category": "sso",

@@ -48,6 +48,7 @@ class StartSsoLogin:
             state=new_secret(),
             nonce=new_secret(),
             code_verifier=new_code_verifier(),
+            issuer=provider.issuer,
             redirect_to=RedirectTarget.parse(redirect_to).path,
         )
         return authorization_for(provider, self.gateway, transaction, self.acr_values)

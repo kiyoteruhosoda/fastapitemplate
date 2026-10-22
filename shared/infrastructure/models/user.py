@@ -27,7 +27,9 @@ class User(Base):
     __table_args__ = declared(Tenancy.PERSONAL)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
+    #: 一意なのは同じ席の中だけ（同じテナント、またはテナントの外。ADR-0064）。引くときは
+    #: ``shared.infrastructure.sign_in_directory`` を通す。
+    email: Mapped[str] = mapped_column(sa.String(255), nullable=False, index=True)
     username: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     #: ⚠ **NULL は「ローカルのパスワードが無い」**（ADR-0038）。「空のパスワード」でも
     #: 「誰も知らない値が入っている」でもない。判定は :attr:`has_local_password` を通す。

@@ -122,7 +122,7 @@ erDiagram
 
     users {
         bigint id PK
-        varchar(255) email UK "一意"
+        varchar(255) email "索引あり・一意は同じ席の中だけ（ADR-0064）"
         varchar(100) username
         varchar(255) password_hash "NULL = ローカル認証なし（ADR-0038）"
         boolean is_active "既定 true"
@@ -292,7 +292,7 @@ erDiagram
 
 | テーブル | 役割 | モデル |
 |---|---|---|
-| `users` | ユーザー。`email` が一意な識別子。無効化は削除ではなく `is_active` で行う。⚠ **`password_hash` が NULL = ローカル認証を持たない**（ADR-0038）。「空のパスワード」でも「誰も知らない値が入っている」でもない | `user.py` |
+| `users` | ユーザー。`email` の一意は**同じ席の中だけ**（同じテナントの中、テナントに属さない人の中。ADR-0064）で、DB には一意制約を置かずアプリが確かめる。無効化は削除ではなく `is_active` で行う。⚠ **`password_hash` が NULL = ローカル認証を持たない**（ADR-0038）。「空のパスワード」でも「誰も知らない値が入っている」でもない | `user.py` |
 | `user_session_boundaries` | ログインの区切り（ADR-0057）。1 人 1 行。`valid_from` より前に出したトークンでは更新・出し直しをさせない。パスワードを変えた・再設定した・管理者が付け直したときに入る。行が無ければ区切り無し。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `user.py` |
 | `roles` | ロール。`id` は `user_roles` からの参照キーとして固定値で投入する | `role.py` |
 | `permissions` | 権限コード（scope）。`code` を安定キーとし `id` は DB 採番 | `role.py` |

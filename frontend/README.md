@@ -55,9 +55,9 @@ npm run test         # Vitest
 ```mermaid
 flowchart TD
     subgraph public["未認証（RequireAuth の外）"]
-        Login["/login<br/>サインイン"]
+        Login["/login・/t/:tenant/login<br/>サインイン"]
         Totp["/login（TOTP 入力ステップ）<br/>※同一画面内の状態遷移"]
-        Forgot["/forgot-password<br/>リセットリンク送信"]
+        Forgot["/forgot-password・/t/:tenant/forgot-password<br/>リセットリンク送信"]
         Reset["/reset-password?token=…<br/>新しいパスワード設定"]
         SsoCallback["/login/sso?ticket=…<br/>SSO の戻り（引き換え）"]
         Idp[["外部 IdP<br/>（別サイト）"]]
@@ -131,8 +131,8 @@ flowchart TD
 
 | #   | 画面                   | ルート                    | 認証 | 必要 scope                                          | サイドバー |
 | --- | ---------------------- | ------------------------- | ---- | --------------------------------------------------- | ---------- |
-| S1  | サインイン             | `/login`                  | 不要 | —                                                   | —          |
-| S2  | パスワードリセット申請 | `/forgot-password`        | 不要 | —                                                   | —          |
+| S1  | サインイン             | `/login`・`/t/:tenant/login` | 不要 | —                                                | —          |
+| S2  | パスワードリセット申請 | `/forgot-password`・`/t/:tenant/forgot-password` | 不要 | —                                    | —          |
 | S3  | パスワード再設定       | `/reset-password?token=…` | 不要 | —                                                   | —          |
 | S15 | SSO の戻り             | `/login/sso?ticket=…`     | 不要 | —                                                   | —          |
 | S16 | アプリへ戻る案内       | `/app/oauth2redirect`     | 不要 | —                                                   | —          |
@@ -177,9 +177,13 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 欄ごとに独立し、画面を離れると元に戻る（保存しない）。対象は S1・S3・S7・S8 の
 パスワード欄と、S11 の秘匿項目（`MAIL_PASSWORD` 等）。
 
-### S1 サインイン（`/login`）
+### S1 サインイン（`/login`・`/t/:tenant/login`）
 
 - **目的**: メールアドレスとパスワード、パスキー、または外部 IdP（SSO）でサインインする。
+- **入口とテナント**（ADR-0064）: `/t/:tenant/login` はそのテナントの入口で、SSO のボタンも
+  パスワードもそのテナントのもの。`/login` はテナントに属さない人（システム管理者）の入口で、
+  テナントが 1 つだけの環境ではそのテナントの入口も兼ねる。入った入口は端末に覚えておき、
+  サインアウト・期限切れのあとはそこへ戻す。IdP からの戻りに失敗すると、始めたテナントの入口へ戻る。
 - **表示内容**: SSO ボタン（有効なときだけ。名前は `OIDC_DISPLAY_NAME`）、メール、
   パスワード、サインインボタン、パスキーボタン（ブラウザが対応している場合のみ）、
   パスワードリセットへのリンク。
@@ -229,9 +233,10 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
   （同じ URL をタップで開き直すと、Chrome がアプリへ渡す）。
 - **操作**: 「アプリに戻ってログインを終える」（コードがあるときだけ）/「Web 版を開く」で `/` へ。
 
-### S2 パスワードリセット申請（`/forgot-password`）
+### S2 パスワードリセット申請（`/forgot-password`・`/t/:tenant/forgot-password`）
 
-- **目的**: 登録済みメールアドレスへ再設定リンクを送る。
+- **目的**: 登録済みメールアドレスへ再設定リンクを送る。宛先は入口と同じ決め方で探す
+  （テナントの入口ならそのテナントの中。ADR-0064）。
 - **操作**: メールを入力して送信 → 宛先の存在に関わらず同じ完了メッセージを表示する
   （アカウントの存在を漏らさないため）。
 - **使用 API**: `POST /api/auth/forgot-password`
@@ -559,7 +564,8 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 
 ### サインインする
 
-1. `/login` を開く。
+1. `/login` を開く。テナントが 2 つ以上ある環境では、自分のテナントの入口
+   `/t/<テナントの短い名前>/login` を開く（システム管理者は `/login`）。
 2. メールアドレスとパスワードを入力して「サインイン」。
    - 初期管理者は `admin@example.com` / `admin@example.com`（初回サインイン後に必ず変更する）。
 3. 二要素認証を有効にしている場合は、認証アプリのコードを入力して再度「サインイン」。

@@ -28,6 +28,7 @@ from bounded_contexts.email_sender.infrastructure.smtp_email_sender import (
 )
 from shared.infrastructure.models import PasswordResetToken, User
 from shared.infrastructure.models.base import utcnow
+from shared.infrastructure.sign_in_directory import account_signing_in
 from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -41,14 +42,14 @@ class PasswordResetService:
     def __init__(self, sender: IEmailSender | None = None) -> None:
         self._sender = sender or SmtpEmailSender()
 
-    def request_reset(self, session: Session, email: str) -> int | None:
+    def request_reset(self, session: Session, email: str, tenant: str | None = None) -> int | None:
         """リセットトークンを発行しメールを送る。ユーザー不在でも黙って成功する。
 
         監査ログへ「誰の」要求かを残せるよう、トークンを発行した利用者の ID を
         返す（宛先不明のときは ``None``）。API 応答はどちらの場合も同じで、
         存在の有無は呼び出し側から漏らさない。
         """
-        user = session.scalar(select(User).where(User.email == email))
+        user = account_signing_in(session, email, tenant)
         if user is None or not user.is_active:
             logger.info("password_reset_requested_unknown_email")
             return None

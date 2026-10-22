@@ -19,7 +19,7 @@ from bounded_contexts.identity_federation.infrastructure.client_assertion import
     read_private_key,
 )
 from bounded_contexts.identity_federation.presentation.dependencies import (
-    identity_provider,
+    client_credential,
 )
 from shared.kernel.settings.settings import settings
 
@@ -30,16 +30,17 @@ def report_sso_configuration() -> None:
     """SSO を使う設定になっているなら、実際に始められるかを確かめる。"""
     if not settings.oidc_enabled:
         return
-    provider = identity_provider()
-    if provider is None or not provider.is_usable:
+    # 連携先（発行者とクライアント ID）はテナントごとで、確かめるのはアプリ全体の資格情報だけ（ADR-0064）
+    credential = client_credential()
+    if not credential.is_complete or not settings.oidc_redirect_uri:
         # 有効にしたつもりで無効、という食い違いはここでしか気付けない。
         logger.error("sso_disabled_by_configuration")
         return
-    if not provider.credential.uses_private_key:
+    if not credential.uses_private_key:
         logger.info("sso_ready")
         return
     try:
-        read_private_key(provider.credential)
+        read_private_key(credential)
     except SsoNotConfiguredError:
         # 理由は read_private_key が既に書いている（例外の型だけ）。
         logger.error("sso_private_key_unreadable")
