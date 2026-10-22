@@ -54,10 +54,13 @@ def engine() -> Iterator[sa.Engine]:
     )
     Base.metadata.create_all(engine)
     db_module.set_engine(engine)
+    # ⚠ **設定はセッションを開く前に読む。** 設定の読み手は DB を別の接続で引くが、
+    # ``StaticPool`` では同じ接続なので、閉じたときに投入途中のセッションが巻き戻る。
+    issuer, client_id = settings.oidc_issuer, settings.oidc_client_id
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     seed_master_data(session)
     ensure_default_admin(session)
-    seat_default_admin(session, issuer=settings.oidc_issuer, client_id=settings.oidc_client_id)
+    seat_default_admin(session, issuer=issuer, client_id=client_id)
     session.commit()
     session.close()
     yield engine

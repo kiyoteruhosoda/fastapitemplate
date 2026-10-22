@@ -41,7 +41,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
     #: 所属するテナント（ADR-0061）。無いのはシステム管理者だけ。
-    membership: Mapped[UserTenant | None] = relationship(cascade="all, delete-orphan", uselist=False, lazy="selectin")
+    #: ⚠ **触れたときだけ引く（``selectin`` にしない）。** 据え付けの移行 ``0002`` がこのモデルで
+    #: ``users`` を引く時点では ``user_tenants`` がまだ無いので、一緒に引くとそこで落ちる。
+    membership: Mapped[UserTenant | None] = relationship(cascade="all, delete-orphan", uselist=False)
 
     @property
     def tenant_id(self) -> int | None:
