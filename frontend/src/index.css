@@ -1874,3 +1874,43 @@ button.notification-banner-text:hover:not(:disabled) {
     animation-duration: 1.6s !important;
   }
 }
+
+/* メンテナンス中・停止中の画面（ADR-0067）。アプリの画面は隠したまま、これだけを出す。 */
+.maintenance-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+}
+
+.maintenance-card {
+  width: 100%;
+  max-width: 32rem;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+.maintenance-card h1 {
+  margin: 0 0 var(--space-3);
+  font-size: 1.4rem;
+}
+
+.maintenance-card p {
+  margin: 0 0 var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.maintenance-reason,
+.maintenance-note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.maintenance-until {
+  font-weight: 600;
+}

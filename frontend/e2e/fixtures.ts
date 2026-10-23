@@ -1,5 +1,8 @@
 import { test as base, expect } from '@playwright/test'
 
+/** 試験がわざと返した応答の印（下の見張りが 5xx として数えない）。 */
+export const INTENDED_FAULT_HEADER = 'x-e2e-intended'
+
 /**
  * どの試験にも掛ける見張り。画面が正しく見えていても、裏で捕まえていない例外や
  * 5xx の応答が出ていれば、その試験を落とす。
@@ -18,7 +21,9 @@ export const test = base.extend<{ watchForFaults: undefined }>({
         }
       })
       page.on('response', (response) => {
-        if (response.status() >= 500) faults.push(`${response.status()} ${response.url()}`)
+        // 試験がわざと返した 5xx（前段が閉じているふり。maintenance.spec.ts）は数えない
+        if (response.status() >= 500 && response.headers()[INTENDED_FAULT_HEADER] === undefined)
+          faults.push(`${response.status()} ${response.url()}`)
       })
       await use(undefined)
       expect(faults).toEqual([])

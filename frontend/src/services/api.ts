@@ -7,7 +7,10 @@
  * - 401 のとき更新の口を 1 回だけ叩いて再試行する（更新もトークンを Cookie で受ける）。
  * - バックエンドはエラーコード（{"error": "..."}）を返す。表示文言への変換は
  *   i18n（フロントエンド側）で行う。
+ * - 前段（edge）が閉じていると答えた 503 は、メンテナンスの画面へ知らせる（ADR-0067）。
+ *   例外はこれまでどおり投げる（呼んだ側の処理は止まる。トーストは出ない）。
  */
+import { currentOutage, outageFrom, reportOutage, reportReopened } from './maintenance'
 
 /** CSRF の二重送信トークン。**この Cookie だけは JavaScript から読める。** */
 const CSRF_COOKIE = 'csrf_token'
@@ -96,8 +99,15 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
     } catch {
       /* 非 JSON 応答 */
     }
+    const outage = outageFrom(response.status, payload)
+    if (outage) {
+      reportOutage(outage)
+      throw new ApiError(response.status, 'service_unavailable')
+    }
     throw new ApiError(response.status, extractErrorCode(payload))
   }
+  // 答えが返った＝閉じていない（メンテナンスの画面を出していれば戻す）
+  if (currentOutage()) reportReopened()
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
