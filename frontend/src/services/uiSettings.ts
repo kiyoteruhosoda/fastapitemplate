@@ -5,6 +5,7 @@
  * 選んでいないときの初期値として使う。ログイン前の画面でも必要なため、
  * 認証前に一度だけ取得する（`main.tsx`）。
  */
+import { outageFrom, reportOutage } from './maintenance'
 
 export interface UiSettings {
   languages: string[]
@@ -22,7 +23,12 @@ export const FALLBACK_UI_SETTINGS: UiSettings = {
 export async function loadUiSettings(): Promise<UiSettings> {
   try {
     const response = await fetch('/api/ui/settings')
-    if (!response.ok) return FALLBACK_UI_SETTINGS
+    if (!response.ok) {
+      // 前段が閉じているなら、最初の画面からメンテナンスの画面にする（ADR-0067）
+      const outage = outageFrom(response.status, await response.json().catch(() => null))
+      if (outage) reportOutage(outage)
+      return FALLBACK_UI_SETTINGS
+    }
     return (await response.json()) as UiSettings
   } catch {
     return FALLBACK_UI_SETTINGS

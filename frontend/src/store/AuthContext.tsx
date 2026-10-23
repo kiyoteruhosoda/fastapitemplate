@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import { ApiError, api } from '../services/api'
+import { currentOutage, subscribeOutage } from '../services/maintenance'
 import { exchangeSsoTicket, startSsoLogout } from '../services/sso'
 import { clearSilentSsoMarks, markSignedOut } from '../services/silentSso'
 import { rememberTenant, rememberedTenant } from '../services/tenantEntrance'
@@ -95,12 +96,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!unreachable) return
     const timer = window.setInterval(() => {
+      // 前段が閉じている間は聞き直さない。確かめ直すのはメンテナンスの画面（ADR-0067）
+      if (currentOutage()) return
       void refreshMe()
     }, RECONNECT_INTERVAL_MS)
     return () => {
       window.clearInterval(timer)
     }
   }, [unreachable, refreshMe])
+
+  // 前段が開いたら、すぐに聞き直す（閉じている間に開いた画面は、まだ誰かを知らない）
+  useEffect(
+    () =>
+      subscribeOutage(() => {
+        if (!currentOutage()) void refreshMe()
+      }),
+    [refreshMe],
+  )
 
   useEffect(() => {
     void refreshMe().finally(() => {

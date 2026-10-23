@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError, api, errorMessageKey } from './api'
+import { currentOutage, reportOutage, resetOutageForTests } from './maintenance'
 
 describe('errorMessageKey', () => {
   it('ApiError のコードを i18n キーへ変換する', () => {
@@ -59,5 +60,55 @@ describe('リクエストの組み立て', () => {
   it('Authorization ヘッダーは付けない（手元にトークンを持たないため）', async () => {
     await api.post('/api/items', { name: 'x' })
     expect(initOf().headers).not.toHaveProperty('Authorization')
+  })
+})
+
+/** 前段（edge）が閉じていると答えた 503（ADR-0067）。 */
+describe('閉じている前段の 503', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    resetOutageForTests()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetOutageForTests()
+  })
+
+  function respond(status: number, body: unknown) {
+    fetchMock.mockResolvedValueOnce({
+      ok: status >= 200 && status < 300,
+      status,
+      json: () => Promise.resolve(body),
+    })
+  }
+
+  it('メンテナンスの画面へ知らせ、service_unavailable で投げる', async () => {
+    respond(503, { error: 'service_unavailable', reason: 'maintenance', message: 'Test.' })
+
+    await expect(api.get('/api/items')).rejects.toMatchObject({
+      status: 503,
+      code: 'service_unavailable',
+    })
+    expect(currentOutage()).toMatchObject({ reason: 'maintenance', message: 'Test.' })
+  })
+
+  it('アプリ自身の 503 はメンテナンスとは扱わない', async () => {
+    respond(503, { detail: { error: 'restart_request_failed' } })
+
+    await expect(api.get('/api/items')).rejects.toMatchObject({ code: 'restart_request_failed' })
+    expect(currentOutage()).toBeNull()
+  })
+
+  it('答えが返れば閉じた状態を外す', async () => {
+    reportOutage({ reason: 'stopped', title: null, body: null, message: null, until: null })
+    respond(200, {})
+
+    await api.get('/api/items')
+
+    expect(currentOutage()).toBeNull()
   })
 })

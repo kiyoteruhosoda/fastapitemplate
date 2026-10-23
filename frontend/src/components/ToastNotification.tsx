@@ -1,6 +1,8 @@
 /** 画面右下の簡易トースト通知。 */
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
+import { currentOutage } from '../services/maintenance'
+
 interface Toast {
   id: number
   kind: 'success' | 'error'
@@ -17,6 +19,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const notify = useCallback((kind: Toast['kind'], text: string) => {
+    // 前段が閉じている間の失敗は、メンテナンスの画面が伝える（ADR-0067）
+    if (kind === 'error' && currentOutage()) return
     const id = Date.now() + Math.random()
     setToasts((prev) => [...prev, { id, kind, text }])
     setTimeout(() => {
