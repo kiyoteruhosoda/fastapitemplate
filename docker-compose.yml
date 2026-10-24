@@ -103,7 +103,7 @@ services:
       start_period: 300s
 
   front:
-    image: nginx:1.27-alpine
+    image: nginx:1.30-alpine
     # 公開フロント。外部リバースプロキシからはこのポートへ接続する。
     ports:
       - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-8080}:80"
