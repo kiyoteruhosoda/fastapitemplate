@@ -48,6 +48,11 @@ jobs:
     if: github.event.pull_request.user.login != 'renovate'
     # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
     timeout-minutes: 20
+    # ⚠ **像の名前は実行ごとに分ける。** ホストの docker は 1 つなので、同じ名前だと同時に走ったジョブ
+    #   （雛形から作った別のリポジトリ・同じリポジトリの PR と main）が像を上書きし合い、別の像で試験が走る
+    #   （2026-10-25、imggen の煙試験が fastapitemplate の像の中で走って落ちた）。
+    env:
+      CI_IMAGE: ci/${{ github.repository }}:${{ github.run_id }}-build
     steps:
       - uses: actions/checkout@v6
 
@@ -63,7 +68,7 @@ jobs:
       #   コンテナからは経路が無い。自前のランナーはデーモンが居座るので、素の
       #   `docker build` のほうが layer が再利用される。
       - name: Build（push はしない）
-        run: docker build -t fastapitemplate:ci .
+        run: docker build -t "$CI_IMAGE" .
           # ⚠ forge では act_runner のキャッシュがジョブから届かないので使わない。
 
       # 版の刻印が効いていることの回帰テスト。ここが dev に戻ると、ビルドは緑のまま
@@ -71,6 +76,11 @@ jobs:
       - name: version.json が dev になっていないことを確認
         run: |
           set -eu
-          json=$(docker run --rm --entrypoint cat fastapitemplate:ci /app/shared/kernel/version.json)
+          json=$(docker run --rm --entrypoint cat "$CI_IMAGE" /app/shared/kernel/version.json)
           echo "$json"
           echo "$json" | grep -q "\"commit_hash\": \"$(git rev-parse --short HEAD)\""
+
+      # 実行ごとの名前なので、残すと溜まる
+      - name: 試験に使った像を消す
+        if: always()
+        run: docker image rm -f "$CI_IMAGE" >/dev/null 2>&1 || true
