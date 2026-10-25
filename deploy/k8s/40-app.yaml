@@ -135,7 +135,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: front
-          image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+          image: nginx:1.30-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951
           ports:
             # ⚠ **`hostPort` は張らない**（番号は Service が持つ）。
             - containerPort: 80
