@@ -71,6 +71,8 @@ def test_refresh_rejects_an_access_token_in_the_refresh_cookie(
 ) -> None:
     """更新の口はリフレッシュトークンしか受け取らない（種別を見ている）。"""
     access = client.cookies[ACCESS_TOKEN_COOKIE]
+    # 本物を消してから差し込む（残すと同じ名前で 2 本送られ、どちらが読まれるかは並び順次第）
+    client.cookies.delete(REFRESH_TOKEN_COOKIE)
     client.cookies.set(REFRESH_TOKEN_COOKIE, access, path=REFRESH_COOKIE_PATH)
     assert client.post("/api/auth/refresh", headers=admin_headers).status_code == 401
 

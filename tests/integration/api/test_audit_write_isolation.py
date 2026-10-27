@@ -69,17 +69,27 @@ def file_client(file_engine: sa.Engine, monkeypatch: pytest.MonkeyPatch) -> Iter
 
     ``setup_logging`` はルートロガーを差し替えるので、後始末で元へ戻す。戻さないと
     後続のテストが、破棄済みのエンジンへ書きに行くハンドラを抱えたままになる。
+
+    **テストクライアント自身の httpx2 のログ（"HTTP Request: …"）は DB へ流さない。**
+    Starlette 1.10 から TestClient は応答の頭が届いた時点で返し、アプリは裏で動き続ける。
+    httpx2 はそこで行を出すので、リクエストの外（控えの無い文脈）からの直書きになり、
+    まだ書き込みロックを握っているアプリと衝突して 5 秒待つ。本番には無いクライアント側の
+    行で、見たいのはアプリが出す行なので、このロガーだけ止める。
     """
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("TESTING", "0")
     root = logging.getLogger()
     original_handlers = list(root.handlers)
+    client_logger = logging.getLogger("httpx2")
+    original_client_level = client_logger.level
+    client_logger.setLevel(logging.WARNING)
     try:
         with TestClient(create_app()) as client:
             yield client
     finally:
         root.handlers = original_handlers
+        client_logger.setLevel(original_client_level)
 
 
 @pytest.fixture
@@ -87,7 +97,7 @@ def file_admin_headers(file_client: TestClient) -> dict[str, str]:
     return sign_in(file_client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
 
 
-def _audit_rows(engine: sa.Engine, event_type: str) -> list[sa.Row[tuple[str, str]]]:
+def _audit_rows(engine: sa.Engine, event_type: str) -> list[sa.Row[str, str]]:
     with engine.connect() as connection:
         return list(
             connection.execute(

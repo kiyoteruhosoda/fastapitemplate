@@ -48,7 +48,7 @@ class SqlExpiredLogRemover:
 
 
 def _delete_in_chunks(
-    expired_ids: sa.Select[tuple[int]],
+    expired_ids: sa.Select[int],
     delete_by_ids: Callable[[Sequence[int]], sa.Delete],
     chunk_size: int,
 ) -> int:

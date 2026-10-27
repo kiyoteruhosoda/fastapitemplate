@@ -37,7 +37,7 @@ class SqlFederatedUserDirectory:
     session: Session
     tenant_id: int | None
 
-    def _users(self) -> Select[tuple[User]]:
+    def _users(self) -> Select[User]:
         if self.tenant_id is None:
             return select(User).where(sa.false())
         return TenantMembers(self.session, self.tenant_id).users_query()
