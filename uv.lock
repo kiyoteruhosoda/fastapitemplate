@@ -795,7 +795,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pywebpush", specifier = ">=2.0" },
     { name = "qrcode", specifier = ">=8.0" },
-    { name = "sqlalchemy", specifier = ">=2.0.36" },
+    { name = "sqlalchemy", specifier = ">=2.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.47.0" },
     { name = "webauthn", specifier = ">=2.5.0" },
     { name = "werkzeug", specifier = ">=3.0.0" },

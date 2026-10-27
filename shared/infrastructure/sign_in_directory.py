@@ -20,7 +20,7 @@ from shared.infrastructure.models import User, UserTenant
 from shared.infrastructure.tenant_directory import sole_tenant, tenant_named
 
 
-def _seat(tenant_id: int | None) -> sa.Select[tuple[User]]:
+def _seat(tenant_id: int | None) -> sa.Select[User]:
     query = sa.select(User).outerjoin(UserTenant, UserTenant.user_id == User.id)
     if tenant_id is None:
         return query.where(UserTenant.user_id.is_(None))

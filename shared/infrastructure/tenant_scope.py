@@ -39,7 +39,7 @@ class TenantMembers:
     session: Session
     tenant_id: int
 
-    def users_query(self) -> sa.Select[tuple[User]]:
+    def users_query(self) -> sa.Select[User]:
         """このテナントの利用者を引く問い合わせ（条件を足して使う）。"""
         return (
             sa.select(User)
@@ -69,7 +69,7 @@ class TenantMembers:
         user.join(self.tenant_id)
         return user
 
-    def _groups(self) -> sa.Select[tuple[UserGroup]]:
+    def _groups(self) -> sa.Select[UserGroup]:
         return sa.select(UserGroup).where(UserGroup.tenant_id == self.tenant_id)
 
     def groups(self) -> Sequence[UserGroup]:
@@ -84,7 +84,7 @@ class TenantMembers:
     def new_group(self, name: str, description: str) -> UserGroup:
         return UserGroup(tenant_id=self.tenant_id, name=name, description=description)
 
-    def _roles(self) -> sa.Select[tuple[Role]]:
+    def _roles(self) -> sa.Select[Role]:
         """このテナントで使えるロール: 共有の雛形（システムのロールを除く）と、自分で作ったもの（ADR-0063）。"""
         shared = sa.and_(RoleTenant.tenant_id.is_(None), Role.name.not_in(list(master_data.SYSTEM_ROLES)))
         return (
