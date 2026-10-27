@@ -6,7 +6,7 @@ k3s へのデプロイ定義まで含んだ状態から開発を始められま�
 
 ## 技術スタック
 
-- Python 3.14 / uv（依存管理）
+- Python 3.15 / uv（依存管理）
 - FastAPI + Pydantic（OpenAPI は `/docs`・`/openapi.json`）
 - SQLAlchemy 2.x + Alembic（本番 MariaDB 10.11 / 開発・テスト SQLite）
 - React + TypeScript + Vite（`frontend/`、SPA スケルトン。i18n・テーマ切り替え込み）
