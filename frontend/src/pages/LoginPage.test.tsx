@@ -257,6 +257,67 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
+    it('テナントの入口では、そのテナントの IdP で試す（ADR-0064）', async () => {
+      render(
+        <MemoryRouter initialEntries={['/t/acme/login']}>
+          <I18nProvider settings={SETTINGS}>
+            <AuthProvider>
+              <Routes>
+                <Route path="/t/:tenant/login" element={<LoginPage />} />
+              </Routes>
+            </AuthProvider>
+          </I18nProvider>
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => {
+        expect(startSsoLogin).toHaveBeenCalledWith('/', 'acme', { silent: true })
+      })
+    })
+
+    // ⚠ 印を書けないまま試すと、戻ってきたときに試したことが分からず行き来が止まらない
+    it.each([
+      [
+        '書くと例外になる',
+        () => {
+          throw new DOMException('quota', 'QuotaExceededError')
+        },
+      ],
+      ['書いても残らない', () => undefined],
+    ])('印を書けないブラウザでは試さない（%s）', async (_case, setItem) => {
+      const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(setItem)
+      try {
+        renderPage('/login')
+
+        expect(
+          await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+        ).toBeInTheDocument()
+        expect(startSsoLogin).not.toHaveBeenCalled()
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
+    it('印を読めないブラウザでも試さない', async () => {
+      // 読めないのは試しの印だけにする（言語や見た目の控えは無いことにする）
+      const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
+        if (key === 'ssoSignedOut' || key === 'ssoSilentTried') {
+          throw new DOMException('denied', 'SecurityError')
+        }
+        return null
+      })
+      try {
+        renderPage('/login')
+
+        expect(
+          await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+        ).toBeInTheDocument()
+        expect(startSsoLogin).not.toHaveBeenCalled()
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
     it('SSO が無効なら試さない', async () => {
       fetchSsoProvider.mockResolvedValue({ ...PROVIDER, enabled: false })
       renderPage('/login')

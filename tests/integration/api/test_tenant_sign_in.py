@@ -190,3 +190,23 @@ def test_a_failed_round_trip_returns_to_the_tenants_entrance(sso_client: tuple[T
     client.get("/api/auth/sso/login", params={"tenant": "acme"}, follow_redirects=False)
     failed = client.get("/api/auth/sso/callback", params={"error": "access_denied"}, follow_redirects=False)
     assert failed.headers["location"].startswith("/t/acme/login?sso_error=")
+
+
+def test_a_declined_silent_attempt_returns_to_the_tenants_entrance(
+    sso_client: tuple[TestClient, _StubGateway],
+) -> None:
+    """ボタンを押さずに入る試し（ADR-0066）も、断られたら始めたテナントの入口へエラー無しで戻す。
+
+    共通の入口へ戻すと、テナントが 2 つ以上ある環境ではそのテナントの IdP の入口が出ない。
+    """
+    client, _ = sso_client
+    started = client.get(
+        "/api/auth/sso/login",
+        params={"tenant": "acme", "prompt": "none", "redirect_to": "/items"},
+        follow_redirects=False,
+    )
+    state = started.headers["location"].split("state=")[1].split("&")[0]
+    back = client.get(
+        "/api/auth/sso/callback", params={"error": "login_required", "state": state}, follow_redirects=False
+    )
+    assert back.headers["location"] == "/t/acme/login?sso_silent=declined&redirect_to=%2Fitems"
