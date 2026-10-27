@@ -37,7 +37,7 @@ jobs:
       - name: Set up uv
         uses: https://git.nolumia.com/astral-sh/setup-uv@v10.0.1
         with:
-          version: "0.12.5"
+          # 版は書かない: manifest-file の一覧（forge の写し・毎週取り込み）の最新を使う。manifest-file があれば GitHub の API へは行かない（2026-10-27）。
           manifest-file: "https://git.nolumia.com/astral-sh/uv/raw/branch/main/uv.ndjson"
           download-from-astral-mirror: false
 
