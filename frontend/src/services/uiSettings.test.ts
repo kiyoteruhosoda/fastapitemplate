@@ -1,6 +1,7 @@
 /** 画面初期設定の取得（サーバーへ到達できない場合の保険を含む）。 */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { currentOutage, resetOutageForTests } from './maintenance'
 import { FALLBACK_UI_SETTINGS, loadUiSettings } from './uiSettings'
 
 function stubFetch(impl: () => Promise<unknown>) {
@@ -8,6 +9,10 @@ function stubFetch(impl: () => Promise<unknown>) {
 }
 
 describe('loadUiSettings', () => {
+  beforeEach(() => {
+    resetOutageForTests()
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -34,5 +39,44 @@ describe('loadUiSettings', () => {
     stubFetch(() => Promise.reject(new Error('offline')))
 
     await expect(loadUiSettings()).resolves.toEqual(FALLBACK_UI_SETTINGS)
+  })
+
+  it('前段が閉じていれば、最初の画面からメンテナンスの画面にする（ADR-0067）', async () => {
+    const declared = {
+      error: 'service_unavailable',
+      reason: 'maintenance',
+      until: '2026-10-28T19:30:00Z',
+      message: 'Test.',
+      title: 'T',
+      body: 'B',
+    }
+    stubFetch(() =>
+      Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve(declared) }),
+    )
+
+    await expect(loadUiSettings()).resolves.toEqual(FALLBACK_UI_SETTINGS)
+    expect(currentOutage()).toMatchObject({ reason: 'maintenance', until: '2026-10-28T19:30:00Z' })
+  })
+
+  it('アプリ自身の 503 や本文の読めない 503 はメンテナンスとは扱わない', async () => {
+    stubFetch(() =>
+      Promise.resolve({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ detail: { error: 'service_unavailable' } }),
+      }),
+    )
+    await loadUiSettings()
+    expect(currentOutage()).toBeNull()
+
+    stubFetch(() =>
+      Promise.resolve({
+        ok: false,
+        status: 503,
+        json: () => Promise.reject(new SyntaxError('html')),
+      }),
+    )
+    await expect(loadUiSettings()).resolves.toEqual(FALLBACK_UI_SETTINGS)
+    expect(currentOutage()).toBeNull()
   })
 })
