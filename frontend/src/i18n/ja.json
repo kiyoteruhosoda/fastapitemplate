@@ -398,7 +398,7 @@
   "tenants.delete": "テナントを削除",
   "tenants.hint": "テナントは家族・組織ごとの区切りです。ここで見えるのは台帳と人数だけで、中身は見えません。テナントの中はテナント管理者が管理します。",
   "tenants.slug": "短い名前（入口の URL に使う。英小文字・数字・ハイフン）",
-  "tenants.displayName": "表示名",
+  "tenants.displayName": "テナント名",
   "tenants.issuer": "IdP の発行者 URL（空なら SSO を使わない）",
   "tenants.clientId": "IdP に登録したクライアント ID",
   "tenants.ssoHint": "IdP（assay）のテナントごとにこのアプリのクライアントを登録し、その発行者とクライアント ID を入れます。",

@@ -56,8 +56,28 @@ function availableLocales(settings: UiSettings): Locale[] {
   return configured.length > 0 ? configured : [FALLBACK_LOCALE]
 }
 
+/**
+ * 選んだ言語の控え。⚠ 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）では
+ * `localStorage` に触れるだけで例外になる。控えは使い勝手のためだけなので、無いものとして続ける。
+ */
+function storedLocale(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function storeLocale(next: Locale): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, next)
+  } catch {
+    // 控えられなくても、この画面では切り替わる
+  }
+}
+
 function initialLocale(locales: Locale[], settings: UiSettings): Locale {
-  const stored = localStorage.getItem(STORAGE_KEY)
+  const stored = storedLocale()
   if (isLocale(stored) && locales.includes(stored)) return stored
 
   const fromBrowser = navigator.language.split('-')[0]
@@ -91,7 +111,7 @@ export function I18nProvider({
   }, [locale])
 
   const setLocale = useCallback((next: Locale) => {
-    localStorage.setItem(STORAGE_KEY, next)
+    storeLocale(next)
     setLocaleState(next)
   }, [])
 

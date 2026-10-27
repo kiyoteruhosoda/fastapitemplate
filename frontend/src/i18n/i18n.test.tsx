@@ -1,6 +1,6 @@
 /** 言語の初期選択・切り替え・プレースホルダ差し込み。 */
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { UiSettings } from '../services/uiSettings'
 import { withSuppressedRenderErrors } from '../test-support/renderErrors'
@@ -10,13 +10,34 @@ function settingsOf(overrides: Partial<UiSettings> = {}): UiSettings {
   return { languages: ['en', 'ja'], default_locale: 'en', default_theme: 'system', ...overrides }
 }
 
+/** 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）。 */
+function blockStorage(): () => void {
+  const denied = () => {
+    throw new DOMException('denied', 'SecurityError')
+  }
+  const spies = [
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(denied),
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(denied),
+  ]
+  return () => {
+    for (const spy of spies) spy.mockRestore()
+  }
+}
+
 function Probe() {
-  const { locale, locales, t } = useI18n()
+  const { locale, locales, t, setLocale } = useI18n()
   return (
     <div>
       <span data-testid="locale">{locale}</span>
       <span data-testid="locales">{locales.join(',')}</span>
       <span data-testid="missing">{t('no.such.key')}</span>
+      <button
+        onClick={() => {
+          setLocale('ja')
+        }}
+      >
+        ja
+      </button>
     </div>
   )
 }
@@ -56,6 +77,21 @@ describe('I18nProvider', () => {
     localStorage.setItem('locale', 'ja')
     renderWith(settingsOf())
     expect(document.documentElement.lang).toBe('ja')
+  })
+
+  it('保存領域が使えなくても画面を出し、切り替えもできる', () => {
+    const restore = blockStorage()
+    try {
+      renderWith(settingsOf({ languages: ['en', 'ja'] }))
+      expect(screen.getByTestId('locale').textContent).toBe('en')
+
+      act(() => {
+        screen.getByRole('button', { name: 'ja' }).click()
+      })
+      expect(screen.getByTestId('locale').textContent).toBe('ja')
+    } finally {
+      restore()
+    }
   })
 
   it('辞書に無いキーはキー自身を返す', () => {

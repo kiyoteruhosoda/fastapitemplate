@@ -398,7 +398,7 @@
   "tenants.delete": "Delete tenant",
   "tenants.hint": "A tenant separates one family or organization from another. You see the registry and head counts here, never the content. Inside a tenant, its own administrators are in charge.",
   "tenants.slug": "Short name (used in the sign-in URL; lowercase letters, digits and hyphens)",
-  "tenants.displayName": "Display name",
+  "tenants.displayName": "Tenant name",
   "tenants.issuer": "IdP issuer URL (leave empty for no SSO)",
   "tenants.clientId": "Client ID registered at the IdP",
   "tenants.ssoHint": "Register this app as a client in each IdP (assay) tenant and enter that issuer and client ID.",

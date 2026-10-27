@@ -40,8 +40,28 @@ function isThemePreference(value: unknown): value is ThemePreference {
   return value === 'system' || value === 'light' || value === 'dark'
 }
 
+/**
+ * 選んだ見た目の控え。⚠ 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）では
+ * `localStorage` に触れるだけで例外になる。控えは使い勝手のためだけなので、無いものとして続ける。
+ */
+function storedTheme(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function storeTheme(next: ThemePreference): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, next)
+  } catch {
+    // 控えられなくても、この画面では切り替わる
+  }
+}
+
 function initialTheme(settings: UiSettings): ThemePreference {
-  const stored = localStorage.getItem(STORAGE_KEY)
+  const stored = storedTheme()
   if (isThemePreference(stored)) return stored
   return isThemePreference(settings.default_theme) ? settings.default_theme : 'system'
 }
@@ -84,7 +104,7 @@ export function ThemeProvider({
   }, [resolvedTheme])
 
   const setTheme = useCallback((next: ThemePreference) => {
-    localStorage.setItem(STORAGE_KEY, next)
+    storeTheme(next)
     setThemeState(next)
   }, [])
 
