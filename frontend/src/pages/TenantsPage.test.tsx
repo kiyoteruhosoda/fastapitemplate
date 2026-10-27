@@ -56,7 +56,11 @@ async function renderPage(tenants: object[] = [ACME, SUSPENDED]) {
       </ToastProvider>
     </I18nProvider>,
   )
-  await screen.findByText('Acme')
+  // 一覧を読み終えるまで待つ（空の台帳もある）
+  await waitFor(() => {
+    expect(apiGet).toHaveBeenCalledWith('/api/system/tenants')
+  })
+  if (tenants.length > 0) await screen.findByText('Acme')
 }
 
 function rowOf(name: string): HTMLElement {

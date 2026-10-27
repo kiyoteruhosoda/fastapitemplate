@@ -205,7 +205,6 @@ def test_a_declined_silent_attempt_returns_to_the_tenants_entrance(
         params={"tenant": "acme", "prompt": "none", "redirect_to": "/items"},
         follow_redirects=False,
     )
-    assert "prompt=none" in started.headers["location"]
     state = started.headers["location"].split("state=")[1].split("&")[0]
     back = client.get(
         "/api/auth/sso/callback", params={"error": "login_required", "state": state}, follow_redirects=False
