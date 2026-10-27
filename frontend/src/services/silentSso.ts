@@ -32,7 +32,9 @@ const SILENT_DECLINED_PARAM = 'sso_silent'
 /** この画面は本人の再読み込みで開かれたか。 */
 function openedByReload(): boolean {
   try {
-    const [entry] = window.performance.getEntriesByType('navigation') as PerformanceNavigationTiming[]
+    const [entry] = window.performance.getEntriesByType(
+      'navigation',
+    ) as PerformanceNavigationTiming[]
     return entry?.type === 'reload'
   } catch {
     return false
