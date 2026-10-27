@@ -1,12 +1,17 @@
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 
 // テスト間で DOM を持ち越さない（describe をまたいだ副作用を防ぐ）
 afterEach(() => {
   cleanup()
 })
+
+// `findBy*` / `waitFor` の待ちの上限（既定は 1 秒）。CI の台が混んでいると、ファイルの最初の
+// 描画だけで 1 秒を超えて落ちる（派生の toeic で 2 度起きた）。出たらすぐ進むので、
+// 上限を上げても速い試験は遅くならない。
+configure({ asyncUtilTimeout: 5000 })
 
 // jsdom は `<dialog>` の開閉メソッドを実装していない（要素と `open` 属性はある）。
 // 無いままだと `showModal()` を呼ぶ側が黙って何もせず、ダイアログの中身が

@@ -40,6 +40,20 @@ function stubMatchMedia(matches: boolean) {
   }
 }
 
+/** 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）。 */
+function blockStorage(): () => void {
+  const denied = () => {
+    throw new DOMException('denied', 'SecurityError')
+  }
+  const spies = [
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(denied),
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(denied),
+  ]
+  return () => {
+    for (const spy of spies) spy.mockRestore()
+  }
+}
+
 function Probe() {
   const { theme, resolvedTheme, setTheme } = useTheme()
   return (
@@ -137,6 +151,22 @@ describe('ThemeProvider', () => {
     })
     expect(localStorage.getItem('theme')).toBe('light')
     expect(screen.getByTestId('resolved').textContent).toBe('light')
+  })
+
+  it('保存領域が使えなくても画面を出し、切り替えもできる', () => {
+    stubMatchMedia(false)
+    const restore = blockStorage()
+    try {
+      renderWith(settingsOf({ default_theme: 'dark' }))
+      expect(screen.getByTestId('theme').textContent).toBe('dark')
+
+      act(() => {
+        screen.getByRole('button', { name: 'light' }).click()
+      })
+      expect(screen.getByTestId('resolved').textContent).toBe('light')
+    } finally {
+      restore()
+    }
   })
 
   it('アンマウント時に OS の購読を解除する', () => {

@@ -106,12 +106,9 @@ describe('TenantsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Register a tenant' }))
     const dialog = within(screen.getByRole('dialog'))
     type(dialog.getByLabelText(/Short name/), 'acme')
-    // 表示名の欄は、テナントの名前と管理者の名前の 2 つ（並びはこの順）
-    const [tenantName, adminName] = dialog.getAllByLabelText('Display name')
-    if (!tenantName || !adminName) throw new Error('表示名の欄が 2 つ無い')
-    type(tenantName, 'Acme')
+    type(dialog.getByLabelText('Tenant name'), 'Acme')
     type(dialog.getByLabelText("Tenant administrator's email"), 'boss@acme.example')
-    type(adminName, 'boss')
+    type(dialog.getByLabelText('Display name'), 'boss')
     fireEvent.click(dialog.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
@@ -146,7 +143,7 @@ describe('TenantsPage', () => {
     await renderPage()
     fireEvent.click(within(rowOf('Acme')).getByRole('button', { name: 'Edit' }))
     const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByLabelText('Display name')).toHaveValue('Acme')
+    expect(dialog.getByLabelText('Tenant name')).toHaveValue('Acme')
     expect(dialog.getByLabelText(/IdP issuer URL/)).toHaveValue('https://idp.example.test/acme')
     // 編集では短い名前も管理者も変えない
     expect(dialog.queryByLabelText(/Short name/)).not.toBeInTheDocument()
