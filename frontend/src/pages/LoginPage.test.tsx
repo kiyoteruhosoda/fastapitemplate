@@ -6,7 +6,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '../i18n'
 import { AuthProvider } from '../store/AuthContext'
@@ -207,6 +207,10 @@ describe('LoginPage', () => {
       fetchSsoProvider.mockResolvedValue(PROVIDER)
     })
 
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
     it('開いたら入口を描かずに prompt=none で IdP へ送り出す（行き先は保つ）', async () => {
       renderPage('/login?redirect_to=%2Fitems')
 
@@ -226,6 +230,31 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(document.querySelector('.error')).toBeNull()
+    })
+
+    it('試して戻った画面を再読み込みしたら、もう 1 回試す（ADR-0068）', async () => {
+      window.sessionStorage.setItem('ssoSilentTried', '1')
+      vi.spyOn(window.performance, 'getEntriesByType').mockReturnValue([
+        { type: 'reload' } as PerformanceNavigationTiming,
+      ])
+      renderPage('/login?sso_silent=declined&redirect_to=%2Fitems')
+
+      await waitFor(() => {
+        expect(startSsoLogin).toHaveBeenCalledWith('/items', undefined, { silent: true })
+      })
+    })
+
+    it('再読み込みでも、サインアウトした後は試さない', async () => {
+      window.localStorage.setItem('ssoSignedOut', '1')
+      vi.spyOn(window.performance, 'getEntriesByType').mockReturnValue([
+        { type: 'reload' } as PerformanceNavigationTiming,
+      ])
+      renderPage('/login?sso_silent=declined')
+
+      expect(
+        await screen.findByRole('button', { name: 'Sign in with Nolumia' }),
+      ).toBeInTheDocument()
+      expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
     it('このタブで一度試していたら試さない', async () => {
