@@ -61,10 +61,20 @@ function extractErrorCode(body: unknown): string {
   return 'unknown_error'
 }
 
+let refreshing: Promise<boolean> | null = null
+
 /**
  * 更新の口を叩く。トークンは行きも帰りも Cookie なので、ここでは何も持ち回さない。
  */
-async function tryRefresh(): Promise<boolean> {
+function tryRefresh(): Promise<boolean> {
+  // 同時に 401 になった要求は 1 本の更新を待つ（ADR-0091）
+  refreshing ??= sendRefresh().finally(() => {
+    refreshing = null
+  })
+  return refreshing
+}
+
+async function sendRefresh(): Promise<boolean> {
   const headers: Record<string, string> = {}
   const csrf = csrfToken()
   if (csrf) headers[CSRF_HEADER] = csrf

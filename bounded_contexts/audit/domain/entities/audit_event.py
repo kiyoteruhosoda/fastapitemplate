@@ -30,6 +30,8 @@ class AuditEventType(StrEnum):
     LOGIN_FAILED = "login.failed"
     # 失敗が続いたので、その宛名をしばらく断り始めた（ADR-0076 §9）
     LOGIN_LOCKED = "login.locked"
+    # 一度使ったリフレッシュトークンが戻ってきた（盗まれた疑い。ADR-0091）
+    REFRESH_TOKEN_REUSED = "refresh_token.reused"
     PASSWORD_CHANGED = "password.changed"
     PASSWORD_RESET_REQUESTED = "password_reset.requested"
     PASSWORD_RESET_COMPLETED = "password_reset.completed"
