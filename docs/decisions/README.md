@@ -22,3 +22,4 @@
 | [ADR-0085](ADR-0085-content-settings.md) | コンテンツ設定 | 定義をコードに、テナントが変えた値だけを DB に持つ（`content_settings`・`/api/admin/content-settings`） |
 | [ADR-0086](ADR-0086-ci-runs-on-forge-without-github.md) | CI の台と取り寄せ先 | CI は forge の自前の台で動き、GitHub から何も取らない（ADR-0072 §5 を置き換え。uv は版を書かず写しの最新） |
 | [ADR-0087](ADR-0087-machine-entrance-and-allowlist.md) | 機械の口と許可簿 | 機械の口（`POST /api/machine/token`）は許可簿の操作（権限コード）だけを scope に載せ、scope で守った口だけを通す |
+| [ADR-0088](ADR-0088-no-task-list-in-the-repository.md) | タスクの一覧 | タスクの一覧（`Progress.md`）をリポジトリに置かない（ADR-0072 §2 のタスク管理を置き換え） |

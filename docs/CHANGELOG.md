@@ -2,6 +2,10 @@
 
 - ほかのロールと同じ名前へ変えると、一意制約で 500 になっていたのを `409 role_already_exists` で断る。
 - 使われていなかった `roles_fit_the_seat` を消した（関門は `TenantMembers.roles` と `within_the_seat`）。
+## 2026-10-30（タスクの一覧 `Progress.md` をやめた。ADR-0088）
+
+- `docs/Progress.md` を消し、CLAUDE.md からタスク管理の義務を外した。タスクはリポジトリの外の課題管理で持つ。
+  消した時点の残タスクは git の履歴で読める。派生アプリは、自分の `docs/Progress.md` と CLAUDE.md の同じ節を消してよい。
 
 ## 2026-10-30（機械の口と許可簿。ADR-0087・task #718・#721）
 
