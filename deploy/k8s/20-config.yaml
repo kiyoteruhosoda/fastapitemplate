@@ -78,7 +78,7 @@ data:
 
         client_max_body_size 100m;
 
-        # ⚠ 外へ出さない（Progress の T7）
+        # ⚠ 外へ出さない（未認証で読めるため）
         location = /metrics {
             return 404;
         }

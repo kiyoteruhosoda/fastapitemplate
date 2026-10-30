@@ -122,7 +122,7 @@ build が引く表は deploy-repo の `resources/build-matrix.json`（**これ�
 | `<app>-app` | `DATABASE_URI` / `JWT_SECRET_KEY` / `SECRET_KEY` / `ADMIN_INITIAL_PASSWORD` |
 
 ⚠ **`JWT_SECRET_KEY` は必ず生成した値を入れる。** 既定値のままだと誰でも
-トークンを偽造できる（`docs/Progress.md` の T2）。
+トークンを偽造できる（本番は既定値のままでは起動しない。ADR-0073 §4）。
 
 ```bash
 # 1. 値を入れる（kubectl create secret を手で）

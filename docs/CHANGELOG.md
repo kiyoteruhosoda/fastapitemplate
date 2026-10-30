@@ -1,3 +1,8 @@
+## 2026-10-30（タスクの一覧 `Progress.md` をやめた。ADR-0088）
+
+- `docs/Progress.md` を消し、CLAUDE.md からタスク管理の義務を外した。タスクはリポジトリの外の課題管理で持つ。
+  消した時点の残タスクは git の履歴で読める。派生アプリは、自分の `docs/Progress.md` と CLAUDE.md の同じ節を消してよい。
+
 ## 2026-10-30（機械の口と許可簿。ADR-0087・task #718・#721）
 
 - assay の `client_credentials` のトークンを換える口 `POST /api/machine/token` を足した。許可簿は環境変数

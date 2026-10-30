@@ -66,7 +66,6 @@ main へマージすると、deck（https://deck.nolumia.com）がイメージ�
 | [docs/ER.md](docs/ER.md) | ER 図・テーブル定義 |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作の手順書（「〇〇したいとき」） |
 | [docs/decisions/](docs/decisions/README.md) | 設計判断（ADR） |
-| [docs/Progress.md](docs/Progress.md) | 雛形の残タスク |
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | 変更履歴（雛形の更新を取り込むときに読む） |
 | [frontend/README.md](frontend/README.md) | 画面遷移図・画面仕様・操作マニュアル |
 | [deploy/k8s/README.md](deploy/k8s/README.md) | k3s への配布（宣言の雛形つき） |
