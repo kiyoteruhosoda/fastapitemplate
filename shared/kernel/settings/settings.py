@@ -200,7 +200,7 @@ class ApplicationSettings:
 
     @property
     def app_client_ids(self) -> frozenset[str]:
-        """assay のアクセストークンを受け取ってよいクライアント（アプリ）の ``client_id``（ADR-0045）。
+        """assay のアクセストークンを受け取ってよいクライアント（アプリ）の ``client_id``（ADR-0081 §1）。
 
         ⚠ **環境変数だけ。** 画面から足せると、別のクライアント宛てのトークンがこのアプリの
         API を通る。空なら assay のトークンは一切受け取らない。
@@ -209,7 +209,7 @@ class ApplicationSettings:
 
     @property
     def android_app_package(self) -> str:
-        """App Links で戻す Android アプリのパッケージ名（``assetlinks.json``。ADR-0045）。"""
+        """App Links で戻す Android アプリのパッケージ名（``assetlinks.json``。ADR-0081 §1）。"""
         return (self._env.get("ANDROID_APP_PACKAGE") or "").strip()
 
     @property
@@ -255,12 +255,12 @@ class ApplicationSettings:
 
     @property
     def recent_sign_in_seconds(self) -> int:
-        """入り口を作り替える操作を許す、サインインからの秒数（ADR-0060）。"""
+        """入り口を作り替える操作を許す、サインインからの秒数（ADR-0076 §10）。"""
         return max(self.get_int("RECENT_SIGN_IN_SECONDS", 600), 1)
 
     @property
     def login_max_failures(self) -> int:
-        """窓の中で何回まで失敗を許すか。``0`` で数えない（本番で 0 にしない。ADR-0058）。"""
+        """窓の中で何回まで失敗を許すか。``0`` で数えない（本番で 0 にしない。ADR-0076 §9）。"""
         return max(self.get_int("LOGIN_MAX_FAILURES", 5), 0)
 
     @property
@@ -387,16 +387,16 @@ class ApplicationSettings:
 
     @property
     def log_retention_days(self) -> int:
-        """``log`` を残す日数。``0`` は削除しない（ADR-0021）。"""
+        """``log`` を残す日数。``0`` は削除しない（ADR-0075 §3）。"""
         return self.get_int("LOG_RETENTION_DAYS", 0)
 
     @property
     def audit_log_retention_days(self) -> int:
-        """``audit_log`` を残す日数。``0`` は削除しない（ADR-0021）。"""
+        """``audit_log`` を残す日数。``0`` は削除しない（ADR-0075 §3）。"""
         return self.get_int("AUDIT_LOG_RETENTION_DAYS", 0)
 
     # ------------------------------------------------------------------
-    # 通知（ADR-0047）
+    # 通知（ADR-0081 §3）
     # ------------------------------------------------------------------
 
     @property
@@ -415,11 +415,11 @@ class ApplicationSettings:
 
     @property
     def fcm_service_account_file(self) -> str:
-        """Firebase のサービスアカウントの鍵（JSON）のファイルの場所。空ならアプリへ送らない（ADR-0049）。"""
+        """Firebase のサービスアカウントの鍵（JSON）のファイルの場所。空ならアプリへ送らない（ADR-0081 §5）。"""
         return self._text("FCM_SERVICE_ACCOUNT_FILE")
 
     # ------------------------------------------------------------------
-    # スマホアプリの最新版（ADR-0048）
+    # スマホアプリの最新版（ADR-0081 §4）
     # ------------------------------------------------------------------
 
     @property
@@ -462,7 +462,7 @@ class ApplicationSettings:
         return str(value).strip() if value else ""
 
     # ------------------------------------------------------------------
-    # 外部 IdP との SSO（ADR-0025 / ADR-0026）
+    # 外部 IdP との SSO（ADR-0077 §1 / ADR-0076 §3）
     # ------------------------------------------------------------------
 
     @property
@@ -496,7 +496,7 @@ class ApplicationSettings:
 
     @property
     def oidc_client_auth_method(self) -> str:
-        """トークンエンドポイントへの client 認証方式（ADR-0025 決定 5）。
+        """トークンエンドポイントへの client 認証方式（ADR-0077 §1 決定 5）。
 
         知らない値は既定へ落とさない（``ClientCredential`` が「不備」と判断する）。
         """
@@ -516,7 +516,7 @@ class ApplicationSettings:
 
     @property
     def machine_client_id(self) -> str:
-        """このアプリが**機械として**名乗る ``client_id``（ADR-0043）。
+        """このアプリが**機械として**名乗る ``client_id``（ADR-0077 §7）。
 
         ⚠ 利用者のログイン用（``OIDC_CLIENT_ID``）とは**別の登録**。鍵だけを共有する。
         ⚠ **用途の名前を付けない**（``RECONCILE_…`` にしない）。どのアプリのものかは
@@ -573,7 +573,7 @@ class ApplicationSettings:
 
     @property
     def oidc_acr_values(self) -> Sequence[str]:
-        """要求する認証の強度。空 = 要求しない（ADR-0026 決定 1）。"""
+        """要求する認証の強度。空 = 要求しない（ADR-0076 §3 決定 1）。"""
         return self.get_list("OIDC_ACR_VALUES")
 
     @property
@@ -598,7 +598,7 @@ class ApplicationSettings:
 
     @property
     def oidc_link_by_email(self) -> bool:
-        """初回ログインで、同じメールアドレスの既存の利用者へ寄せるか（ADR-0037）。
+        """初回ログインで、同じメールアドレスの既存の利用者へ寄せるか（ADR-0077 §4）。
 
         ⚠ **既定は寄せない。** 条件の ``email_verified`` の意味が IdP 側と食い違って
         いると、相手のアドレスを名乗るだけで他人のアカウントへ入れる経路になる。
@@ -619,7 +619,7 @@ class ApplicationSettings:
         return self.get_int("OIDC_LOGIN_TICKET_TTL_SECONDS", 60)
 
     # ------------------------------------------------------------------
-    # ローカルの入口（ADR-0026 決定 2・3）
+    # ローカルの入口（ADR-0076 §3 決定 2・3）
     # ------------------------------------------------------------------
 
     @property

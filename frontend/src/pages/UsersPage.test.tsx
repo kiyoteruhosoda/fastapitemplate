@@ -2,7 +2,7 @@
  * ユーザー管理のロール列。
  *
  * 見るのは 2 点。ロール一覧が読めないときでも既存の割り当てを失わないこと
- * （ADR-0018）と、同じ行への続けざまの更新で片方の選択が消えないこと。
+ * （ADR-0078 §2）と、同じ行への続けざまの更新で片方の選択が消えないこと。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,7 +58,7 @@ describe('UsersPage のロール列', () => {
 
   it('入れる手段を並べて出す（認証系が 2 つあることを読み取れるようにする）', async () => {
     // ⚠ IdP 側の多要素はここに出ない。出せるのはこのアプリが知っている口だけで、
-    //   それがまさに「認証系が 2 つある」ということ（ADR-0039）。
+    //   それがまさに「認証系が 2 つある」ということ（ADR-0076 §7）。
     apiGet.mockImplementation((path: string) =>
       path === '/api/admin/users'
         ? Promise.resolve([

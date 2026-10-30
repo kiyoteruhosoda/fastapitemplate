@@ -14,17 +14,17 @@ export interface Me {
   username: string
   /** いま有効な scope（アクティブロールで絞り込まれた後の権限）。 */
   scopes: string[]
-  /** 付与されている全ロール = 切り替えられる先（ADR-0017）。 */
+  /** 付与されている全ロール = 切り替えられる先（ADR-0078 §1）。 */
   roles: string[]
   /** null は「すべてのロール」（保有権限の和集合）。 */
   active_role: string | null
   /**
-   * パスワードという入り口を持っているか（ADR-0038）。
+   * パスワードという入り口を持っているか（ADR-0076 §6）。
    * 偽 = SSO でしか入れない利用者。画面はパスワード変更の導線を出さない。
    */
   has_password: boolean
   /**
-   * サインアウトを IdP まで通すか（サーバーの設定。既定は偽。ADR-0033）。
+   * サインアウトを IdP まで通すか（サーバーの設定。既定は偽。ADR-0077 §2）。
    * `/me` に載せてあるので、サインアウトのために問い合わせを増やさない。
    */
   rp_logout_enabled: boolean
@@ -48,14 +48,14 @@ interface AuthValue {
   login: (email: string, password: string, totpCode?: string, tenant?: string) => Promise<void>
   loginWithPasskey: () => Promise<void>
   /**
-   * SSO の引き換え券をトークンへ換えてログイン状態にする（ADR-0025）。
+   * SSO の引き換え券をトークンへ換えてログイン状態にする（ADR-0077 §1）。
    * 戻り先（SSO を始めた画面）を返す。
    */
   completeSsoLogin: (ticket: string) => Promise<string>
   /** サインアウト。IdP まで通すかはサーバーの設定次第（既定は通さない）。 */
   logout: () => Promise<void>
   refreshMe: () => Promise<void>
-  /** アクティブロールを切り替える（null ですべてのロールへ戻す。ADR-0017）。 */
+  /** アクティブロールを切り替える（null ですべてのロールへ戻す。ADR-0078 §1）。 */
   switchRole: (role: string | null) => Promise<void>
   hasScope: (...codes: string[]) => boolean
 }
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreachable, setUnreachable] = useState(false)
 
   /**
-   * ログイン済みかは **``/api/auth/me`` の成否で決める**（ADR-0028）。
+   * ログイン済みかは **``/api/auth/me`` の成否で決める**（ADR-0076 §4）。
    *
    * トークンは httpOnly Cookie にあり JavaScript からは見えないので、手元の値を
    * 見て判断することはできない。「Cookie があるか」を推し量る代わりに、実際に
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!unreachable) return
     const timer = window.setInterval(() => {
-      // 前段が閉じている間は聞き直さない。確かめ直すのはメンテナンスの画面（ADR-0067）
+      // 前段が閉じている間は聞き直さない。確かめ直すのはメンテナンスの画面（ADR-0080 §10）
       if (currentOutage()) return
       void refreshMe()
     }, RECONNECT_INTERVAL_MS)
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       totp_code: totpCode || null,
-      // 入口のテナント（`/t/<slug>/login`。ADR-0064）
+      // 入口のテナント（`/t/<slug>/login`。ADR-0079 §4）
       tenant: tenant ?? null,
     })
     rememberTenant(tenant)
@@ -183,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     const toIdp = user?.rp_logout_enabled ?? false
     setUser(null)
-    // IdP の SSO は既定で残るので、ログイン画面を開いてもボタンを押さずに入り直さない（ADR-0066）
+    // IdP の SSO は既定で残るので、ログイン画面を開いてもボタンを押さずに入り直さない（ADR-0077 §9）
     markSignedOut()
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     await api.post('/api/auth/logout').catch(() => undefined)

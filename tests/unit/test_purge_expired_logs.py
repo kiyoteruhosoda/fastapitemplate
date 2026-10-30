@@ -54,7 +54,7 @@ def test_each_table_is_purged_with_its_own_cutoff() -> None:
 
 
 def test_the_audit_log_is_left_alone_when_only_application_logs_expire() -> None:
-    """アプリログの掃除が監査ログを巻き込まないこと（ADR-0021 の要）。"""
+    """アプリログの掃除が監査ログを巻き込まないこと（ADR-0075 §3 の要）。"""
     remover = _SpyRemover(application_logs=5)
 
     outcome = PurgeExpiredLogs(remover).execute(LogRetentionPolicy(application_log_days=7), _NOW)

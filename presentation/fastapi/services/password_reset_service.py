@@ -3,7 +3,7 @@
 トークンは平文を保存せず SHA-256 ハッシュのみを保存する。
 ユーザーの存在有無は API 応答から判別できないようにする（列挙攻撃対策）。
 
-⚠ **パスワードを持たない利用者には発行しない**（ADR-0038）。リセットを通すと、
+⚠ **パスワードを持たない利用者には発行しない**（ADR-0076 §6）。リセットを通すと、
 「この利用者は SSO でしか入れない」が黙って崩れる。応答は不在のときと同じ。
 """
 
@@ -58,7 +58,7 @@ class PasswordResetService:
             logger.info("password_reset_requested_unknown_email")
             return None
         if not user.has_local_password:
-            # ⚠ **リセットでローカル認証を生やさない**（ADR-0038）。パスワードを
+            # ⚠ **リセットでローカル認証を生やさない**（ADR-0076 §6）。パスワードを
             # 持たない利用者にここで新しい値を設定させると、「この利用者は SSO でしか
             # 入れない」が黙って崩れる。持たせるなら管理者が明示的に設定する。
             logger.info("password_reset_requested_without_local_password")
@@ -93,11 +93,11 @@ class PasswordResetService:
         return user.id
 
     def invite(self, session: Session, user: User, *, place: str) -> bool:
-        """招待のメールを送る（ADR-0065）。本人が自分でパスワードを決める。送れたら真。
+        """招待のメールを送る（ADR-0079 §5）。本人が自分でパスワードを決める。送れたら真。
 
         ⚠ **招待した人はパスワードを知らない。** システム管理者が最初のテナント管理者を
         指名するとき、初期パスワードを決めて渡すと、システム管理者がその人として入れて
-        しまう（中身を見ない約束が崩れる。ADR-0061）。
+        しまう（中身を見ない約束が崩れる。ADR-0079 §1）。
         ⚠ **リンクを応答に載せない。** 載せると、招待した人がそのまま使える。
         """
         token = secrets.token_urlsafe(32)
@@ -142,11 +142,11 @@ class PasswordResetService:
         if user is None or not user.is_active:
             return None
         if not user.has_local_password and row.purpose != INVITATION:
-            # 発行のあとでパスワードを取り上げられた場合（ADR-0038）。券が残っていても
-            # 通さない。招待（ADR-0065）だけは、最初のパスワードを決めるためのもの。
+            # 発行のあとでパスワードを取り上げられた場合（ADR-0076 §6）。券が残っていても
+            # 通さない。招待（ADR-0079 §5）だけは、最初のパスワードを決めるためのもの。
             return None
         user.password_hash = generate_password_hash(new_password)
-        # 再設定の前に始まったログインは、次の更新で終わる（ADR-0057）
+        # 再設定の前に始まったログインは、次の更新で終わる（ADR-0076 §8）
         user.end_sessions()
         row.used_at = utcnow()
         session.flush()

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # アクセストークンを格納する Cookie 名（ログイン時に auth ルーターが設定する）
 ACCESS_TOKEN_COOKIE = "access_token"
 # リフレッシュトークンの Cookie。**経路を更新の口だけに絞る**——他のリクエストに
-# 付いて回ると、長命な資格情報が送られる回数がむやみに増える（ADR-0028）。
+# 付いて回ると、長命な資格情報が送られる回数がむやみに増える（ADR-0076 §4）。
 REFRESH_TOKEN_COOKIE = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/auth/refresh"
 
@@ -51,7 +51,7 @@ def set_access_token_cookie(response: Response, token: str) -> None:
 
 
 def set_refresh_token_cookie(response: Response, token: str) -> None:
-    """リフレッシュトークンを Cookie へ載せる（ADR-0028）。
+    """リフレッシュトークンを Cookie へ載せる（ADR-0076 §4）。
 
     ⚠ **応答本文には載せない。** Cookie は自動で送られるので、本文にも返すと
     XSS が ``POST /api/auth/refresh`` を叩いて新しいトークンを読めてしまい、
@@ -92,7 +92,7 @@ async def get_current_principal(
 ) -> AuthenticatedPrincipal:
     """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。
 
-    ⚠ **DB を引かない**（ADR-0041）。認可の材料はすべてトークンのクレームに
+    ⚠ **DB を引かない**（ADR-0076 §5）。認可の材料はすべてトークンのクレームに
     載っている。利用者の行そのものが要る経路は :func:`get_current_user` を使う
     ——そちらは 1 件引くが、**認可の判定ではない**。
     """
@@ -147,7 +147,7 @@ async def get_current_user_or_none(
     """入っていれば利用者を、入っていなければ ``None`` を返す（401 にしない）。
 
     ⚠ **これを認可に使わない。** 用があるのは**ブラウザの画面遷移**で戻ってくる
-    経路だけである（ADR-0040 の連携の戻り）。そこで 401 を返すと、利用者には
+    経路だけである（ADR-0077 §5 の連携の戻り）。そこで 401 を返すと、利用者には
     JSON の生文字列が見えるだけで、やり直す導線も出せない。認可が要る口は
     :func:`get_current_principal` 系を使う。
     """
@@ -163,7 +163,7 @@ async def get_current_user_or_none(
 
 @dataclass(frozen=True)
 class CurrentSession:
-    """いま操作している利用者と、その入り口（ADR-0036）。
+    """いま操作している利用者と、その入り口（ADR-0077 §3）。
 
     ``federated_login`` が ``None`` ならローカルのログイン。新しいトークンを
     出し直す口（ロールの切り替え）は、**これをそのまま引き継ぐ**。
@@ -171,9 +171,9 @@ class CurrentSession:
 
     user: User
     federated_login: FederatedLogin | None
-    #: いまのアクティブロール（ADR-0017）。出し直すときに引き継ぐ。
+    #: いまのアクティブロール（ADR-0078 §1）。出し直すときに引き継ぐ。
     active_role: str | None = None
-    #: 本人が最後に実際にサインインした時刻（ADR-0060）。出し直すときに引き継ぐ。
+    #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。出し直すときに引き継ぐ。
     authenticated_at: datetime | None = None
 
 
@@ -189,7 +189,7 @@ async def get_current_session(
     同じ値）。ここで読むのは宛名のクレームだけで、認証をやり直しているのではない。
 
     ⚠ **ここは「新しいトークンを出す」経路のためにある**（ロールの切り替え）。
-    アクセストークンの検証が DB を引かなくなったので（ADR-0041）、**出し直しの
+    アクセストークンの検証が DB を引かなくなったので（ADR-0076 §5）、**出し直しの
     経路だけは止まっていないことを確かめる** ——確かめないと、止められた利用者が
     切り替えを繰り返すだけで**いつまでも新しいトークンを受け取れる**。
     **寿命による上限が、そこで破れる。**
@@ -218,7 +218,7 @@ async def get_settled_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
 ) -> AuthenticatedPrincipal:
-    """**資格情報を作り替える経路**のための関門（ADR-0041 決定 6）。
+    """**資格情報を作り替える経路**のための関門（ADR-0076 §5 決定 6）。
 
     二要素認証やパスキーの登録・解除は「新しい入り口を作る」操作である。
     ⚠ **アクセストークンの検証が DB を引かなくなったので、止められた利用者でも
@@ -244,7 +244,7 @@ REAUTHENTICATION_REQUIRED = "reauthentication_required"
 
 
 def ensure_recent_sign_in(principal: AuthenticatedPrincipal) -> None:
-    """**入り口そのものを作り替える操作**の前に、入り直したばかりかを確かめる（ADR-0060）。
+    """**入り口そのものを作り替える操作**の前に、入り直したばかりかを確かめる（ADR-0076 §10）。
 
     盗まれたセッションでパスキーを足す・メールを替えると、そのあとはパスワードも
     二要素も無しに入り続けられる。「最後に実際にサインインしてから
@@ -300,7 +300,7 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
     """指定された権限を **いずれか 1 つでも** 保持していればアクセスを許可する。
 
     ある資源を読む理由が複数の職掌にまたがるとき（ロールの一覧は「ロールを管理
-    する」ためにも「ユーザーへロールを割り当てる」ためにも要る。ADR-0018）に使う。
+    する」ためにも「ユーザーへロールを割り当てる」ためにも要る。ADR-0078 §2）に使う。
     **書き込みには使わない** — 権限を足す側は 1 つの scope で明示する。
     """
 

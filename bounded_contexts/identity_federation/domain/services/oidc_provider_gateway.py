@@ -25,9 +25,9 @@ class AuthorizationRequest:
     state: str
     nonce: str
     code_challenge: str
-    #: 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0026 決定 1）。
+    #: 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0076 §3 決定 1）。
     acr_values: tuple[str, ...] = ()
-    #: 画面を出さずに試す（``prompt=none``。ADR-0066）。偽なら ``prompt`` を付けない。
+    #: 画面を出さずに試す（``prompt=none``。ADR-0077 §9）。偽なら ``prompt`` を付けない。
     silent: bool = False
 
 
@@ -48,7 +48,7 @@ class EndSessionRequest:
 
 @dataclass(frozen=True)
 class LogoutTokenVerification:
-    """IdP から届いた ``logout_token`` を確かめるための材料（ADR-0036）。"""
+    """IdP から届いた ``logout_token`` を確かめるための材料（ADR-0077 §3）。"""
 
     provider: IdentityProvider
     logout_token: str

@@ -1,4 +1,4 @@
-"""ローカルの入口を閉じられること（ADR-0026 決定 2・3）。
+"""ローカルの入口を閉じられること（ADR-0076 §3 決定 2・3）。
 
 ``LOCAL_LOGIN_ENABLED=false`` で、パスワード・パスキーのログインと**ローカル資格情報の
 登録**が止まる。登録まで止めるのは、閉じた入口の合鍵を作れないようにするため。
@@ -50,7 +50,7 @@ def test_credentials_cannot_be_enrolled_when_closed(
     admin_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """認証済みでも、閉じている間はパスキー・TOTP を足せない（ADR-0026 決定 3）。"""
+    """認証済みでも、閉じている間はパスキー・TOTP を足せない（ADR-0076 §3 決定 3）。"""
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("LOCAL_LOGIN_ENABLED", "false")
@@ -73,5 +73,5 @@ def test_everything_stays_open_by_default(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["local_login_enabled"] is True
-    # 連携先を知らないテンプレートの既定は「SSO 無効」（ADR-0025）。
+    # 連携先を知らないテンプレートの既定は「SSO 無効」（ADR-0077 §1）。
     assert body["enabled"] is False

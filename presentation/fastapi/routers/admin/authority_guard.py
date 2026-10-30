@@ -1,4 +1,4 @@
-"""管理 API の「権限を動かす操作」に掛ける関門（ADR-0051）。
+"""管理 API の「権限を動かす操作」に掛ける関門（ADR-0078 §4）。
 
 scope の検査（``require_permission``）が答えるのは「この画面を使えるか」まで。
 ここで答えるのは、その画面で**この相手に・この権限を**動かしてよいか。
@@ -45,7 +45,7 @@ class Administration:
 
     @property
     def members(self) -> TenantMembers:
-        """操作する人のテナントの利用者・グループ（ADR-0061）。テナントに属さない人は 403。"""
+        """操作する人のテナントの利用者・グループ（ADR-0079 §1）。テナントに属さない人は 403。"""
         if self.actor.tenant_id is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_REQUIRED})
         return TenantMembers(self.db, self.actor.tenant_id)
@@ -53,7 +53,7 @@ class Administration:
     def ensure_within_authority(self, required: Iterable[str]) -> None:
         """``required`` をすべて操作する人が持っていなければ 403。
 
-        比べるのは**いま有効な権限**（アクティブロールで絞った後。ADR-0017）である。
+        比べるのは**いま有効な権限**（アクティブロールで絞った後。ADR-0078 §1）である。
         弱いロールで操作している間は、強い権限は配れない。
         """
         missing = beyond(self.actor.permissions, required)
@@ -77,7 +77,7 @@ class Administration:
     def ensure_an_administrator_remains(self) -> None:
         """変更を ``flush`` して数え直す。「管理の要」を持つ有効な利用者が 0 人なら 409。
 
-        アクセストークンは寿命まで通るので（ADR-0041）、ロールを外された人の古い
+        アクセストークンは寿命まで通るので（ADR-0076 §5）、ロールを外された人の古い
         1 枚でも、ここまでの関門は通り抜けうる。最後はいまの DB の状態で確かめる。
         例外はリクエストのセッションを rollback させるので、変更は残らない。
         """

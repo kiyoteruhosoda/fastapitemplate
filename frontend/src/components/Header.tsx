@@ -43,12 +43,12 @@ export function Header({
         </Link>
       </div>
       <div className="header-actions">
-        {/* 言語・テーマの切り替えはプロフィールページにある（ADR-0016）。 */}
+        {/* 言語・テーマの切り替えはプロフィールページにある（ADR-0080 §3）。 */}
         {user && (
           <>
-            {/* ロールの切り替え（複数ロールを持つ利用者にだけ出る。ADR-0017） */}
+            {/* ロールの切り替え（複数ロールを持つ利用者にだけ出る。ADR-0078 §1） */}
             <RoleSwitcher />
-            {/* お知らせ（ADR-0047） */}
+            {/* お知らせ（ADR-0081 §3） */}
             <NotificationBell />
             <Link to="/profile" className="header-user">
               <span aria-hidden="true" className="avatar">

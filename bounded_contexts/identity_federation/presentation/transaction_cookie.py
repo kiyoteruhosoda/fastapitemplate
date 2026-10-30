@@ -1,4 +1,4 @@
-"""認可要求の往復状態を、署名付き Cookie で運ぶ（ADR-0025）。
+"""認可要求の往復状態を、署名付き Cookie で運ぶ（ADR-0077 §1）。
 
 ``state`` / ``nonce`` / PKCE の ``code_verifier`` は、リダイレクトで IdP へ離れて
 戻ってくる**その間だけ**必要になる。サーバー側に控えを置くと、この短命な値のために
@@ -86,7 +86,7 @@ def read(raw: str | None) -> LoginTransaction | None:
         purpose=purpose,
         user_id=user_id if isinstance(user_id, int) else None,
         issuer=issuer if isinstance(issuer, str) else "",
-        # 試した往復（ADR-0066）より前の Cookie には無い。ふつうの往復として読む
+        # 試した往復（ADR-0077 §9）より前の Cookie には無い。ふつうの往復として読む
         silent=claims.get("silent") is True,
     )
 
@@ -99,7 +99,7 @@ def _purpose_of(raw: object) -> TransactionPurpose | None:
     ——落ちる先が安全側とは限らないので、復元できないものは断る。
     """
     if raw is None:
-        # 連携（ADR-0040）より前に発行された Cookie。ログインの往復として読む。
+        # 連携（ADR-0077 §5）より前に発行された Cookie。ログインの往復として読む。
         return TransactionPurpose.LOGIN
     if isinstance(raw, str) and raw in tuple(TransactionPurpose):
         return TransactionPurpose(raw)

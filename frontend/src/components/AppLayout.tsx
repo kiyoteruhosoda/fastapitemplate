@@ -9,7 +9,7 @@
  * 開いているあいだヘッダーと本文はオーバーレイの下に隠れる。キーボードだけが
  * そこへ到達できると「見えない要素を操作している」状態になるため、開いたら
  * フォーカスをドロワーへ移し、Tab をドロワー内に閉じ込め、閉じたらメニュー
- * ボタンへ戻す（ADR-0011）。
+ * ボタンへ戻す（ADR-0080 §2）。
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -102,7 +102,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, [navOpen])
 
   return (
-    // お知らせ（ベルと画面上部）は同じ一覧を見るので、外枠で 1 回だけ取る（ADR-0047）。
+    // お知らせ（ベルと画面上部）は同じ一覧を見るので、外枠で 1 回だけ取る（ADR-0081 §3）。
     <InboxProvider>
       <div className="layout">
         <Header navOpen={navOpen} onToggleNav={toggleNav} toggleRef={toggleRef} />

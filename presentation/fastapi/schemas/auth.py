@@ -10,12 +10,12 @@ class LoginRequest(BaseModel):
     password: str
     # 二要素認証が有効なアカウントでのみ必須（未提示なら totp_required を返す）
     totp_code: str | None = None
-    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0064）
+    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0079 §4）
     tenant: str | None = Field(default=None, max_length=50, pattern=r"^[a-z0-9-]+$")
 
 
 class SessionResponse(BaseModel):
-    """ログインが成立したことと、アクセストークンの寿命（ADR-0028）。
+    """ログインが成立したことと、アクセストークンの寿命（ADR-0076 §4）。
 
     ⚠ **トークンそのものは載せない。** Cookie で運ぶ。本文にも返すと、Cookie が
     自動で送られる以上、XSS が更新の口を叩いて新しいトークンを読めてしまう。
@@ -31,15 +31,15 @@ class MeResponse(BaseModel):
     username: str
     # いま有効な scope（アクティブロールで絞り込まれた後の権限）
     scopes: list[str]
-    # 付与されている全ロール = 切り替えられる先の一覧（ADR-0017）
+    # 付与されている全ロール = 切り替えられる先の一覧（ADR-0078 §1）
     roles: list[str]
     # None = すべてのロール（保有権限の和集合）で操作している
     active_role: str | None = None
-    # パスワードという入り口を持っているか（ADR-0038）。⚠ **偽のとき、画面は
+    # パスワードという入り口を持っているか（ADR-0076 §6）。⚠ **偽のとき、画面は
     # パスワード変更の導線を出さない**——出すと「今のパスワード」を入力できない
     # 利用者に、絶対に通らないフォームを見せることになる。
     has_password: bool = True
-    # サインアウトを IdP まで通すか（``OIDC_RP_LOGOUT_ENABLED``。既定は偽。ADR-0033）。
+    # サインアウトを IdP まで通すか（``OIDC_RP_LOGOUT_ENABLED``。既定は偽。ADR-0077 §2）。
     # **この画面がどう入ったかではなく、サーバーの設定**を返す。真にするのは
     # 「SSO でしか入れないアプリ」と「共有の端末で開くもの」だけなので、パスワードで
     # 入った利用者を巻き込む形にはならない（ローカル口座を持つアプリは偽のまま）。
@@ -65,7 +65,7 @@ class ChangePasswordRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
-    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0064）
+    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0079 §4）
     tenant: str | None = Field(default=None, max_length=50, pattern=r"^[a-z0-9-]+$")
 
 

@@ -1,10 +1,10 @@
-"""テナントの外側の管理 API（要 ``tenant:manage``。ADR-0061・ADR-0065）。
+"""テナントの外側の管理 API（要 ``tenant:manage``。ADR-0079 §1・§5）。
 
 システム管理者がテナントを登録・変更・停止・削除し、最初のテナント管理者を指名する。
 
 ⚠ **テナントの中身には触れない。** 返すのはテナントの台帳と人数だけで、利用者の一覧も
 中身も返さない。テナント管理者の指名は「席を作って招待する」だけで、システム管理者は
-その人のパスワードを知らない（招待のメールで本人が決める。ADR-0065）。
+その人のパスワードを知らない（招待のメールで本人が決める。ADR-0079 §5）。
 """
 
 from __future__ import annotations
@@ -76,18 +76,18 @@ def _ensure_issuer_free(db: Session, issuer: str | None, *, except_id: int | Non
 
 
 def _designate(db: Session, tenant: Tenant, person: DesignationRequest, audit: AuditRecorderDep) -> DesignationResponse:
-    """テナント管理者の席を作り、本人に招待を送る（ADR-0065）。"""
+    """テナント管理者の席を作り、本人に招待を送る（ADR-0079 §5）。"""
     if account_with_email(db, person.email, tenant.id) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"})
     owner = db.scalars(sa.select(Role).where(Role.name == master_data.DEFAULT_ADMIN_ROLE)).one()
-    # ⚠ パスワードは持たせない（ADR-0038）。入り口は招待で本人が決めるか、テナントの IdP で受け取る
+    # ⚠ パスワードは持たせない（ADR-0076 §6）。入り口は招待で本人が決めるか、テナントの IdP で受け取る
     user = User(email=person.email, username=person.username, password_hash=None, is_active=True)
     user.roles = [owner]
     user.join(tenant.id)
     db.add(user)
     db.flush()
     sent = PasswordResetService().invite(db, user, place=tenant.display_name)
-    # 対象は利用者なので、この記録はそのテナントの管理者にも見える（ADR-0062 決定 5）
+    # 対象は利用者なので、この記録はそのテナントの管理者にも見える（ADR-0079 §2 決定 5）
     audit.execute(
         AuditEventType.TENANT_ADMIN_DESIGNATED,
         target=AuditTarget.of(AuditTargetType.USER, user.id),

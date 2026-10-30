@@ -100,7 +100,7 @@ def test_path_traversal_falls_back_to_index_html(client: TestClient) -> None:
 
 
 def test_an_unknown_api_path_is_not_swallowed(client: TestClient) -> None:
-    """受け皿は `/api/` を飲み込まない（ADR-0032）。
+    """受け皿は `/api/` を飲み込まない（ADR-0073 §3）。
 
     飲み込むと、打ち間違えた API が **200 で index.html** を返す。しかも
     `frontend/dist` がある本番でだけそうなるので、手元とテストでは再現しない。

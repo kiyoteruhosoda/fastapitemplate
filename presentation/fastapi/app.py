@@ -94,13 +94,13 @@ from shared.kernel.version import load_build_info
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # 管理画面からの再起動要求を拾う（起動時にしか読まれない設定の反映用）
     start_restart_watcher(RestartScope.WEB)
-    # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0021）
+    # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0075 §3）
     start_log_retention_worker()
     # IdP で止まった人の SSO のセッションを、毎時聞き直して止める
-    # （MACHINE_CLIENT_ID が空なら何もしない。ADR-0043）
+    # （MACHINE_CLIENT_ID が空なら何もしない。ADR-0077 §7）
     start_sso_reconciliation_worker()
     # SSO の設定が実際に使えるかを一度だけ確かめる（秘密鍵は署名のときまで読まれない
-    # ため、権限の食い違いが利用者の戻りでしか出ない。ADR-0025）
+    # ため、権限の食い違いが利用者の戻りでしか出ない。ADR-0077 §1）
     report_sso_configuration()
     try:
         yield
@@ -146,11 +146,11 @@ def create_app() -> FastAPI:
     )
 
     build_info = load_build_info()
-    # 本番で既定の署名鍵なら、ここで起動を止める（ADR-0056）
+    # 本番で既定の署名鍵なら、ここで起動を止める（ADR-0073 §4）
     require_usable_secret(settings.jwt_secret_key, build_info.environment)
     app = FastAPI(
         # ⚠ 名前を直に書かない。`pyproject.toml` の `[project].name` から導く
-        #   （ADR-0031）。書くと、テンプレートから起こしたアプリの Swagger が
+        #   （ADR-0073 §2）。書くと、テンプレートから起こしたアプリの Swagger が
         #   テンプレートの名前を名乗り続ける。
         title=build_info.name,
         version=build_info.version,
@@ -164,7 +164,7 @@ def create_app() -> FastAPI:
     Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(app, include_in_schema=False)
 
     # ログ・監査の DB 書き込みは、リクエストの DB セッションが閉じた後に行う
-    # （途中で書くと SQLite でロックが競合する。ADR-0013）。
+    # （途中で書くと SQLite でロックが競合する。ADR-0075 §1）。
     #
     # 後から追加したものが外側になる。外側から
     # DeferredLogWrite → RequestLogging → AuditRecording → InternalError の順で、
@@ -187,12 +187,12 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
-    # Cookie で認証した更新系に CSRF の二重送信トークンを求める（ADR-0028）。
+    # Cookie で認証した更新系に CSRF の二重送信トークンを求める（ADR-0076 §4）。
     # ``Authorization`` ヘッダーで来たリクエストには求めない（ヘッダーは自動では
     # 送られないので CSRF が成立しない）。
     app.add_middleware(CsrfMiddleware)
 
-    # 守りのヘッダ（CSP・枠への埋め込み禁止など。ADR-0059）。いちばん外側に置き、
+    # 守りのヘッダ（CSP・枠への埋め込み禁止など。ADR-0073 §5）。いちばん外側に置き、
     # CSRF で断った応答にも付ける。
     app.add_middleware(SecurityHeadersMiddleware)
 

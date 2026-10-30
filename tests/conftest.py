@@ -105,7 +105,7 @@ def other_client(app: FastAPI) -> Iterator[TestClient]:
 
 
 def register_issuer(issuer: str, client_id: str = "rp") -> None:
-    """既定のテナントを、この発行者の assay のテナントとして登録する（ADR-0061）。
+    """既定のテナントを、この発行者の assay のテナントとして登録する（ADR-0079 §1）。
 
     登録の無い発行者のトークンは受け付けない。SSO の試験は ``OIDC_ISSUER`` を
     フィクスチャの後で差し替えるので、そのときに既定のテナントへ写す。
@@ -119,13 +119,13 @@ def register_issuer(issuer: str, client_id: str = "rp") -> None:
 
 
 def sign_in(client: TestClient, email: str, password: str, tenant: str | None = None) -> dict[str, str]:
-    """ログインして、更新系に必要なヘッダーを返す（ADR-0028）。
+    """ログインして、更新系に必要なヘッダーを返す（ADR-0076 §4）。
 
     トークンは Cookie で運ばれ ``TestClient`` が保持するので、返すのは CSRF の
     二重送信トークンだけ。**セッションを張り直すたびに読み直す** ——CSRF トークンは
     セッションを作るたびに新しくなる。
     """
-    # ``tenant`` は入口のテナント（``/t/<slug>/login``。ADR-0064）。テナントが 2 つ以上のときに要る
+    # ``tenant`` は入口のテナント（``/t/<slug>/login``。ADR-0079 §4）。テナントが 2 つ以上のときに要る
     response = client.post("/api/auth/login", json={"email": email, "password": password, "tenant": tenant})
     assert response.status_code == 200, response.text
     return {CSRF_HEADER: client.cookies[CSRF_COOKIE]}
@@ -133,7 +133,7 @@ def sign_in(client: TestClient, email: str, password: str, tenant: str | None = 
 
 @pytest.fixture
 def admin_headers(client: TestClient) -> dict[str, str]:
-    """管理者としてログインし、更新系に必要なヘッダーを返す（ADR-0028）。
+    """管理者としてログインし、更新系に必要なヘッダーを返す（ADR-0076 §4）。
 
     トークンは応答本文に載らず Cookie で運ばれる。``TestClient`` が Cookie を
     保持するので、**返すのは CSRF の二重送信トークンだけ**でよい。
@@ -147,7 +147,7 @@ SYSTEM_ADMIN_PASSWORD = "system-admin-password-1"
 
 @pytest.fixture
 def system_admin_headers(client: TestClient, engine: sa.Engine) -> dict[str, str]:
-    """システム管理者（テナントに属さない利用者。ADR-0061）としてログインする。
+    """システム管理者（テナントに属さない利用者。ADR-0079 §1）としてログインする。
 
     全体の記録（宛先の分からないログイン失敗など）は、テナントの管理者には見えない。
     """

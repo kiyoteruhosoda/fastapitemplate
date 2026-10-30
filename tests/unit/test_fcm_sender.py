@@ -1,4 +1,4 @@
-"""FCM（HTTP v1）の送り手（ADR-0049）。Google へは行かず、送ろうとした要求を見る。"""
+"""FCM（HTTP v1）の送り手（ADR-0081 §5）。Google へは行かず、送ろうとした要求を見る。"""
 
 from __future__ import annotations
 

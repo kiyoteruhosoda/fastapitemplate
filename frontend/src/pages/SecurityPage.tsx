@@ -2,7 +2,7 @@
  * セキュリティ（サインインの手段）。プロフィールの下の画面（`/profile/security`）。
  *
  * パスワードの変更・二要素認証・パスキーは「どうやってサインインするか」という
- * 1 つの関心なので、プロフィールから分けてこの画面にまとめる（ADR-0020）。
+ * 1 つの関心なので、プロフィールから分けてこの画面にまとめる（ADR-0080 §4）。
  */
 import { Link } from 'react-router-dom'
 
@@ -16,7 +16,7 @@ import { useAuth } from '../store/AuthContext'
 export function SecurityPage() {
   const { t } = useI18n()
   const { user } = useAuth()
-  // パスワードを持たない利用者にはフォームを出さない（ADR-0038）。出すと、
+  // パスワードを持たない利用者にはフォームを出さない（ADR-0076 §6）。出すと、
   // 「今のパスワード」を入力できない相手に、絶対に通らない入力欄を見せることになる。
   const hasPassword = user?.has_password ?? true
 

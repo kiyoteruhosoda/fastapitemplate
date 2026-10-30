@@ -1,14 +1,14 @@
 """ユーザー管理 API（要 ``user:manage``）。
 
 作成・更新・削除は監査ログ（``audit_log``）へ残す。``reason`` には**変更した項目名**
-だけを入れ、値そのもの（メールアドレス・パスワード）は入れない（ADR-0013）。
+だけを入れ、値そのもの（メールアドレス・パスワード）は入れない（ADR-0075 §1）。
 
-一覧は **「この利用者が入れる手段」**（``entrances``）も返す（ADR-0039）。認証系が
+一覧は **「この利用者が入れる手段」**（``entrances``）も返す（ADR-0076 §7）。認証系が
 2 つある以上、開いている口の数は並べて見ないと分からない。材料は
 **それぞれのコンテキストに聞く** ——パスワードは ``users`` の列、TOTP と
 パスキーは account_security、IdP との結び付きは identity_federation。
 
-ロールの付け外し・停止・削除には、scope とは別に関門を掛ける（ADR-0051）。
+ロールの付け外し・停止・削除には、scope とは別に関門を掛ける（ADR-0078 §4）。
 自分が持っていない権限は配れず、自分より強い利用者には触れず、自分自身は
 変えられず、「管理の要」を持つ人を 0 人にはできない。
 """
@@ -111,7 +111,7 @@ def _to_response(user: User, inventory: _Inventory) -> UserResponse:
 
 
 def _resolve_roles(admin: Administration, names: list[str]) -> list[Role]:
-    """自分のテナントで使えるロールだけを引く（ADR-0063）。システムのロールは使えない。"""
+    """自分のテナントで使えるロールだけを引く（ADR-0079 §3）。システムのロールは使えない。"""
     roles = admin.members.roles_named(names)
     missing = set(names) - {r.name for r in roles}
     if missing:
@@ -136,7 +136,7 @@ async def list_users(db: DbDep, members: TenantMembersDep) -> list[UserResponse]
 
 
 def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest) -> list[Role] | None:
-    """更新の関門（ADR-0051）。通れば、付け替え後のロール（変えないなら ``None``）を返す。"""
+    """更新の関門（ADR-0078 §4）。通れば、付け替え後のロール（変えないなら ``None``）を返す。"""
     # 自分より強い利用者のパスワードを書き換えれば、その人の権限を丸ごと取れる。
     if user.id != admin.actor.user_id:
         admin.ensure_within_authority(permissions_of(user.roles))
@@ -154,7 +154,7 @@ def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> UserResponse:
     db = admin.db
-    # メールアドレスはテナントの中で一意（ADR-0064）
+    # メールアドレスはテナントの中で一意（ADR-0079 §4）
     if admin.members.user_with_email(body.email) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -199,7 +199,7 @@ async def update_user(
         user.roles = new_roles
     if body.password is not None:
         user.password_hash = generate_password_hash(body.password)
-        # 乗っ取られた口座を付け直す場面で、乗っ取った側のログインを残さない（ADR-0057）
+        # 乗っ取られた口座を付け直す場面で、乗っ取った側のログインを残さない（ADR-0076 §8）
         user.end_sessions()
     admin.ensure_an_administrator_remains()
     audit.execute(

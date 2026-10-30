@@ -1,9 +1,9 @@
-"""notification コンテキストのテーブル（ADR-0047）。
+"""notification コンテキストのテーブル（ADR-0081 §3）。
 
 - ``notifications`` —— 送ったお知らせ 1 通 1 行
 - ``notification_deliveries`` —— 宛先の 1 人ずつ（送った時点の顔ぶれ）。既読・閉じたかを持つ
 - ``web_push_subscriptions`` —— 端末（ブラウザ）1 つの購読
-- ``app_device_tokens`` —— スマホアプリ 1 台の FCM の登録トークン（ADR-0049）
+- ``app_device_tokens`` —— スマホアプリ 1 台の FCM の登録トークン（ADR-0081 §5）
 
 チャネルは列を分けて持つ（``in_bell`` / ``in_banner`` / ``by_push``）。「ベルに出る未読の数」を
 文字列の部分一致ではなく素直な条件で数えるため。
@@ -75,7 +75,7 @@ class WebPushSubscriptionModel(Base):
 
 
 class AppDeviceTokenModel(Base):
-    """スマホアプリ 1 台（ADR-0049）。トークンも長いので、一意は sha256 の列で取る。"""
+    """スマホアプリ 1 台（ADR-0081 §5）。トークンも長いので、一意は sha256 の列で取る。"""
 
     __tablename__ = "app_device_tokens"
     __table_args__ = declared(Tenancy.PERSONAL)

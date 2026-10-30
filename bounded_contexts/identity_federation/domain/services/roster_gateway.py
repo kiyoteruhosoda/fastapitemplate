@@ -1,4 +1,4 @@
-"""assay の名簿を引く窓口（ADR-0043。実装は Infrastructure 層）。
+"""assay の名簿を引く窓口（ADR-0077 §7。実装は Infrastructure 層）。
 
 ⚠ **引けなかったことを「空」で表さない。** 実装は失敗を
 :class:`~bounded_contexts.identity_federation.domain.exceptions.IdentityProviderUnavailableError`

@@ -1,10 +1,10 @@
 """identity federation (SSO)
 
-外部 IdP との SSO（ADR-0025）で要るテーブルを追加する。定義の正本は
+外部 IdP との SSO（ADR-0077 §1）で要るテーブルを追加する。定義の正本は
 ``bounded_contexts/identity_federation/infrastructure/identity_federation_models.py``。
 
 **表は 2 つだけ。** 認可要求の往復状態（``state`` / ``nonce`` / ``code_verifier``）は
-署名付き Cookie でブラウザに預けるので、控えの表を持たない（ADR-0025）。保管も
+署名付き Cookie でブラウザに預けるので、控えの表を持たない（ADR-0077 §1）。保管も
 掃除も要らず、``state`` を知っているだけの相手は戻りを完了できない。
 
 Revision ID: identity_federation

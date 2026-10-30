@@ -1,6 +1,6 @@
 """user session boundaries
 
-``user_session_boundaries`` を足す（ADR-0057）。1 人 1 行で、その時刻より前に出した
+``user_session_boundaries`` を足す（ADR-0076 §8）。1 人 1 行で、その時刻より前に出した
 トークンでは更新・出し直しをさせない。パスワードを変えたときに入る。
 
 **表を足すだけ**で、既存の表には触れない。``users`` の列にしないのは、古い移行

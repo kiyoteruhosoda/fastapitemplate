@@ -11,7 +11,7 @@
 # --------------------------------
 # イメージ（手元での確認用）
 # --------------------------------
-# 本番の成果物は LAN の中の build が焼いてレジストリへ push する（ADR-0044）。
+# 本番の成果物は LAN の中の build が焼いてレジストリへ push する（ADR-0073 §1）。
 # ここで作るのは Dockerfile が壊れていないかを手元で確かめるためのもの。
 IMAGE ?= fastapitemplate:dev
 
@@ -56,7 +56,7 @@ typecheck-frontend:
 test-frontend:
 	cd frontend && npm run test
 
-# 実ブラウザの E2E（ADR-0054）。重いので check には入れない
+# 実ブラウザの E2E（ADR-0072 §6）。重いので check には入れない
 test-e2e:
 	cd frontend && npm run test:e2e
 

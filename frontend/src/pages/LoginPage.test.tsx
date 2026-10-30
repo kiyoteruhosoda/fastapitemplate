@@ -1,5 +1,5 @@
 /**
- * ログイン画面の入口の出し分け（ADR-0025 / ADR-0026）。
+ * ログイン画面の入口の出し分け（ADR-0077 §1 / ADR-0076 §3）。
  *
  * SSO のボタンを出すか、パスワード欄を出すかは**サーバーに聞く**
  * （`GET /api/auth/sso/provider`）。設定は起動後にも変わるため、画面に焼き込まない。
@@ -53,7 +53,7 @@ describe('LoginPage', () => {
     vi.clearAllMocks()
     window.localStorage.clear()
     window.sessionStorage.clear()
-    // 入口の出し分けを見る試験。ボタンを押さずに入る試し（ADR-0066）は済んだことにする
+    // 入口の出し分けを見る試験。ボタンを押さずに入る試し（ADR-0077 §9）は済んだことにする
     window.sessionStorage.setItem('ssoSilentTried', '1')
   })
 
@@ -82,7 +82,7 @@ describe('LoginPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Sign in with Nolumia' })).toBeInTheDocument()
     })
-    // 併用が既定。パスワードの入口も残っている（ADR-0026）。
+    // 併用が既定。パスワードの入口も残っている（ADR-0076 §3）。
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
@@ -125,7 +125,7 @@ describe('LoginPage', () => {
   })
 
   it('IdP でサインアウトして戻ると ?signed_out を文言にして出す', async () => {
-    // ⚠ 出さないと、期限切れで飛ばされたのと見分けが付かない（ADR-0033）。
+    // ⚠ 出さないと、期限切れで飛ばされたのと見分けが付かない（ADR-0077 §2）。
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -160,7 +160,7 @@ describe('LoginPage', () => {
     ['/login?redirect_to=%2Fitems%3Fq%3Da', '/items?q=a'],
     ['/login', '/'],
     ['/login?redirect_to=https%3A%2F%2Fevil.example%2F', '/'],
-  ])('SSO の入口へ開こうとしていた画面を渡す（%s → %s。ADR-0055）', async (entry, expected) => {
+  ])('SSO の入口へ開こうとしていた画面を渡す（%s → %s。ADR-0077 §8）', async (entry, expected) => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -172,7 +172,7 @@ describe('LoginPage', () => {
     expect(startSsoLogin).toHaveBeenCalledWith(expected, undefined)
   })
 
-  it('テナントの入口では、そのテナントの IdP とパスワードの再設定へつなぐ（ADR-0064）', async () => {
+  it('テナントの入口では、そのテナントの IdP とパスワードの再設定へつなぐ（ADR-0079 §4）', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -199,7 +199,7 @@ describe('LoginPage', () => {
     )
   })
 
-  describe('ボタンを押さずに入る試し（ADR-0066）', () => {
+  describe('ボタンを押さずに入る試し（ADR-0077 §9）', () => {
     const PROVIDER = { enabled: true, display_name: 'Nolumia', local_login_enabled: true }
 
     beforeEach(() => {
@@ -232,7 +232,7 @@ describe('LoginPage', () => {
       expect(document.querySelector('.error')).toBeNull()
     })
 
-    it('試して戻った画面を再読み込みしたら、もう 1 回試す（ADR-0068）', async () => {
+    it('試して戻った画面を再読み込みしたら、もう 1 回試す（ADR-0077 §10）', async () => {
       window.sessionStorage.setItem('ssoSilentTried', '1')
       vi.spyOn(window.performance, 'getEntriesByType').mockReturnValue([
         { type: 'reload' } as PerformanceNavigationTiming,
@@ -286,7 +286,7 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
-    it('テナントの入口では、そのテナントの IdP で試す（ADR-0064）', async () => {
+    it('テナントの入口では、そのテナントの IdP で試す（ADR-0079 §4）', async () => {
       render(
         <MemoryRouter initialEntries={['/t/acme/login']}>
           <I18nProvider settings={SETTINGS}>

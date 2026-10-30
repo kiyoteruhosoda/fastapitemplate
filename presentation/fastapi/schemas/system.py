@@ -1,4 +1,4 @@
-"""システム管理者の API（テナントの外側。ADR-0061・ADR-0065）のスキーマ。"""
+"""システム管理者の API（テナントの外側。ADR-0079 §1・§5）のスキーマ。"""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class TenantResponse(BaseModel):
 
 
 class DesignationRequest(BaseModel):
-    """テナント管理者に指名する人（ADR-0065）。本人には招待のメールが届く。"""
+    """テナント管理者に指名する人（ADR-0079 §5）。本人には招待のメールが届く。"""
 
     email: EmailStr
     username: str = Field(min_length=1, max_length=100)

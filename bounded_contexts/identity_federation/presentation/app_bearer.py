@@ -1,4 +1,4 @@
-"""アプリ（assay に直接ログインした Android アプリ）からの呼び出しを受ける関門（ADR-0045）。
+"""アプリ（assay に直接ログインした Android アプリ）からの呼び出しを受ける関門（ADR-0081 §1）。
 
 ⚠ **アプリのトークンで通るのは、この依存関数を付けたルータだけ**（「アプリから叩いてよい」と
 宣言したもの）。管理・アカウント・トークンの出し直しの口は、これまでどおり
@@ -66,7 +66,7 @@ BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_schem
 
 
 def authenticate_app_access_token(db: Session, gateway: AppTokenGateway, token: str) -> AuthenticateAppAccessToken:
-    """トークンの発行者のテナントで受ける（ADR-0064）。登録の無い発行者なら受けない。
+    """トークンの発行者のテナントで受ける（ADR-0079 §4）。登録の無い発行者なら受けない。
 
     ⚠ 発行者は署名を確かめる前に読むが、**その値は鍵を選ぶのにしか使わない**。登録のある
     発行者を名乗っても、署名はその発行者の鍵でしか通らない。

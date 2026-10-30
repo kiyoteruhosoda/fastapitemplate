@@ -1,6 +1,6 @@
 """app device tokens
 
-スマホアプリへの通知（FCM。ADR-0049）の宛先、``app_device_tokens`` を足す。定義の正本は
+スマホアプリへの通知（FCM。ADR-0081 §5）の宛先、``app_device_tokens`` を足す。定義の正本は
 ``bounded_contexts/notification/infrastructure/notification_models.py``。
 
 Revision ID: app_device_tokens

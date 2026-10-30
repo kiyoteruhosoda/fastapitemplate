@@ -1,4 +1,4 @@
-"""連携の開始 ——**既にログインしている利用者**の IdP 往復を始める（ADR-0040）。
+"""連携の開始 ——**既にログインしている利用者**の IdP 往復を始める（ADR-0077 §5）。
 
 ログインの往復との違いは往復状態だけで、IdP へ送る認可要求は同じものになる
 （戻り先の URI も 1 つしか登録しない）。往復状態には
@@ -43,7 +43,7 @@ from bounded_contexts.identity_federation.domain.value_objects.transaction_purpo
 class StartSsoLink:
     provider: IdentityProvider | None
     gateway: OidcProviderGateway
-    #: 認可要求に載せる ``acr_values``（空 = 要求しない）。ADR-0026 決定 1。
+    #: 認可要求に載せる ``acr_values``（空 = 要求しない）。ADR-0076 §3 決定 1。
     acr_values: tuple[str, ...] = ()
 
     def execute(self, *, user_id: int) -> SsoAuthorizationDto:

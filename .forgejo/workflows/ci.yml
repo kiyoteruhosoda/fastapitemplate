@@ -2,7 +2,7 @@ name: CI
 
 # トリガーは push（main のみ）と pull_request の 2 つ。push を全ブランチ対象にすると、
 # PR のあるブランチでは同じコミットが push 側と pull_request 側で 2 回検証され、
-# CI 時間が丸ごと二重になる（ADR-0009）。
+# CI 時間が丸ごと二重になる（ADR-0072 §3）。
 # ※ `branches` を指定しているのでタグ push はこのワークフローに一致しない（`v*` は release.yml）。
 on:
   push:

@@ -1,4 +1,4 @@
-"""アプリ（assay に直接ログイン）の assay のアクセストークンで、アプリ向けの口を叩く（ADR-0045）。"""
+"""アプリ（assay に直接ログイン）の assay のアクセストークンで、アプリ向けの口を叩く（ADR-0081 §1）。"""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class _StubAppTokenGateway:
         self.userinfo_calls = 0
 
     def issue(self, name: str, **overrides: Any) -> str:
-        """assay のアクセストークンと同じく JWT の形にする（発行者でテナントを選ぶため。ADR-0064）。
+        """assay のアクセストークンと同じく JWT の形にする（発行者でテナントを選ぶため。ADR-0079 §4）。
 
         署名はこの IdP が確かめるので、鍵は何でもよい。
         """

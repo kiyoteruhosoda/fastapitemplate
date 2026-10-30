@@ -1,4 +1,4 @@
-"""知らない相手を、このアプリの利用者として**作ってよいか**（ADR-0025）。
+"""知らない相手を、このアプリの利用者として**作ってよいか**（ADR-0077 §1）。
 
 「受け入れてよいか」「寄せてよいか」は
 :class:`~bounded_contexts.identity_federation.domain.value_objects.account_linking_policy.AccountLinkingPolicy`

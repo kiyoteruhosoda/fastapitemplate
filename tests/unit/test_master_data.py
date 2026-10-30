@@ -18,7 +18,7 @@ def test_every_role_has_permission_assignment() -> None:
 
 
 def test_owner_holds_everything_inside_the_tenant() -> None:
-    """owner はテナント管理者。内側の全権限を持ち、全体の権限は持たない（ADR-0061）。"""
+    """owner はテナント管理者。内側の全権限を持ち、全体の権限は持たない（ADR-0079 §1）。"""
     inside = set(master_data.PERMISSION_CODES) - set(master_data.SYSTEM_PERMISSIONS)
     assert set(master_data.ROLE_PERMISSIONS["owner"]) == inside
 
@@ -42,7 +42,7 @@ def test_default_admin_password_hash_matches_documented_password() -> None:
 
 
 def test_only_owner_holds_the_whole_administration_core() -> None:
-    """人とロールの両方を配れるのは owner だけ。ほかの雛形は系統をまたがない（ADR-0051）。"""
+    """人とロールの両方を配れるのは owner だけ。ほかの雛形は系統をまたがない（ADR-0078 §4）。"""
     from shared.domain.auth.authority import ADMINISTRATION_CORE
 
     holders = {role for role, codes in master_data.ROLE_PERMISSIONS.items() if set(ADMINISTRATION_CORE) <= set(codes)}
@@ -50,7 +50,7 @@ def test_only_owner_holds_the_whole_administration_core() -> None:
 
 
 def test_system_admin_touches_neither_people_nor_content() -> None:
-    """システム管理者は中身を見られない（ADR-0061）。監査ログは全体の記録だけが見える。"""
+    """システム管理者は中身を見られない（ADR-0079 §1）。監査ログは全体の記録だけが見える。"""
     codes = set(master_data.ROLE_PERMISSIONS["system-admin"])
     assert not codes & {
         "user:manage",

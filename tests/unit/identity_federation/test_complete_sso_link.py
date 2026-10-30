@@ -1,4 +1,4 @@
-"""連携の完了 ——誰の口座へ結び付くかの判断（ADR-0040）。
+"""連携の完了 ——誰の口座へ結び付くかの判断（ADR-0077 §5）。
 
 IdP との往復そのものは :mod:`tests.integration.api.test_sso_login` が見る。ここで
 確かめるのは**結び付けてよい相手かどうか**だけ。
@@ -171,7 +171,7 @@ def test_a_second_account_at_the_same_provider_is_refused() -> None:
 
 
 def test_a_round_trip_sent_to_another_issuer_is_refused() -> None:
-    """往復を送り出した発行者と、受ける連携先が違えば断る（ADR-0064）。"""
+    """往復を送り出した発行者と、受ける連携先が違えば断る（ADR-0079 §4）。"""
     transaction = LoginTransaction(
         state="s",
         nonce="n",

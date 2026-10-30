@@ -20,7 +20,7 @@ photonest の構成・設計思想をベースに本テンプレートを全面�
 ## 持ち込まなかったもの（判断）
 
 - アルバム・メディア・バッチ（Celery / Redis）・wiki・certs・Google 連携
-- TOTP・パスキー・サービスアカウント（ADR-0002。必要時に photonest から移植）
+- TOTP・パスキー・サービスアカウント（ADR-0076 §1。必要時に photonest から移植）
 
 ## 実施中に踏んだ問題
 

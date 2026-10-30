@@ -1,4 +1,4 @@
-"""SSO ログインの往復（ADR-0025）。
+"""SSO ログインの往復（ADR-0077 §1）。
 
 IdP との通信はゲートウェイを差し替えて止める。ここで確かめたいのは**往復状態を
 署名付き Cookie で運ぶこと**と、その Cookie が無ければ戻りを完了できないこと。
@@ -64,7 +64,7 @@ def sso_client(
 ) -> Iterator[TestClient]:
     """SSO を有効にしたアプリ（既存の利用者へ検証済みメールで寄せる構成）。
 
-    ⚠ **寄せるのは既定ではない**（ADR-0037）。ここは往復そのものを見たいので、
+    ⚠ **寄せるのは既定ではない**（ADR-0077 §4）。ここは往復そのものを見たいので、
     明示的に開けている。
     """
     from presentation.fastapi.app import create_app
@@ -95,7 +95,7 @@ def test_the_button_appears_once_sso_is_configured(sso_client: TestClient) -> No
 
 
 def test_the_round_trip_state_is_carried_in_a_cookie(sso_client: TestClient) -> None:
-    """表に控えを置かない。往復状態は署名付き Cookie で運ぶ（ADR-0025）。"""
+    """表に控えを置かない。往復状態は署名付き Cookie で運ぶ（ADR-0077 §1）。"""
     _start(sso_client)
     assert transaction_cookie.COOKIE_NAME in sso_client.cookies
 
@@ -133,7 +133,7 @@ def test_a_successful_round_trip_hands_a_ticket_to_the_spa(sso_client: TestClien
 
     exchanged = sso_client.post("/api/auth/sso/token", json={"ticket": ticket})
     assert exchanged.status_code == 200, exchanged.text
-    # トークンは Cookie で運ぶ（ADR-0028）。本文は寿命と戻り先だけ。
+    # トークンは Cookie で運ぶ（ADR-0076 §4）。本文は寿命と戻り先だけ。
     assert exchanged.json()["expires_in"] > 0
     assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
 
@@ -142,7 +142,7 @@ def test_a_successful_round_trip_hands_a_ticket_to_the_spa(sso_client: TestClien
 
 
 def test_a_silent_attempt_asks_the_idp_not_to_show_a_screen(sso_client: TestClient) -> None:
-    """ログイン画面が開いたときの試し（ADR-0066）は ``prompt=none`` で送り出す。"""
+    """ログイン画面が開いたときの試し（ADR-0077 §9）は ``prompt=none`` で送り出す。"""
     response = sso_client.get("/api/auth/sso/login?prompt=none", follow_redirects=False)
     assert response.status_code == 303
     assert "prompt=none" in response.headers["location"]
@@ -163,7 +163,7 @@ def test_a_declined_silent_attempt_returns_to_the_login_screen_without_an_error(
     back = sso_client.get(f"/api/auth/sso/callback?error={error}&state={state}", follow_redirects=False)
     assert back.status_code == 303
     location = back.headers["location"]
-    # 戻す先は往復を始めたテナントの入口（ADR-0064）
+    # 戻す先は往復を始めたテナントの入口（ADR-0079 §4）
     assert location.endswith("/login?sso_silent=declined&redirect_to=%2Fitems")
     assert "sso_error" not in location
     assert transaction_cookie.COOKIE_NAME not in sso_client.cookies
@@ -188,7 +188,7 @@ def test_by_default_an_unknown_account_is_not_linked_to_a_local_one(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """⚠ 既定では、同じメールアドレスのローカル口座へ黙って寄せない（ADR-0037）。
+    """⚠ 既定では、同じメールアドレスのローカル口座へ黙って寄せない（ADR-0077 §4）。
 
     ``email_verified`` の意味は IdP 側と RP 側で食い違い得る。assay のこの値は
     「テナント管理者がそう主張している」であって本人の証明ではない。
@@ -214,7 +214,7 @@ def test_a_requested_acr_is_sent_and_verified(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """要求したら確かめる。返ってこなければ断る（ADR-0026 決定 1）。"""
+    """要求したら確かめる。返ってこなければ断る（ADR-0076 §3 決定 1）。"""
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
@@ -240,7 +240,7 @@ def test_a_requested_acr_is_sent_and_verified(
 
 
 def test_the_profile_copy_follows_the_idp(sso_client: TestClient, gateway: _StubGateway, engine: sa.Engine) -> None:
-    """⚠ **写しは IdP を正とする**（ADR-0042 / idp の ADR-0049 G4・I5）。
+    """⚠ **写しは IdP を正とする**（ADR-0077 §6 / idp の ADR-0049 G4・I5）。
 
     書き直さないと、向こうで改名・メール変更をしても**こちらの表示は永久に
     古いまま**になる。

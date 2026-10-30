@@ -125,9 +125,9 @@ erDiagram
 
     users {
         bigint id PK
-        varchar(255) email "索引あり・一意は同じ席の中だけ（ADR-0064）"
+        varchar(255) email "索引あり・一意は同じ席の中だけ（ADR-0079 §4）"
         varchar(100) username
-        varchar(255) password_hash "NULL = ローカル認証なし（ADR-0038）"
+        varchar(255) password_hash "NULL = ローカル認証なし（ADR-0076 §6）"
         boolean is_active "既定 true"
         datetime created_at "UTC"
         datetime updated_at "UTC"
@@ -135,12 +135,12 @@ erDiagram
 
     user_session_boundaries {
         bigint user_id PK,FK "users.id（ON DELETE CASCADE）"
-        datetime valid_from "これより前のトークンでは更新させない（ADR-0057）"
+        datetime valid_from "これより前のトークンでは更新させない（ADR-0076 §8）"
     }
 
     roles {
         bigint id PK
-        varchar(50) name UK "owner / manager / member / guest / system-admin / user-admin / auditor（ADR-0051・0052）"
+        varchar(50) name UK "owner / manager / member / guest / system-admin / user-admin / auditor（ADR-0078 §4・§5）"
     }
 
     permissions {
@@ -162,7 +162,7 @@ erDiagram
         bigint id PK
         bigint user_id FK "索引あり"
         varchar(64) token_hash UK "ハッシュのみ保存"
-        varchar purpose "reset / invitation（CHECK 付き。ADR-0065）"
+        varchar purpose "reset / invitation（CHECK 付き。ADR-0079 §5）"
         datetime expires_at
         datetime used_at "使用済みなら非 NULL"
         datetime created_at
@@ -270,18 +270,18 @@ erDiagram
 - `log` はユーザーへ FK を張らない。PII を持たず `user_id_hash` だけを記録する方針のため
   （CLAUDE.md「ログ」）。ユーザーを消してもログは残る。
 - `audit_log` も FK を張らない。追記専用の記録で、ユーザーを削除しても「誰が何をしたか」の
-  行を残さなければならないため（ADR-0013）。`actor_user_id` は `users.id` と同じ値だが
+  行を残さなければならないため（ADR-0075 §1）。`actor_user_id` は `users.id` と同じ値だが
   参照整合は取らない。
 - `log.request_id` と `audit_log.request_id` は同じ値が入る。片方で見つけた ID をもう一方の
   絞り込みに入れると、1 リクエストの記録を両側から突き合わせられる。
 - `system_settings` は設定キーごとの上書き値を持つ独立テーブル。
 - `items` は `bounded_contexts/example`（新機能追加の見本）のテーブル。
-- `notes` は `bounded_contexts/notes`（資源 1 件ずつの可否の見本。ADR-0070）のテーブル。誰が読めて変えられるかは
+- `notes` は `bounded_contexts/notes`（資源 1 件ずつの可否の見本。ADR-0078 §6）のテーブル。誰が読めて変えられるかは
   `owner_user_id` と、`shared_group_id` のグループの所属（`user_group_members`）で決まる。
 
 ---
 
-## テナント（ADR-0061・ADR-0062）
+## テナント（ADR-0079 §1・§2）
 
 全部の表が「誰のものか」を宣言している（`__table_args__` の `info`。`shared/infrastructure/models/tenancy.py`）。
 宣言の無い表・宣言と列が食い違う表は `tests/integration/test_table_tenancy.py` が落とす。
@@ -295,7 +295,7 @@ erDiagram
 | テーブル | 役割 | モデル |
 |---|---|---|
 | `tenants` | テナント。1 行が assay のテナント 1 つに当たり、発行者（`issuer`）で見分ける。`issuer` が NULL のテナントは SSO を使わない（ローカル口座だけ）。`status` が `suspended` のテナントの人は入れない | `tenant.py` |
-| `role_tenants` | テナントが自分で作ったロールの持ち主（1 ロール 1 行。ADR-0063）。行の無いロールは雛形で全テナントが共有し、テナントの管理者からは中身を変えられない | `tenant.py` |
+| `role_tenants` | テナントが自分で作ったロールの持ち主（1 ロール 1 行。ADR-0079 §3）。行の無いロールは雛形で全テナントが共有し、テナントの管理者からは中身を変えられない | `tenant.py` |
 | `user_tenants` | 利用者の所属（1 人 1 行）。行が無いのはシステム管理者だけ。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `tenant.py` |
 
 `audit_log.tenant_id` は外部キーを張らない（テナントを消しても記録は残す）。NULL は全体の操作
@@ -309,21 +309,21 @@ erDiagram
 
 | テーブル | 役割 | モデル |
 |---|---|---|
-| `users` | ユーザー。`email` の一意は**同じ席の中だけ**（同じテナントの中、テナントに属さない人の中。ADR-0064）で、DB には一意制約を置かずアプリが確かめる。無効化は削除ではなく `is_active` で行う。⚠ **`password_hash` が NULL = ローカル認証を持たない**（ADR-0038）。「空のパスワード」でも「誰も知らない値が入っている」でもない | `user.py` |
-| `user_session_boundaries` | ログインの区切り（ADR-0057）。1 人 1 行。`valid_from` より前に出したトークンでは更新・出し直しをさせない。パスワードを変えた・再設定した・管理者が付け直したときに入る。行が無ければ区切り無し。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `user.py` |
+| `users` | ユーザー。`email` の一意は**同じ席の中だけ**（同じテナントの中、テナントに属さない人の中。ADR-0079 §4）で、DB には一意制約を置かずアプリが確かめる。無効化は削除ではなく `is_active` で行う。⚠ **`password_hash` が NULL = ローカル認証を持たない**（ADR-0076 §6）。「空のパスワード」でも「誰も知らない値が入っている」でもない | `user.py` |
+| `user_session_boundaries` | ログインの区切り（ADR-0076 §8）。1 人 1 行。`valid_from` より前に出したトークンでは更新・出し直しをさせない。パスワードを変えた・再設定した・管理者が付け直したときに入る。行が無ければ区切り無し。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `user.py` |
 | `roles` | ロール。`id` は `user_roles` からの参照キーとして固定値で投入する | `role.py` |
 | `permissions` | 権限コード（scope）。`code` を安定キーとし `id` は DB 採番 | `role.py` |
 | `user_roles` | ユーザー ⇔ ロール（多対多） | `user.py` |
 | `role_permissions` | ロール ⇔ 権限（多対多） | `role.py` |
-| `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ。`purpose` が `invitation` の行は管理者の招待で、パスワードを持たない利用者に最初のパスワードを決めさせる（ADR-0065） | `user.py` |
-| `user_groups` | グループ（人の束。権限は持たない。ADR-0047）。名前はテナントの中で一意（`uq_user_groups_tenant_name`）。⚠ 表の名前を `groups` にしない（MySQL 8 / MariaDB の予約語） | `group.py` |
+| `password_reset_tokens` | パスワード再設定トークン。平文は保存せずハッシュのみ。`purpose` が `invitation` の行は管理者の招待で、パスワードを持たない利用者に最初のパスワードを決めさせる（ADR-0079 §5） | `user.py` |
+| `user_groups` | グループ（人の束。権限は持たない。ADR-0081 §3）。名前はテナントの中で一意（`uq_user_groups_tenant_name`）。⚠ 表の名前を `groups` にしない（MySQL 8 / MariaDB の予約語） | `group.py` |
 | `user_group_members` | グループ ⇔ ユーザー（多対多）。どちらの FK も `ON DELETE CASCADE` | `group.py` |
 
 保有権限は**ユーザーが持つ全ロールの権限の和集合**（`User.permission_codes`）。
 実際に有効な scope はアクティブロールで決まり、ロールを 1 つ選んでいるあいだは
-そのロール分だけになる（`User.permission_codes_of`。ADR-0017）。アクティブロールは
+そのロール分だけになる（`User.permission_codes_of`。ADR-0078 §1）。アクティブロールは
 JWT のクレームでありテーブルには持たない（セッションごとの状態のため）。
-認可はロール名ではなく scope で判定する（ADR-0002）。
+認可はロール名ではなく scope で判定する（ADR-0076 §1）。
 
 ### アカウントセキュリティ（`bounded_contexts/account_security/infrastructure/`）
 
@@ -332,38 +332,38 @@ JWT のクレームでありテーブルには持たない（セッションご�
 | `totp_secrets` | TOTP 共有鍵。`user_id` が主キー（1 ユーザー 1 行）。`confirmed_at` が NULL のあいだは登録手続き中で二要素認証は未有効 |
 | `passkey_credentials` | WebAuthn 資格情報。`credential_id`（base64url）で持ち主を引く。`sign_count` はリプレイ検知用 |
 | `webauthn_challenges` | 発行済みチャレンジ。複数ワーカー構成でも検証できるようプロセスメモリではなく DB に置く。ログイン用は発行時点で相手が不明なため `user_id` が NULL |
-| `login_attempts` | 宛名ごとの失敗の控え（ADR-0058）。窓の中で上限まで失敗したら `locked_until` まで断る。宛名は送られてきたメールアドレスで、実在するアカウントとは結ばない（断られ方で存在が分からないように）。期限切れの行は書き込みのたびに掃除する | `account_security_models.py` |
+| `login_attempts` | 宛名ごとの失敗の控え（ADR-0076 §9）。窓の中で上限まで失敗したら `locked_until` まで断る。宛名は送られてきたメールアドレスで、実在するアカウントとは結ばない（断られ方で存在が分からないように）。期限切れの行は書き込みのたびに掃除する | `account_security_models.py` |
 
 `users.id` への FK は 3 つとも `ON DELETE CASCADE`（ユーザー削除で資格情報も消える）。
-経緯は ADR-0003。
+経緯は ADR-0076 §2。
 
 ### ID 連携（`bounded_contexts/identity_federation/infrastructure/`）
 
 | テーブル | 役割 |
 |---|---|
 | `federated_identities` | 外部 IdP のアカウントと利用者の結び付き。鍵は `(issuer, subject)`。**メールアドレスは鍵にしない**（変わり得るため）。利用者側に一意制約は置かない（1 人が複数の IdP アカウントを持てる） |
-| `sso_login_tickets` | コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**（漏れた控えからそのままログインできないようにする）。期限切れは券の発行時に掃除するので定期ジョブは持たない。`issuer` / `subject` / `session_id` / `session_started_at` は、券と一緒に運ぶ**どの IdP セッションから始まったログインか**（ADR-0036） |
-| `federated_session_revocations` | IdP から届いた「このセッションを止めろ」の記録（ADR-0036）。主キーは `jti` で、**再送はそのまま行の重複として弾かれる**。`session_id` が NULL の行はその利用者のすべてのセッションに効く。期限切れは通知を受けるたびに掃除するので定期ジョブは持たない |
+| `sso_login_tickets` | コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**（漏れた控えからそのままログインできないようにする）。期限切れは券の発行時に掃除するので定期ジョブは持たない。`issuer` / `subject` / `session_id` / `session_started_at` は、券と一緒に運ぶ**どの IdP セッションから始まったログインか**（ADR-0077 §3） |
+| `federated_session_revocations` | IdP から届いた「このセッションを止めろ」の記録（ADR-0077 §3）。主キーは `jti` で、**再送はそのまま行の重複として弾かれる**。`session_id` が NULL の行はその利用者のすべてのセッションに効く。期限切れは通知を受けるたびに掃除するので定期ジョブは持たない |
 
 ⚠ **認可要求の往復状態（`state` / `nonce` / `code_verifier`）の表は無い。** 署名付き
-Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要らず、`state` を知って
+Cookie でブラウザに預けるため（ADR-0077 §1）。保管も掃除も要らず、`state` を知って
 いるだけの相手は戻りを完了できない。
 
 `users.id` への FK は `federated_identities` と `sso_login_tickets` の 2 つで、どちらも
-`ON DELETE CASCADE`。経緯は ADR-0025。
+`ON DELETE CASCADE`。経緯は ADR-0077 §1。
 
 ⚠ **`federated_session_revocations` は `users` へ FK を張らない。** 行が指すのは
 **IdP 側の利用者**（`issuer` + `subject`）で、このアプリに対応する行がまだ無い・
 もう無い場合がある。参照整合を取ると、そのとき通知を受けられなくなる。
 
-### お知らせ（`bounded_contexts/notification/infrastructure/`。ADR-0047）
+### お知らせ（`bounded_contexts/notification/infrastructure/`。ADR-0081 §3）
 
 | テーブル | 役割 |
 |---|---|
 | `notifications` | 送ったお知らせ 1 通 1 行。出す場所は列を分けて持つ（`in_bell` / `in_banner` / `by_push`）。宛先と送り手は**FK を張らない**（相手を消しても「誰に・誰が送ったか」を残す） |
 | `notification_deliveries` | 宛先の 1 人ずつ。**送った時点の顔ぶれ**で書く（あとからグループに入った人には届かない）。`read_at` が NULL で `in_bell` なら未読としてベルに数える。`dismissed_at` が NULL で `in_banner` なら画面上部に出す |
 | `web_push_subscriptions` | 端末（ブラウザ）1 つの Web Push の購読。⚠ `endpoint` は数百文字で索引の上限を超えるので、一意は `endpoint_sha256` で取る。同じ端末で別の人がログインし直して購読すると、後の人のものに書き換わる |
-| `app_device_tokens` | スマホアプリ 1 台の FCM の登録トークン（ADR-0049）。アプリが起動・サインインのたびに登録し直し、`updated_at` が進む。一意は `token_sha256` で取る。FCM が `UNREGISTERED` と答えたら消す |
+| `app_device_tokens` | スマホアプリ 1 台の FCM の登録トークン（ADR-0081 §5）。アプリが起動・サインインのたびに登録し直し、`updated_at` が進む。一意は `token_sha256` で取る。FCM が `UNREGISTERED` と答えたら消す |
 
 `users.id` への FK は `notification_deliveries` と `web_push_subscriptions` と `app_device_tokens` の 3 つで、
 どれも `ON DELETE CASCADE`。
@@ -372,13 +372,13 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 
 | テーブル | 役割 | モデル |
 |---|---|---|
-| `system_settings` | 設定の上書き層。優先順位は **DB > 環境変数 > デフォルト値**（ADR-0034）| `shared/infrastructure/models/system_setting.py` |
+| `system_settings` | 設定の上書き層。優先順位は **DB > 環境変数 > デフォルト値**（ADR-0074 §1）| `shared/infrastructure/models/system_setting.py` |
 | `log` | アプリログ（システムが何をしたか）。`request_id` でリクエスト単位に追跡する。索引は絞り込み軸（レベル・ロガー・利用者・期間・`request_id`）に対応する | `shared/infrastructure/models/log.py` |
 | `audit_log` | 監査ログ（誰が何をしたか）。ログイン・ユーザー／ロール管理・設定変更・再起動要求・MFA の変更を記録する | `bounded_contexts/audit/infrastructure/audit_log_model.py` |
 | `items` | example コンテキストのサンプルテーブル | `bounded_contexts/example/infrastructure/item_model.py` |
-| `notes` | 共有メモ（資源 1 件ずつの可否の見本。ADR-0070） | `bounded_contexts/notes/infrastructure/note_model.py` |
+| `notes` | 共有メモ（資源 1 件ずつの可否の見本。ADR-0078 §6） | `bounded_contexts/notes/infrastructure/note_model.py` |
 
-`log` と `audit_log` の使い分け（ADR-0013）:
+`log` と `audit_log` の使い分け（ADR-0075 §1）:
 
 | | `log` | `audit_log` |
 |---|---|---|
@@ -389,10 +389,10 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 | 閲覧 scope | `log:view` | `audit:view` |
 
 保持期間はどちらも既定 `0`（＝削除しない）で、キーを分けてある。アプリログを削る運用が
-監査記録を巻き込まないようにするため（ADR-0021。設定手順は `docs/OPERATIONS.md`）。
+監査記録を巻き込まないようにするため（ADR-0075 §3。設定手順は `docs/OPERATIONS.md`）。
 
 `audit_log.actor_user_id` は不可逆ハッシュではなく内部 ID を持つ。監査は操作を主体へ
-帰属させるための記録で、後から誰か特定できなければ目的を果たさないため（ADR-0013）。
+帰属させるための記録で、後から誰か特定できなければ目的を果たさないため（ADR-0075 §1）。
 メールアドレス・ユーザー名・パスワード・設定値そのものは記録しない。
 
 ---
@@ -410,12 +410,12 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
   許可値は `AuditEventType` で集中管理する）。
 - **主キー等の `BigInteger`** は `sa.BigInteger().with_variant(sa.Integer(), "sqlite")`
   （`shared/infrastructure/models/base.py` の `BigIntPk`）。本番 MariaDB と
-  テスト SQLite を両立させるため（ADR-0001）。
+  テスト SQLite を両立させるため（ADR-0071 §1）。
 - **時刻は常に UTC**（naive datetime で保存）。生成は `shared/kernel/timestamps.utcnow`。
 - **PII を保存しない列**は `*_hash` とする（`log.user_id_hash`、
   `password_reset_tokens.token_hash`）。監査ログのように「後から主体を特定できなければ
   意味がない」記録は例外で、内部 ID（`audit_log.actor_user_id`）を持つ。
-  いずれの場合もメールアドレス・氏名・パスワード等の PII 自体は保存しない（ADR-0013）。
+  いずれの場合もメールアドレス・氏名・パスワード等の PII 自体は保存しない（ADR-0075 §1）。
 
 ## テーブルを追加・変更するとき
 

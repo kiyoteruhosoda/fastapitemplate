@@ -3,7 +3,7 @@
 設定（``settings`` の ``OIDC_*``）から値オブジェクトを起こすのはここだけ。
 ユースケースは組み立て済みの :class:`IdentityProvider` などを受け取る。
 
-**連携先はテナントごと**（ADR-0061・ADR-0064）。発行者とクライアント ID はテナントの行
+**連携先はテナントごと**（ADR-0079 §1・§4）。発行者とクライアント ID はテナントの行
 （``tenants``）から、ほかの設定（クライアントの鍵・戻り先・要求する強度など）はアプリ全体の
 設定から取る。どのテナントかは経路ごとに決まり方が違う:
 
@@ -117,7 +117,7 @@ GatewayDep = Annotated[OidcProviderGateway, Depends(oidc_gateway)]
 
 
 def client_credential() -> ClientCredential:
-    """トークンエンドポイントへ名乗る手段を設定から起こす（ADR-0025）。"""
+    """トークンエンドポイントへ名乗る手段を設定から起こす（ADR-0077 §1）。"""
     return ClientCredential(
         method=settings.oidc_client_auth_method,
         secret=settings.oidc_client_secret,
@@ -156,7 +156,7 @@ def entrance(
     db: DbDep,
     tenant: Annotated[str | None, Query(max_length=50, pattern=r"^[a-z0-9-]+$")] = None,
 ) -> Tenant | None:
-    """入口で選ばれたテナント（``?tenant=<slug>``。ADR-0061 決定 8）。"""
+    """入口で選ばれたテナント（``?tenant=<slug>``。ADR-0079 §1 決定 8）。"""
     return entrance_tenant(db, tenant)
 
 
@@ -172,7 +172,7 @@ def claims_mapping() -> ClaimsMapping:
 
 
 def account_linking_policy() -> AccountLinkingPolicy:
-    """受け入れてよい相手か・既存の利用者へ寄せてよいか（ADR-0025 決定 4）。"""
+    """受け入れてよい相手か・既存の利用者へ寄せてよいか（ADR-0077 §1 決定 4）。"""
     return AccountLinkingPolicy(
         link_by_email=settings.oidc_link_by_email,
         allowed_email_domains=tuple(settings.oidc_allowed_email_domains),
@@ -198,7 +198,7 @@ def describe_sso_provider(tenant: EntranceDep) -> DescribeSsoProvider:
 
 
 def requested_authentication_context() -> RequestedAuthenticationContext:
-    """要求する認証の強度（ADR-0026 決定 1）。空 = 要求しない。"""
+    """要求する認証の強度（ADR-0076 §3 決定 1）。空 = 要求しない。"""
     return RequestedAuthenticationContext(values=tuple(settings.oidc_acr_values))
 
 
@@ -220,7 +220,7 @@ def start_sso_login(gateway: GatewayDep, tenant: EntranceDep) -> StartSsoLogin:
 
 
 def start_sso_link(gateway: GatewayDep, db: DbDep, user: SignedInUserDep) -> StartSsoLink:
-    """連携の往復の開始（ADR-0040）。要求する認証の強度はログインと同じ。"""
+    """連携の往復の開始（ADR-0077 §5）。要求する認証の強度はログインと同じ。"""
     return StartSsoLink(
         provider=provider_of(db, user),
         gateway=gateway,
@@ -289,7 +289,7 @@ def exchange_sso_ticket(db: DbDep) -> ExchangeSsoTicket:
 
 @dataclass(frozen=True)
 class BackchannelLogout:
-    """停止の伝播の受け口（ADR-0036）。連携先は通知の発行者のテナントで決まる。
+    """停止の伝播の受け口（ADR-0077 §3）。連携先は通知の発行者のテナントで決まる。
 
     記録を残す期間は**リフレッシュトークンの寿命**に合わせる。これを過ぎれば
     停止より前に発行されたトークンは自力で期限切れになる。

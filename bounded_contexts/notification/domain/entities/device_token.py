@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class DeviceToken:
-    """スマホアプリ 1 台の通知の宛先（FCM の登録トークン。ADR-0049）。
+    """スマホアプリ 1 台の通知の宛先（FCM の登録トークン。ADR-0081 §5）。
 
     トークンは FCM がアプリの入った端末ごとに発行し、アプリを入れ直す・データを消すと
     変わる。これが端末の識別になる（Web Push の ``endpoint`` と同じ役）。

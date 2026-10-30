@@ -17,7 +17,7 @@ configure({ asyncUtilTimeout: 5000 })
 // 無いままだと `showModal()` を呼ぶ側が黙って何もせず、ダイアログの中身が
 // `display: none` のまま残って読み上げ・テストの検索から外れる。
 // ここでは `open` 属性の付け外しだけを肩代わりする。フォーカスの閉じ込め・Esc・
-// top layer はブラウザの実装であり、jsdom では検証しない（ADR-0027）。
+// top layer はブラウザの実装であり、jsdom では検証しない（ADR-0080 §6）。
 // 型の上では常にあることになっているので、実装の有無を見るために Partial で受ける
 // （jsdom が実装した版では肩代わりしない）。
 const dialogPrototype: Partial<HTMLDialogElement> = HTMLDialogElement.prototype

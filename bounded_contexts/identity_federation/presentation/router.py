@@ -8,17 +8,17 @@
 - ``POST /token`` — 引き換え券をトークンへ換える（Cookie もここで載せる）
 - ``GET /logout`` — サインアウトを IdP まで通す（**既定では無効**）
 - ``GET /signed-out`` — その戻り。ログイン画面へ返すだけ
-- ``POST /backchannel-logout`` — IdP からの停止の通知を受ける（ADR-0036）
-- ``GET /link`` — 自分の連携の状態を答える（設定画面。ADR-0040）
+- ``POST /backchannel-logout`` — IdP からの停止の通知を受ける（ADR-0077 §3）
+- ``GET /link`` — 自分の連携の状態を答える（設定画面。ADR-0077 §5）
 - ``POST /link/start`` — 連携の往復を始める（入っている本人が押す）
 - ``DELETE /link`` — 連携を外す
 
 ``/callback`` は**ログインの戻りと連携の戻りを兼ねる**。どちらの後始末をするかは
 往復状態の ``purpose`` で決める ——IdP に登録する戻り先の URI を 1 つに保つため
-（ADR-0040）。⚠ **目的をクエリで渡さない。** URL を書き換えるだけで化けさせられる。
+（ADR-0077 §5）。⚠ **目的をクエリで渡さない。** URL を書き換えるだけで化けさせられる。
 
 ``/login`` は**往復状態（``state`` / ``nonce`` / ``code_verifier``）を署名付き Cookie に
-入れてから**送り出し、``/callback`` はそれを復元して照合する（ADR-0025）。サーバー側に
+入れてから**送り出し、``/callback`` はそれを復元して照合する（ADR-0077 §1）。サーバー側に
 控えを持たないので、``state`` を知っているだけの相手は戻りを完了できない ——攻撃者が
 始めた認可要求を踏まされても、被害者のブラウザには対応する Cookie が無い（ログイン CSRF）。
 
@@ -26,7 +26,7 @@
 そのため失敗も JSON ではなくログイン画面への転送で返す（``?sso_error=<code>``）。
 表示文言はフロントエンドが決める（CLAUDE.md「国際化」）。
 
-トークンを URL に載せないための引き換え券は ADR-0025。
+トークンを URL に載せないための引き換え券は ADR-0077 §1。
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ DbDep = Annotated[Session, Depends(get_db)]
 # 戻り先の SPA の経路（フロントエンドのルーティングと対で合わせる）
 LOGIN_SCREEN = "/login"
 HANDOFF_SCREEN = "/login/sso"
-#: 連携の戻りの着地点（設定画面のセキュリティ区画。ADR-0040）
+#: 連携の戻りの着地点（設定画面のセキュリティ区画。ADR-0077 §5）
 SECURITY_SCREEN = "/profile/security"
 
 # IdP が返すエラーコードはそのまま画面の URL へ載るため、素性の分かる形だけを通す
@@ -132,7 +132,7 @@ _ERROR_CODE = re.compile(r"[a-z_]{1,64}")
 _GENERIC_ERROR = "sso_error"
 
 #: 画面を出さずに試した往復（``prompt=none``）で、IdP が「画面が要る」と返すコード
-#: （OIDC Core §3.1.2.6）。**失敗ではない**ので、エラーを出さずにログイン画面へ戻す（ADR-0066）。
+#: （OIDC Core §3.1.2.6）。**失敗ではない**ので、エラーを出さずにログイン画面へ戻す（ADR-0077 §9）。
 #: ``access_denied`` は、Assay に入っているがこのアプリの利用が許可されていないとき（task #648）。
 _SILENT_DECLINES = frozenset(
     {
@@ -247,8 +247,8 @@ def start_login(
 ) -> RedirectResponse:
     """IdP へ送り出す。設定が無い・IdP と話せない場合はログイン画面へ戻す。
 
-    送り出す先は入口で選んだテナントの発行者（``?tenant=<slug>``。ADR-0061 決定 8）。
-    ``?prompt=none`` はログイン画面が開いたときに自分で付ける（ADR-0066）。IdP で入って
+    送り出す先は入口で選んだテナントの発行者（``?tenant=<slug>``。ADR-0079 §1 決定 8）。
+    ``?prompt=none`` はログイン画面が開いたときに自分で付ける（ADR-0077 §9）。IdP で入って
     いればボタンを押さずに入れ、入っていなければ画面を出さずに戻ってくる。
     """
     try:
@@ -291,7 +291,7 @@ def complete_callback(
     tools: Annotated[_CallbackTools, Depends()],
     tx: Annotated[str | None, Cookie(alias=transaction_cookie.COOKIE_NAME)] = None,
 ) -> RedirectResponse:
-    """IdP からの戻りを受け取る。ログインの戻りと連携の戻りを兼ねる（ADR-0040）。
+    """IdP からの戻りを受け取る。ログインの戻りと連携の戻りを兼ねる（ADR-0077 §5）。
 
     往復状態の Cookie は、成功しても失敗しても落とす（1 回の往復で使い切る）。
 
@@ -312,7 +312,7 @@ def _complete_login(
 ) -> RedirectResponse:
     """引き換え券を付けて SPA へ戻す。
 
-    受けるのは**往復状態に書いた発行者**の連携先（URL から決め直さない。ADR-0064）。
+    受けるのは**往復状態に書いた発行者**の連携先（URL から決め直さない。ADR-0079 §4）。
     """
     screen = tools.login_screen(transaction)
     if transaction is not None and transaction.silent and query.error in _SILENT_DECLINES:
@@ -384,7 +384,7 @@ def describe_link(
     use_case: Annotated[DescribeFederatedLink, Depends(dependencies.describe_federated_link)],
     db: DbDep,
 ) -> FederatedLinkResponse:
-    """自分の連携の状態を答える（ADR-0040）。他人の分は見えない。"""
+    """自分の連携の状態を答える（ADR-0077 §5）。他人の分は見えない。"""
     link = use_case.execute(user_id=user.id)
     return FederatedLinkResponse(
         available=link.available,
@@ -402,7 +402,7 @@ def remove_link(
     audit: AuditRecorderDep,
     db: DbDep,
 ) -> StatusResponse:
-    """連携を外す。⚠ **外すと入れなくなる利用者は断る**（ADR-0040）。"""
+    """連携を外す。⚠ **外すと入れなくなる利用者は断る**（ADR-0077 §5）。"""
     provider = dependencies.provider_of(db, user)
     if provider is None:
         raise SsoNotConfiguredError
@@ -458,7 +458,7 @@ async def receive_backchannel_logout(
     request: Request,
     receiver: Annotated[dependencies.BackchannelLogout, Depends(dependencies.receive_backchannel_logout)],
 ) -> StatusResponse:
-    """IdP からの停止の通知を受ける（OpenID Connect Back-Channel Logout 1.0。ADR-0036）。
+    """IdP からの停止の通知を受ける（OpenID Connect Back-Channel Logout 1.0。ADR-0077 §3）。
 
     ⚠ **この口は未認証で叩ける。** 相手の証明は ``logout_token`` の署名だけなので、
     検証を通らないものは理由を返さずに 400 で落とす（どこまで通ったかを教えない）。
@@ -534,7 +534,7 @@ def _to_login_screen(code: str, screen: str = LOGIN_SCREEN) -> RedirectResponse:
 
 
 def _silently_declined(transaction: LoginTransaction, screen: str) -> RedirectResponse:
-    """画面を出さずに試したが、IdP で入っていなかった（ADR-0066）。
+    """画面を出さずに試したが、IdP で入っていなかった（ADR-0077 §9）。
 
     **失敗として記録しない。** ログイン画面を開いただけの人を監査ログに積むことになる。
     行き先（``redirect_to``）は持ち帰り、ボタンで入り直したときもそこへ戻れるようにする。
@@ -548,7 +548,7 @@ def _link_failed(code: str) -> RedirectResponse:
     """連携の失敗を設定画面へ返す。
 
     **監査ログには残さない。** 結び付きは増えていないので「誰が何をしたか」は
-    変わっておらず、原因を追うのはアプリログの仕事になる（ADR-0013）。
+    変わっておらず、原因を追うのはアプリログの仕事になる（ADR-0075 §1）。
     """
     safe = code if _ERROR_CODE.fullmatch(code) else _GENERIC_ERROR
     return _redirect(f"{SECURITY_SCREEN}?sso_link_error={safe}")
@@ -558,7 +558,7 @@ def _failed(audit: AuditRecorderDep, reason: str, screen: str = LOGIN_SCREEN) ->
     """失敗を記録してログイン画面へ戻す。
 
     実行者は入れない。SSO のログインが通っていない時点では「誰が試したか」が
-    分かっていないため（ADR-0013）。
+    分かっていないため（ADR-0075 §1）。
     """
     safe = reason if _ERROR_CODE.fullmatch(reason) else _GENERIC_ERROR
     audit.execute(AuditEventType.SSO_LOGIN_FAILED, AuditResult.FAILURE, reason=safe)

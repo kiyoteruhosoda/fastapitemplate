@@ -1,4 +1,4 @@
-"""定期照合の組み立て（ADR-0043）。
+"""定期照合の組み立て（ADR-0077 §7）。
 
 ユースケース（Application）と実装（Infrastructure）を結び付ける配線。
 Infrastructure は Application を import できないため、組み立ては最も外側の層が行う。
@@ -51,14 +51,14 @@ logger = logging.getLogger(__name__)
 WORKER_NAME = "sso-reconciliation"
 
 # 照合の間隔。⚠ **設定値にしない。** 間隔は起動時に 1 回しか読まれないので、画面に出すと
-# 「変えても効かない設定」になる。止まった人を拾う速さの本線は受け口（ADR-0036）で、
+# 「変えても効かない設定」になる。止まった人を拾う速さの本線は受け口（ADR-0077 §3）で、
 # こちらは取りこぼしを拾う 2 段目なので、1 時間で足りる。
 RECONCILE_INTERVAL_SECONDS = 60 * 60
 
 #: プロセスで 1 つ。⚠ **トークンを周回をまたいで使い回す**ため、呼ぶたびに作らない。
 _ROSTER: RosterGateway = HttpxRosterGateway()
 
-#: 見送っても何も変えていない失敗。⚠ **引けなかったことを「空」と読まない**（ADR-0043 決定 2）。
+#: 見送っても何も変えていない失敗。⚠ **引けなかったことを「空」と読まない**（ADR-0077 §7 決定 2）。
 _SKIPPABLE = (IdentityProviderUnavailableError, SsoNotConfiguredError)
 
 
@@ -73,7 +73,7 @@ def reconcile_federated_users_once(roster: RosterGateway | None = None) -> None:
     session = sessionmaker(bind=get_engine())()
     try:
         # 照合するのは ``OIDC_ISSUER`` のテナントだけ（サービスアカウントは assay のテナントごとに
-        # 要るので、``MACHINE_CLIENT_ID`` 1 つで聞けるのは 1 テナント。ADR-0064）
+        # 要るので、``MACHINE_CLIENT_ID`` 1 つで聞けるのは 1 テナント。ADR-0079 §4）
         provider = dependencies.provider_issuing(session, settings.oidc_issuer)
         if provider is None or not provider.is_usable:
             return

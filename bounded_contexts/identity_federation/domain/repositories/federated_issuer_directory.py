@@ -1,4 +1,4 @@
-"""結び付きの棚卸しのインターフェース（実装は Infrastructure 層。ADR-0039）。"""
+"""結び付きの棚卸しのインターフェース（実装は Infrastructure 層。ADR-0076 §7）。"""
 
 from __future__ import annotations
 

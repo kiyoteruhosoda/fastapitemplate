@@ -19,7 +19,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const notify = useCallback((kind: Toast['kind'], text: string) => {
-    // 前段が閉じている間の失敗は、メンテナンスの画面が伝える（ADR-0067）
+    // 前段が閉じている間の失敗は、メンテナンスの画面が伝える（ADR-0080 §10）
     if (kind === 'error' && currentOutage()) return
     const id = Date.now() + Math.random()
     setToasts((prev) => [...prev, { id, kind, text }])

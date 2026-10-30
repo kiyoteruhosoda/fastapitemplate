@@ -47,7 +47,7 @@ class UnsubscribeFromPush:
 
 
 class RegisterDevice:
-    """スマホアプリの FCM の登録トークンを預かる（ADR-0049）。"""
+    """スマホアプリの FCM の登録トークンを預かる（ADR-0081 §5）。"""
 
     def __init__(self, devices: IDeviceTokenRepository, sender: DevicePushSender) -> None:
         self._devices = devices

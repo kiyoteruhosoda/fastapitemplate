@@ -1,5 +1,5 @@
 /**
- * サインインの往復で行き先を落とさない（ADR-0055）。
+ * サインインの往復で行き先を落とさない（ADR-0077 §8）。
  */
 import { describe, expect, it } from 'vitest'
 

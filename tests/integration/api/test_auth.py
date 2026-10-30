@@ -13,7 +13,7 @@ from shared.infrastructure.models import PasswordResetToken, User
 
 
 def test_login_puts_the_tokens_in_cookies_and_not_in_the_body(client: TestClient) -> None:
-    """⚠ 本文にトークンを載せない（ADR-0028）。
+    """⚠ 本文にトークンを載せない（ADR-0076 §4）。
 
     Cookie は自動で送られるので、本文にも返すと XSS が更新の口を叩いて新しい
     トークンを読めてしまい、``httpOnly`` にした意味が無くなる。

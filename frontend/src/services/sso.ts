@@ -1,5 +1,5 @@
 /**
- * 外部 IdP（OIDC）によるログイン（ADR-0025）。
+ * 外部 IdP（OIDC）によるログイン（ADR-0077 §1）。
  *
  * 開始はブラウザの画面遷移で行う（fetch では IdP のログイン画面を出せない）。
  * IdP から戻ってきた時点でトークンは URL に載っておらず、代わりに 1 回限りの
@@ -12,7 +12,7 @@ export interface SsoProvider {
   /** ログインボタンに出す名前（IdP の呼び名）。 */
   display_name: string
   /**
-   * パスワード・パスキーの入口が開いているか（ADR-0026 決定 2）。
+   * パスワード・パスキーの入口が開いているか（ADR-0076 §3 決定 2）。
    * 偽ならログイン画面はパスワード欄とパスキーのボタンを出さない。
    */
   local_login_enabled: boolean
@@ -37,7 +37,7 @@ export function fetchSsoProvider(tenant?: string): Promise<SsoProvider> {
 
 /**
  * IdP へ送り出す。戻り先は `redirectTo`（アプリ内の経路のみ有効）。
- * `silent` なら `prompt=none` を付ける（ログイン画面が開いたときの試し。ADR-0066）。
+ * `silent` なら `prompt=none` を付ける（ログイン画面が開いたときの試し。ADR-0077 §9）。
  *
  * `assign` ではなく `replace` を使う。ログイン画面を履歴に残すと、ログイン後の
  * 「戻る」でログイン画面へ戻ってしまうため。
@@ -48,9 +48,9 @@ export function startSsoLogin(
   options: { silent?: boolean } = {},
 ): void {
   const query = new URLSearchParams({ redirect_to: redirectTo })
-  // 送り出す先はテナントの IdP（ADR-0064）
+  // 送り出す先はテナントの IdP（ADR-0079 §4）
   if (tenant) query.set('tenant', tenant)
-  // IdP に画面を出させずに試す（ADR-0066。services/silentSso.ts）
+  // IdP に画面を出させずに試す（ADR-0077 §9。services/silentSso.ts）
   if (options.silent) query.set('prompt', 'none')
   window.location.replace(`/api/auth/sso/login?${query.toString()}`)
 }

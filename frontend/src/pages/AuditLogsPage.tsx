@@ -6,7 +6,7 @@
  * （`/admin/logs`）に入れれば、その裏で何が起きていたかを突き合わせられる。
  *
  * 実行者・対象は内部 ID で表示する。監査ログにメールアドレス等の PII を保存しない
- * ため（ADR-0013）。ID から利用者を辿るときはユーザー管理画面を見る。
+ * ため（ADR-0075 §1）。ID から利用者を辿るときはユーザー管理画面を見る。
  */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 

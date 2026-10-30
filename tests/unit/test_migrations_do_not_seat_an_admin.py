@@ -1,6 +1,6 @@
-"""マイグレーションが初期管理者を据えないこと（ADR-0024 の機械的な検証）。
+"""マイグレーションが初期管理者を据えないこと（ADR-0078 §3 の機械的な検証）。
 
-ADR-0024 は「``ensure_default_admin`` を呼ぶのは据え付けの ``0002`` と投入
+ADR-0078 §3 は「``ensure_default_admin`` を呼ぶのは据え付けの ``0002`` と投入
 スクリプトだけ」と決めたが、それを守らせるものは規約とレビューしか無かった。
 ``tests/integration/test_master_data_seeder.py`` が見張るのは
 ``seed_master_data`` の**振る舞い**なので、新しいマイグレーションが
@@ -26,7 +26,7 @@ import pytest
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _VERSIONS = _PROJECT_ROOT / "migrations" / "versions"
 
-# 初期管理者を据えてよい唯一のマイグレーション（据え付け。ADR-0024）。
+# 初期管理者を据えてよい唯一のマイグレーション（据え付け。ADR-0078 §3）。
 _SEATING_IS_ALLOWED_IN = frozenset({"0002_seed_master_data.py"})
 
 # 「初期管理者を据えている」ことを表す名前。``ensure_default_admin`` を呼ぶ形と、
@@ -80,13 +80,13 @@ def _referenced_names(tree: ast.Module) -> set[str]:
 @pytest.mark.parametrize("path", _migration_files(), ids=_file_name)
 def test_migrations_do_not_seat_the_default_admin(path: Path) -> None:
     if path.name in _SEATING_IS_ALLOWED_IN:
-        pytest.skip("据え付けのマイグレーション。ADR-0024 が初期管理者を許す唯一の場所")
+        pytest.skip("据え付けのマイグレーション。ADR-0078 §3 が初期管理者を許す唯一の場所")
 
     found = sorted(_referenced_names(_parse(path)) & _SEATING_NAMES)
 
     assert not found, (
         f"{path.name} が初期管理者を据えようとしている: {found}。"
-        " 権限やロールを足すマイグレーションは seed_master_data だけを呼ぶ（ADR-0024）。"
+        " 権限やロールを足すマイグレーションは seed_master_data だけを呼ぶ（ADR-0078 §3）。"
         " 呼ぶと、運用の途中で消した管理者が既定のパスワードのまま復活する。"
     )
 

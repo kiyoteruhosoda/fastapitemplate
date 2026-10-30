@@ -1,4 +1,4 @@
-"""Android App Links の検証ファイル（ADR-0045）。
+"""Android App Links の検証ファイル（ADR-0081 §1）。
 
 アプリは assay でのログインを ``https://<このホスト>/app/oauth2redirect`` で受け取る。
 Android がこの戻り先を**ブラウザではなくアプリへ**渡すのは、このファイルでホストと

@@ -2,7 +2,7 @@
 
 認証の結果は監査ログ（``audit_log``）へも残す。失敗したログイン試行は
 ``result=failure`` で記録され、``reason`` に「なぜ失敗したか」の分類が入る
-（パスワード・メールアドレスそのものは記録しない。ADR-0013）。
+（パスワード・メールアドレスそのものは記録しない。ADR-0075 §1）。
 
 ログインの資格情報検証そのものは :class:`~presentation.fastapi.services.login_service.LoginService`
 が持つ。ここは受け取った結果をトークンと Cookie に載せる HTTP の関心事だけを扱う。
@@ -103,9 +103,9 @@ async def refresh(
     db: DbDep,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_TOKEN_COOKIE)] = None,
 ) -> SessionResponse:
-    """トークンを更新する。アクティブロール（ADR-0017）は引き継ぐ。
+    """トークンを更新する。アクティブロール（ADR-0078 §1）は引き継ぐ。
 
-    ⚠ **本文でトークンを受け取らない**（ADR-0028）。受け取る口を残すと、SPA が
+    ⚠ **本文でトークンを受け取らない**（ADR-0076 §4）。受け取る口を残すと、SPA が
     トークンを手元に持ち続ける理由になる。
     """
     refreshed = TokenService.verify_refresh_token(refresh_token or "", session=db)
@@ -114,7 +114,7 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
-    # 更新は入り直しではない。最後に実際にサインインした時刻も引き継ぐ（ADR-0060）
+    # 更新は入り直しではない。最後に実際にサインインした時刻も引き継ぐ（ADR-0076 §10）
     return establish_session(response, refreshed.user, refreshed.carry)
 
 
@@ -136,12 +136,12 @@ async def switch_role(
     current: CurrentSessionDep,
     audit: AuditRecorderDep,
 ) -> SessionResponse:
-    """アクティブロールを切り替え、新しいトークンを発行する（ADR-0017）。
+    """アクティブロールを切り替え、新しいトークンを発行する（ADR-0078 §1）。
 
     ``role`` が ``null`` なら「すべてのロール」（保有権限の和集合）に戻す。
     保有していないロールへは切り替えられない（権限は増えない）。
 
-    ⚠ **入り口（IdP のセッション）はそのまま引き継ぐ**（ADR-0036）。
+    ⚠ **入り口（IdP のセッション）はそのまま引き継ぐ**（ADR-0077 §3）。
     """
     user = current.user
     if body.role is not None and body.role not in user.role_names:
@@ -169,16 +169,16 @@ async def update_me(
     db: DbDep,
     audit: AuditRecorderDep,
 ) -> MeResponse:
-    """本人のメールアドレス・表示名を変更する（ADR-0016）。
+    """本人のメールアドレス・表示名を変更する（ADR-0080 §3）。
 
     監査ログの ``reason`` には変更した項目名だけを入れ、値そのもの
-    （メールアドレス・表示名）は記録しない（ADR-0013）。
+    （メールアドレス・表示名）は記録しない（ADR-0075 §1）。
     """
     user = db.get(User, principal.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
     if body.email != user.email:
-        # メールは再設定のメールの宛先。替えるのは入り直したばかりのときだけ（ADR-0060）
+        # メールは再設定のメールの宛先。替えるのは入り直したばかりのときだけ（ADR-0076 §10）
         ensure_recent_sign_in(principal)
     if email_taken(db, body.email, user.tenant_id, except_user_id=user.id):
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
@@ -210,14 +210,14 @@ async def change_password(
     current: CurrentSessionDep,
     audit: AuditRecorderDep,
 ) -> StatusResponse:
-    """パスワードを変え、**それより前に始まった他のログインを終わらせる**（ADR-0057）。
+    """パスワードを変え、**それより前に始まった他のログインを終わらせる**（ADR-0076 §8）。
 
     盗まれた更新トークンを止めるのが目的なので、変えた本人のこのセッションだけは
     新しいトークンを出し直して続ける（ロールと入り口は引き継ぐ）。
     """
     user = current.user
     if user.password_hash is None or not check_password_hash(user.password_hash, body.current_password):
-        # ⚠ **パスワードを持たない利用者もここで断る**（ADR-0038）。理由は分けない
+        # ⚠ **パスワードを持たない利用者もここで断る**（ADR-0076 §6）。理由は分けない
         # ——「持っていない」を教えると、入り口の有無を外から数えられる。
         audit.execute(
             AuditEventType.PASSWORD_CHANGED,
@@ -230,7 +230,7 @@ async def change_password(
         )
     user.password_hash = generate_password_hash(body.new_password)
     user.end_sessions()
-    # 今のパスワードを確かめた直後なので、入り直したものとして扱う（ADR-0060）
+    # 今のパスワードを確かめた直後なので、入り直したものとして扱う（ADR-0076 §10）
     establish_session(
         response, user, SessionCarryOver(active_role=current.active_role, federated_login=current.federated_login)
     )
@@ -250,10 +250,10 @@ async def forgot_password(
 
     未認証のエンドポイントなので、監査ログでは要求されたアカウントを**対象**として
     記録し、実行者は空のままにする。メールアドレスを知っていれば誰でも叩けるため、
-    アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0013）。
+    アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0075 §1）。
     """
     # 宛名ごとに数える。**成功も数える** ——成功しても相手にメールが届くので、
-    # 数えないと宛名を知っているだけで受信箱を埋められる（ADR-0058）
+    # 数えないと宛名を知っているだけで受信箱を埋められる（ADR-0076 §9）
     throttle.require_allowed(PURPOSE_PASSWORD_RESET, body.email, utcnow())
     throttle.record_attempt(PURPOSE_PASSWORD_RESET, body.email, utcnow())
     # ユーザーの存在有無に関わらず同じ応答を返す（列挙攻撃対策）

@@ -3,7 +3,7 @@
 値の正本は ``shared/domain/auth/master_data.py``。ここには投入ロジックのみを
 置き、``scripts/seed_master_data.py``・マイグレーション・テストから共用する。
 
-⚠ **「ロール・権限を足す」と「初期管理者を据える」は別の操作**（ADR-0024）。
+⚠ **「ロール・権限を足す」と「初期管理者を据える」は別の操作**（ADR-0078 §3）。
 権限を足すマイグレーションは前者だけを呼ぶ。混ぜると、**運用の途中で消した
 既定の管理者が、権限を 1 つ足すたびに既定のパスワードのまま復活する**。
 """
@@ -21,7 +21,7 @@ from shared.infrastructure.models import Permission, Role, User
 def seed_master_data(session: Session) -> None:
     """ロール・権限を投入する。既存の行は変更しない（冪等）。
 
-    **初期管理者は作らない**（``ensure_default_admin`` が担う。ADR-0024）。
+    **初期管理者は作らない**（``ensure_default_admin`` が担う。ADR-0078 §3）。
     権限やロールを足すたびに呼ばれる関数なので、ここで利用者を作ると
     「消したはずの管理者が権限追加のたびに戻る」ことになる。
     """
@@ -58,7 +58,7 @@ def seed_master_data(session: Session) -> None:
 def ensure_default_admin(session: Session, *, password: str | None = None) -> None:
     """初期管理者が居なければ据える（冪等）。
 
-    **据え付けと、鍵を失ったときの復旧でだけ呼ぶ**（ADR-0024）。呼ぶのは
+    **据え付けと、鍵を失ったときの復旧でだけ呼ぶ**（ADR-0078 §3）。呼ぶのは
     最初のマイグレーション（``0002_seed_master_data``）と
     ``scripts/seed_master_data.py`` の 2 か所。
 

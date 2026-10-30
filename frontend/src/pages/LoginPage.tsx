@@ -21,7 +21,7 @@ export function LoginPage() {
   const { t } = useI18n()
   const { login, loginWithPasskey } = useAuth()
   const navigate = useNavigate()
-  // 入口のテナント（`/t/<slug>/login`）。無ければ共通の入口（ADR-0064）
+  // 入口のテナント（`/t/<slug>/login`）。無ければ共通の入口（ADR-0079 §4）
   const { tenant } = useParams<{ tenant?: string }>()
   const [step, setStep] = useState<Step>('credentials')
   const [email, setEmail] = useState('')
@@ -30,7 +30,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [params] = useSearchParams()
-  // 開こうとしていた画面（ADR-0055）。どの入口で入っても、入れたらここへ戻す。
+  // 開こうとしていた画面（ADR-0077 §8）。どの入口で入っても、入れたらここへ戻す。
   const destination = sanitizeRedirectTo(params.get(REDIRECT_TO_PARAM))
   // SSO の設定は起動後に変えられるので、画面を開くたびに問い合わせる。
   // ⚠ **取れないうちは入口を出さない。** 取れないのはサーバーに届かないとき（リリース中など）で、
@@ -38,7 +38,7 @@ export function LoginPage() {
   // IdP のボタンの無い画面に取り残される。つながるまで聞き直す。
   const [sso, setSso] = useState<SsoProvider | null>(null)
   const [ssoUnreachable, setSsoUnreachable] = useState(false)
-  // IdP で入っていればボタンを押さずに入れる（ADR-0066）。試してよいかは開いたときの URL で決める。
+  // IdP で入っていればボタンを押さずに入れる（ADR-0077 §9）。試してよいかは開いたときの URL で決める。
   // ⚠ **試すと決めたら入口を描かない。** 描いてから飛ぶと、一瞬だけログイン画面が見える。
   const [silentAllowed] = useState(() => maySilentSso(params))
 
@@ -77,7 +77,7 @@ export function LoginPage() {
     if (code) setError(`error.${code}`)
   }, [params])
 
-  // IdP でのサインアウトを終えると `?signed_out=1` で戻ってくる（ADR-0033）。
+  // IdP でのサインアウトを終えると `?signed_out=1` で戻ってくる（ADR-0077 §2）。
   // **出さないと、期限切れで飛ばされたのと見分けが付かない。**
   useEffect(() => {
     if (params.get('signed_out')) setNotice('login.signedOut')
@@ -162,7 +162,7 @@ export function LoginPage() {
             {t('login.withSso', { provider: sso.display_name })}
           </ActionButton>
         )}
-        {/* 入口が閉じているときは、押しても 403 になるものを出さない（ADR-0026 決定 2）。 */}
+        {/* 入口が閉じているときは、押しても 403 になるものを出さない（ADR-0076 §3 決定 2）。 */}
         {!sso.local_login_enabled ? (
           <p className="hint">{t('login.localDisabled')}</p>
         ) : step === 'credentials' ? (

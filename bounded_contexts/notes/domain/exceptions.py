@@ -5,7 +5,7 @@ class NoteError(Exception):
 
 
 class NoteNotFoundError(NoteError):
-    """そのメモが無い。**読めないメモも「無い」と答える**（在ることを漏らさない。ADR-0070）。"""
+    """そのメモが無い。**読めないメモも「無い」と答える**（在ることを漏らさない。ADR-0078 §6）。"""
 
     code = "note_not_found"
 

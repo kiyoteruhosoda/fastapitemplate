@@ -2,7 +2,7 @@
 
 ログインの完了（:class:`CompleteSsoLogin`）との違いは、利用者を**探さない**ことに
 ある。誰に結び付けるかは往復を始めた時点で決まっていて、ここで決め直す余地は無い
-（ADR-0040）。
+（ADR-0077 §5）。
 
 断る場合は 3 つ。
 
@@ -52,7 +52,7 @@ class CompleteSsoLink:
     gateway: OidcProviderGateway
     identities: FederatedIdentityRepository
     claims: ClaimsMapping
-    #: 要求した ``acr_values`` と、返ってきた ``acr`` の突き合わせ（ADR-0026 決定 1）。
+    #: 要求した ``acr_values`` と、返ってきた ``acr`` の突き合わせ（ADR-0076 §3 決定 1）。
     requested_context: RequestedAuthenticationContext = field(default_factory=RequestedAuthenticationContext)
 
     def execute(self, *, callback: SsoCallback, user_id: int) -> FederatedIdentity:

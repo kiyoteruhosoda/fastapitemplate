@@ -66,7 +66,7 @@ class SqlFederatedIdentityRepository:
         self.session.flush()
 
     def list_for_issuer(self, issuer: str) -> Sequence[FederatedIdentity]:
-        """その IdP と結び付いている利用者を全件（定期照合。ADR-0043）。
+        """その IdP と結び付いている利用者を全件（定期照合。ADR-0077 §7）。
 
         並びは ``subject`` の昇順に固定する。順番が実行計画しだいで変わると、
         記録を突き合わせたときに毎回違って見える。

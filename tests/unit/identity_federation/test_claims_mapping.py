@@ -1,4 +1,4 @@
-"""クレーム -> 利用者の写し（ADR-0042 / idp の ADR-0049 G5・G7）。
+"""クレーム -> 利用者の写し（ADR-0077 §6 / idp の ADR-0049 G5・G7）。
 
 ⚠ **メールアドレスは鍵ではないので、無くても成立する。** 弾いていたのは鍵に
 していた名残で、無いと困るのは「初回に寄せるとき」と「利用者を作るとき」だけである。
@@ -25,7 +25,7 @@ def test_an_email_is_read_and_lowercased() -> None:
 
 
 def test_a_token_without_an_email_still_names_a_user() -> None:
-    """⚠ **ここで弾かない**（ADR-0042）。既に結び付いている相手は ``sub`` で入れる。"""
+    """⚠ **ここで弾かない**（ADR-0077 §6）。既に結び付いている相手は ``sub`` で入れる。"""
     user = ClaimsMapping().apply({"sub": "s", "name": "誰か"})
     assert user.email is None
     assert user.subject == "s"

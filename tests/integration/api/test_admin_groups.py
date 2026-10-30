@@ -1,4 +1,4 @@
-"""グループ管理 API の統合テスト（ADR-0047）。"""
+"""グループ管理 API の統合テスト（ADR-0081 §3）。"""
 
 from __future__ import annotations
 

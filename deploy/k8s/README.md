@@ -1,7 +1,7 @@
 # k3s へのデプロイ
 
 このテンプレートから作ったアプリを nolumialab の **k3s** で動かすための宣言の雛形。
-方式そのものは [ADR-0044](../../docs/decisions/ADR-0044-build-and-apply-on-k3s.md)。
+方式そのものは [ADR-0073 §1](../../docs/decisions/ADR-0073-build-and-deploy.md)。
 
 ```
 forge のソース ──▶ build ──▶ hub.nolumia.com:5000/app/<image>:sha-<コミット>
@@ -64,7 +64,7 @@ digest を置き換える。**実物の見本は deploy-repo の `k8s/fastapitem
 
 テンプレートの名前（`fastapitemplate`）のままにしない。namespace・イメージ名・
 置き場のディレクトリがこの名前から派生する。**アプリ自身の名前の正本は
-`pyproject.toml` の `[project].name`**（[ADR-0031](../../docs/decisions/ADR-0031-the-app-name-comes-from-pyproject.md)）。
+`pyproject.toml` の `[project].name`**（[ADR-0073 §2](../../docs/decisions/ADR-0073-build-and-deploy.md)）。
 
 ### 2. 番号
 

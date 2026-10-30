@@ -1,4 +1,4 @@
-"""結び付きの棚卸しの SQLAlchemy 実装（ADR-0039）。"""
+"""結び付きの棚卸しの SQLAlchemy 実装（ADR-0076 §7）。"""
 
 from __future__ import annotations
 

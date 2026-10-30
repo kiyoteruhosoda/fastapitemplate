@@ -1,4 +1,4 @@
-"""app_release — 配布しているスマホアプリの最新版を知らせる（ADR-0048）。
+"""app_release — 配布しているスマホアプリの最新版を知らせる（ADR-0081 §4）。
 
 アプリ（flutterbase から作ったもの）は Play ストアを通らず、署名済みの APK を
 配布面（Garage の ``artifacts`` バケット。人は share.nolumia.com から取る）に

@@ -76,7 +76,7 @@ class HttpxOidcProviderGateway:
             parameters["acr_values"] = " ".join(request.acr_values)
         if request.silent:
             # IdP で入っていればそのまま code が返り、入っていなければ画面を出さずに
-            # ``error=login_required`` などで戻る（OIDC Core §3.1.2.1。ADR-0066）。
+            # ``error=login_required`` などで戻る（OIDC Core §3.1.2.1。ADR-0077 §9）。
             parameters["prompt"] = "none"
         separator = "&" if "?" in metadata.authorization_endpoint else "?"
         return f"{metadata.authorization_endpoint}{separator}{urlencode(parameters)}"
@@ -121,7 +121,7 @@ class HttpxOidcProviderGateway:
             "client_id": provider.client_id,
         }
         if provider.credential.uses_private_key:
-            # 秘密鍵で署名したアサーションで名乗る（ADR-0025）。Basic は使わない。
+            # 秘密鍵で署名したアサーションで名乗る（ADR-0077 §1）。Basic は使わない。
             form.update(_assertion_fields(provider, metadata.token_endpoint))
             return self._post_form(metadata.token_endpoint, form, None)
         secret = provider.credential.secret
@@ -167,7 +167,7 @@ class HttpxOidcProviderGateway:
         return claims
 
     # ------------------------------------------------------------------
-    # 停止の伝播（ADR-0036）
+    # 停止の伝播（ADR-0077 §3）
     # ------------------------------------------------------------------
 
     def verify_logout_token(self, verification: LogoutTokenVerification) -> Mapping[str, Any]:
@@ -175,7 +175,7 @@ class HttpxOidcProviderGateway:
 
         ``exp`` と ``iat`` を**必須**にする。仕様は ``exp`` を必須にしていないが、
         無ければ「いつまで有効な通知か」を判断できず、一度傍受された通知を
-        いつまでも投げ返せる。自前 idp (assay) は双方を必ず載せる（ADR-0024）。
+        いつまでも投げ返せる。自前 idp (assay) は双方を必ず載せる（ADR-0078 §3）。
         """
         provider = verification.provider
         metadata = self._metadata.metadata(provider.issuer)

@@ -25,7 +25,7 @@ _RESTART_WEB: tuple[str, ...] = (RestartScope.WEB.value,)
 SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     # --- 認証 ---
     {
-        # ⚠ **これが「止めたら効くまで」の上限時間になる**（ADR-0041）。検証は DB を
+        # ⚠ **これが「止めたら効くまで」の上限時間になる**（ADR-0076 §5）。検証は DB を
         #   引かないので、止められた利用者が弾かれるのは次の更新のときである。
         #   長くするほど、停止・権限の取り上げが遅れて効く。
         "key": "ACCESS_TOKEN_EXPIRES_SECONDS",
@@ -169,7 +169,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         ],
     },
     {
-        # 掃除のたびに読み直すため restart_scopes は付けない（ADR-0021）。
+        # 掃除のたびに読み直すため restart_scopes は付けない（ADR-0075 §3）。
         "key": "LOG_RETENTION_DAYS",
         "category": "logging",
         "label": "Keep application logs for (days, 0 = forever)",
@@ -181,7 +181,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Keep audit logs for (days, 0 = forever)",
         "value_type": "integer",
     },
-    # --- 通知（ADR-0047） ---
+    # --- 通知（ADR-0081 §3） ---
     # 送るたびに読むので restart_scopes は付けない。
     {
         "key": "WEB_PUSH_VAPID_PRIVATE_KEY_FILE",
@@ -196,13 +196,13 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "string",
     },
     {
-        # ADR-0049。送るたびに読むので restart_scopes は付けない。
+        # ADR-0081 §5。送るたびに読むので restart_scopes は付けない。
         "key": "FCM_SERVICE_ACCOUNT_FILE",
         "category": "notification",
         "label": "Firebase service account key file (JSON) for app notifications",
         "value_type": "string",
     },
-    # --- スマホアプリの最新版（ADR-0048） ---
+    # --- スマホアプリの最新版（ADR-0081 §4） ---
     # 答えは 5 分ごとに読み直すので restart_scopes は付けない。
     {
         "key": "APP_RELEASE_S3_ENDPOINT_URL",
@@ -241,7 +241,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Download page URL",
         "value_type": "string",
     },
-    # --- SSO（外部 IdP との連携。ADR-0025 / ADR-0026） ---
+    # --- SSO（外部 IdP との連携。ADR-0077 §1 / ADR-0076 §3） ---
     # 接続先とクライアント認証の方式は起動時にしか読まれないわけではないが、
     # 実際に効くのは次の認可要求からなので再起動は要らない。
     {"key": "OIDC_ENABLED", "category": "sso", "label": "Enable SSO", "value_type": "boolean"},
@@ -251,8 +251,8 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Sign-in button label",
         "value_type": "string",
     },
-    # 連携先（発行者とクライアント ID）はテナントごとに tenants が持つ（ADR-0064）。ここの 2 つは
-    # 既定のテナントを作るときの初期値で、発行者は定期照合（ADR-0043）の相手にも使う。
+    # 連携先（発行者とクライアント ID）はテナントごとに tenants が持つ（ADR-0079 §4）。ここの 2 つは
+    # 既定のテナントを作るときの初期値で、発行者は定期照合（ADR-0077 §7）の相手にも使う。
     {
         "key": "OIDC_ISSUER",
         "category": "sso",
@@ -334,7 +334,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "list",
     },
     {
-        # ⚠ **引き直すのは既定のロールだけである**（ADR-0042）。真にすると、
+        # ⚠ **引き直すのは既定のロールだけである**（ADR-0077 §6）。真にすると、
         #   管理画面で足したロールが**毎回のログインで消える**。
         "key": "OIDC_ROLE_SYNC",
         "category": "sso",

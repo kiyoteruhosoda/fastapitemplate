@@ -53,7 +53,7 @@ def register_account_security_error_handler(app: FastAPI) -> None:
         detail: dict[str, str | int] = {"error": error.code}
         headers: dict[str, str] = {}
         if isinstance(error, TooManyAttemptsError):
-            # いつまで待てばよいかを返す（ADR-0058）。画面はこれを待ち時間として出せる
+            # いつまで待てばよいかを返す（ADR-0076 §9）。画面はこれを待ち時間として出せる
             detail["retry_after_seconds"] = error.retry_after_seconds
             headers["Retry-After"] = str(error.retry_after_seconds)
         return JSONResponse(status_code=status_code, content={"detail": detail}, headers=headers)

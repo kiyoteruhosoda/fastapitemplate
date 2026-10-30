@@ -2,7 +2,7 @@
  * セキュリティ画面（`/profile/security`）。
  *
  * パスワード変更・二要素認証・パスキー・IdP との連携が 1 つの画面に並ぶこと
- * （ADR-0020 / ADR-0040）と、
+ * （ADR-0080 §4 / ADR-0077 §5）と、
  * それぞれが正しい API を叩くことを確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -109,7 +109,7 @@ describe('SecurityPage', () => {
 
   it('パスワードを持たない利用者には変更フォームを出さない', async () => {
     // ⚠ 出すと、「今のパスワード」を入力できない相手に絶対に通らない入力欄を見せる
-    //   ことになる（ADR-0038）。
+    //   ことになる（ADR-0076 §6）。
     apiGet.mockImplementation((path: string) => respondToGet(path, { ...ME, has_password: false }))
     await renderPage()
 

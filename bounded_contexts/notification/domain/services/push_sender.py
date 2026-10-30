@@ -1,7 +1,7 @@
 """端末への通知を送る窓口（実装は Infrastructure 層）。
 
-送り口は 2 つある。ブラウザ・PWA へは Web Push（:class:`PushSender`。ADR-0047）、
-スマホアプリへは FCM（:class:`DevicePushSender`。ADR-0049）。お知らせの ``push`` は
+送り口は 2 つある。ブラウザ・PWA へは Web Push（:class:`PushSender`。ADR-0081 §3）、
+スマホアプリへは FCM（:class:`DevicePushSender`。ADR-0081 §5）。お知らせの ``push`` は
 両方へ送る（:class:`PushChannels`）。
 """
 

@@ -39,7 +39,7 @@ def get_push_sender() -> PushSender:
 
 
 def get_device_push_sender() -> DevicePushSender:
-    """スマホアプリへの送り口（FCM。ADR-0049）。設定はリクエストのたびに読む。"""
+    """スマホアプリへの送り口（FCM。ADR-0081 §5）。設定はリクエストのたびに読む。"""
     return FcmSender.from_settings()
 
 
@@ -49,7 +49,7 @@ def get_notification_repository(db: DbDep) -> SqlNotificationRepository:
 
 
 def get_sent_notification_repository(db: DbDep, tenant_id: TenantIdDep) -> SqlNotificationRepository:
-    """送り手のテナントで絞ったもの（ADR-0061）。"""
+    """送り手のテナントで絞ったもの（ADR-0079 §1）。"""
     return SqlNotificationRepository(db, tenant_id)
 
 

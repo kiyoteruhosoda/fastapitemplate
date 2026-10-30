@@ -1,8 +1,8 @@
-"""assay へ聞き直して、使えなくなった人の SSO のセッションを止める（定期照合。ADR-0043）。
+"""assay へ聞き直して、使えなくなった人の SSO のセッションを止める（定期照合。ADR-0077 §7）。
 
-受け口（ADR-0036）が取りこぼしたぶんを拾う 2 段目である。止める範囲は受け口と同じ
+受け口（ADR-0077 §3）が取りこぼしたぶんを拾う 2 段目である。止める範囲は受け口と同じ
 ——**SSO で始まったセッションだけ**で、利用者そのもの（ローカルのパスワード・パスキー）には
-触らない。この雛形はローカル口座を意図して持つ（ADR-0039）。
+触らない。この雛形はローカル口座を意図して持つ（ADR-0076 §7）。
 
 ⚠ **引けなかったときは何もしない。** 名簿が引けないことと、名簿が空であることを混ぜない
 ——混ぜると、assay が不調なだけで全員を止める。引けない場合は
@@ -10,7 +10,7 @@
 が上がり、この仕事は何も変えずに終わる。
 
 ⚠ **何度走らせても結果が同じになるように書く。** 定期実行はワーカーの数だけ同時に走る
-（ADR-0021）。
+（ADR-0075 §3）。
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ class ReconcileFederatedUsers:
     identities: FederatedIdentityRepository
     revocations: SessionRevocationRepository
     roster: RosterGateway
-    #: 失効の記録を残す秒数。**リフレッシュトークンの寿命**を渡す（受け口と同じ。ADR-0036）。
+    #: 失効の記録を残す秒数。**リフレッシュトークンの寿命**を渡す（受け口と同じ。ADR-0077 §3）。
     keep_for_seconds: int
 
     def execute(self) -> ReconciliationOutcome:
@@ -73,7 +73,7 @@ class ReconcileFederatedUsers:
         outcome = ReconciliationOutcome(checked=len(links))
         if _everyone_is_unknown(links, answers):
             # ⚠ テナントの取り違え・アプリの付け替えでもこの形になる。結び付きは本人の
-            #   操作でしか作り直せない（ADR-0040）ので、全員分を外す前に止まる。
+            #   操作でしか作り直せない（ADR-0077 §5）ので、全員分を外す前に止まる。
             logger.warning("sso_reconciliation_everyone_unknown", extra={"checked": len(links)})
             return replace(outcome, held_back=True)
         now = utcnow()
@@ -110,7 +110,7 @@ class ReconcileFederatedUsers:
 
 
 def _everyone_is_unknown(links: list[FederatedIdentity], answers: Roster) -> bool:
-    """結び付きが 2 件以上あり、全員が `unknown` で返ったか（ADR-0043 決定 3）。
+    """結び付きが 2 件以上あり、全員が `unknown` で返ったか（ADR-0077 §7 決定 3）。
 
     1 件だけのときは「その 1 人が消えた」と区別が付かないので、通常どおり扱う。
     """

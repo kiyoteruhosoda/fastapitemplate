@@ -25,7 +25,7 @@ def test_user_crud_and_role_scope(client: TestClient, other_client: TestClient, 
     assert response.json()["roles"] == ["member"]
 
     # member ロールでは items 閲覧のみ・管理系は 403。
-    # セッションは Cookie なので、別の利用者は別のクライアントで持つ（ADR-0028）。
+    # セッションは Cookie なので、別の利用者は別のクライアントで持つ（ADR-0076 §4）。
     member_headers = sign_in(other_client, "member@example.com", "member-pass-1")
     assert other_client.get("/api/items").status_code == 200
     assert other_client.post("/api/items", headers=member_headers, json={"name": "x"}).status_code == 403

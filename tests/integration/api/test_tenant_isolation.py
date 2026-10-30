@@ -1,4 +1,4 @@
-"""2 つのテナントが互いの人と中身を見られないこと（ADR-0061 決定 5・6）。
+"""2 つのテナントが互いの人と中身を見られないこと（ADR-0079 §1 決定 5・6）。
 
 既定のテナント（初期管理者が ``owner``）と、もう 1 つのテナント（別の ``owner``）を作り、
 各コンテキストの API で「相手の行は一覧に出ず、ID を名指ししても 404」を確かめる。
@@ -46,7 +46,7 @@ def other(app: FastAPI, engine: sa.Engine) -> Iterator[tuple[TestClient, dict[st
     """もう 1 つのテナントの管理者（別のブラウザ）。"""
     _seed_other_tenant(engine)
     with TestClient(app) as c:
-        # テナントが 2 つになったので、そのテナントの入口から入る（ADR-0064）
+        # テナントが 2 つになったので、そのテナントの入口から入る（ADR-0079 §4）
         yield c, sign_in(c, _OTHER_EMAIL, _OTHER_PASSWORD, tenant="other")
 
 
@@ -172,7 +172,7 @@ def test_the_administrators_are_counted_per_tenant(mine: Side, other: Side, engi
 def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestClient, engine: sa.Engine) -> None:
     """テナントに属さない主体は、中身の口で 403（全部のテナントとして扱わない）。
 
-    内側のロールを（誤って）付けても効かない（ADR-0063）ので、権限の段階で断られる。
+    内側のロールを（誤って）付けても効かない（ADR-0079 §3）ので、権限の段階で断られる。
     """
     with sessionmaker(bind=engine)() as session:
         loner = User(
@@ -190,7 +190,7 @@ def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestCli
     assert client.get("/api/admin/users").status_code == 403
 
 
-# --- 外側と内側（ADR-0061 決定 4） ---------------------------------------------
+# --- 外側と内側（ADR-0079 §1 決定 4） ---------------------------------------------
 
 
 def test_the_tenant_administrator_no_longer_reaches_the_whole_app(mine: Side) -> None:

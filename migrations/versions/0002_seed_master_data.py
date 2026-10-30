@@ -28,7 +28,7 @@ def upgrade() -> None:
 
     session = Session(bind=op.get_bind())
     seed_master_data(session)
-    # 初期管理者を据えるのは**据え付けのこの 1 回だけ**（ADR-0024）。あとから
+    # 初期管理者を据えるのは**据え付けのこの 1 回だけ**（ADR-0078 §3）。あとから
     # 権限を足すマイグレーションは ``seed_master_data`` しか呼ばない。
     ensure_default_admin(session, password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None)
     session.flush()

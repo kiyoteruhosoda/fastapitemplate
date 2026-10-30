@@ -1,4 +1,4 @@
-"""メモ 1 件ずつの可否（ADR-0070）。"""
+"""メモ 1 件ずつの可否（ADR-0078 §6）。"""
 
 from __future__ import annotations
 

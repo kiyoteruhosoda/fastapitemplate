@@ -120,7 +120,7 @@ def throttle_policy() -> ThrottlePolicy:
 def throttle_login() -> ThrottleLogin:
     # ⚠ リクエストのセッションは渡さない。失敗の記録は 401 と一緒に返る（例外で
     # 抜ける）ので、リクエストのセッションでは rollback で消える。控えは自前の
-    # 短いセッションで commit する（ADR-0058）
+    # 短いセッションで commit する（ADR-0076 §9）
     return ThrottleLogin(SqlLoginAttemptRepository(get_session_factory()), throttle_policy())
 
 

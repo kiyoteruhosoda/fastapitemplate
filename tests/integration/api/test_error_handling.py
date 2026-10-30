@@ -180,7 +180,7 @@ def test_the_500_log_line_knows_whose_request_it_was(
     タスク**で走るため認証依存関数が設定した ``contextvars`` が伝わらず、
     500 の行だけ「誰のリクエストか」が空になる。素の ASGI で書いている理由。
     """
-    # セッションは Cookie で持つので、**このクライアントで**ログインする（ADR-0028）。
+    # セッションは Cookie で持つので、**このクライアントで**ログインする（ADR-0076 §4）。
     sign_in(client_with_failing_endpoint, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     with caplog.at_level(logging.DEBUG, logger=_ERROR_LOGGER):
         response = client_with_failing_endpoint.get("/api/test/authenticated-boom")

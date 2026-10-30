@@ -1,4 +1,4 @@
-"""notification の API スキーマ（ADR-0047）。"""
+"""notification の API スキーマ（ADR-0081 §3）。"""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class PushConfigResponse(BaseModel):
     enabled: bool
     #: ブラウザの ``pushManager.subscribe`` に渡す公開鍵（base64url）。
     public_key: str | None
-    #: スマホアプリへの通知（FCM）を出せる設定か（ADR-0049）。偽ならアプリはトークンを登録しない。
+    #: スマホアプリへの通知（FCM）を出せる設定か（ADR-0081 §5）。偽ならアプリはトークンを登録しない。
     device_enabled: bool = False
 
 
@@ -89,7 +89,7 @@ class PushEndpointRequest(BaseModel):
 
 
 class DeviceRegisterRequest(BaseModel):
-    """アプリが起動・サインインのたびに送る FCM の登録トークン（ADR-0049）。"""
+    """アプリが起動・サインインのたびに送る FCM の登録トークン（ADR-0081 §5）。"""
 
     token: str = Field(min_length=1, max_length=4096)
     platform: str = Field(default="android", max_length=16)

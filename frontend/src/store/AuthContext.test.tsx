@@ -1,10 +1,10 @@
 /**
  * 入る・出るときに手元へ残す印と、前段が閉じている間の聞き直し。
  *
- * - 入れたら、ボタンを押さずに入る試し（ADR-0066）の印を消す。消えないと、次に期限が切れても試さない
+ * - 入れたら、ボタンを押さずに入る試し（ADR-0077 §9）の印を消す。消えないと、次に期限が切れても試さない
  * - サインアウトしたら印を付ける。付かないと、IdP の SSO が残っていてすぐ入り直してしまう
- * - 入った入口のテナント（ADR-0064）を覚え、IdP のサインアウトもそのテナントへ送る
- * - 前段が閉じている間は `/me` を聞き直さず、開いたらすぐ聞き直す（ADR-0067）
+ * - 入った入口のテナント（ADR-0079 §4）を覚え、IdP のサインアウトもそのテナントへ送る
+ * - 前段が閉じている間は `/me` を聞き直さず、開いたらすぐ聞き直す（ADR-0080 §10）
  */
 import { act, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -100,7 +100,7 @@ describe('AuthProvider', () => {
     vi.useRealTimers()
   })
 
-  describe('入れたら試しの印を消す（ADR-0066）', () => {
+  describe('入れたら試しの印を消す（ADR-0077 §9）', () => {
     it('パスワードで入った', async () => {
       const auth = await renderSignedOut()
       leaveSilentSsoMarks()
@@ -141,7 +141,7 @@ describe('AuthProvider', () => {
     })
   })
 
-  describe('入口のテナント（ADR-0064）', () => {
+  describe('入口のテナント（ADR-0079 §4）', () => {
     it('入った入口のテナントを送り、覚える', async () => {
       const auth = await renderSignedOut()
       await act(() => auth.current().login('boss@acme.example', 'pw', undefined, 'acme'))
@@ -208,7 +208,7 @@ describe('AuthProvider', () => {
     })
   })
 
-  describe('前段が閉じている間（ADR-0067）', () => {
+  describe('前段が閉じている間（ADR-0080 §10）', () => {
     it('届かない間も、閉じていれば聞き直さず、開いたらすぐ聞き直す', async () => {
       vi.useFakeTimers()
       get.mockRejectedValue(new ApiError(503, 'service_unavailable'))

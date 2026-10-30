@@ -19,7 +19,7 @@ dependencies = [
     "pyotp>=2.9.0",
     "webauthn>=2.5.0",
     "qrcode>=8.0",
-    # SSO（discovery・トークン交換・UserInfo）。ADR-0025
+    # SSO（discovery・トークン交換・UserInfo）。ADR-0077 §1
     "httpx>=0.28.1",
     "boto3>=1.40",
     "pywebpush>=2.0",
@@ -81,7 +81,7 @@ warn_unreachable = true
 
 implicit_reexport = false
 
-# pywebpush / py_vapid は型情報（py.typed）を持たない（ADR-0047）。
+# pywebpush / py_vapid は型情報（py.typed）を持たない（ADR-0081 §3）。
 [[tool.mypy.overrides]]
 module = ["pywebpush", "py_vapid"]
 ignore_missing_imports = true
@@ -107,7 +107,7 @@ select = [
     "RET",  # flake8-return: return 改善
     "PTH",  # flake8-use-pathlib: pathlib 利用推奨
     "RUF",  # Ruff 独自ルール
-    # 設計品質の定量基準（ADR-0012）。閾値は下の mccabe / pylint セクション。
+    # 設計品質の定量基準（ADR-0072 §4）。閾値は下の mccabe / pylint セクション。
     "C901",    # mccabe: 循環複雑度
     "PLR0912", # 分岐の数
     "PLR0913", # 引数の数
@@ -125,15 +125,15 @@ ignore = [
 ]
 
 [tool.ruff.lint.mccabe]
-# 開発標準どおり 10（推奨は 5 だが、それを下回るかはレビューで見る。ADR-0012）
+# 開発標準どおり 10（推奨は 5 だが、それを下回るかはレビューで見る。ADR-0072 §4）
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
 # 引数 3 個以下という標準に対し、機械検証は 4 で行う。Ruff は `Depends()` による
-# 依存注入とキーワード専用の任意引数も 1 個として数えるため（ADR-0012）。
+# 依存注入とキーワード専用の任意引数も 1 個として数えるため（ADR-0072 §4）。
 max-args = 4
 max-branches = 8
-# 関数の長さは行数ではなく文の数で見る（30 行以下 ≒ 文 30 個以下。ADR-0012）
+# 関数の長さは行数ではなく文の数で見る（30 行以下 ≒ 文 30 個以下。ADR-0072 §4）
 max-statements = 30
 
 [tool.ruff.lint.per-file-ignores]

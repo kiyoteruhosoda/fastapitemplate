@@ -90,7 +90,7 @@ class WebAuthnChallengeRecord(Base):
 
 
 class LoginAttemptRecord(Base):
-    """宛名ごとの失敗の控え（ADR-0058）。
+    """宛名ごとの失敗の控え（ADR-0076 §9）。
 
     宛名は**送られてきたメールアドレス**で、``users`` とは結ばない。実在する
     アカウントだけを数えると、断られるかどうかで存在が分かってしまう。

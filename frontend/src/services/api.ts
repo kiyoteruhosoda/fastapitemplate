@@ -1,13 +1,13 @@
 /**
  * API クライアント（fetch ラッパー）。
  *
- * - **トークンは持たない**（ADR-0028）。httpOnly Cookie で運ばれるので、
+ * - **トークンは持たない**（ADR-0076 §4）。httpOnly Cookie で運ばれるので、
  *   この層は `credentials: 'same-origin'` で送るだけでよい。
  * - 更新系には CSRF の二重送信トークンを載せる（`csrf_token` Cookie の値）。
  * - 401 のとき更新の口を 1 回だけ叩いて再試行する（更新もトークンを Cookie で受ける）。
  * - バックエンドはエラーコード（{"error": "..."}）を返す。表示文言への変換は
  *   i18n（フロントエンド側）で行う。
- * - 前段（edge）が閉じていると答えた 503 は、メンテナンスの画面へ知らせる（ADR-0067）。
+ * - 前段（edge）が閉じていると答えた 503 は、メンテナンスの画面へ知らせる（ADR-0080 §10）。
  *   例外はこれまでどおり投げる（呼んだ側の処理は止まる。トーストは出ない）。
  */
 import { currentOutage, outageFrom, reportOutage, reportReopened } from './maintenance'

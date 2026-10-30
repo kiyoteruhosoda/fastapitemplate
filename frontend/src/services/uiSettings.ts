@@ -24,7 +24,7 @@ export async function loadUiSettings(): Promise<UiSettings> {
   try {
     const response = await fetch('/api/ui/settings')
     if (!response.ok) {
-      // 前段が閉じているなら、最初の画面からメンテナンスの画面にする（ADR-0067）
+      // 前段が閉じているなら、最初の画面からメンテナンスの画面にする（ADR-0080 §10）
       const outage = outageFrom(response.status, await response.json().catch(() => null))
       if (outage) reportOutage(outage)
       return FALLBACK_UI_SETTINGS

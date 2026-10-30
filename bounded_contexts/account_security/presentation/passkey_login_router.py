@@ -87,7 +87,7 @@ async def login_with_passkey(
         )
 
     session = establish_session(response, user)
-    # どの入口で入ったかを残す（ADR-0026 決定 1）。
+    # どの入口で入ったかを残す（ADR-0076 §3 決定 1）。
     recording.audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=passkey")
     logger.info("passkey_login_succeeded")
     return session

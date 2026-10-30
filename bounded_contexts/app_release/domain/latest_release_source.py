@@ -1,4 +1,4 @@
-"""配布面から最新版を読む窓口（ADR-0048。実装は Infrastructure 層）。"""
+"""配布面から最新版を読む窓口（ADR-0081 §4。実装は Infrastructure 層）。"""
 
 from __future__ import annotations
 

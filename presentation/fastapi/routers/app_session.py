@@ -1,4 +1,4 @@
-"""アプリ（assay に直接ログインした Android アプリ）から叩いてよい口の**例**（ADR-0045）。
+"""アプリ（assay に直接ログインした Android アプリ）から叩いてよい口の**例**（ADR-0081 §1）。
 
 ⚠ **雛形は 1 本だけ置く。** 派生のアプリで「アプリからも叩いてよい」ルータを増やすときは、
 ここと同じく :data:`~bounded_contexts.identity_federation.presentation.app_bearer.AppOrWebPrincipalDep`

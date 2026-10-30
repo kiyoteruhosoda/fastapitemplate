@@ -1,4 +1,4 @@
-"""テナントの台帳（``tenants``）を引く・据える（ADR-0061）。"""
+"""テナントの台帳（``tenants``）を引く・据える（ADR-0079 §1）。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from shared.domain.auth import master_data
 from shared.infrastructure.models import Tenant, User
 
-#: 既存の環境を移すときに作る「既定のテナント」の短い名前（ADR-0061 決定 9）。
+#: 既存の環境を移すときに作る「既定のテナント」の短い名前（ADR-0079 §1 決定 9）。
 DEFAULT_TENANT_SLUG = "default"
 DEFAULT_TENANT_NAME = "Default"
 
@@ -39,7 +39,7 @@ def tenant_issuing(session: Session, issuer: str) -> Tenant | None:
 def sole_tenant(session: Session) -> Tenant | None:
     """テナントが 1 つだけならそれ。2 つ以上（または 0）なら ``None``。
 
-    テナントが 1 つだけの環境では、入口の URL にテナントを書かなくてよい（ADR-0061 決定 8）。
+    テナントが 1 つだけの環境では、入口の URL にテナントを書かなくてよい（ADR-0079 §1 決定 8）。
     """
     tenants = session.scalars(sa.select(Tenant).limit(2)).all()
     return tenants[0] if len(tenants) == 1 else None
@@ -73,7 +73,7 @@ def seat_default_admin(session: Session, *, issuer: str, client_id: str) -> None
     """初期管理者（``owner``）を既定のテナントへ入れる。既にどこかに居れば触らない。
 
     ``ensure_default_admin`` の後に呼ぶ（据え付けと復旧）。初期管理者はテナント管理者で、
-    テナントに属さないままでは何も管理できない（ADR-0061）。
+    テナントに属さないままでは何も管理できない（ADR-0079 §1）。
     """
     admin = session.scalar(sa.select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     if admin is None or admin.tenant_id is not None:

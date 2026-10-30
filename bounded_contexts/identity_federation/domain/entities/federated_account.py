@@ -17,7 +17,7 @@ class FederatedAccount:
     email: str
     is_active: bool
     roles: tuple[str, ...] = ()
-    #: 指名されたまま、まだ誰も入っていない席（パスワードも IdP との結び付きもパスキーも無い。ADR-0065）
+    #: 指名されたまま、まだ誰も入っていない席（パスワードも IdP との結び付きもパスキーも無い。ADR-0079 §5）
     awaiting_owner: bool = False
 
 

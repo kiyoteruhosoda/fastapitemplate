@@ -2,8 +2,8 @@
  * プロフィールの自己編集（メールアドレス・表示名）と表示設定の配置。
  *
  * 保存が PUT /api/auth/me に飛ぶこと、成功でトーストが出て /me を引き直すこと、
- * 言語・テーマの選択がこのページに出ること（ADR-0016）、サインインの手段は
- * 別画面で入口だけがあること（ADR-0020）を確認する。
+ * 言語・テーマの選択がこのページに出ること（ADR-0080 §3）、サインインの手段は
+ * 別画面で入口だけがあること（ADR-0080 §4）を確認する。
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -40,7 +40,7 @@ const { apiGet, apiPut, apiPost } = vi.hoisted(() => ({
   apiPost: vi.fn(),
 }))
 
-// トークンは Cookie で運ばれるので、この層に保持の口はもう無い（ADR-0028）。
+// トークンは Cookie で運ばれるので、この層に保持の口はもう無い（ADR-0076 §4）。
 vi.mock('../services/api', () => ({
   api: { get: apiGet, put: apiPut, post: apiPost },
   errorMessageKey: () => 'error.unknown_error',

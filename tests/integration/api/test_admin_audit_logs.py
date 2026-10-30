@@ -75,7 +75,7 @@ def test_log_view_alone_does_not_grant_audit_access(
     session.commit()
     session.close()
 
-    # セッションは Cookie で持つので、別の利用者は別のクライアントで（ADR-0028）。
+    # セッションは Cookie で持つので、別の利用者は別のクライアントで（ADR-0076 §4）。
     sign_in(other_client, "operator@example.com", "operator-password")
 
     assert other_client.get("/api/admin/logs").status_code == 200
@@ -121,7 +121,7 @@ def test_unknown_email_is_recorded_without_an_actor_or_target(
     response = other_client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "whatever"})
     assert response.status_code == 401
 
-    # 宛先の分からない失敗はどのテナントのものでもない（ADR-0062）。テナントの管理者には見えない
+    # 宛先の分からない失敗はどのテナントのものでもない（ADR-0079 §2）。テナントの管理者には見えない
     assert _search(client, admin_headers, "?event_type=login.failed")["total"] == 0
 
 
@@ -184,7 +184,7 @@ def test_password_change_does_not_record_the_password(client: TestClient, admin_
 def test_settings_update_records_only_the_changed_keys(
     client: TestClient, system_admin_headers: dict[str, str]
 ) -> None:
-    """設定はシステム管理者が変え、全体の記録として残る（ADR-0061）。"""
+    """設定はシステム管理者が変え、全体の記録として残る（ADR-0079 §1）。"""
     response = client.put(
         "/api/admin/config",
         json={"values": {"LOG_DB_MIN_LEVEL": "WARNING"}},

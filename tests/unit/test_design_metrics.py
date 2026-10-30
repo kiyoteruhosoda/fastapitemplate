@@ -1,6 +1,6 @@
 """設計品質の定量基準のうち、Ruff で表せないもの（CLAUDE.md「品質ゲート」）。
 
-Ruff が見るもの（`pyproject.toml` の `select` と閾値。ADR-0012）::
+Ruff が見るもの（`pyproject.toml` の `select` と閾値。ADR-0072 §4）::
 
     C901     循環複雑度 10 以下
     PLR0912  分岐 8 個以下

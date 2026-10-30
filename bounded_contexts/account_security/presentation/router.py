@@ -6,7 +6,7 @@
 
 二要素認証・パスキーの**有効化と解除**は監査ログへ残す。アカウントを守る手段の
 increase/decrease はセキュリティ事故の調査で最初に見る情報のため。共有鍵・
-資格情報そのものは記録しない（ADR-0013）。登録の開始（チャレンジ発行）や一覧の
+資格情報そのものは記録しない（ADR-0075 §1）。登録の開始（チャレンジ発行）や一覧の
 参照は記録しない（状態を変えないため）。
 """
 
@@ -59,7 +59,7 @@ from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(prefix="/api/account/security", tags=["account-security"])
 
-#: ⚠ **資格情報を作り替える経路の関門**（ADR-0041 決定 6）。二要素認証やパスキーの
+#: ⚠ **資格情報を作り替える経路の関門**（ADR-0076 §5 決定 6）。二要素認証やパスキーの
 #: 登録・解除は「新しい入り口を作る」操作なので、**いまの状態を確かめてから通す**
 #: ——止められた利用者でも、手元のアクセストークンは寿命まで通るためである。
 PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_settled_principal)]
@@ -152,7 +152,7 @@ async def list_registered_passkeys(
 @router.post(
     "/passkeys/registration",
     response_model=PasskeyChallengeResponse,
-    # 入り口を足す操作。入り直したばかりのときだけ（ADR-0060）
+    # 入り口を足す操作。入り直したばかりのときだけ（ADR-0076 §10）
     dependencies=[Depends(require_local_login), Depends(require_recent_sign_in)],
 )
 async def start_passkey_registration(
@@ -196,7 +196,7 @@ async def complete_passkey_registration(
 @router.delete(
     "/passkeys/{passkey_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    # 本人のパスキーを消して締め出す操作も、入り直したばかりのときだけ（ADR-0060）
+    # 本人のパスキーを消して締め出す操作も、入り直したばかりのときだけ（ADR-0076 §10）
     dependencies=[Depends(require_recent_sign_in)],
 )
 async def delete_registered_passkey(

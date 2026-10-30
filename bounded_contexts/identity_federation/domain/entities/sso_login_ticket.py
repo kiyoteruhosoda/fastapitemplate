@@ -3,7 +3,7 @@
 IdP からの戻りはブラウザの**画面遷移**で、SPA の JavaScript は応答本文を読めない。
 トークンを URL に載せると履歴・Referer・アクセスログへ残るため、代わりに短命の
 引き換え券だけを渡し、SPA が ``POST /api/auth/sso/token`` でトークンへ交換する
-（ADR-0025）。
+（ADR-0077 §1）。
 
 券そのものは持ち主に渡す資格情報なので、DB にはハッシュだけを保存する
 （パスワードリセットトークンと同じ扱い）。
@@ -25,7 +25,7 @@ class SsoLoginTicket:
     user_id: int
     redirect_to: str
     expires_at: datetime
-    #: どの IdP セッションから始まったログインか（ADR-0036）。券と一緒に運ばないと、
+    #: どの IdP セッションから始まったログインか（ADR-0077 §3）。券と一緒に運ばないと、
     #: 停止の通知が届いたときに落とす相手を決められない。
     login: FederatedLogin
 

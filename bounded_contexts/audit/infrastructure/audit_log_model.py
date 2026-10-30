@@ -1,7 +1,7 @@
 """``audit_log`` テーブルの SQLAlchemy モデル（audit コンテキスト固有）。
 
 追記専用の記録なので外部キーは張らない。ユーザーを削除しても「誰が何をしたか」
-の行は残らなければならないため（ADR-0013）。
+の行は残らなければならないため（ADR-0075 §1）。
 
 Alembic とテストが認識できるよう ``migrations/env.py`` と ``tests/conftest.py``
 へ import を追加してある。
@@ -32,7 +32,7 @@ class AuditLogModel(Base):
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     # どのテナントの記録か。NULL は全体の操作（システム管理者・宛先の分からない失敗）。
-    # ⚠ 外部キーを張らない（テナントを消しても記録は残す。ADR-0013 と同じ理由）
+    # ⚠ 外部キーを張らない（テナントを消しても記録は残す。ADR-0075 §1 と同じ理由）
     tenant_id = mapped_column(BigIntPk, nullable=True, index=True)
     occurred_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, index=True)
     event_type: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)

@@ -7,15 +7,15 @@
 このリポジトリは**テンプレート**である。ここから作ったプロジェクトは、
 **元テンプレートの名前（`fastapitemplate`）を名乗ってはならない。**
 デプロイの名前からは namespace・イメージ名・置き場のディレクトリが導かれるため、
-名乗ったままだとテンプレート由来の別プロジェクトとそれらを取り合う（ADR-0044）。
+名乗ったままだとテンプレート由来の別プロジェクトとそれらを取り合う（ADR-0073 §1）。
 
 - **名前を決めるのは deploy-repo の宣言**（`k8s/<app>-<env>/` の namespace・
   `image:`・PV の `local.path`）と、build の表（`resources/build-matrix.json` の
   `name` / `image`）。雛形は `deploy/k8s/`。
 - **⚠ 名前を間違えても自動では止まらない。** 以前は `deploy.sh` が配置場所から名前を
-  決めてテンプレート名なら中断していたが（旧 ADR-0015）、その仕組みごと撤去した。
+  決めてテンプレート名なら中断していたが、その仕組みごと撤去した。
   宣言を書く人が名前を揃える。
-- **アプリ自身の名前は `pyproject.toml` の `[project].name` が正本**（ADR-0031）。
+- **アプリ自身の名前は `pyproject.toml` の `[project].name` が正本**（ADR-0073 §2）。
   Swagger の題と外向きの `User-Agent` はここから導く。**コードに名前を直に書かない**
   ——過去に `USER_AGENT = "nolumiawiki"` が居座り、派生アプリが全部その名前で
   IdP に名乗っていた。
@@ -33,7 +33,7 @@ k3s では namespace で分かれるが、**名前を変えると nginx の Conf
 ## ビルドとデプロイ
 
 **成果物はコンテナイメージ 1 つ**で、置き場は `hub.nolumia.com:5000/app/<image>`、
-タグは `sha-<コミット>`（ADR-0044）。**デプロイ先は k3s** で、稼働状態の正は
+タグは `sha-<コミット>`（ADR-0073 §1）。**デプロイ先は k3s** で、稼働状態の正は
 deploy-repo の `k8s/<app>-<env>/`。宣言の雛形と手順は `deploy/k8s/`。
 
 - **main へのマージで、deck（`https://deck.nolumia.com`）が build → pin → deploy を
@@ -134,6 +134,12 @@ ADR を書く対象の例:
   一度承認した ADR は書き換えず、**新しい ADR で置き換える**（古い方の状態を更新する）。
 - 実装より先に、または実装と同じコミットで追加する。後追いで書き足さない。
 - 関連するコード・ドキュメントからは ADR 番号でリンクする（決定の重複記述をしない）。
+  束ねた ADR は節を `§n` で分けているので、`ADR-0079 §1 決定 5` のように節と項目まで書く。
+- 一度覆した節は、新しい ADR に「`ADR-NNNN §n` を置き換える」と書き、古い方の状態に
+  「§n は `ADR-NNNN` で置き換え」と足す。
+- **ADR-0001〜0070 は 2026-10-30 に話題ごとの 12 本（ADR-0071〜0082）へ束ね、元のファイルは消した。**
+  一覧は `docs/decisions/README.md`。元の文面は git の履歴（コミット `1df4d13` の `docs/decisions/`）で読む。
+  コードや CHANGELOG に残る「旧 ADR-00NN」は、束ねる前から廃止だったもの（元の文面は同じく履歴にある）。
 
 ### 変更したら必ず更新するドキュメント
 
@@ -192,7 +198,7 @@ Swagger UI（`/docs`）・`/openapi.json` が唯一の出所。
 | Python | 3.15（`python:3.15-slim` ベース。CI も `.python-version` の同じ版で試験する） |
 | 依存管理 | uv（`uv sync` / `uv run`） |
 | DB（本番） | MariaDB 10.11.x |
-| DB（開発・テスト） | SQLite（`with_variant` で両立。ADR-0001 参照） |
+| DB（開発・テスト） | SQLite（`with_variant` で両立。ADR-0071 §1 参照） |
 | SQLAlchemy | 2.x（Declarative Base 構文） |
 | Alembic | migrations/ 配下で管理 |
 | ASGI | Uvicorn（本番は Gunicorn + UvicornWorker、`--workers=2` 推奨） |
@@ -232,7 +238,7 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 
 新しい機能は `bounded_contexts/<context>/` として追加する。
 `bounded_contexts/example/` が最小構成の見本（Item の CRUD）。持ち主や共有で 1 件ずつ可否が変わる機能は
-`bounded_contexts/notes/`（共有メモ。ADR-0070）が見本。
+`bounded_contexts/notes/`（共有メモ。ADR-0078 §6）が見本。
 
 ---
 
@@ -240,7 +246,7 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 
 - 認可は **ロールではなく scope（権限コード値）** で行う。ロール名での分岐禁止。
 - ユーザーは複数ロールを持てる。**アクティブロール**（JWT の `active_role`
-  クレーム）が有効 scope を決める（ADR-0017）。
+  クレーム）が有効 scope を決める（ADR-0078 §1）。
   - `null`（既定）= 全ロールが持つ権限の和集合。
   - ロール名を指定 = そのロール 1 つ分の権限だけ。
   - 切り替えは `POST /api/auth/switch-role` によるトークンの再発行。保有していない
@@ -250,21 +256,21 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - 各エンドポイントに `Depends(require_permission("scope_name"))` を付ける
   （`presentation/fastapi/dependencies/auth.py`）。複数の職掌が同じ資源を**読む**
   場合に限り `require_any_permission(...)`（いずれか 1 つ）を使う。書き込みには
-  使わない（ADR-0018）。
+  使わない（ADR-0078 §2）。
 - 権限の検証は依存関数で行い、ルーター本体には検証済みの
   `AuthenticatedPrincipal` のみ渡す。
-- **scope は機能単位。資源 1 件ずつの可否（持ち主・共有）は scope に入れず、DB で確かめる**（ADR-0070）。
+- **scope は機能単位。資源 1 件ずつの可否（持ち主・共有）は scope に入れず、DB で確かめる**（ADR-0078 §6）。
   `note:42:edit` のような scope やグループの所属をトークンに載せない。見本は `bounded_contexts/notes/`
   （エンティティが可否を答え、読めないものは 404、読めるが変えられないものは 403）。
 - JWT 発行時の scope はユーザーの保有権限の範囲内で指定。未指定・空 = 権限なし。
-- **ロールは扱うものの系統で分ける**（システム / 人 / 監査 / コンテンツ。ADR-0051）。
+- **ロールは扱うものの系統で分ける**（システム / 人 / 監査 / コンテンツ。ADR-0078 §4）。
   雛形は `shared/domain/auth/master_data.py`。系統をまたぐロールを作らない。
-- **テナント**（ADR-0061〜0065）: テナントの内側は今の作りで、テナント管理者は `owner`。外側
+- **テナント**（ADR-0079）: テナントの内側は今の作りで、テナント管理者は `owner`。外側
   （テナントの台帳・全体の設定・アプリログ）はテナントに属さない `system-admin` だけが持ち、
   全体に効く権限は `master_data.SYSTEM_PERMISSIONS` に入れる（入れないとテナント管理者が配れる）。
   **テナントの中身を扱う表は `tenant_id` を持ち、リポジトリはテナントをコンストラクタで受け取る。**
   表を足すときは区分を宣言する（`shared/infrastructure/models/tenancy.py`。漏れは試験が落とす）。
-- **権限を動かす操作には scope と別の関門を掛ける**（ADR-0051。
+- **権限を動かす操作には scope と別の関門を掛ける**（ADR-0078 §4。
   `presentation/fastapi/routers/admin/authority_guard.py` の `Administration`）。
   自分が持っていない権限は配れず・取り上げられず、格上の利用者には触れず、自分自身の
   ロール・有効状態・存在は変えられず、「管理の要」を持つ有効な利用者を 0 人にできない。
@@ -280,7 +286,7 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 - `upgrade()` / `downgrade()` の両方を実装する。
 - ベースラインは `migrations/versions/0001_init_master.py`（全テーブルを現行モデルから生成）。
 - マスタデータ（ロール・権限・初期管理者）は `shared/domain/auth/master_data.py` を唯一の出所とし、`versions/*_seed_master_data.py` と `scripts/seed_master_data.py` の双方が参照する。値をどちらかに直書きしない。
-- **権限やロールを足すマイグレーションは `seed_master_data` だけを呼ぶ。** `ensure_default_admin` を呼ぶのは据え付け（`0002`）と投入スクリプトだけ（ADR-0024）。呼ぶと、運用の途中で消した既定の管理者が既定のパスワードのまま復活する。違反は `tests/unit/test_migrations_do_not_seat_an_admin.py` が検出する（既定の値を直に持ち出して自前で作る形も対象）。
+- **権限やロールを足すマイグレーションは `seed_master_data` だけを呼ぶ。** `ensure_default_admin` を呼ぶのは据え付け（`0002`）と投入スクリプトだけ（ADR-0078 §3）。呼ぶと、運用の途中で消した既定の管理者が既定のパスワードのまま復活する。違反は `tests/unit/test_migrations_do_not_seat_an_admin.py` が検出する（既定の値を直に持ち出して自前で作る形も対象）。
 - テーブル・カラム・リレーション・制約を変更したら **`docs/ER.md` の ER 図とテーブル定義を同じコミットで更新する**。
 
 ---
@@ -311,7 +317,7 @@ os.getenv("SOME_KEY")
 SystemSetting.query.get("some_key")
 ```
 
-優先順位: **DB（system_settings テーブル）> 環境変数 > デフォルト値**（ADR-0034）
+優先順位: **DB（system_settings テーブル）> 環境変数 > デフォルト値**（ADR-0074 §1）
 ⚠ **環境変数は配るときの初期値。** 画面で保存した値のほうが強い。
 
 新しい設定キーを追加する場合は以下の3ファイルすべてを更新する:
@@ -352,7 +358,7 @@ SystemSetting.query.get("some_key")
 - すべてのログは **JSON 形式**で stdout に出力し、同時に DB へ書き込む。
 - ログには **PII を含めない**（メールアドレス・氏名・パスワード・トークン・設定値）。
 
-記録は 2 種類ある。使い分けと設計判断は ADR-0013。
+記録は 2 種類ある。使い分けと設計判断は ADR-0075 §1。
 
 | 出力先 | 追跡キー | 用途 | ユーザー識別子 | 閲覧 scope |
 |---|---|---|---|---|
@@ -408,7 +414,7 @@ tests/
 
 フロントエンドのテストは `frontend/src/**/*.test.ts(x)`（Vitest + jsdom + Testing Library）。
 
-実ブラウザの E2E は `frontend/e2e/*.spec.ts`（Playwright。ADR-0054）。本物のサーバーを立てて
+実ブラウザの E2E は `frontend/e2e/*.spec.ts`（Playwright。ADR-0072 §6）。本物のサーバーを立てて
 ログイン・Service Worker・新しい版の知らせを通す**煙試験だけ**を置く。CI では `e2e.yml` の
 別ジョブで回り、これも落ちたらマージしない。足すのはどのアプリにも共通して壊れうる道に限る。
 
@@ -416,9 +422,9 @@ tests/
 
 ## 品質ゲート
 
-以下の 8 つを CI の**必須**ゲートとする（ADR-0006）。落ちたらマージしない。
+以下の 8 つを CI の**必須**ゲートとする（ADR-0072 §1）。落ちたらマージしない。
 手元では `make check` で同じ順序・同じコマンドを流せる（`make format` で自動整形）。
-CI が走るのは **PR に対してと `main` への push だけ**（ADR-0009）。PR を作る前の
+CI が走るのは **PR に対してと `main` への push だけ**（ADR-0072 §3）。PR を作る前の
 ブランチ push では走らないので、その間は `make check` で確認する。
 ⚠ **CI は GitHub から何も取らない**（task #171）。uv 本体と Python は forge の置き場から
 （`ci.yml` の `version` 固定・`manifest-file`・`UV_PYTHON_INSTALL_MIRROR`）、Node は台の像のものを使う（setup-node に `node-version` を書かない）。
@@ -446,7 +452,7 @@ CI が走るのは **PR に対してと `main` への push だけ**（ADR-0009�
   Domain は Application / Infrastructure / Presentation を import できず、
   フレームワーク・DB（FastAPI / SQLAlchemy 等）にも依存できない。
 
-設計品質の基準。**すべて機械検証する**（ADR-0012。落ちたらマージしない）:
+設計品質の基準。**すべて機械検証する**（ADR-0072 §4。落ちたらマージしない）:
 
 | 項目 | 基準 | 検証 | 実測 |
 |---|---|---|---|

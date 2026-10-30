@@ -1,4 +1,4 @@
-"""assay の名簿の読み方（ADR-0043）。⚠ 読めない値で人を止めない。"""
+"""assay の名簿の読み方（ADR-0077 §7）。⚠ 読めない値で人を止めない。"""
 
 from __future__ import annotations
 

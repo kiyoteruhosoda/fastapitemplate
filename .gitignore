@@ -218,7 +218,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# ビルド情報。ビルドの直前に scripts/generate_version.sh が生成する（ADR-0023）。
+# ビルド情報。ビルドの直前に scripts/generate_version.sh が生成する（ADR-0073 §1 決定 7）。
 # ⚠ コミットしないこと。コミットするとその内容が常に優先され、どのイメージも
 #   同じ古い版を名乗り続ける（生成側は既存ファイルを上書きしない）。
 shared/kernel/version.json

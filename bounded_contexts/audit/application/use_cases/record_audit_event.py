@@ -6,7 +6,7 @@
 
 **ここでは DB へ書かない。** 控えに積むだけで、実際の書き込みはリクエストの処理が
 終わってから :class:`~bounded_contexts.audit.application.use_cases.write_audit_events.WriteAuditEvents`
-がまとめて行う（ADR-0013）。処理の途中で別コネクションから書くと、SQLite では
+がまとめて行う（ADR-0075 §1）。処理の途中で別コネクションから書くと、SQLite では
 リクエストのセッションが持つ書き込みロックと衝突するため。
 """
 
@@ -46,7 +46,7 @@ class RecordAuditEvent:
         実行者はふつうリクエスト開始時（認証依存関数）に決まるが、**ログインだけは
         その最中に確定する**ため、確定した時点で束ね直す。呼び出しごとに実行者を
         渡せるようにすると、未認証の操作にうっかり相手を実行者として渡してしまう
-        （ADR-0013 で直した誤帰属がまさにそれ）。
+        （ADR-0075 §1 で直した誤帰属がまさにそれ）。
         """
         return RecordAuditEvent(self._collector, self._context, actor_user_id)
 

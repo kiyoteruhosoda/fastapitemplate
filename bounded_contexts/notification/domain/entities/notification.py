@@ -1,4 +1,4 @@
-"""お知らせ 1 通（ADR-0047）。"""
+"""お知らせ 1 通（ADR-0081 §3）。"""
 
 from __future__ import annotations
 

@@ -8,7 +8,7 @@
 
 **要求した認証の強度は、ここで確かめる。** ``acr_values`` を送ったのに満たされて
 いない ID トークンを受け入れると、要求は「送っただけ」になり、IdP 側のポリシーの
-綴り違い 1 つで単要素のログインが黙って通る（ADR-0026 決定 1）。
+綴り違い 1 つで単要素のログインが黙って通る（ADR-0076 §3 決定 1）。
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ class CompleteSsoLogin:
     claims: ClaimsMapping
     accounts: ResolveFederatedAccount
     ticket_ttl_seconds: int
-    #: 要求した ``acr_values`` と、返ってきた ``acr`` の突き合わせ（ADR-0026 決定 1）。
+    #: 要求した ``acr_values`` と、返ってきた ``acr`` の突き合わせ（ADR-0076 §3 決定 1）。
     #: 既定（何も要求しない）は :meth:`dataclasses.field` の ``default_factory`` で作る
     #: ——値オブジェクトを既定値としてクラス本体に置くと評価が 1 回きりになる。
     requested_context: RequestedAuthenticationContext = field(default_factory=RequestedAuthenticationContext)
@@ -113,7 +113,7 @@ class CompleteSsoLogin:
 
 
 def _federated_session(issuer: str, subject: str, sid: object) -> FederatedSession:
-    """ID トークンの ``sid`` を宛名へ写す（ADR-0036）。
+    """ID トークンの ``sid`` を宛名へ写す（ADR-0077 §3）。
 
     ``sid`` を出さない IdP もあるので、無ければ ``None`` のまま進む
     （その IdP では**利用者単位でしか**止められない）。

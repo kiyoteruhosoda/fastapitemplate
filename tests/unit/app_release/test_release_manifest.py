@@ -1,4 +1,4 @@
-"""配布面の ``latest.json`` を読む（ADR-0048）。
+"""配布面の ``latest.json`` を読む（ADR-0081 §4）。
 
 形は deploy-repo の ``bin/flutter-release.sh`` が書くもの。⚠ ``build`` は
 ビルド番号ではない（焼いた時刻とコミットの組）。番号は ``version`` の ``+`` の後ろ。

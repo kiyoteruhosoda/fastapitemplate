@@ -62,7 +62,7 @@ class PasskeyNotFoundError(AccountSecurityError):
 
 
 class TooManyAttemptsError(AccountSecurityError):
-    """短い時間に失敗しすぎたので、しばらく断る（ADR-0058）。
+    """短い時間に失敗しすぎたので、しばらく断る（ADR-0076 §9）。
 
     ``401`` に紛れ込ませない。断られていることが分からないと、正しいパスワードを
     入れても弾かれ続けて「忘れた」と誤解し、再設定へ流れる。
