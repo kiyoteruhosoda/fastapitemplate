@@ -92,7 +92,6 @@ git grep -n -i fastapitemplate -- ':!docs/CHANGELOG.md' ':!docs/decisions' ':!uv
 | `README.md` | 自分のアプリの説明に書き直す。この雛形の機能一覧は要らない |
 | `docs/TEMPLATE.md`（この文書） | 残す。雛形の更新を取り込むときと、見本の作りを見返すときに使う |
 | `docs/CHANGELOG.md` | 雛形の履歴を消し、自分の履歴を書き始める（雛形の履歴は `template` の remote で読める） |
-| `docs/Progress.md` | 雛形の残タスクを消し、自分のタスクを書く |
 | `docs/decisions/` | **雛形の ADR は消さない**（受け継いだ設計の理由）。自分の ADR は続きの番号で足す |
 | `CLAUDE.md`・`docs/ARCHITECTURE.md`・`docs/ER.md`・`docs/OPERATIONS.md`・`frontend/README.md` | 残して、自分の変更に合わせて書き足す（CLAUDE.md「変更したら必ず更新するドキュメント」） |
 
@@ -123,11 +122,10 @@ CI が落ちた箇所を順に直せば漏れない。
 
 ### 3.1 新しい業務（コンテキスト）を足す
 
-1. `docs/Progress.md` に行を足す
-2. `bounded_contexts/<context>/` に 4 層を作る。手本は `bounded_contexts/example/`（小さな機能）と
+1. `bounded_contexts/<context>/` に 4 層を作る。手本は `bounded_contexts/example/`（小さな機能）と
    `bounded_contexts/notes/`（1 件ずつ可否が変わる機能）。層の決まりは [ARCHITECTURE.md](ARCHITECTURE.md)
-3. ルーターを `presentation/fastapi/app.py` に足す
-4. 選択肢のある決定は ADR に書く（`docs/decisions/ADR-template.md`）
+2. ルーターを `presentation/fastapi/app.py` に足す
+3. 選択肢のある決定は ADR に書く（`docs/decisions/ADR-template.md`）
 
 ### 3.2 表を足す
 
@@ -202,4 +200,4 @@ git merge template/main      # 衝突を解いて PR を出す
 ## 6. 雛形そのものを直す
 
 派生アプリで見つけた不具合や、どのアプリにも要る機能は、**この雛形に先に入れて**から派生アプリへ取り込む。
-派生アプリだけで直すと、次に作るアプリで同じ不具合を踏む。直すときの規則は CLAUDE.md、残タスクは [Progress.md](Progress.md)。
+派生アプリだけで直すと、次に作るアプリで同じ不具合を踏む。直すときの規則は CLAUDE.md にある。
