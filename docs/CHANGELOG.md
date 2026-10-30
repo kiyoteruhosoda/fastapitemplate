@@ -2,6 +2,10 @@
 
 - `notification:send` だけの人に、宛先の候補（`/api/admin/notifications/audiences`）とグループの一覧（`/api/admin/groups`）で全員のメールアドレスが返っていた。`user:manage`（グループの一覧は `group:manage`）の無い人には `email` を null で返す。名前は今までどおり返す。
 
+## 2026-10-30（使われていない設定 `SECRET_KEY` を消した。task #792）
+
+- どのコードも読んでいなかった（署名は `JWT_SECRET_KEY` だけ）。派生アプリの宣言や秘密に `SECRET_KEY` が残っていても無視されるだけなので、そのまま動く。消すときは宣言と秘密から外す。
+
 ## 2026-10-30（ロールの名前の変更の 500 を 409 に・task #762）
 
 - ほかのロールと同じ名前へ変えると、一意制約で 500 になっていたのを `409 role_already_exists` で断る。
