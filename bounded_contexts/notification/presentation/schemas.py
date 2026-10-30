@@ -151,7 +151,8 @@ class AudienceGroupResponse(BaseModel):
 class AudienceUserResponse(BaseModel):
     id: int
     username: str
-    email: str
+    #: ``user:manage`` を持たない送り手には返さない（nolumiatask #785）
+    email: str | None
 
 
 class AudienceOptionsResponse(BaseModel):

@@ -59,7 +59,7 @@ export interface SendRequest {
 
 export interface AudienceOptions {
   groups: { id: number; name: string; member_count: number }[]
-  users: { id: number; username: string; email: string }[]
+  users: { id: number; username: string; email: string | null }[]
 }
 
 export const notificationsApi = {
