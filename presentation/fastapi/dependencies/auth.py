@@ -35,6 +35,10 @@ ACCESS_TOKEN_COOKIE = "access_token"
 # 付いて回ると、長命な資格情報が送られる回数がむやみに増える（ADR-0076 §4）。
 REFRESH_TOKEN_COOKIE = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/auth/refresh"
+# ログインを終わらせるためだけの札（ADR-0091）。更新の Cookie は経路を絞ってあってログアウトの口へ
+# 届かず、アクセストークンの Cookie は寿命で消える。札ができるのはそのログインを終わらせることだけ。
+LOGOUT_TOKEN_COOKIE = "logout_token"
+LOGOUT_COOKIE_PATH = "/api/auth/logout"
 
 
 def set_access_token_cookie(response: Response, token: str) -> None:
@@ -71,9 +75,22 @@ def set_refresh_token_cookie(response: Response, token: str) -> None:
     )
 
 
+def set_logout_token_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        LOGOUT_TOKEN_COOKIE,
+        token,
+        max_age=settings.refresh_token_expires_seconds,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+        path=LOGOUT_COOKIE_PATH,
+    )
+
+
 def clear_access_token_cookie(response: Response) -> None:
     response.delete_cookie(ACCESS_TOKEN_COOKIE)
     response.delete_cookie(REFRESH_TOKEN_COOKIE, path=REFRESH_COOKIE_PATH)
+    response.delete_cookie(LOGOUT_TOKEN_COOKIE, path=LOGOUT_COOKIE_PATH)
 
 
 # Authorization ヘッダー優先、無ければ Cookie フォールバック
@@ -261,6 +278,8 @@ class CurrentSession:
     active_role: str | None = None
     #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。出し直すときに引き継ぐ。
     authenticated_at: datetime | None = None
+    #: このログインの控え（ADR-0091）。ロールの切り替えで引き継ぐ。
+    refresh_session_id: str | None = None
 
 
 async def get_current_session(
@@ -295,6 +314,7 @@ async def get_current_session(
         federated_login=TokenService.federated_login_of(token) if token else None,
         active_role=principal.active_role if principal is not None else None,
         authenticated_at=principal.authenticated_at if principal is not None else None,
+        refresh_session_id=TokenService.refresh_session_id_of(token) if token else None,
     )
 
 
@@ -416,6 +436,8 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
 
 __all__ = [
     "ACCESS_TOKEN_COOKIE",
+    "LOGOUT_COOKIE_PATH",
+    "LOGOUT_TOKEN_COOKIE",
     "MACHINE_NOT_ALLOWED",
     "REAUTHENTICATION_REQUIRED",
     "REFRESH_COOKIE_PATH",
@@ -432,5 +454,6 @@ __all__ = [
     "require_permission",
     "require_recent_sign_in",
     "set_access_token_cookie",
+    "set_logout_token_cookie",
     "set_refresh_token_cookie",
 ]

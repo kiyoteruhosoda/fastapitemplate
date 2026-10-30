@@ -20,6 +20,7 @@ _EXPECTED_EVENT_TYPES = {
     "login.succeeded",
     "login.failed",
     "login.locked",
+    "refresh_token.reused",
     "password.changed",
     "password_reset.requested",
     "password_reset.completed",

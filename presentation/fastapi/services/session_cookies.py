@@ -19,10 +19,12 @@ from sqlalchemy.orm import object_session
 
 from presentation.fastapi.dependencies.auth import (
     set_access_token_cookie,
+    set_logout_token_cookie,
     set_refresh_token_cookie,
 )
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE
 from presentation.fastapi.schemas.auth import SessionResponse
+from presentation.fastapi.services import refresh_sessions
 from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
 from shared.infrastructure.models import User
 from shared.infrastructure.tenant_scope import tenant_admits
@@ -47,9 +49,23 @@ def establish_session(
     ensure_tenant_admits(user)
     pair = TokenService.create_token_pair(user, carry=carry)
     set_access_token_cookie(response, str(pair["access_token"]))
-    set_refresh_token_cookie(response, str(pair["refresh_token"]))
+    if _record_refresh_session(user, pair, carry):
+        set_refresh_token_cookie(response, str(pair["refresh_token"]))
+        set_logout_token_cookie(response, str(pair["logout_token"]))
     _set_csrf_cookie(response)
     return SessionResponse(expires_in=settings.access_token_expires_seconds)
+
+
+def _record_refresh_session(user: User, pair: dict[str, object], carry: SessionCarryOver) -> bool:
+    """控えを作るか振り替える（ADR-0091）。リフレッシュトークンの Cookie を載せてよければ真。"""
+    session = object_session(user)
+    if session is None:  # pragma: no cover - 入口は全部 DB から読んだ利用者を渡す
+        raise RuntimeError("the user must belong to a session")
+    session_id, jti = str(pair["refresh_session_id"]), str(pair["refresh_jti"])
+    if carry.refresh_session_id is None:
+        refresh_sessions.begin(session, session_id=session_id, user_id=user.id, jti=jti)
+        return True
+    return refresh_sessions.rotate(session, session_id=session_id, new_jti=jti, expected_jti=carry.presented_jti)
 
 
 TENANT_SUSPENDED = "tenant_suspended"

@@ -64,6 +64,30 @@ describe('リクエストの組み立て', () => {
 })
 
 /** 前段（edge）が閉じていると答えた 503（ADR-0080 §10）。 */
+describe('トークンの更新', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('同時に 401 になった要求は 1 本の更新を待つ', async () => {
+    let refreshed = false
+    const fetchMock = vi.fn((path: string) => {
+      if (path === '/api/auth/refresh') {
+        refreshed = true
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
+      }
+      const status = refreshed ? 200 : 401
+      return Promise.resolve({ ok: status === 200, status, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await Promise.all([api.get('/api/a'), api.get('/api/b')])
+
+    const refreshes = fetchMock.mock.calls.filter(([path]) => path === '/api/auth/refresh')
+    expect(refreshes).toHaveLength(1)
+  })
+})
+
 describe('閉じている前段の 503', () => {
   const fetchMock = vi.fn()
 

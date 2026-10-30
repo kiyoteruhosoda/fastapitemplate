@@ -34,6 +34,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.auth import (
+    LOGOUT_TOKEN_COOKIE,
     REFRESH_TOKEN_COOKIE,
     CurrentSession,
     clear_access_token_cookie,
@@ -55,7 +56,9 @@ from presentation.fastapi.schemas.auth import (
     SessionResponse,
     StatusResponse,
 )
+from presentation.fastapi.services import refresh_sessions
 from presentation.fastapi.services.password_reset_service import PasswordResetService
+from presentation.fastapi.services.refresh_sessions import RefreshStanding
 from presentation.fastapi.services.session_carry_over import SessionCarryOver
 from presentation.fastapi.services.session_cookies import establish_session
 from presentation.fastapi.services.token_service import TokenService
@@ -101,9 +104,12 @@ async def login(body: LoginRequest, response: Response, login_service: LoginServ
 async def refresh(
     response: Response,
     db: DbDep,
+    audit: AuditRecorderDep,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_TOKEN_COOKIE)] = None,
 ) -> SessionResponse:
     """トークンを更新する。アクティブロール（ADR-0078 §1）は引き継ぐ。
+
+    一度使ったトークンが戻ってきたら、そのログインだけを終わらせる（ADR-0091）。
 
     ⚠ **本文でトークンを受け取らない**（ADR-0076 §4）。受け取る口を残すと、SPA が
     トークンを手元に持ち続ける理由になる。
@@ -114,12 +120,30 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
         )
+    if refreshed.standing == RefreshStanding.REUSED:
+        refresh_sessions.end(db, refreshed.refresh_session_id)
+        # 401 で抜けると要求のセッションは rollback されるので、終わらせたことをここで確定する
+        db.commit()
+        logger.warning("refresh_token_reused")
+        audit.execute(
+            AuditEventType.REFRESH_TOKEN_REUSED,
+            AuditResult.FAILURE,
+            target=AuditTarget.of(AuditTargetType.USER, refreshed.user.id),
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
     # 更新は入り直しではない。最後に実際にサインインした時刻も引き継ぐ（ADR-0076 §10）
     return establish_session(response, refreshed.user, refreshed.carry)
 
 
 @router.post("/logout", response_model=StatusResponse)
-async def logout(response: Response) -> StatusResponse:
+async def logout(
+    response: Response,
+    db: DbDep,
+    logout_token: Annotated[str | None, Cookie(alias=LOGOUT_TOKEN_COOKIE)] = None,
+) -> StatusResponse:
+    """このログインだけを終わらせる（ほかの端末は続く。ADR-0091）。"""
+    if logout_token:
+        TokenService.end_refresh_session(logout_token, session=db)
     clear_access_token_cookie(response)
     return StatusResponse(status="ok")
 
@@ -155,6 +179,7 @@ async def switch_role(
             active_role=body.role,
             federated_login=current.federated_login,
             authenticated_at=current.authenticated_at,
+            refresh_session_id=current.refresh_session_id,
         ),
     )
     audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
