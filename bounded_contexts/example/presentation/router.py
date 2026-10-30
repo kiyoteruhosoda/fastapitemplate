@@ -76,6 +76,7 @@ async def create_item(body: ItemCreateRequest, repo: RepoDep) -> ItemResponse:
 async def list_items(
     repo: RepoDep, settings: Annotated[ContentSettingsBook, Depends(get_content_settings_book)]
 ) -> list[ItemResponse]:
-    order = ItemListOrder(settings.value_of(ITEM_LIST_ORDER))
+    # 選択の項目なので値は選べる値のどれか（合わない値は既定値で読む）
+    order = ItemListOrder(str(settings.value_of(ITEM_LIST_ORDER)))
     dtos = ListItemsUseCase(repo).execute(order)
     return [ItemResponse(id=dto.id, name=dto.name) for dto in dtos]
