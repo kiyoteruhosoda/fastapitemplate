@@ -1,3 +1,7 @@
+## 2026-10-30（お知らせの送り手にメールアドレスを見せない。nolumiatask #785）
+
+- `notification:send` だけの人に、宛先の候補（`/api/admin/notifications/audiences`）とグループの一覧（`/api/admin/groups`）で全員のメールアドレスが返っていた。`user:manage`（グループの一覧は `group:manage`）の無い人には `email` を null で返す。名前は今までどおり返す。
+
 ## 2026-10-30（ロールの名前の変更の 500 を 409 に・task #762）
 
 - ほかのロールと同じ名前へ変えると、一意制約で 500 になっていたのを `409 role_already_exists` で断る。

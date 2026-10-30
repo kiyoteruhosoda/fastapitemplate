@@ -173,13 +173,14 @@ async def list_sent(_principal: SenderDep, repo: SentNotificationRepoDep) -> lis
 
 
 @admin_router.get("/audiences", response_model=AudienceOptionsResponse)
-async def audience_options(_principal: SenderDep, members: TenantMembersDep) -> AudienceOptionsResponse:
+async def audience_options(principal: SenderDep, members: TenantMembersDep) -> AudienceOptionsResponse:
     """宛先に選べる相手（送り手のテナントの中だけ）。``user:manage`` を持たない送り手にも、名前だけは見せる。"""
     groups = members.groups()
     users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
+    with_email = principal.can("user:manage")
     return AudienceOptionsResponse(
         groups=[AudienceGroupResponse(id=g.id, name=g.name, member_count=len(g.members)) for g in groups],
-        users=[AudienceUserResponse(id=u.id, username=u.username, email=u.email) for u in users],
+        users=[AudienceUserResponse(id=u.id, username=u.username, email=u.email if with_email else None) for u in users],
     )
 
 

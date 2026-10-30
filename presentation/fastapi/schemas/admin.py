@@ -68,7 +68,8 @@ class RoleUpdateRequest(BaseModel):
 class GroupMemberResponse(BaseModel):
     id: int
     username: str
-    email: str
+    #: ``group:manage`` を持たない読み手には返さない（nolumiatask #785）
+    email: str | None
 
 
 class GroupResponse(BaseModel):

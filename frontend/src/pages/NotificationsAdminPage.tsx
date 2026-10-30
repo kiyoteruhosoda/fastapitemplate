@@ -101,7 +101,10 @@ export function NotificationsAdminPage() {
           id: g.id,
           label: t('groups.withCount', { name: g.name, count: g.member_count }),
         }))
-      : options.users.map((u) => ({ id: u.id, label: `${u.username} <${u.email}>` }))
+      : options.users.map((u) => ({
+          id: u.id,
+          label: u.email ? `${u.username} <${u.email}>` : u.username,
+        }))
 
   return (
     <>
