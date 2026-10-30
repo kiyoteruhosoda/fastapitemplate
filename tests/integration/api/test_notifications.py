@@ -231,6 +231,37 @@ def test_audience_options_list_groups_and_active_people(client: TestClient, admi
     assert {u["username"] for u in options["users"]} == {"admin", "alice"}
 
 
+def test_a_sender_without_user_manage_sees_names_but_not_email_addresses(
+    client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    """宛先を選ぶのに名前があれば足りる。メールアドレスは利用者を管理する人にだけ（nolumiatask #785）。"""
+    alice = _create_member(client, admin_headers, "alice")
+    client.post("/api/admin/groups", json={"name": "経理", "member_ids": [alice]}, headers=admin_headers)
+    role = client.post(
+        "/api/admin/roles",
+        json={"name": "announcer", "permissions": ["notification:send", "dashboard:view", "gui:view"]},
+        headers=admin_headers,
+    )
+    assert role.status_code == 201, role.text
+    created = client.post(
+        "/api/admin/users",
+        json={"email": "sender@example.com", "username": "sender", "password": _PASSWORD, "roles": ["announcer"]},
+        headers=admin_headers,
+    )
+    assert created.status_code == 201, created.text
+    sign_in(other_client, "sender@example.com", _PASSWORD)
+
+    options = other_client.get("/api/admin/notifications/audiences").json()
+    assert "alice" in {u["username"] for u in options["users"]}
+    assert {u["email"] for u in options["users"]} == {None}
+    groups = other_client.get("/api/admin/groups").json()
+    assert [(m["username"], m["email"]) for m in groups[0]["members"]] == [("alice", None)]
+
+    # 管理者には今までどおり見える
+    assert "alice@example.com" in {u["email"] for u in client.get("/api/admin/notifications/audiences").json()["users"]}
+    assert client.get("/api/admin/groups").json()[0]["members"][0]["email"] == "alice@example.com"
+
+
 # --- 端末への通知 ---------------------------------------------------------------
 
 _ENDPOINT = "https://fcm.googleapis.com/fcm/send/device-1"

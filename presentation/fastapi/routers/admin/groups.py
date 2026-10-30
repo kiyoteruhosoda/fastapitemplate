@@ -5,7 +5,8 @@
 グループがあるかを知る必要があるため（ロールの一覧と同じ考え方。ADR-0078 §2）。
 
 所属の候補（有効な利用者の一覧）は ``/users`` で返す。``user:manage`` を持たない
-グループの管理者にも、名前とメールアドレスだけは見せる。
+グループの管理者にも、名前とメールアドレスだけは見せる。``notification:send`` だけの
+人には名前までで、メールアドレスは見せない（nolumiatask #785）。
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
 from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget, AuditTargetType
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
-from presentation.fastapi.dependencies.auth import require_any_permission, require_permission
+from presentation.fastapi.dependencies.auth import get_current_principal, require_any_permission, require_permission
 from presentation.fastapi.dependencies.tenant import TenantMembersDep
 from presentation.fastapi.schemas.admin import (
     GroupCreateRequest,
@@ -23,6 +24,7 @@ from presentation.fastapi.schemas.admin import (
     GroupResponse,
     GroupUpdateRequest,
 )
+from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User, UserGroup
 from shared.infrastructure.tenant_scope import TenantMembers
 
@@ -32,17 +34,17 @@ _MANAGE_GROUPS = Depends(require_permission("group:manage"))
 _READ_GROUPS = Depends(require_any_permission("group:manage", "notification:send"))
 
 
-def _member(user: User) -> GroupMemberResponse:
-    return GroupMemberResponse(id=user.id, username=user.username, email=user.email)
+def _member(user: User, *, with_email: bool = True) -> GroupMemberResponse:
+    return GroupMemberResponse(id=user.id, username=user.username, email=user.email if with_email else None)
 
 
-def _to_response(group: UserGroup) -> GroupResponse:
+def _to_response(group: UserGroup, *, with_email: bool = True) -> GroupResponse:
     members = sorted(group.members, key=lambda u: (u.username, u.id))
     return GroupResponse(
         id=group.id,
         name=group.name,
         description=group.description,
-        members=[_member(u) for u in members],
+        members=[_member(u, with_email=with_email) for u in members],
     )
 
 
@@ -70,9 +72,13 @@ def _member_count(group: UserGroup) -> str:
 
 
 @router.get("", response_model=list[GroupResponse], dependencies=[_READ_GROUPS])
-async def list_groups(members: TenantMembersDep) -> list[GroupResponse]:
+async def list_groups(
+    members: TenantMembersDep,
+    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+) -> list[GroupResponse]:
     groups = members.groups()
-    return [_to_response(g) for g in groups]
+    with_email = principal.can("group:manage")
+    return [_to_response(g, with_email=with_email) for g in groups]
 
 
 @router.get("/users", response_model=list[GroupMemberResponse], dependencies=[_MANAGE_GROUPS])
