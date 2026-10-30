@@ -10,10 +10,12 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import NoReturn
 
-from fastapi import Cookie, Depends, HTTPException, Response, status
+from fastapi import Cookie, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+from starlette.routing import Route
 
 from bounded_contexts.identity_federation.domain.value_objects.federated_login import (
     FederatedLogin,
@@ -86,11 +88,16 @@ def _extract_token(
     return access_token_cookie or None
 
 
-async def get_current_principal(
+async def get_operation_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
 ) -> AuthenticatedPrincipal:
-    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。
+    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。**機械の主体も通す**（ADR-0087）。
+
+    ⚠ **これを直に使うのは、scope で守る関門だけ**（:func:`require_permission` /
+    :func:`require_any_permission` と、主体のテナントを取り出す依存関数）。機械に出したトークンは
+    scope が許可簿の操作に絞られているので、scope で守られた口なら通してよい。
+    それ以外の口は :func:`get_current_principal`（人だけ）を使う。
 
     ⚠ **DB を引かない**（ADR-0076 §5）。認可の材料はすべてトークンのクレームに
     載っている。利用者の行そのものが要る経路は :func:`get_current_user` を使う
@@ -120,6 +127,66 @@ async def get_current_principal(
     # 監査ログの「誰が」。呼び出し側が主体を引き回さなくても記録できるようにする
     actor_user_id_var.set(principal.user_id)
     return principal
+
+
+MACHINE_NOT_ALLOWED = "machine_not_allowed"
+
+
+async def get_current_principal(
+    request: Request,
+    principal: AuthenticatedPrincipal = Depends(get_operation_principal),
+) -> AuthenticatedPrincipal:
+    """人の主体を返す。**機械の主体は 403**（ADR-0087 決定 4）。
+
+    scope で守られていない口（本人の設定・ロールの切り替え・資格情報の作り替えなど）は、
+    許可簿の操作で絞れない。機械に開けると、振る舞う利用者として何でもできてしまう ——
+    既定で断り、開けるのは scope で守った口だけにする。
+    """
+    if principal.is_machine:
+        refuse_machine(principal, _operation_of(request))
+    return principal
+
+
+def refuse_machine(principal: AuthenticatedPrincipal, operation: str) -> NoReturn:
+    """機械の主体を断る（人だけの口）。監査に残してから 403。"""
+    _refuse_machine(principal, operation, "person_only")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": MACHINE_NOT_ALLOWED})
+
+
+def _operation_of(request: Request) -> str:
+    """監査に残す操作の名前（``GET /api/items`` のような経路の型。値の入った URL は残さない）。"""
+    route = request.scope.get("route")
+    path = route.path if isinstance(route, Route) else request.url.path
+    return f"{request.method} {path}"
+
+
+def _refuse_machine(principal: AuthenticatedPrincipal, operation: str, why: str) -> None:
+    """機械の操作を断ったことを監査に残す（ADR-0087 決定 5。``client_id``・操作・理由）。"""
+    from bounded_contexts.audit.domain.entities.audit_event import AuditEventType, AuditResult
+    from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget, AuditTargetType
+    from bounded_contexts.audit.presentation.dependencies import record_audit_event
+
+    logger.info("machine_operation_refused", extra={"client_id": principal.machine_client_id, "reason": why})
+    record_audit_event().as_actor(principal.user_id).execute(
+        AuditEventType.MACHINE_OPERATION_REFUSED,
+        AuditResult.FAILURE,
+        target=AuditTarget.of(AuditTargetType.MACHINE_CLIENT, principal.machine_client_id),
+        reason=f"{why}: {operation}",
+    )
+
+
+def _refuse_missing_operation(principal: AuthenticatedPrincipal, codes: tuple[str, ...]) -> None:
+    """scope が足りない機械の操作を監査に残す。理由は「許可簿に無い」か「利用者のロールに無い」。"""
+    from bounded_contexts.identity_federation.domain.value_objects.machine_client import (
+        find_machine_client,
+        parse_machine_clients,
+    )
+
+    client = find_machine_client(parse_machine_clients(settings.machine_clients), principal.machine_client_id or "")
+    missing = [code for code in codes if not principal.can(code)]
+    outside = [code for code in missing if client is None or not client.allows(code)]
+    why = "not_in_allowlist" if outside else "role_lacks_permission"
+    _refuse_machine(principal, ",".join(missing), why)
 
 
 async def get_current_user(
@@ -281,9 +348,11 @@ def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrin
     """
 
     async def _check(
-        principal: AuthenticatedPrincipal = Depends(get_current_principal),
+        principal: AuthenticatedPrincipal = Depends(get_operation_principal),
     ) -> AuthenticatedPrincipal:
         if not principal.can(*codes):
+            if principal.is_machine:
+                _refuse_missing_operation(principal, codes)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={
@@ -305,9 +374,11 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
     """
 
     async def _check(
-        principal: AuthenticatedPrincipal = Depends(get_current_principal),
+        principal: AuthenticatedPrincipal = Depends(get_operation_principal),
     ) -> AuthenticatedPrincipal:
         if not any(principal.can(code) for code in codes):
+            if principal.is_machine:
+                _refuse_missing_operation(principal, codes)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={
@@ -322,6 +393,7 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
 
 __all__ = [
     "ACCESS_TOKEN_COOKIE",
+    "MACHINE_NOT_ALLOWED",
     "REAUTHENTICATION_REQUIRED",
     "REFRESH_COOKIE_PATH",
     "REFRESH_TOKEN_COOKIE",
@@ -331,6 +403,8 @@ __all__ = [
     "get_current_principal",
     "get_current_session",
     "get_current_user",
+    "get_operation_principal",
+    "refuse_machine",
     "require_any_permission",
     "require_permission",
     "require_recent_sign_in",

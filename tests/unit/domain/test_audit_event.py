@@ -53,6 +53,9 @@ _EXPECTED_EVENT_TYPES = {
     "tenant.admin_designated",
     "system_admin.added",
     "system_admin.removed",
+    "machine_token.issued",
+    "machine_token.refused",
+    "machine_operation.refused",
 }
 
 

@@ -13,7 +13,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from presentation.fastapi.dependencies.auth import get_current_principal
+from presentation.fastapi.dependencies.auth import get_operation_principal
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.tenant_scope import TenantMembers
 from shared.kernel.database.session import get_db
@@ -22,7 +22,8 @@ TENANT_REQUIRED = "tenant_required"
 
 
 async def get_current_tenant_id(
-    principal: AuthenticatedPrincipal = Depends(get_current_principal),
+    # 機械の主体も通す（テナントを取り出すだけで、何も許さない。可否は scope の関門が決める。ADR-0087）
+    principal: AuthenticatedPrincipal = Depends(get_operation_principal),
 ) -> int:
     if principal.tenant_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_REQUIRED})

@@ -3,6 +3,15 @@
 - `docs/Progress.md` を消し、CLAUDE.md からタスク管理の義務を外した。タスクはリポジトリの外の課題管理で持つ。
   消した時点の残タスクは git の履歴で読める。派生アプリは、自分の `docs/Progress.md` と CLAUDE.md の同じ節を消してよい。
 
+## 2026-10-30（機械の口と許可簿。ADR-0087・task #718・#721）
+
+- assay の `client_credentials` のトークンを換える口 `POST /api/machine/token` を足した。許可簿は環境変数
+  `MACHINE_CLIENTS`（`client_id`・`name`・`acts_as`・`operations`）、宛名は `MACHINE_AUDIENCE`。どちらかが空なら口は閉じる。
+- 機械のトークンの scope は、許可簿の `operations`（権限コード）と振る舞う利用者の権限の重なりだけ。通るのは scope で
+  守った口だけで、人だけの口（本人の情報・ロールの切り替え・管理の関門など）は `403 machine_not_allowed`。
+- 監査ログに `machine_token.issued` / `machine_token.refused` / `machine_operation.refused` を足した（対象は
+  `machine_client:<client_id>`、実行者は振る舞う利用者）。
+
 ## 2026-10-30（CI の決まりを ADR に・文書の食い違いを直した。ADR-0086）
 
 - CI が forge の自前の台で動き GitHub から何も取らないこと、uv の版を書かずに写しの最新を使うことを ADR-0086 にした

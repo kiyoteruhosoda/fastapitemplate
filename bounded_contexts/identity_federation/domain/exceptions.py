@@ -158,11 +158,49 @@ class MachineNotBoundToApplicationError(IdentityFederationError):
     code = "machine_not_bound_to_application"
 
 
+class MachineEntranceClosedError(IdentityFederationError):
+    """機械の口が開いていない（宛名 ``MACHINE_AUDIENCE`` か許可簿 ``MACHINE_CLIENTS`` が空。ADR-0082 §2 決定 4）。"""
+
+    code = "machine_entrance_closed"
+
+
+class InvalidMachineTokenError(IdentityFederationError):
+    """機械のトークンとして受け取れない（署名・発行者・期限・宛名・主体のどれか）。"""
+
+    code = "machine_token_invalid"
+
+
+class MachineClientNotRegisteredError(IdentityFederationError):
+    """名乗った ``client_id`` が許可簿に無い。"""
+
+    code = "machine_client_not_registered"
+
+    def __init__(self, client_id: str) -> None:
+        super().__init__(self.code)
+        #: 名乗った機械（監査の対象に残す。公開の識別子）
+        self.client_id = client_id
+
+
+class MachineActorNotFoundError(IdentityFederationError):
+    """許可簿の ``acts_as`` に当たる有効な利用者が、トークンの発行者のテナントに居ない。"""
+
+    code = "machine_actor_not_found"
+
+    def __init__(self, client_id: str) -> None:
+        super().__init__(self.code)
+        #: 名乗った機械（監査の対象に残す。公開の識別子）
+        self.client_id = client_id
+
+
 __all__ = [
     "IdentityFederationError",
     "IdentityProviderUnavailableError",
     "InvalidIdTokenError",
     "InvalidLogoutTokenError",
+    "InvalidMachineTokenError",
+    "MachineActorNotFoundError",
+    "MachineClientNotRegisteredError",
+    "MachineEntranceClosedError",
     "MachineNotBoundToApplicationError",
     "SsoAccountInactiveError",
     "SsoAccountNotLinkedError",

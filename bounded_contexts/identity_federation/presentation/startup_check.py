@@ -48,4 +48,17 @@ def report_sso_configuration() -> None:
     logger.info("sso_ready")
 
 
-__all__ = ["report_sso_configuration"]
+def report_machine_entrance() -> None:
+    """機械の口が開いているかをログへ出す（ADR-0082 §2 決定 4・ADR-0087）。
+
+    ⚠ **許可簿があるのに宛名が空なら、口は閉じている。** 機械は全部 401 になるので、ここで気付けるようにする。
+    """
+    if not settings.machine_clients:
+        return
+    if not settings.machine_audience:
+        logger.error("machine_entrance_closed_audience_missing")
+        return
+    logger.info("machine_entrance_open")
+
+
+__all__ = ["report_machine_entrance", "report_sso_configuration"]

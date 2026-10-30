@@ -28,6 +28,13 @@ class AuthenticatedPrincipal:
     #: 所属するテナント（ADR-0079 §1）。``None`` はテナントに属さない（システム管理者）。
     #: ⚠ **``None`` を「全部のテナント」と読まない。** 中身はどのテナントのものも見えない。
     tenant_id: int | None = None
+    #: 機械の口から出したトークンなら、名乗った機械の ``client_id``（ADR-0087）。人のログインなら ``None``。
+    #: ⚠ 機械の主体は scope で守られた口でしか通らない（:func:`get_current_principal` は断る）。
+    machine_client_id: str | None = None
+
+    @property
+    def is_machine(self) -> bool:
+        return self.machine_client_id is not None
 
     @property
     def id_hash(self) -> str:

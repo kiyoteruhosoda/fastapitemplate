@@ -21,7 +21,7 @@
 | 記録 | アプリログと監査ログ（画面から検索）・保持期間の掃除 | `shared/kernel/logging/`・`bounded_contexts/audit/` | ADR-0075 |
 | 通知 | お知らせ（ベル・Web Push・FCM）・メール送信 | `bounded_contexts/notification/`・`bounded_contexts/email_sender/` | ADR-0081 |
 | スマホ | Android アプリからの呼び出し（口の例は `routers/app_session.py`）・最新版の案内 | `bounded_contexts/app_release/` | ADR-0081 |
-| 機械の口 | 他のアプリ・バッチから呼ばれる口を足すときの基準と、外せない検証（方針） | — | ADR-0082 |
+| 機械の口 | 他のアプリ・バッチから呼ばれる口（`POST /api/machine/token`）と許可簿 | `MACHINE_CLIENTS`・`MACHINE_AUDIENCE`（空なら閉じる） | ADR-0082・ADR-0087 |
 | 画面 | 管理画面 SPA（日英・テーマ・PWA・メンテナンス画面） | `frontend/` | ADR-0080 |
 | 運用 | `/healthz`・`/readyz`・`/info`・`/metrics`・自己再起動 | `presentation/fastapi/routers/health.py` | ADR-0074 §2 |
 | 配布 | コンテナイメージ 1 つ・k3s の宣言の雛形 | `Dockerfile`・`deploy/k8s/` | ADR-0073 |

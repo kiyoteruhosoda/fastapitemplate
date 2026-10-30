@@ -235,6 +235,9 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
   `note:42:edit` のような scope やグループの所属をトークンに載せない。見本は `bounded_contexts/notes/`
   （エンティティが可否を答え、読めないものは 404、読めるが変えられないものは 403）。
 - JWT 発行時の scope はユーザーの保有権限の範囲内で指定。未指定・空 = 権限なし。
+- **機械の口**（ADR-0087）: 機械（`POST /api/machine/token` で換えたトークン）が通るのは scope で守った口だけ。
+  scope は許可簿 `MACHINE_CLIENTS` の `operations`（権限コード）と利用者の権限の重なり。
+  `get_current_principal` を直に使う口は人だけ（機械は 403）。機械にも開けたい口は `require_permission` で守る。
 - **ロールは扱うものの系統で分ける**（システム / 人 / 監査 / コンテンツ。ADR-0078 §4）。
   雛形は `shared/domain/auth/master_data.py`。系統をまたぐロールを作らない。
 - **ロールはアクター（使う人）から導く**（ADR-0084）。ロールを足す・変えるときは、先に ADR-0084 §1 の
