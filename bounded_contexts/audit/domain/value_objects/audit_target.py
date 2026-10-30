@@ -23,6 +23,7 @@ class AuditTargetType(StrEnum):
     PASSKEY = "passkey"
     TWO_FACTOR = "two_factor"
     SYSTEM_SETTINGS = "system_settings"
+    CONTENT_SETTINGS = "content_settings"
     SERVICE = "service"
     GROUP = "group"
     NOTIFICATION = "notification"

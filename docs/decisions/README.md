@@ -19,3 +19,4 @@
 | [ADR-0082](ADR-0082-machine-clients.md) | 機械の口 | §1 機械の口をテンプレートに入れる基準と、外せない検証<br>§2 機械に何をしてよいかは、idp ではなくアプリの許可簿で決める |
 | [ADR-0083](ADR-0083-outbound-destinations.md) | 利用者が渡した宛先 | 利用者が渡した宛先へは、確かめてからつなぐ（Web Push は通知サービスのホストだけ） |
 | [ADR-0084](ADR-0084-actors-and-roles.md) | アクターとロール | §1 アクター<br>§2 ユースケースと担当<br>§3 権限は「対象:操作」で、見ると変えるを分ける（設定はシステムとコンテンツの 2 層）<br>§4 ロール（サポート担当・コンテンツ管理者を足す） |
+| [ADR-0085](ADR-0085-content-settings.md) | コンテンツ設定 | 定義をコードに、テナントが変えた値だけを DB に持つ（`content_settings`・`/api/admin/content-settings`） |

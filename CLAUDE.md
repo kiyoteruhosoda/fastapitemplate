@@ -238,7 +238,8 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 
 新しい機能は `bounded_contexts/<context>/` として追加する。
 `bounded_contexts/example/` が最小構成の見本（Item の CRUD）。持ち主や共有で 1 件ずつ可否が変わる機能は
-`bounded_contexts/notes/`（共有メモ。ADR-0078 §6）が見本。
+`bounded_contexts/notes/`（共有メモ。ADR-0078 §6）が見本。テナントごとの決まり（コンテンツ設定）は
+`bounded_contexts/content_settings/`（項目は `domain/definitions.py` に足す。ADR-0085）。
 
 ---
 

@@ -32,6 +32,11 @@ const GROUPS: Group[] = [
       { to: '/admin/permissions', labelKey: 'nav.permissions', scopes: ['role:manage'] },
       { to: '/admin/groups', labelKey: 'nav.groups', scopes: ['group:manage'] },
       { to: '/admin/notifications', labelKey: 'nav.notifications', scopes: ['notification:send'] },
+      {
+        to: '/admin/content-settings',
+        labelKey: 'nav.contentSettings',
+        scopes: ['content-settings:view'],
+      },
     ],
   },
   {

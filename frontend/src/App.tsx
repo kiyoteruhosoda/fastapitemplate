@@ -6,6 +6,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AppReturnPage } from './pages/AppReturnPage'
 import { AuditLogsPage } from './pages/AuditLogsPage'
 import { ConfigPage } from './pages/ConfigPage'
+import { ContentSettingsPage } from './pages/ContentSettingsPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { GroupsPage } from './pages/GroupsPage'
 import { ItemsPage } from './pages/ItemsPage'
@@ -74,6 +75,7 @@ export default function App() {
         <Route path="/admin/permissions" element={<PermissionsPage />} />
         <Route path="/admin/groups" element={<GroupsPage />} />
         <Route path="/admin/notifications" element={<NotificationsAdminPage />} />
+        <Route path="/admin/content-settings" element={<ContentSettingsPage />} />
         <Route path="/admin/config" element={<ConfigPage />} />
         <Route path="/admin/logs" element={<SystemLogsPage />} />
         <Route path="/admin/audit-logs" element={<AuditLogsPage />} />

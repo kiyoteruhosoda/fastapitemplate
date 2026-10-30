@@ -60,6 +60,8 @@ class AuditEventType(StrEnum):
     ROLE_DELETED = "role.deleted"
     # --- システム運用 ---
     SYSTEM_SETTINGS_UPDATED = "system_settings.updated"
+    # --- コンテンツ設定（テナントの中。ADR-0085）。``reason`` には変えた項目名だけを入れる ---
+    CONTENT_SETTINGS_UPDATED = "content_settings.updated"
     SERVICE_RESTART_REQUESTED = "service.restart_requested"
     # --- プロフィール（本人によるメールアドレス・表示名の変更。ADR-0080 §3） ---
     PROFILE_UPDATED = "profile.updated"

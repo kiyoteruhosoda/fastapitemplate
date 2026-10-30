@@ -75,6 +75,7 @@ flowchart TD
         Perms["/admin/permissions<br/>権限一覧"]
         Groups["/admin/groups<br/>グループ管理"]
         Notices["/admin/notifications<br/>お知らせの配信"]
+        ContentSettings["/admin/content-settings<br/>コンテンツ設定"]
         Config["/admin/config<br/>システム設定"]
         Logs["/admin/logs<br/>システムログ"]
         Audit["/admin/audit-logs<br/>監査ログ"]
@@ -105,6 +106,8 @@ flowchart TD
     Dashboard --> Groups
     Dashboard --> Notices
     Notices -.->|"宛先に選ぶ"| Groups
+    Dashboard --> ContentSettings
+    ContentSettings -.->|"並び順"| Items
     Dashboard --> Config
     Dashboard --> Logs
     Dashboard --> Audit
@@ -118,7 +121,7 @@ flowchart TD
 ```
 
 - サイドバーの項目は**ロール名ではなく scope** で出し入れする（`components/Sidebar.tsx`）。
-  メニューは階層化されており、ユーザー・ロール・権限・グループ・お知らせの配信は「管理」、システム設定・
+  メニューは階層化されており、ユーザー・ロール・権限・グループ・お知らせの配信・コンテンツ設定は「管理」、システム設定・
   システムログ・監査ログ・システムステータスは「システム管理」のグループに入る
   （表示できる項目が 1 つも無いグループは見出しごと出ない）。
 - 未認証で認証必須ルートを開くと `/login?redirect_to=<開こうとしていた経路とクエリ>` に
@@ -159,6 +162,7 @@ flowchart TD
 | S10 | 権限一覧               | `/admin/permissions`                             | 必要 | `role:manage`                                                                      | ✅         |
 | S17 | グループ管理           | `/admin/groups`                                  | 必要 | `group:manage`                                                                     | ✅         |
 | S18 | お知らせの配信         | `/admin/notifications`                           | 必要 | `notification:send`                                                                | ✅         |
+| S23 | コンテンツ設定         | `/admin/content-settings`                        | 必要 | `content-settings:view`（保存は `content-settings:write`）                         | ✅         |
 | S11 | システム設定           | `/admin/config`                                  | 必要 | `system-settings:view`（保存は `system-settings:write`、再起動は `system:manage`） | ✅         |
 | S12 | システムログ           | `/admin/logs`                                    | 必要 | `log:view`                                                                         | ✅         |
 | S13 | 監査ログ               | `/admin/audit-logs`                              | 必要 | `audit:view`                                                                       | ✅         |
@@ -167,10 +171,10 @@ flowchart TD
 | S20 | 運用者とサポート担当   | `/system/administrators`                         | 必要 | `system:manage`                                                                    | ✅         |
 | S21 | メンテナンス中・停止中 | （URL は変わらない。どの画面にも重なる）         | 不要 | —                                                                                  | —          |
 
-サイドバーの階層: S4・S5 は最上位、S8〜S10・S17・S18 は「管理」、S11〜S14・S19・S20 は「システム管理」の
+サイドバーの階層: S4・S5 は最上位、S8〜S10・S17・S18・S23 は「管理」、S11〜S14・S19・S20 は「システム管理」の
 グループに入る。
 
-**テナントの内側と外側**（ADR-0079 §1）: S5・S8〜S10・S17・S18 と S13 の大半はテナントの中の画面で、
+**テナントの内側と外側**（ADR-0079 §1）: S5・S8〜S10・S17・S18・S23 と S13 の大半はテナントの中の画面で、
 テナント管理者（`owner`）が使う。S11・S12・S14・S19・S20 はアプリ全体の画面で、テナントに属さない人だけが使う。
 運用者（`system-admin`）は全部、サポート担当（`system-support`）は S14 と S19 を見るだけ（ADR-0084）。
 どちらにも中身（S5）も人（S8・S17）も見えず、S13 では全体の操作の記録だけが見える。S6・S7 はサイドバーに出さない（scope ではなく本人かどうかで決まる
@@ -450,6 +454,17 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **備考**: **送った時点の顔ぶれに配る**（あとからグループに入った人には届かない）。止められた
   利用者には配らない。届く相手がいなければ `error.no_recipients`。送信は監査ログに
   `notification.sent` として残る（宛先・出す場所・人数。本文は残さない）。
+
+### S23 コンテンツ設定（`/admin/content-settings`）
+
+- **目的**: テナントの中身の決まり（コンテンツ設定）を変える（ADR-0084 §3・ADR-0085）。ほかのテナントには効かない。
+- **表示内容**: 項目ごとの名前・キー・いまの値。保存していない項目は「既定のまま」と出る。
+  見本の項目は「アイテムの一覧の並び順」（追加した順・新しいものが先・名前の順）で、S5 の並びが変わる。
+- **操作**: 値を変えて「保存」。「既定に戻す」を押して保存すると、保存した値を消して既定値で動く。
+  `content-settings:write` が無い（監査者など見るだけの）場合は、入力欄を止めて保存ボタンを出さない。
+- **使用 API**: `GET|PUT /api/admin/content-settings`
+- **備考**: 項目の定義は `bounded_contexts/content_settings/domain/definitions.py`。項目を足したら、
+  表示の文言を `i18n` の `contentSettings.field.<キー>`（選択肢は `contentSettings.choice.<キー>.<値>`）に足す。
 
 ### S11 システム設定（`/admin/config`）
 
@@ -871,6 +886,14 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 2. 題名・本文・行き先を書き、出す場所と宛先を選んで「送る」。
 3. 特定の人たちだけに送るなら、先に「グループ管理」でグループを作っておく（`group:manage`）。
 4. 下の「送ったお知らせ」で、何人が読んだかを確かめられる。
+
+### アイテムの一覧の並び順を変えたいとき（`content-settings:write`）
+
+テナント管理者（`owner`）かコンテンツ管理者（`content-admin`）で入る。
+
+1. サイドバーの「管理」→「コンテンツ設定」を開く。
+2. 「アイテムの一覧の並び順」を選び、「保存」。アイテムの画面を開き直すと新しい順に並ぶ。
+3. 元に戻すときは「既定に戻す」を押して「保存」。
 
 ### メモを家族やチームと共有したいとき（`note:write`）
 

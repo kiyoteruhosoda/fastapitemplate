@@ -48,6 +48,7 @@ erDiagram
     tenants ||--o{ notifications : "持つ"
     tenants ||--o{ items : "持つ"
     tenants ||--o{ notes : "持つ"
+    tenants ||--o{ content_settings : "変えた値を持つ"
     users ||--o{ notes : "書く"
     user_groups |o--o{ notes : "共有される"
     tenants ||--o{ role_tenants : "自分のロールを持つ"
@@ -263,6 +264,14 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+
+    content_settings {
+        bigint id PK
+        bigint tenant_id FK "索引あり"
+        varchar(100) key "テナントと組で一意"
+        text value "JSON（文字列・真偽・整数）"
+        datetime updated_at
+    }
 ```
 
 `system_settings` / `log` / `audit_log` は他テーブルと FK で結ばれない（意図的）。
@@ -278,6 +287,8 @@ erDiagram
 - `items` は `bounded_contexts/example`（新機能追加の見本）のテーブル。
 - `notes` は `bounded_contexts/notes`（資源 1 件ずつの可否の見本。ADR-0078 §6）のテーブル。誰が読めて変えられるかは
   `owner_user_id` と、`shared_group_id` のグループの所属（`user_group_members`）で決まる。
+- `content_settings` はテナントが**変えた**コンテンツ設定の値だけを持つ（ADR-0085）。項目の定義と既定値は
+  コード（`bounded_contexts/content_settings/domain/definitions.py`）が持ち、行が無い項目は既定値で読む。
 
 ---
 
@@ -288,7 +299,7 @@ erDiagram
 
 | 区分 | 意味 | 表 |
 |---|---|---|
-| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `notes` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
+| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `notes` / `content_settings` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
 | 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
 | 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` |
 
@@ -377,6 +388,7 @@ Cookie でブラウザに預けるため（ADR-0077 §1）。保管も掃除も�
 | `audit_log` | 監査ログ（誰が何をしたか）。ログイン・ユーザー／ロール管理・設定変更・再起動要求・MFA の変更を記録する | `bounded_contexts/audit/infrastructure/audit_log_model.py` |
 | `items` | example コンテキストのサンプルテーブル | `bounded_contexts/example/infrastructure/item_model.py` |
 | `notes` | 共有メモ（資源 1 件ずつの可否の見本。ADR-0078 §6） | `bounded_contexts/notes/infrastructure/note_model.py` |
+| `content_settings` | テナントのコンテンツ設定（変えた値だけ。ADR-0085） | `bounded_contexts/content_settings/infrastructure/content_setting_model.py` |
 
 `log` と `audit_log` の使い分け（ADR-0075 §1）:
 
