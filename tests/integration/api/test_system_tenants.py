@@ -472,3 +472,30 @@ def test_the_tenant_ledger_is_audited(
         (AuditEventType.SYSTEM_ADMIN_REMOVED.value, "user", str(added), None),
     }
     assert expected <= recorded
+
+
+def test_an_issuer_must_be_https_and_outside_the_home(client: TestClient, system_admin_headers: dict[str, str]) -> None:
+    """テナントの発行者は宅内やクラスタの内側へ向けられない（ADR-0090）。"""
+    for number, issuer in enumerate(
+        ("http://idp.example.test", "https://10.10.2.11/x", "https://db:3306", "https://app", "https://a.svc/x")
+    ):
+        response = client.post(
+            "/api/system/tenants",
+            headers=system_admin_headers,
+            json={**_ACME, "slug": f"bad{number}", "issuer": issuer},
+        )
+        assert response.status_code == 400, issuer
+        assert response.json()["detail"]["error"] == "invalid_issuer"
+
+
+def test_an_issuer_must_share_the_host_of_the_configured_one(
+    client: TestClient, system_admin_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OIDC_ISSUER", "https://idp.example.test/root")
+    tenant_id = _create(client, system_admin_headers, issuer="https://idp.example.test/acme")["tenant"]["id"]
+
+    moved = client.put(
+        f"/api/system/tenants/{tenant_id}", headers=system_admin_headers, json={"issuer": "https://other.example/acme"}
+    )
+    assert moved.status_code == 400
+    assert moved.json()["detail"]["error"] == "invalid_issuer"

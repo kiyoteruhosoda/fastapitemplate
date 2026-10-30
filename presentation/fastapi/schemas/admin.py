@@ -117,6 +117,8 @@ class SystemSettingItemResponse(BaseModel):
     choices: list[list[str]] | None = None
     # 反映に再起動が必要なサービス（空 = 保存と同時に反映）
     restart_scopes: list[str] = []
+    # 環境変数だけで決める設定（見るだけ。ADR-0090）
+    env_only: bool = False
     value: object = None
     default: object = None
     env_fallback: bool

@@ -188,7 +188,8 @@ class OidcMetadataCache:
                 url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=self._timeout,
-                follow_redirects=True,
+                # ⚠ 転送を追わない（ADR-0090）。発行者の確かめは最初の URL にしか効かない。
+                follow_redirects=False,
             )
             response.raise_for_status()
             document = response.json()

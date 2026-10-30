@@ -11,6 +11,7 @@ from shared.kernel.outbound_destination import (
     DestinationRefusedError,
     IpAddress,
     Resolver,
+    check_host_name,
     check_https_url,
     ensure_public_host,
 )
@@ -88,3 +89,28 @@ def test_a_name_that_does_not_resolve_is_refused() -> None:
 def test_a_literal_address_is_checked_without_resolving() -> None:
     with pytest.raises(DestinationRefusedError):
         ensure_public_host("10.10.2.11")
+
+
+@pytest.mark.parametrize("host", ["smtp.example.com", "EMAIL-SMTP.ap-northeast-1.amazonaws.com", "8.8.8.8"])
+def test_host_name_outside_is_accepted(host: str) -> None:
+    assert check_host_name(host) == host.lower()
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "10.10.2.11",
+        "127.0.0.1",
+        "[::1]",
+        "db",
+        "app.svc",
+        "x.cluster.local",
+        "smtp.local",
+        "https://a.example",
+        "a b.example",
+        "",
+    ],
+)
+def test_host_name_inside_or_malformed_is_refused(host: str) -> None:
+    with pytest.raises(DestinationRefusedError):
+        check_host_name(host)

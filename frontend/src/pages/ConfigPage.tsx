@@ -18,6 +18,8 @@ interface SettingItem {
   choices?: [value: string, label: string][]
   /** 空でなければ、反映にそのサービスの再起動が必要。 */
   restart_scopes: string[]
+  /** 環境変数だけで決める設定。見るだけ（ADR-0090）。 */
+  env_only?: boolean
   value: unknown
   default: unknown
   env_fallback: boolean
@@ -143,7 +145,8 @@ export function ConfigPage() {
                   <label htmlFor={`config-${item.key}`}>
                     <span className="config-label">{labelFor(item)}</span>
                     <code className="config-key">{item.key}</code>
-                    {item.env_fallback && (
+                    {item.env_only && <em className="config-note">{t('config.envOnly')}</em>}
+                    {item.env_fallback && !item.env_only && (
                       <em className="config-note">{t('config.envFallback')}</em>
                     )}
                     {item.restart_scopes.length > 0 && (
@@ -185,6 +188,7 @@ export function ConfigPage() {
                     <input
                       id={`config-${item.key}`}
                       type={item.value_type === 'integer' ? 'number' : 'text'}
+                      disabled={item.env_only}
                       value={asText(currentValue(item))}
                       onChange={(e) => {
                         setValue(item.key, parseValue(item, e.target.value))

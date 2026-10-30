@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from urllib.parse import urlsplit
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -34,6 +35,8 @@ from shared.infrastructure.sign_in_directory import account_with_email
 from shared.infrastructure.tenant_directory import tenant_issuing, tenant_named
 from shared.infrastructure.tenant_registry import member_counts, remove_tenant
 from shared.kernel.database.session import get_db
+from shared.kernel.outbound_destination import DestinationRefusedError, check_https_url
+from shared.kernel.settings.settings import settings
 
 router = APIRouter(
     prefix="/api/system/tenants",
@@ -66,6 +69,24 @@ def _tenant(db: Session, tenant_id: int) -> Tenant:
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "tenant_not_found"})
     return tenant
+
+
+def _checked_issuer(raw: str | None) -> str | None:
+    """テナントの発行者の形を確かめる（ADR-0090）。https で、``OIDC_ISSUER`` があれば同じホストだけ。
+
+    名前は引かない。宅内では assay の公開名が私設のアドレスを返すので、引くと自分の IdP を断ってしまう。
+    """
+    issuer = (raw or "").rstrip("/")
+    if not issuer:
+        return None
+    try:
+        host = check_https_url(issuer).hostname
+    except DestinationRefusedError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "invalid_issuer"}) from error
+    home = urlsplit(settings.oidc_issuer).hostname
+    if home and host != home:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail={"error": "invalid_issuer"})
+    return issuer
 
 
 def _ensure_issuer_free(db: Session, issuer: str | None, *, except_id: int | None = None) -> None:
@@ -108,11 +129,12 @@ async def list_tenants(db: DbDep) -> list[TenantResponse]:
 async def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecorderDep) -> TenantCreatedResponse:
     if tenant_named(db, body.slug) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "tenant_already_exists"})
-    _ensure_issuer_free(db, body.issuer)
+    issuer = _checked_issuer(body.issuer)
+    _ensure_issuer_free(db, issuer)
     tenant = Tenant(
         slug=body.slug,
         display_name=body.display_name.strip(),
-        issuer=(body.issuer or "").rstrip("/") or None,
+        issuer=issuer,
         client_id=body.client_id or None,
     )
     db.add(tenant)
@@ -129,7 +151,7 @@ async def update_tenant(
     """名前・連携先・状態（有効 / 停止）を変える。止めたテナントの人は入れなくなる。"""
     tenant = _tenant(db, tenant_id)
     if body.issuer is not None:
-        issuer = body.issuer.rstrip("/") or None
+        issuer = _checked_issuer(body.issuer)
         _ensure_issuer_free(db, issuer, except_id=tenant.id)
         tenant.issuer = issuer
     if body.client_id is not None:
