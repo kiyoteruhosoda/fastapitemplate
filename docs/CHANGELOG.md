@@ -1,3 +1,12 @@
+## 2026-10-30（機械の口と許可簿。ADR-0087・task #718・#721）
+
+- assay の `client_credentials` のトークンを換える口 `POST /api/machine/token` を足した。許可簿は環境変数
+  `MACHINE_CLIENTS`（`client_id`・`name`・`acts_as`・`operations`）、宛名は `MACHINE_AUDIENCE`。どちらかが空なら口は閉じる。
+- 機械のトークンの scope は、許可簿の `operations`（権限コード）と振る舞う利用者の権限の重なりだけ。通るのは scope で
+  守った口だけで、人だけの口（本人の情報・ロールの切り替え・管理の関門など）は `403 machine_not_allowed`。
+- 監査ログに `machine_token.issued` / `machine_token.refused` / `machine_operation.refused` を足した（対象は
+  `machine_client:<client_id>`、実行者は振る舞う利用者）。
+
 ## 2026-10-30（コンテンツ設定の受け皿。ADR-0085）
 
 - テナントごとのコンテンツ設定を足した（`bounded_contexts/content_settings`・画面 `/admin/content-settings`・API

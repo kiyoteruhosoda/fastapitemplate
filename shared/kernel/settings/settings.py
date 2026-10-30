@@ -208,6 +208,32 @@ class ApplicationSettings:
         return frozenset(_env_list(self._env.get("APP_CLIENT_IDS")))
 
     @property
+    def machine_clients(self) -> list[object]:
+        """機械の口の許可簿（JSON の配列。ADR-0087）。1 行は
+        ``{"client_id", "name", "acts_as", "operations": ["<権限コード>", ...]}``。
+
+        ⚠ **環境変数だけ。** 画面から足せると、設定を書ける人が機械に何でもさせられる。
+        ⚠ **JSON の配列でなければ空**（綴りを間違えた設定で誰かを通さない）。空なら機械の口は閉じる。
+        """
+        raw = self._env.get("MACHINE_CLIENTS")
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            _logger.warning("machine_clients_unreadable")
+            return []
+        return list(parsed) if isinstance(parsed, list) else []
+
+    @property
+    def machine_audience(self) -> str:
+        """機械の口が受け取るトークンの宛名（``aud``。assay に登録した ``resources`` の名前。ADR-0082 §2 決定 4）。
+
+        ⚠ **環境変数だけ。空なら機械の口は閉じる**（宛名を見ないと、別のアプリ宛てのトークンが通る）。
+        """
+        return (self._env.get("MACHINE_AUDIENCE") or "").strip()
+
+    @property
     def android_app_package(self) -> str:
         """App Links で戻す Android アプリのパッケージ名（``assetlinks.json``。ADR-0081 §1）。"""
         return (self._env.get("ANDROID_APP_PACKAGE") or "").strip()

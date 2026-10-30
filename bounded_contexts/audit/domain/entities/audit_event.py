@@ -79,6 +79,11 @@ class AuditEventType(StrEnum):
     TENANT_ADMIN_DESIGNATED = "tenant.admin_designated"
     SYSTEM_ADMIN_ADDED = "system_admin.added"
     SYSTEM_ADMIN_REMOVED = "system_admin.removed"
+    # --- 機械の口（ADR-0087）。実行者は振る舞う利用者、対象は名乗った機械（``machine_client:<client_id>``） ---
+    # 「機械 X が利用者 Y として」を残す（ADR-0082 §1 決定 4）。拒否の ``reason`` は「理由: 操作」。
+    MACHINE_TOKEN_ISSUED = "machine_token.issued"
+    MACHINE_TOKEN_REFUSED = "machine_token.refused"
+    MACHINE_OPERATION_REFUSED = "machine_operation.refused"
 
 
 class AuditResult(StrEnum):

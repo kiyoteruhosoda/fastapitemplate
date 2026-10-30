@@ -43,7 +43,8 @@ from bounded_contexts.identity_federation.presentation.dependencies import (
 from presentation.fastapi.dependencies.auth import (
     ACCESS_TOKEN_COOKIE,
     _bearer_scheme,
-    get_current_principal,
+    get_operation_principal,
+    refuse_machine,
 )
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
@@ -119,7 +120,11 @@ async def get_app_or_web_principal(
 ) -> AuthenticatedPrincipal:
     bearer = credentials.credentials if credentials and credentials.scheme.lower() == "bearer" else None
     if bearer is None or _is_our_token(bearer) or not settings.app_client_ids:
-        return await get_current_principal(credentials, access_token_cookie)
+        principal = await get_operation_principal(credentials, access_token_cookie)
+        if principal.is_machine:
+            # scope で守られていない口なので、機械のトークンはここでも断る（ADR-0087 決定 4）
+            refuse_machine(principal, "app_or_web")
+        return principal
     user = db.get(User, authenticate_app_access_token(db, gateway, bearer).execute(bearer))
     if user is None or not user.is_active or not tenant_admits(db, user):
         logger.info("app_access_token_user_inactive")

@@ -357,6 +357,34 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
    curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer x' https://<ホスト>/api/app/me   # 401
    ```
 
+## 機械に API を叩かせたいとき（ADR-0087）
+
+assay の `client_credentials` で名乗る機械（AI のエージェント・別のアプリ）を、許可簿に書いた操作だけで通す。
+⚠ **`MACHINE_AUDIENCE` か `MACHINE_CLIENTS` が空なら口は閉じている**（既定）。どちらも環境変数だけで、
+管理画面からは変えられない。
+
+1. assay で、このアプリの宛名（例 `api://<アプリ名>`）を「宛先」に登録し、機械のクライアントに貸す。
+2. 振る舞わせる利用者を、トークンの発行者のテナントに用意する（機械はこの利用者として記録に残る）。
+3. 環境変数を入れて再起動する（deploy-repo の宣言に書く）:
+   - `MACHINE_AUDIENCE` —— 1 の宛名
+   - `MACHINE_CLIENTS` —— 許可簿（JSON の配列）。`operations` には**使ってよい権限コード**を並べる。
+     書いていない操作は通らない。利用者の権限に無いものを書いても通らない。
+     ```json
+     [{"client_id": "<assay の client_id>", "name": "Claude", "acts_as": "claude@example.com",
+       "operations": ["item:view", "note:view", "note:write"]}]
+     ```
+4. 機械に叩かせたい口は `require_permission(...)` で守る。scope で守っていない口（本人の情報・ロールの
+   切り替えなど）は、機械には `403 machine_not_allowed` を返す。
+5. 確かめる:
+   ```bash
+   # assay で resource=<宛名> を付けて取ったトークンを換える。scopes に許可簿の操作が並ぶ
+   curl -s -X POST -H "Authorization: Bearer $MACHINE_TOKEN" https://<ホスト>/api/machine/token
+   # 換えたトークンで叩く。許可簿に無い操作は 403
+   curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $APP_TOKEN" https://<ホスト>/api/items
+   ```
+   起動のログに `machine_entrance_closed_audience_missing` が出ていたら、宛名が入っていない。
+   断った記録は監査ログの `machine_token.refused` / `machine_operation.refused`（対象は `machine_client`）で見る。
+
 ## アプリに最新版を知らせたいとき（ADR-0081 §4）
 
 スマホアプリは開いたとき・前面に戻ったときに `GET /api/app-release/latest` を叩き、自分の

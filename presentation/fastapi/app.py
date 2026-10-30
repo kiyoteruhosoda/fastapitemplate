@@ -35,6 +35,9 @@ from bounded_contexts.example.presentation.router import router as items_router
 from bounded_contexts.identity_federation.presentation.error_handling import (
     register_identity_federation_error_handler,
 )
+from bounded_contexts.identity_federation.presentation.machine_router import (
+    router as machine_router,
+)
 from bounded_contexts.identity_federation.presentation.reconciliation import (
     start_sso_reconciliation_worker,
 )
@@ -42,6 +45,7 @@ from bounded_contexts.identity_federation.presentation.router import (
     router as sso_router,
 )
 from bounded_contexts.identity_federation.presentation.startup_check import (
+    report_machine_entrance,
     report_sso_configuration,
 )
 from bounded_contexts.notes.presentation.error_handling import register_note_error_handler
@@ -103,6 +107,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # SSO の設定が実際に使えるかを一度だけ確かめる（秘密鍵は署名のときまで読まれない
     # ため、権限の食い違いが利用者の戻りでしか出ない。ADR-0077 §1）
     report_sso_configuration()
+    report_machine_entrance()
     try:
         yield
     finally:
@@ -122,6 +127,7 @@ def _include_routers(app: FastAPI) -> None:
         passkey_login_router,
         account_security_router,
         sso_router,
+        machine_router,
         admin_users_router,
         admin_roles_router,
         admin_permissions_router,

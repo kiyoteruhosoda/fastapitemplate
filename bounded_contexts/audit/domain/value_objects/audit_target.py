@@ -28,6 +28,7 @@ class AuditTargetType(StrEnum):
     GROUP = "group"
     NOTIFICATION = "notification"
     TENANT = "tenant"
+    MACHINE_CLIENT = "machine_client"
 
 
 @dataclass(frozen=True)
