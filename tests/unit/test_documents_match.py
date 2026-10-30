@@ -25,6 +25,7 @@ def _dockerfile_lines() -> list[str]:
 def test_adr_numbers_have_no_gaps() -> None:
     """採番の重複はファイル名だけでは見えないので、見出しの番号も見る（次の試験）。"""
     numbers = _adr_numbers()
+    assert numbers
     assert numbers == list(range(numbers[0], numbers[-1] + 1))
 
 
@@ -44,12 +45,14 @@ def test_every_adr_is_listed_in_the_index() -> None:
 
 def test_every_screen_route_is_in_the_screen_document() -> None:
     routes = re.findall(r'path="([^"]+)"', (_PROJECT_ROOT / "frontend/src/App.tsx").read_text(encoding="utf-8"))
+    assert "/admin/users" in routes  # 読み方が変わって空になると、下は素通りする
     document = (_PROJECT_ROOT / "frontend/README.md").read_text(encoding="utf-8")
     assert not [route for route in routes if f"`{route}" not in document]
 
 
 def test_the_dockerfile_takes_no_build_information() -> None:
     declared = {line.split()[1].split("=")[0] for line in _dockerfile_lines() if line.startswith("ARG ")}
+    assert declared
     assert declared <= _ALLOWED_BUILD_ARGS, f"ビルド情報は scripts/generate_version.sh で: {declared}"
 
 
@@ -58,4 +61,5 @@ def test_the_dockerfile_copies_only_from_its_own_stages() -> None:
     lines = _dockerfile_lines()
     stages = {line.split()[-1] for line in lines if line.startswith("FROM ") and " AS " in line}
     sources = set(re.findall(r"^COPY --from=(\S+)", "\n".join(lines), re.MULTILINE))
+    assert sources
     assert sources <= stages, sources - stages

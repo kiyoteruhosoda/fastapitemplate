@@ -216,3 +216,44 @@ def test_authorization_does_not_branch_on_role_names() -> None:
         for line in _role_name_comparisons(tree)
     ]
     assert not found, f"ロール名で分岐しないでください（require_permission の scope で）: {found}"
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        "from datetime import datetime\ndatetime.now()",
+        "import datetime\ndatetime.datetime.utcnow()",
+        "from datetime import date\ndate.today()",
+    ],
+)
+def test_the_clock_check_catches_direct_reads(broken: str) -> None:
+    assert list(_clock_reads(ast.parse(broken)))
+
+
+@pytest.mark.parametrize(
+    "broken",
+    ["import os\nos.getenv('A')", "import os\nos.environ['A']", "from os import environ", "from os import getenv"],
+)
+def test_the_environment_check_catches_direct_reads(broken: str) -> None:
+    assert _reads_environment(ast.parse(broken))
+
+
+def test_the_other_checks_catch_what_they_forbid() -> None:
+    """判定が空振りすると、規則を破っても試験は緑のまま（経路の列挙で実際に起きた。ADR-0089）。"""
+    assert "eval" in _called_names(ast.parse("eval('1')"))
+    assert list(_native_enums(ast.parse("sa.Enum('a')")))
+    assert list(_native_enums(ast.parse("sa.Enum('a', native_enum=True)")))
+    assert not list(_native_enums(ast.parse("sa.Enum('a', native_enum=False)")))
+    assert list(_schema_classes(ast.parse("class A(BaseModel): ...\nclass B(A): ..."))) == ["A", "B"]
+    assert list(_role_name_comparisons(ast.parse("x == 'owner'")))
+    assert list(_role_name_comparisons(ast.parse("x in ('owner', 'member')")))
+    assert list(_role_name_comparisons(ast.parse("principal.active_role is None")))
+    assert not list(_role_name_comparisons(ast.parse("x == 'something-else'")))
+    assert _VAGUE_MODULE.search("string_utils")
+    assert _VAGUE_CLASS.search("DateHelper")
+
+
+def test_the_checks_are_reading_the_real_sources() -> None:
+    paths = {path for path, _ in _sources()}
+    assert {"main.py", "shared/kernel/timestamps.py", "migrations/versions/0002_seed_master_data.py"} <= paths
+    assert list(_migrations())

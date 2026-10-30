@@ -22,6 +22,9 @@
 5. **`shared/kernel/version.py` は環境変数を直に読んでよい**（例外の表に書く）。`APP_ENV` は本番の判定に使うので、
    DB が環境変数より強い `settings`（ADR-0074 §1）を通すと画面や DB から変えられてしまう。
 6. ruff・mypy・`requires-python` を、実際に動く Python 3.15 に揃える。
+7. **判定には、規則を破った見本を見せて検出することを確かめる試験を付ける。** 「違反が 0 件」は、判定が何も見ていない
+   ときにも成り立つ。経路の列挙は実際に 1 本も見つけないまま 3 本の試験を緑にした（FastAPI 0.162 は `include_router` した
+   口を `app.routes` に並べない。`iter_route_contexts` の実効の値を読む）。
 
 ## 理由
 
