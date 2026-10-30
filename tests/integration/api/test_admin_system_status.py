@@ -10,7 +10,7 @@ from tests.conftest import sign_in
 def _sign_in_member(client: TestClient, member_client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
     """``system:manage`` を持たない利用者で**別のクライアント**にログインする。
 
-    セッションは Cookie で持つので（ADR-0028）、管理者と同じクライアントで
+    セッションは Cookie で持つので（ADR-0076 §4）、管理者と同じクライアントで
     ログインすると管理者のセッションが置き換わってしまう。
     """
     created = client.post(

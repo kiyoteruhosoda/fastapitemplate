@@ -1,4 +1,4 @@
-"""グループ（利用者のまとまり）のモデル（ADR-0047）。
+"""グループ（利用者のまとまり）のモデル（ADR-0081 §3）。
 
 ロールが「何ができるか」を決めるのに対し、グループは「誰と誰か」を束ねるだけで
 権限を持たない。通知の宛先に使うのが最初の用途だが、通知の概念には閉じていない
@@ -28,7 +28,7 @@ user_group_members = sa.Table(
 
 class UserGroup(Base):
     __tablename__ = "user_groups"
-    #: 名前はテナントの中で一意（別のテナントの名前とはぶつからない。ADR-0061）
+    #: 名前はテナントの中で一意（別のテナントの名前とはぶつからない。ADR-0079 §1）
     __table_args__ = (
         sa.UniqueConstraint("tenant_id", "name", name="uq_user_groups_tenant_name"),
         declared(Tenancy.TENANT),

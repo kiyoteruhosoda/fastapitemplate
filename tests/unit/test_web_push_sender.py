@@ -1,4 +1,4 @@
-"""Web Push の送り手（ADR-0047）。通知サービスへは行かず、送ろうとした要求を見る。"""
+"""Web Push の送り手（ADR-0081 §3）。通知サービスへは行かず、送ろうとした要求を見る。"""
 
 from __future__ import annotations
 

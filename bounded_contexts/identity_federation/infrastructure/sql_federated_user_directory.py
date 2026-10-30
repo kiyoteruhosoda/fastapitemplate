@@ -3,7 +3,7 @@
 ``shared`` の ``User`` / ``Role`` モデルへ触れるのはここだけで、ID 連携の
 Domain / Application 層はこの実装を知らない。
 
-扱うのは**発行者のテナントの利用者だけ**（ADR-0061）。発行者がテナントを表すので、
+扱うのは**発行者のテナントの利用者だけ**（ADR-0079 §1）。発行者がテナントを表すので、
 別のテナントの人をメールアドレスで寄せることも、別のテナントへ作ることもしない。
 ``tenant_id`` が ``None``（登録の無い発行者）なら、誰も引けず、作れもしない。
 """
@@ -71,7 +71,7 @@ class SqlFederatedUserDirectory:
         return replace(_require_account(exact), awaiting_owner=self._awaiting_owner(exact))
 
     def _awaiting_owner(self, user: User) -> bool:
-        """指名されたまま、入り口を 1 つも持たない席か（ADR-0065）。"""
+        """指名されたまま、入り口を 1 つも持たない席か（ADR-0079 §5）。"""
         if user.has_local_password:
             return False
         linked = select(FederatedIdentityRecord.user_id).where(FederatedIdentityRecord.user_id == user.id)
@@ -85,7 +85,7 @@ class SqlFederatedUserDirectory:
         user = User(
             email=account.email,
             username=account.username,
-            # ⚠ **ランダム値で埋めない**（ADR-0038）。埋めると「パスワードが無い」と
+            # ⚠ **ランダム値で埋めない**（ADR-0076 §6）。埋めると「パスワードが無い」と
             # 「誰も知らないパスワードがある」が区別できなくなり、画面に変更の導線が
             # 出る・監査で入れる手段が読めない、という歪みが出る。
             password_hash=None,
@@ -99,7 +99,7 @@ class SqlFederatedUserDirectory:
         return _require_account(user)
 
     def refresh_profile(self, user_id: int, *, email: str | None, username: str) -> None:
-        """名前とメールアドレスを写しへ上書きする（ADR-0042）。
+        """名前とメールアドレスを写しへ上書きする（ADR-0077 §6）。
 
         ⚠ **ぶつかる値は書かない。** ``users.email`` も ``users.username`` も一意なので、
         別の利用者が既に持っている値をそのまま書くと**ログインが 500 で落ちる**。

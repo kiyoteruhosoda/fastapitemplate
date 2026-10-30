@@ -1,4 +1,4 @@
-"""お知らせの配信と手元（ベル・画面上部）の統合テスト（ADR-0047）。"""
+"""お知らせの配信と手元（ベル・画面上部）の統合テスト（ADR-0081 §3）。"""
 
 from __future__ import annotations
 
@@ -315,7 +315,7 @@ def test_signing_in_is_required(client: TestClient) -> None:
     assert client.get("/api/notifications").status_code == 401
 
 
-# --- スマホアプリへの通知（FCM。ADR-0049） -------------------------------------
+# --- スマホアプリへの通知（FCM。ADR-0081 §5） -------------------------------------
 
 
 class _FakeDeviceSender(DevicePushSender):

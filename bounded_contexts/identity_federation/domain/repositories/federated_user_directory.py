@@ -27,7 +27,7 @@ class FederatedUserDirectory(Protocol):
         """利用者を作る。パスワードでは入れない状態で作ること。"""
 
     def refresh_profile(self, user_id: int, *, email: str | None, username: str) -> None:
-        """IdP が名乗った名前とメールアドレスを写しへ上書きする（ADR-0042）。
+        """IdP が名乗った名前とメールアドレスを写しへ上書きする（ADR-0077 §6）。
 
         ⚠ **写しは IdP を正とする**（idp の ADR-0049 I5）。書かないと、向こうで
         改名・メール変更をしても**こちらの表示は永久に古いまま**になる。

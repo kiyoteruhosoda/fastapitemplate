@@ -41,7 +41,7 @@ describe('loadUiSettings', () => {
     await expect(loadUiSettings()).resolves.toEqual(FALLBACK_UI_SETTINGS)
   })
 
-  it('前段が閉じていれば、最初の画面からメンテナンスの画面にする（ADR-0067）', async () => {
+  it('前段が閉じていれば、最初の画面からメンテナンスの画面にする（ADR-0080 §10）', async () => {
     const declared = {
       error: 'service_unavailable',
       reason: 'maintenance',

@@ -1,6 +1,6 @@
 """groups and notifications
 
-グループ（利用者のまとまり）とお知らせの配信（ADR-0047）で要るテーブルを足し、
+グループ（利用者のまとまり）とお知らせの配信（ADR-0081 §3）で要るテーブルを足し、
 権限 ``group:manage`` / ``notification:send`` を投入する。定義の正本は
 ``shared/infrastructure/models/group.py`` と
 ``bounded_contexts/notification/infrastructure/notification_models.py``。

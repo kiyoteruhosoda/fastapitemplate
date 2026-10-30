@@ -1,4 +1,4 @@
-"""IdP からの停止の通知を受け取る（OpenID Connect Back-Channel Logout 1.0。ADR-0036）。
+"""IdP からの停止の通知を受け取る（OpenID Connect Back-Channel Logout 1.0。ADR-0077 §3）。
 
 この口が呼ばれるのは**利用者のブラウザからではない**。IdP のサーバーが直接叩く
 サーバー間の経路で、届いた ``logout_token`` の署名だけが相手の証明になる。

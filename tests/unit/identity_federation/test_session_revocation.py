@@ -1,4 +1,4 @@
-"""停止の記録が、どのトークンを無効にするか（ADR-0036 / ADR-0043）。"""
+"""停止の記録が、どのトークンを無効にするか（ADR-0077 §3 / ADR-0077 §7）。"""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_the_record_is_kept_only_as_long_as_a_token_can_live() -> None:
     assert _revocation(None).expires_at == _NOW + timedelta(seconds=3600)
 
 
-# --- 定期照合が書く失効（ADR-0043） ---------------------------------------------------------
+# --- 定期照合が書く失効（ADR-0077 §7） ---------------------------------------------------------
 
 
 def _reconciled(last_login_at: datetime | None, *, subject: str = "idp-subject") -> SessionRevocation:

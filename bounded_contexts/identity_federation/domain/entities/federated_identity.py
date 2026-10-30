@@ -18,7 +18,7 @@ class FederatedIdentity:
     #: 結び付けた日時。保存されている行を引いたときだけ入る（画面の表示用）。
     linked_at: datetime | None = None
     #: 最後に SSO で入った日時。保存されている行を引いたときだけ入る。
-    #: 定期照合が「どのログインに対する失効か」を決める材料になる（ADR-0043）。
+    #: 定期照合が「どのログインに対する失効か」を決める材料になる（ADR-0077 §7）。
     last_login_at: datetime | None = None
 
 

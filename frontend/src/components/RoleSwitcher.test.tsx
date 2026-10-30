@@ -1,5 +1,5 @@
 /**
- * ロールの切り替え（ADR-0017）。
+ * ロールの切り替え（ADR-0078 §1）。
  *
  * 見るのは 3 点。切り替えが「トークンの再発行 → /me の引き直し」で行われること、
  * 選べる先が無い利用者には何も出さないこと、開いたメニューを閉じられること。
@@ -90,7 +90,7 @@ describe('RoleSwitcher', () => {
 
   it('選ぶとセッションを載せ替えて /me を引き直す', async () => {
     await renderSwitcher(MULTI_ROLE)
-    // トークンは Cookie に載り替わるので、応答は寿命だけ（ADR-0028）。
+    // トークンは Cookie に載り替わるので、応答は寿命だけ（ADR-0076 §4）。
     apiPost.mockResolvedValue({ expires_in: 900 })
     apiGet.mockResolvedValue({ ...MULTI_ROLE, active_role: 'member', scopes: ['dashboard:view'] })
 

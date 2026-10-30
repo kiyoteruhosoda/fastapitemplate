@@ -1,11 +1,11 @@
 """notes
 
-共有メモ（``bounded_contexts/notes``。ADR-0070 の見本）の表 ``notes`` を足し、権限
+共有メモ（``bounded_contexts/notes``。ADR-0078 §6 の見本）の表 ``notes`` を足し、権限
 ``note:view`` / ``note:write`` を投入する。定義の正本は
 ``bounded_contexts/notes/infrastructure/note_model.py``、権限の正本は
 ``shared/domain/auth/master_data.py``（ここへ直書きしない）。
 
-初期管理者は据えない（ADR-0024）。
+初期管理者は据えない（ADR-0078 §3）。
 
 Revision ID: notes
 Revises: password_token_purpose

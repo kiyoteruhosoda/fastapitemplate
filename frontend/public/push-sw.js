@@ -1,5 +1,5 @@
 /*
- * 端末への通知（Web Push）を受けて出す（ADR-0047）。
+ * 端末への通知（Web Push）を受けて出す（ADR-0081 §3）。
  *
  * vite-plugin-pwa が生成する Service Worker に `importScripts` で読み込ませる
  * （`vite.config.ts` の `workbox.importScripts`）。生成物を手で直さずに済むよう、

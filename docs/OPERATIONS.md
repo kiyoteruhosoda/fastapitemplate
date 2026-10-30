@@ -54,7 +54,7 @@ uv run pytest                    # smtp マーカーは既定で除外
 cd frontend && npm run test      # Vitest
 ```
 
-## 実ブラウザの E2E を流したいとき（ADR-0054）
+## 実ブラウザの E2E を流したいとき（ADR-0072 §6）
 
 画面のビルドとサーバーの起動（使い捨ての SQLite）は試験が自分で行う。`make check` には入っていない。
 
@@ -70,9 +70,9 @@ make test-e2e                    # = cd frontend && npm run test:e2e
 
 ## 品質ゲートを手元で確認したいとき
 
-CI と同じ順序・同じコマンドを流す。落ちたらマージできない（ADR-0006）。
+CI と同じ順序・同じコマンドを流す。落ちたらマージできない（ADR-0072 §1）。
 
-**CI が走るのは PR に対してと `main` への push だけ**（ADR-0009）。PR を作る前の
+**CI が走るのは PR に対してと `main` への push だけ**（ADR-0072 §3）。PR を作る前の
 ブランチ push では走らないので、手元で `make check` を流して確認する。
 
 ```bash
@@ -149,7 +149,7 @@ make image           # scripts/generate_version.sh → docker build -t fastapite
 ```
 
 **手元での確認用**（Dockerfile が壊れていないか）。デプロイに使う成果物は
-LAN の中の build が焼いてレジストリへ push する（ADR-0044）。
+LAN の中の build が焼いてレジストリへ push する（ADR-0073 §1）。
 
 ## docker compose でローカル起動したいとき
 
@@ -162,10 +162,10 @@ docker compose up -d             # db / app / front が起動
 - アプリ: http://127.0.0.1:8080 （front＝nginx 経由）
 
 ホストへ公開されるのは `front` だけ。`app` と `db` は Docker ネットワーク内部からのみ
-到達できる（ADR-0010）。
+到達できる（ADR-0071 §2）。
 
 **この compose はローカル開発専用。** デプロイ先に compose は無い（k3s の宣言。
-ADR-0044）。⚠ **nginx の設定は共有ではない** ——デプロイ先のものは deploy-repo の
+ADR-0073 §1）。⚠ **nginx の設定は共有ではない** ——デプロイ先のものは deploy-repo の
 `k8s/<app>-<env>/20-config.yaml`（ConfigMap）にあり、**resolver が違う**
 （docker の `127.0.0.11` ではなく CoreDNS の `10.43.0.10`）。片方を直したら
 もう片方も直す。
@@ -211,7 +211,7 @@ ssh nolumialab 'sudo k3s kubectl -n <app>-<env> exec -i deploy/db -- \
 ## DB へホストのツールから一時的につなぎたいとき
 
 GUI クライアントを使いたい場合だけ、その場限りのポートフォワード用コンテナを立てる。
-`docker-compose.yml` は変更しない（恒久的に開けないため。ADR-0010）。
+`docker-compose.yml` は変更しない（恒久的に開けないため。ADR-0071 §2）。
 
 ```bash
 # ネットワーク名は .env の DOCKER_NETWORK_NAME（未設定ならリポジトリ名）
@@ -226,7 +226,7 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 ## デプロイしたいとき
 
 **deck（https://deck.nolumia.com）の画面から行う。** 環境（`<app>/<env>`）を選んで
-版を上げると、**build → pin → deploy** の 3 段が LAN の中で走る（ADR-0044）。
+版を上げると、**build → pin → deploy** の 3 段が LAN の中で走る（ADR-0073 §1）。
 
 ```
 1. 変更を main へマージする（forge: git.nolumia.com/kyon/<app>）
@@ -237,7 +237,7 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 3. 疎通確認  curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<NodePort>/healthz
 ```
 
-**マージしただけでは配られない。** 押すのは人（ADR-0035）。
+**マージしただけでは配られない。** 押すのは人（ADR-0080 §7）。
 
 マイグレーションは `app` の entrypoint が起動時に流す（`alembic upgrade head`）。
 デプロイの手順としては分かれていない。
@@ -292,7 +292,7 @@ git -C deploy-repo log -p --follow -- k8s/<app>-<env>/40-app.yaml | grep -n 'ima
 - 秘密は**封印して** `25-secrets.yaml` に。`JWT_SECRET_KEY` は必ず生成した値を入れる
 - 公開するときは **Access を作ってから ingress**（逆順は無認証で公開される）
 
-## システム管理者を作りたいとき（ADR-0061）
+## システム管理者を作りたいとき（ADR-0079 §1）
 
 全体の設定・再起動・アプリログ・テナントの管理は、テナントに属さないシステム管理者だけが使える
 （テナント管理者 `owner` には出ない）。最初の 1 人はコンテナの中で作る。
@@ -310,7 +310,7 @@ ssh -t nolumialab "sudo k3s kubectl -n <app>-<env> exec -it deploy/app -- \
 取り込んだ時点で、全員が「既定のテナント」に入り、`owner` はテナント管理者になる。
 `owner` は設定・再起動・アプリログの画面に入れなくなるので、上の手順でシステム管理者を作る。
 
-## テナントを足したいとき（ADR-0061・ADR-0065）
+## テナントを足したいとき（ADR-0079 §1・§5）
 
 1. SSO を使うなら、assay のそのテナントにこのアプリのクライアントを登録する（折り返し先と公開鍵は
    既定のテナントと同じ。「SSO（外部 IdP との連携）を有効にしたいとき」の 1）。
@@ -324,7 +324,7 @@ ssh -t nolumialab "sudo k3s kubectl -n <app>-<env> exec -it deploy/app -- \
 ## システム設定を変更したいとき
 
 管理画面（`/admin/config`。要 `admin:system-settings` 権限）から編集する。
-保存すると即時反映される。⚠ **保存した値は環境変数より強い**（ADR-0034）——
+保存すると即時反映される。⚠ **保存した値は環境変数より強い**（ADR-0074 §1）——
 環境変数にも値がある鍵には「環境変数にも値があります（消すとそちらへ戻ります）」
 と出る。**消す**（空にして保存）と環境変数へ、環境変数も無ければ既定値へ戻る。
 
@@ -339,7 +339,7 @@ ssh -t nolumialab "sudo k3s kubectl -n <app>-<env> exec -it deploy/app -- \
 
 ## Android アプリからの呼び出しを受けたいとき
 
-ADR-0045。アプリは assay に直接ログインし、`AppOrWebPrincipalDep` を付けた口だけを assay の
+ADR-0081 §1。アプリは assay に直接ログインし、`AppOrWebPrincipalDep` を付けた口だけを assay の
 アクセストークンで叩く。⚠ **3 つの設定がどれも空なら何もしない**（既定）。
 deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 は deck が済ませる。
 
@@ -357,7 +357,7 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
    curl -s -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer x' https://<ホスト>/api/app/me   # 401
    ```
 
-## アプリに最新版を知らせたいとき（ADR-0048）
+## アプリに最新版を知らせたいとき（ADR-0081 §4）
 
 スマホアプリは開いたとき・前面に戻ったときに `GET /api/app-release/latest` を叩き、自分の
 ビルド番号より新しければ画面の上に知らせを出す。サーバーは配布面（Garage の `artifacts`）の
@@ -375,7 +375,7 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
 4. 確かめる（答えは 5 分覚えるので、設定直後は最大 5 分待つ）: ログインした状態で
    `GET /api/app-release/latest` が `{"latest": {"version": …, "build": …}}` を返す。
 
-## 端末への通知（Web Push）を使いたいとき（ADR-0047）
+## 端末への通知（Web Push）を使いたいとき（ADR-0081 §3）
 
 お知らせの「端末への通知」を選べるようにする。⚠ **鍵か連絡先が空なら選べない**（既定。ベルと
 画面上部の知らせは設定なしで動く）。
@@ -397,7 +397,7 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
 - 送るのは応答を返した後。何台に届いたかは `notification_push_delivered`（`delivered` / `gone` /
   `failed`）の記録で見る。`gone` の購読（端末でデータを消した・通知を切った）は自動で外れる。
 
-## スマホアプリへ通知（FCM）を送りたいとき（ADR-0049）
+## スマホアプリへ通知（FCM）を送りたいとき（ADR-0081 §5）
 
 お知らせの「端末への通知」を、flutterbase から作った Android アプリにも届ける。
 ⚠ **鍵のファイルが空なら FCM へは送らない**（既定）。Firebase のプロジェクトは人が作る。
@@ -419,7 +419,7 @@ deck の画面から「SSO を使う Android アプリ」を作ると、1〜2 �
 
 ## API を curl や CI から叩きたいとき
 
-トークンは応答本文に載らず **Cookie で運ばれる**（ADR-0028）。Cookie を保持して叩く。
+トークンは応答本文に載らず **Cookie で運ばれる**（ADR-0076 §4）。Cookie を保持して叩く。
 
 ```bash
 # ログイン（Cookie をファイルへ保存する）
@@ -471,14 +471,14 @@ Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログ�
 3. 起動時のログで `sso_ready` を確かめる。`sso_disabled_by_configuration` なら
    設定が欠けている。`sso_private_key_unreadable` なら鍵が読めていない。
 
-> **発行者とクライアント ID はテナントごと**（ADR-0064）。`OIDC_ISSUER` / `OIDC_CLIENT_ID` は
+> **発行者とクライアント ID はテナントごと**（ADR-0079 §4）。`OIDC_ISSUER` / `OIDC_CLIENT_ID` は
 > 既定のテナントを作るときの初期値で、移行（0015）がテナントの行へ写す。そのあとで変えるとき・
 > テナントを足すときは、テナントの行（`tenants.issuer` / `client_id`）を変える。鍵（`private_key_jwt`）は
 > アプリで 1 つなので、同じ公開鍵を各テナントのクライアントに登録する。
 > テナントが 2 つ以上あるときは、利用者に自分のテナントの入口 `/t/<短い名前>/login` を知らせる。
 
 ⚠ **初めて SSO で入る人は、同じメールアドレスのローカル口座があっても結び付かない**
-（`sso_error=sso_account_not_linked`。ADR-0037）。寄せてよいと判断したときだけ開ける。
+（`sso_error=sso_account_not_linked`。ADR-0077 §4）。寄せてよいと判断したときだけ開ける。
 
 ```
 OIDC_LINK_BY_EMAIL=true
@@ -515,7 +515,7 @@ OIDC_ACR_VALUES=["urn:assay:ac:mfa"]
 また `acr` が返ってこなければ、ログインを断る（`sso_acr_not_satisfied`）。
 予約語を持たない IdP へつないでいるときは**空のままにする**。
 
-## サインアウトを IdP まで通したいとき（ADR-0033）
+## サインアウトを IdP まで通したいとき（ADR-0077 §2）
 
 **既定では通していない。** `POST /api/auth/logout` はこのアプリのセッションを
 終わらせるだけで、IdP の SSO セッションは生きている。そのためサインアウトのあと
@@ -551,7 +551,7 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 **「このアプリだけ毎回名乗り直させたい」だけなら、こちらではない。** 認可要求の
 `prompt=login` のほうが、共有の SSO セッションを壊さずに済む。
 
-## SSO でしか入れない利用者にしたいとき（ADR-0038）
+## SSO でしか入れない利用者にしたいとき（ADR-0076 §6）
 
 `users.password_hash` を NULL にする。NULL の利用者は**パスワードで入れない・変更
 できない・リセットでも生やせない**。
@@ -571,7 +571,7 @@ UPDATE users SET password_hash = NULL WHERE email = '<メールアドレス>';
 SELECT u.id, u.email FROM users u JOIN federated_identities f ON f.user_id = u.id;
 ```
 
-## IdP で止めた利用者を、このアプリでも止めたいとき（ADR-0036）
+## IdP で止めた利用者を、このアプリでも止めたいとき（ADR-0077 §3）
 
 受け口は `POST <APP_BASE_URL>/api/auth/sso/backchannel-logout` で、**設定は要らない**
 （常に受ける）。**IdP 側の登録だけが栓**になる。
@@ -592,7 +592,7 @@ curl -X PATCH "<発行者 URL>/admin/clients/<client_id>" \
 
 通知が届かなかったぶんは、次の「定期的に拾い直したいとき」で拾う。
 
-## IdP で止めた利用者を、定期的に拾い直したいとき（ADR-0043）
+## IdP で止めた利用者を、定期的に拾い直したいとき（ADR-0077 §7）
 
 照合は **SSO が使えて `MACHINE_CLIENT_ID` が入っていれば毎時**聞きに行く。止めるのは
 **SSO で始まったセッションだけ**で、ローカルのパスワード・パスキーでは今までどおり入れる。
@@ -632,7 +632,7 @@ LOCAL_LOGIN_ENABLED=false
 パスキーのボタンを出さなくなる。
 
 ⚠ **締め出しの経路がある。** この状態で IdP が落ちる、あるいは最後の管理者が IdP 側で
-止まると誰も入れなくなる。⚠ **環境変数では戻せない**（ADR-0034 以降、DB のほうが強い）。
+止まると誰も入れなくなる。⚠ **環境変数では戻せない**（ADR-0074 §1 以降、DB のほうが強い）。
 **復旧は保存を消す**——画面に入れないので、コンテナの中から鍵 1 つを消す:
 
 ```bash
@@ -650,13 +650,13 @@ docker compose restart app
 （`MAIL_ENABLED` が off）は以下のいずれかで復旧する。
 
 ⚠ **本番（`APP_ENV=production`）では、既定のパスワード（`admin@example.com`）では入れない**
-（ADR-0056）。`ADMIN_INITIAL_PASSWORD` を渡し忘れて据えた管理者も、この手順で付け直す。
+（ADR-0073 §4）。`ADMIN_INITIAL_PASSWORD` を渡し忘れて据えた管理者も、この手順で付け直す。
 
 > **`scripts/seed_master_data.py` の再実行では復旧しない。** 投入は冪等で既存ユーザーを
 > 変更しないため、`ADMIN_INITIAL_PASSWORD` は**ユーザーが存在しないときだけ**使われる。
 > 実行は成功するが、パスワードは元のまま。
 >
-> ⚠ **マイグレーションは初期管理者を作らない**（ADR-0024。据え付けの `0002` だけが
+> ⚠ **マイグレーションは初期管理者を作らない**（ADR-0078 §3。据え付けの `0002` だけが
 > 作る）。消した `admin@example.com` は消えたままになる。据え直したいときは、
 > このスクリプトを手で流す。
 
@@ -708,7 +708,7 @@ docker compose exec -e ADMIN_INITIAL_PASSWORD='<new-password>' app \
 作り直したユーザーの ID は `master_data.DEFAULT_ADMIN_ID`（= 1）で固定されるため、
 `owner` ロールの付与も含めて元の状態に戻る。二要素認証・パスキーの登録は消える。
 
-## ログインが「失敗が続いたため受け付けていません」で断られるとき（ADR-0058）
+## ログインが「失敗が続いたため受け付けていません」で断られるとき（ADR-0076 §9）
 
 宛名ごとの失敗が上限に達している。`LOGIN_LOCK_SECONDS`（既定 900 秒）待てば解ける。
 すぐ解きたいときは、その宛名の控えを消す（`<email>` は送ったとおりの小文字のメールアドレス）。

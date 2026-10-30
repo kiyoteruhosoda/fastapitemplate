@@ -5,7 +5,7 @@ from bounded_contexts.notes.domain.value_objects.viewer import ShareTarget, View
 
 
 class INoteRepository(ABC):
-    """メモの置き場。テナントは実装のコンストラクタで受け取る（ADR-0062）。
+    """メモの置き場。テナントは実装のコンストラクタで受け取る（ADR-0079 §2）。
 
     ⚠ ``get`` は**読めるかどうかを見ない。** 確かめるのはユースケース（``Note.readable_by``）。
     """
@@ -27,7 +27,7 @@ class INoteRepository(ABC):
 
 
 class IGroupMembership(ABC):
-    """利用者がどのグループに入っているか。**毎回 DB から引く**（ADR-0070）。"""
+    """利用者がどのグループに入っているか。**毎回 DB から引く**（ADR-0078 §6）。"""
 
     @abstractmethod
     def viewer(self, user_id: int) -> Viewer: ...

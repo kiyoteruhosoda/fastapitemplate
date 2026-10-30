@@ -1,5 +1,5 @@
 /**
- * 「新しい版があります」の知らせ（ADR-0035）。
+ * 「新しい版があります」の知らせ（ADR-0080 §7）。
  *
  * 新しい版が待機したときだけ画面の下に出し、押されたら再読み込みする。トーストは
  * 数秒で消える通知なので使わない ——見ていない間に出て消えると、利用者は古い版の
@@ -33,7 +33,7 @@ export function AppUpdatePrompt({ watch }: { watch: WatchForUpdate }) {
     <div className="update-prompt" role="status">
       <span className="update-prompt-text">{t('update.available')}</span>
       {/* 押してから画面が入れ替わるまでに間があるので、押せたことを見せる
-          （ADR-0022）。 */}
+          （ADR-0080 §5）。 */}
       <ActionButton
         type="button"
         className="button-primary"

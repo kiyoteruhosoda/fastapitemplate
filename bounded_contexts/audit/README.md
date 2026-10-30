@@ -9,7 +9,7 @@
 
 どちらの行にも同じ `requestId` が入る。片方で見つけた ID をもう一方の絞り込みに入れると、
 1 リクエストの記録を両側から突き合わせられる。設計判断は
-`docs/decisions/ADR-0013-audit-log.md`。
+`docs/decisions/ADR-0075-logs-and-audit.md`。
 
 ## 構成
 
@@ -26,7 +26,7 @@ presentation/    API ルーター・スキーマ・依存の組み立て・書�
 
 ## 監査イベントの書き込みタイミング
 
-記録は 2 段階に分かれている（ADR-0013）。
+記録は 2 段階に分かれている（ADR-0075 §1）。
 
 1. **処理の途中**: ルーターが `RecordAuditEvent.execute()` を呼ぶ。イベントを
    組み立ててリクエストの控え（`PendingAuditEvents`）に積むだけで、**DB を触らない**。
@@ -82,7 +82,7 @@ audit.execute(AuditEventType.LOGIN_FAILED, AuditResult.FAILURE, reason="invalid_
 **実行者が入るのは認証済みのリクエストだけ。** 未認証で叩ける操作（ログイン失敗・
 パスワードリセット）は「誰がやったか」が分かっていない。分かっているのは「誰に対しての
 操作か」なので、そちらを `target` に入れる。持ち主を `actor_user_id` に据えると、
-第三者が起こしたイベントが本人の操作として残ってしまう（ADR-0013）。
+第三者が起こしたイベントが本人の操作として残ってしまう（ADR-0075 §1）。
 
 ## 記録するときの制約
 
@@ -114,7 +114,7 @@ audit.execute(AuditEventType.LOGIN_FAILED, AuditResult.FAILURE, reason="invalid_
 ## 保持期間と掃除
 
 両テーブルとも保持日数を設定でき、期限を過ぎた行は常駐スレッドが定期的に消す
-（ADR-0021）。**既定はどちらも `0` ＝ 削除しない。**
+（ADR-0075 §3）。**既定はどちらも `0` ＝ 削除しない。**
 
 | 設定キー | 対象 |
 |---|---|

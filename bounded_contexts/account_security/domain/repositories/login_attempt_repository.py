@@ -1,7 +1,7 @@
 """失敗の控えの永続化インターフェース（実装は Infrastructure 層）。
 
 プロセスのメモリに置かないのは、Gunicorn が複数ワーカーで動くため
-（ワーカーの数だけ試せてしまう）。WebAuthn のチャレンジと同じ理由（ADR-0058）。
+（ワーカーの数だけ試せてしまう）。WebAuthn のチャレンジと同じ理由（ADR-0076 §9）。
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""ログインが成立したときに載せるもの（ADR-0028）。
+"""ログインが成立したときに載せるもの（ADR-0076 §4）。
 
 トークンを発行する経路は 3 本ある（パスワード / パスキー / SSO の券の引き換え）。
 **載せ方をここ 1 か所に集める** ——1 本でも Cookie の付け方がずれると、その入口
@@ -56,7 +56,7 @@ TENANT_SUSPENDED = "tenant_suspended"
 
 
 def ensure_tenant_admits(user: User) -> None:
-    """止めたテナントの人にはトークンを出さない（ADR-0061）。入口は全部ここを通る。"""
+    """止めたテナントの人にはトークンを出さない（ADR-0079 §1）。入口は全部ここを通る。"""
     session = object_session(user)
     if session is not None and not tenant_admits(session, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_SUSPENDED})

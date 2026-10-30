@@ -32,7 +32,7 @@ function render(settings: UiSettings) {
               <BrowserRouter>
                 <App />
               </BrowserRouter>
-              {/* 新しい版の知らせは画面に関わらず出す（ADR-0035）。 */}
+              {/* 新しい版の知らせは画面に関わらず出す（ADR-0080 §7）。 */}
               <AppUpdatePrompt watch={watchForUpdate} />
             </ToastProvider>
           </AuthProvider>
@@ -43,7 +43,7 @@ function render(settings: UiSettings) {
 }
 
 /**
- * メンテナンス中・停止中の画面（ADR-0067）。
+ * メンテナンス中・停止中の画面（ADR-0080 §10）。
  *
  * ⚠ **アプリとは別の root に描く。** 遅れて読み込む部品が欠けてアプリの木が落ちても
  * 出せるようにするため。アプリの画面は消さずに隠すだけなので、戻ったときは入力の途中も

@@ -1,4 +1,4 @@
-"""テナントの外側の台帳（ADR-0061・ADR-0065）。システム管理者だけが使う。
+"""テナントの外側の台帳（ADR-0079 §1・§5）。システム管理者だけが使う。
 
 テナントの**中身は読まない**。数えるのは人数だけで、消すときも表の宣言
 （``shared/infrastructure/models/tenancy.py``）に従って機械的に消す。
@@ -24,7 +24,7 @@ from shared.infrastructure.models import (
 from shared.infrastructure.models.tenancy import TENANCY_KEY, Tenancy
 from shared.kernel.database.db import Base
 
-#: 消すときも残す表（テナントを消しても「誰が何をしたか」は残す。ADR-0013）
+#: 消すときも残す表（テナントを消しても「誰が何をしたか」は残す。ADR-0075 §1）
 _KEPT_ON_REMOVAL = frozenset({"audit_log"})
 
 

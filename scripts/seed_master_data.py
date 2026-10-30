@@ -30,9 +30,9 @@ def main() -> None:
     session = get_session_factory()()
     try:
         seed_master_data(session)
-        # 手で流すときは復旧が目的なので、居なければ初期管理者も据える（ADR-0024）。
+        # 手で流すときは復旧が目的なので、居なければ初期管理者も据える（ADR-0078 §3）。
         ensure_default_admin(session, password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None)
-        # 初期管理者はテナント管理者。既定のテナントに居なければ入れる（ADR-0061）
+        # 初期管理者はテナント管理者。既定のテナントに居なければ入れる（ADR-0079 §1）
         seat_default_admin(session, issuer=settings.oidc_issuer, client_id=settings.oidc_client_id)
         session.commit()
         print("Master data seeded.")

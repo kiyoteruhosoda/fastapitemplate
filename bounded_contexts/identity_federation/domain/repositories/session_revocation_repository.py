@@ -16,7 +16,7 @@ class SessionRevocationRepository(Protocol):
     def record(self, revocation: SessionRevocation) -> bool:
         """記録を残す。**同じ ``jti`` が既にあれば何もせず ``False``**。
 
-        ADR-0024 の送り手は再送のたびに同じ ``jti`` を使うので、ここが重複配送の
+        ADR-0078 §3 の送り手は再送のたびに同じ ``jti`` を使うので、ここが重複配送の
         受け止め口になる。期限切れの記録はこの機会に掃除する。
         """
 

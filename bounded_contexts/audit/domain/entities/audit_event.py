@@ -1,7 +1,7 @@
 """監査イベント（誰が・いつ・何に対して・何をして・どうなったか）。
 
 PII は持たない。実行者・対象は内部の識別子（サロゲートキー）のみで表す
-（ADR-0013）。メールアドレス・ユーザー名・パスワード・トークンは記録しない。
+（ADR-0075 §1）。メールアドレス・ユーザー名・パスワード・トークンは記録しない。
 """
 
 from __future__ import annotations
@@ -25,26 +25,26 @@ class AuditEventType(StrEnum):
 
     # --- 認証 ---
     # ログアウトは記録しない。Cookie を落とすだけの未認証エンドポイントで、
-    # 「誰が」を特定できないため（ADR-0013）。
+    # 「誰が」を特定できないため（ADR-0075 §1）。
     LOGIN_SUCCEEDED = "login.succeeded"
     LOGIN_FAILED = "login.failed"
-    # 失敗が続いたので、その宛名をしばらく断り始めた（ADR-0058）
+    # 失敗が続いたので、その宛名をしばらく断り始めた（ADR-0076 §9）
     LOGIN_LOCKED = "login.locked"
     PASSWORD_CHANGED = "password.changed"
     PASSWORD_RESET_REQUESTED = "password_reset.requested"
     PASSWORD_RESET_COMPLETED = "password_reset.completed"
-    # 本人によるアクティブロールの切り替え（ADR-0017）。どの権限で操作していたかを
+    # 本人によるアクティブロールの切り替え（ADR-0078 §1）。どの権限で操作していたかを
     # 後から辿れるように記録する。``reason`` には切り替え先のロール名が入る
     # （ロール名は個人情報ではない）。
     ROLE_SWITCHED = "role.switched"
-    # --- SSO（外部 IdP との連携。ADR-0025） ---
-    # 失敗は実行者を入れない（誰が試したかが分かっていないため。ADR-0013）。
+    # --- SSO（外部 IdP との連携。ADR-0077 §1） ---
+    # 失敗は実行者を入れない（誰が試したかが分かっていないため。ADR-0075 §1）。
     SSO_LOGIN_SUCCEEDED = "sso_login.succeeded"
     SSO_LOGIN_FAILED = "sso_login.failed"
     # IdP の名乗りから利用者を作った／既存の利用者へ結び付けた。どちらも初回だけ起きる。
     SSO_USER_PROVISIONED = "sso_user.provisioned"
     SSO_IDENTITY_LINKED = "sso_identity.linked"
-    # 本人が設定画面から結び付けた／外した（ADR-0040）。
+    # 本人が設定画面から結び付けた／外した（ADR-0077 §5）。
     SSO_IDENTITY_UNLINKED = "sso_identity.unlinked"
     # --- 二要素認証・パスキー ---
     TWO_FACTOR_ENABLED = "two_factor.enabled"
@@ -61,16 +61,16 @@ class AuditEventType(StrEnum):
     # --- システム運用 ---
     SYSTEM_SETTINGS_UPDATED = "system_settings.updated"
     SERVICE_RESTART_REQUESTED = "service.restart_requested"
-    # --- プロフィール（本人によるメールアドレス・表示名の変更。ADR-0016） ---
+    # --- プロフィール（本人によるメールアドレス・表示名の変更。ADR-0080 §3） ---
     PROFILE_UPDATED = "profile.updated"
-    # --- グループ・お知らせ（ADR-0047） ---
+    # --- グループ・お知らせ（ADR-0081 §3） ---
     # グループの ``reason`` には所属の人数を入れる（誰が入ったかは ID の並びで長くなる）。
     GROUP_CREATED = "group.created"
     GROUP_UPDATED = "group.updated"
     GROUP_DELETED = "group.deleted"
     # ``reason`` には宛先・チャネル・配った人数を入れる（本文は入れない）。
     NOTIFICATION_SENT = "notification.sent"
-    # テナントの外側（ADR-0061・ADR-0065）。システム管理者の操作
+    # テナントの外側（ADR-0079 §1・§5）。システム管理者の操作
     TENANT_CREATED = "tenant.created"
     TENANT_UPDATED = "tenant.updated"
     TENANT_DELETED = "tenant.deleted"

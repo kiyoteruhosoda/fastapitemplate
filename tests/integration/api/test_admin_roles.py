@@ -45,7 +45,7 @@ def _sign_in_user_manager(
 ) -> dict[str, str]:
     """``user:manage`` だけを持つ「ユーザー係」で**別のクライアント**にサインインする。
 
-    セッションは Cookie で持つので（ADR-0028）、管理者と同じクライアントで
+    セッションは Cookie で持つので（ADR-0076 §4）、管理者と同じクライアントで
     ログインすると管理者のセッションが置き換わってしまう。
     """
     created = client.post(

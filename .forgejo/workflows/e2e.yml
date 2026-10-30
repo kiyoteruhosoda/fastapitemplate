@@ -1,8 +1,8 @@
 name: E2E
 
-# 本物のサーバーを立て、実ブラウザ（Playwright）で画面を通す煙試験（ADR-0054）。
+# 本物のサーバーを立て、実ブラウザ（Playwright）で画面を通す煙試験（ADR-0072 §6）。
 # ci.yml の Backend / Frontend とは別の workflow にして、速い検査を待たせない。
-# トリガーと取り消しは ci.yml と同じ（ADR-0009）。
+# トリガーと取り消しは ci.yml と同じ（ADR-0072 §3）。
 on:
   push:
     branches: [main]

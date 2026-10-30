@@ -1,5 +1,5 @@
 /**
- * 前段（edge）が閉じていると答えたことの受け取り（ADR-0067）。
+ * 前段（edge）が閉じていると答えたことの受け取り（ADR-0080 §10）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

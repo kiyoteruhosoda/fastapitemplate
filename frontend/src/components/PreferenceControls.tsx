@@ -1,7 +1,7 @@
 /**
- * 言語・テーマの選択。プロフィールページの「表示設定」に出す（ADR-0016）。
+ * 言語・テーマの選択。プロフィールページの「表示設定」に出す（ADR-0080 §3）。
  *
- * 選択はブラウザ（localStorage）に保存され、端末ごとに独立する（ADR-0005）。
+ * 選択はブラウザ（localStorage）に保存され、端末ごとに独立する（ADR-0080 §1）。
  */
 import { LOCALE_LABELS, useI18n, type Locale } from '../i18n'
 import { THEME_PREFERENCES, useTheme, type ThemePreference } from '../theme'

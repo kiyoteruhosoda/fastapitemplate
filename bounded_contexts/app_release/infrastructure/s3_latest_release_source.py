@@ -1,4 +1,4 @@
-"""配布面（S3 互換の置き場。Garage）から ``latest.json`` を読む（ADR-0048）。
+"""配布面（S3 互換の置き場。Garage）から ``latest.json`` を読む（ADR-0081 §4）。
 
 ⚠ **秘密の鍵は値ではなく場所で持つ。** 設定にあるのはファイルのパス
 （``APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE``）だけで、中身は読むたびにファイルから

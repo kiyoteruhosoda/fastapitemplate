@@ -1,4 +1,4 @@
-"""アプリから来た assay のアクセストークンを読む口（ADR-0045）。"""
+"""アプリから来た assay のアクセストークンを読む口（ADR-0081 §1）。"""
 
 from __future__ import annotations
 

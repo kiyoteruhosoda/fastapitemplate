@@ -1,4 +1,4 @@
-"""配布している版（ADR-0048）。"""
+"""配布している版（ADR-0081 §4）。"""
 
 from __future__ import annotations
 

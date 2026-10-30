@@ -1,4 +1,4 @@
-"""``IDeviceTokenRepository`` の SQLAlchemy 実装（ADR-0049）。"""
+"""``IDeviceTokenRepository`` の SQLAlchemy 実装（ADR-0081 §5）。"""
 
 from __future__ import annotations
 

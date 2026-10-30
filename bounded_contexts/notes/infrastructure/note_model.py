@@ -1,4 +1,4 @@
-"""notes コンテキストの SQLAlchemy モデル（ADR-0070 の見本）。"""
+"""notes コンテキストの SQLAlchemy モデル（ADR-0078 §6 の見本）。"""
 
 from __future__ import annotations
 

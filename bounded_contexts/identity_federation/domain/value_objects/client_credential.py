@@ -1,4 +1,4 @@
-"""トークンエンドポイントへ名乗るときの資格情報（ADR-0025）。
+"""トークンエンドポイントへ名乗るときの資格情報（ADR-0077 §1）。
 
 方式は 2 つある。どちらも「クライアント本人であること」を示す手段で、
 **認可コードの引き換えのときだけ**使う。
@@ -18,7 +18,7 @@ from dataclasses import dataclass
 CLIENT_SECRET_BASIC = "client_secret_basic"
 PRIVATE_KEY_JWT = "private_key_jwt"
 
-#: 設定として受け付ける方式。ここに無い値は「不備」として扱う（ADR-0025）。
+#: 設定として受け付ける方式。ここに無い値は「不備」として扱う（ADR-0077 §1）。
 CLIENT_AUTH_METHODS = (CLIENT_SECRET_BASIC, PRIVATE_KEY_JWT)
 
 

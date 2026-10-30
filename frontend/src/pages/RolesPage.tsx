@@ -12,7 +12,7 @@ interface Role {
   id: number
   name: string
   permissions: string[]
-  /** 全テナントが共有する雛形。中身は変えられない（ADR-0063）。 */
+  /** 全テナントが共有する雛形。中身は変えられない（ADR-0079 §3）。 */
   shared: boolean
 }
 

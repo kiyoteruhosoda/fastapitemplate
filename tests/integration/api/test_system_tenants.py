@@ -1,4 +1,4 @@
-"""テナントの外側の管理（ADR-0061・ADR-0065）。
+"""テナントの外側の管理（ADR-0079 §1・§5）。
 
 システム管理者がテナントを登録・停止・削除し、最初のテナント管理者を指名する。指名された人は
 招待のメールで自分のパスワードを決めるか、テナントの IdP で初めて入ったときに席を受け取る。
@@ -67,7 +67,7 @@ def test_a_tenant_is_registered_with_a_designated_administrator(
         assert seat is not None
         assert seat.tenant_id == created["tenant"]["id"]
         assert seat.role_names == ("owner",)
-        # ⚠ 指名した人はパスワードを決めない（中身を見ない約束。ADR-0065）
+        # ⚠ 指名した人はパスワードを決めない（中身を見ない約束。ADR-0079 §5）
         assert seat.password_hash is None
 
     listed = {t["slug"]: t for t in client.get("/api/system/tenants").json()}
@@ -163,7 +163,7 @@ def test_system_administrators_are_added_by_invitation_and_never_all_removed(
     assert removed.status_code == 204
 
 
-# --- 指名された席を IdP で受け取る（ADR-0065） ----------------------------------
+# --- 指名された席を IdP で受け取る（ADR-0079 §5） ----------------------------------
 
 _ISSUER = "https://idp.example.test/acme"
 
@@ -208,7 +208,7 @@ def test_the_designated_seat_is_claimed_at_the_first_sso_sign_in(
 def test_a_seat_someone_already_uses_is_not_taken_over(
     sso_app: FastAPI, client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """入り口を持った利用者は「席」ではない。寄せる設定が無ければ断る（ADR-0037）。"""
+    """入り口を持った利用者は「席」ではない。寄せる設定が無ければ断る（ADR-0077 §4）。"""
     created = _create(client, system_admin_headers, issuer=_ISSUER, client_id="acme-rp")
     with Session(engine) as session:
         seat = session.get(User, created["designation"]["user_id"])
@@ -272,7 +272,7 @@ def _rows_of(session: Session, tenant_id: int) -> dict[str, int]:
 def test_deleting_a_tenant_takes_its_people_and_content_but_keeps_the_audit_trail(
     app: FastAPI, client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """消すと戻せないので、消えるもの・残るもの・巻き込まないものを表ごとに確かめる（ADR-0065）。"""
+    """消すと戻せないので、消えるもの・残るもの・巻き込まないものを表ごとに確かめる（ADR-0079 §5）。"""
     created = _create(client, system_admin_headers)
     acme_id = created["tenant"]["id"]
     with TestClient(app) as boss, TestClient(app) as neighbour:
@@ -297,7 +297,7 @@ def test_deleting_a_tenant_takes_its_people_and_content_but_keeps_the_audit_trai
     assert client.delete(f"/api/system/tenants/{acme_id}", headers=system_admin_headers).status_code == 204
 
     with Session(engine) as session:
-        # 監査ログだけが残る（誰が何をしたかは、テナントを消しても追える。ADR-0013）
+        # 監査ログだけが残る（誰が何をしたかは、テナントを消しても追える。ADR-0075 §1）
         assert set(_rows_of(session, acme_id)) == {"audit_log"}
         assert (
             session.scalar(

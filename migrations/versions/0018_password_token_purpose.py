@@ -1,8 +1,8 @@
 """password token purpose
 
-``password_reset_tokens.purpose`` を足す（ADR-0065）。``reset`` は本人の申し込み、``invitation`` は
+``password_reset_tokens.purpose`` を足す（ADR-0079 §5）。``reset`` は本人の申し込み、``invitation`` は
 管理者の招待で、招待だけはパスワードを持たない利用者に最初のパスワードを決めさせる
-（ADR-0038 の「持たせるのは管理者が明示的に設定したとき」に当たる）。
+（ADR-0076 §6 の「持たせるのは管理者が明示的に設定したとき」に当たる）。
 
 いまある行は全部 ``reset``。
 

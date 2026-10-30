@@ -1,4 +1,4 @@
-"""本人の操作で IdP の口座と結び付ける導線（ADR-0040）。
+"""本人の操作で IdP の口座と結び付ける導線（ADR-0077 §5）。
 
 ログインの往復（``test_sso_login``）と同じ経路で戻ってくるが、後始末が違う。
 ここで確かめるのは
@@ -197,7 +197,7 @@ def _make_second_user(engine: sa.Engine) -> tuple[str, str]:
 
 
 def _drop_password(engine: sa.Engine, email: str) -> None:
-    """ローカルのパスワードを落とす（IdP でしか入れない利用者にする。ADR-0038）。"""
+    """ローカルのパスワードを落とす（IdP でしか入れない利用者にする。ADR-0076 §6）。"""
     from shared.infrastructure.models import User
 
     with _open(engine) as session:

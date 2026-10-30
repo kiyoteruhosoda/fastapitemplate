@@ -1,4 +1,4 @@
-"""管理 API の「権限を動かす操作」の関門（ADR-0051）。
+"""管理 API の「権限を動かす操作」の関門（ADR-0078 §4）。
 
 scope を持っていても、自分の権限を超えて配る・格上に触れる・自分を変える・
 最後の管理者を失う、の 4 つは通らない。
@@ -156,7 +156,7 @@ def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers:
 def test_the_shared_administrator_role_cannot_be_hollowed_out(
     client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """雛形のロールは全テナントが共有するので、テナントの管理者からは変えられない（ADR-0063）。"""
+    """雛形のロールは全テナントが共有するので、テナントの管理者からは変えられない（ADR-0079 §3）。"""
     roles = client.get("/api/admin/roles", headers=admin_headers).json()
     admin_role = next(r for r in roles if r["name"] == "owner")
     without_core = [code for code in admin_role["permissions"] if code != "role:manage"]
@@ -176,7 +176,7 @@ def test_the_shared_administrator_role_cannot_be_hollowed_out(
 def test_a_stale_token_cannot_disable_the_last_administrator(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """ロールを外されても、手元のアクセストークンは寿命まで通る（ADR-0041）。
+    """ロールを外されても、手元のアクセストークンは寿命まで通る（ADR-0076 §5）。
 
     その古い 1 枚で残った 1 人を止めると、誰も権限を配り直せなくなる。
     """

@@ -3,7 +3,7 @@
 # ⚠ **ここに並べていないキーはコンテナへ届かない。** アプリの設定キーの一覧と意味は
 #   `.env.example` と `shared/kernel/settings/system_settings_defaults.py`。
 #
-# ⚠ **画面（DB）に入れた値のほうが強い**（ADR-0034）。ここを直したのに変わらない
+# ⚠ **画面（DB）に入れた値のほうが強い**（ADR-0074 §1）。ここを直したのに変わらない
 #   ときは、管理画面の設定に同じ鍵が入っていないかを先に見る。
 ---
 apiVersion: v1
@@ -14,7 +14,7 @@ metadata:
 data:
   TZ: "UTC"
   APP_ENV: "production"        # stg なら staging
-  # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（ADR-0013）。
+  # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（ADR-0075 §1）。
   TRUSTED_PROXY_HOPS: "1"
   APP_BASE_URL: "https://<host>"
   CORS_ALLOWED_ORIGINS: '["https://<host>"]'
@@ -28,7 +28,7 @@ data:
   ACCESS_TOKEN_ISSUER: "<app>-<env>"
   ACCESS_TOKEN_AUDIENCE: "<app>-<env>"
   LOG_LEVEL: "INFO"
-  # ── 外部 IdP を使うなら（ADR-0025 / ADR-0026）────────────────
+  # ── 外部 IdP を使うなら（ADR-0077 §1 / ADR-0076 §3）────────────────
   # ⚠ **鍵そのものはここに書かない。** `private_key_jwt` の秘密鍵はホストの
   #   `/srv/secrets/oidc` を Pod へ貸す（`40-app.yaml` のコメント）。
   # OIDC_ENABLED: "true"

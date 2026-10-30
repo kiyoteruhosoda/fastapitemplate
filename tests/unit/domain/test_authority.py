@@ -1,4 +1,4 @@
-"""権限を動かす操作の規則（ADR-0051）。"""
+"""権限を動かす操作の規則（ADR-0078 §4）。"""
 
 from shared.domain.auth.authority import beyond, changed
 

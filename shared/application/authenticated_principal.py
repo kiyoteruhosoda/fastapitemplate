@@ -3,7 +3,7 @@
 認可の判定は :meth:`can`（scope ベース）のみで行う（CLAUDE.md「権限管理」参照）。
 
 ``active_role`` は「いまどのロールで操作しているか」の表示・切り替えのためだけに
-持つ（ADR-0017）。**認可の分岐には使わない** — アクティブロールは
+持つ（ADR-0078 §1）。**認可の分岐には使わない** — アクティブロールは
 :attr:`permissions` を絞り込んだ結果として既に反映されている。
 """
 
@@ -22,10 +22,10 @@ class AuthenticatedPrincipal:
     permissions: frozenset[str] = field(default_factory=frozenset)
     # None = すべてのロール（保有権限の和集合）で操作している
     active_role: str | None = None
-    #: 本人が最後に**実際に**サインインした時刻（UTC・aware。ADR-0060）。更新やロールの
+    #: 本人が最後に**実際に**サインインした時刻（UTC・aware。ADR-0076 §10）。更新やロールの
     #: 切り替えでは新しくならない。``None`` は分からない（この仕組みより前のトークン）。
     authenticated_at: datetime | None = None
-    #: 所属するテナント（ADR-0061）。``None`` はテナントに属さない（システム管理者）。
+    #: 所属するテナント（ADR-0079 §1）。``None`` はテナントに属さない（システム管理者）。
     #: ⚠ **``None`` を「全部のテナント」と読まない。** 中身はどのテナントのものも見えない。
     tenant_id: int | None = None
 

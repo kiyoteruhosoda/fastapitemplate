@@ -1,4 +1,4 @@
-"""Cookie で認証した更新系の CSRF 対策（二重送信トークン。ADR-0028）。
+"""Cookie で認証した更新系の CSRF 対策（二重送信トークン。ADR-0076 §4）。
 
 トークンを Cookie へ移すと、ブラウザは**こちらが送るつもりの無いリクエストにも
 Cookie を付ける**ようになる。更新系だけ、Cookie とヘッダーの両方に同じ値を求める。
@@ -52,7 +52,7 @@ def test_the_entrances_are_exempt(client: TestClient, admin_headers: dict[str, s
 def test_a_header_authenticated_caller_does_not_need_it(client: TestClient) -> None:
     """``Authorization`` は自動では送られないので CSRF が成立しない。
 
-    curl・CI・他アプリのために、ヘッダーで来た呼び出しには求めない（ADR-0028 決定 4）。
+    curl・CI・他アプリのために、ヘッダーで来た呼び出しには求めない（ADR-0076 §4 決定 4）。
     """
     # 正規の経路では本文にトークンが載らないので、検証だけを目的に自前で発行する。
     from presentation.fastapi.services.token_service import TokenService

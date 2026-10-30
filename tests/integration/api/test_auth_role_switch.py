@@ -1,4 +1,4 @@
-"""アクティブロールの切り替え（ADR-0017）。
+"""アクティブロールの切り替え（ADR-0078 §1）。
 
 複数ロールを持つユーザーが、いま使うロールを 1 つに絞れること・戻せること、
 そして絞ったあいだは他のロールの権限で操作できないことを確認する。
@@ -39,7 +39,7 @@ def _sign_in(client: TestClient) -> dict[str, str]:
 def _switch(client: TestClient, headers: dict[str, str], role: str | None) -> tuple[int, dict[str, str]]:
     """切り替えて、成功したら新しいセッションのヘッダーを返す。
 
-    トークンは Cookie に載り替わる（ADR-0028）。CSRF トークンも新しくなるので
+    トークンは Cookie に載り替わる（ADR-0076 §4）。CSRF トークンも新しくなるので
     読み直す。
     """
     response = client.post("/api/auth/switch-role", headers=headers, json={"role": role})
@@ -104,7 +104,7 @@ def test_refresh_keeps_the_active_role(client: TestClient, admin_headers: dict[s
     refreshed = client.post("/api/auth/refresh", headers=headers)
     assert refreshed.status_code == 200
 
-    # 更新でセッションが載せ替わっても、アクティブロールは引き継がれる（ADR-0017）。
+    # 更新でセッションが載せ替わっても、アクティブロールは引き継がれる（ADR-0078 §1）。
     me = client.get("/api/auth/me").json()
     assert me["active_role"] == "member"
 
@@ -117,12 +117,12 @@ def test_revoking_the_active_role_drops_its_scopes(
 ) -> None:
     """切り替えた後にロールを外されたら、**次の更新で**そのトークンの権限は残らない。
 
-    ⚠ **手元のアクセストークンは寿命まで効いたままである**（ADR-0041）。検証が DB を
+    ⚠ **手元のアクセストークンは寿命まで効いたままである**（ADR-0076 §5）。検証が DB を
     引かなくなったので、外した瞬間には反映されない。上限はアクセストークンの寿命
     （既定 5 分）で、**引き締めているのは更新の側**である。
     """
     _create_multi_role_user(client, admin_headers)
-    # Cookie でセッションを持つので、利用者ごとにクライアントを分ける（ADR-0028）。
+    # Cookie でセッションを持つので、利用者ごとにクライアントを分ける（ADR-0076 §4）。
     _switch(other_client, _sign_in(other_client), "member")
 
     user = db_session.scalar(select(User).where(User.email == _EMAIL))

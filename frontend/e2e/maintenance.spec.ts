@@ -4,7 +4,7 @@ import { ADMIN } from './admin'
 import { INTENDED_FAULT_HEADER, expect, test } from './fixtures'
 
 /**
- * 前段（edge）が閉じたときのアプリ内の画面（ADR-0067）。
+ * 前段（edge）が閉じたときのアプリ内の画面（ADR-0080 §10）。
  *
  * edge の代わりに、API への要求へ edge と同じ形の 503 を返す。⚠ Service Worker に制御された
  * 画面で確かめる ——読み込み直しても手元の index.html が出るので、edge のメンテナンス画面は

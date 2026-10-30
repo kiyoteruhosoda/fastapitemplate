@@ -244,7 +244,7 @@ def test_login_with_a_registered_passkey(
         },
     )
     assert response.status_code == 200, response.text
-    # トークンは Cookie に載る（ADR-0028）。本文は寿命だけ。
+    # トークンは Cookie に載る（ADR-0076 §4）。本文は寿命だけ。
     assert response.json()["expires_in"] > 0
     assert client.cookies[ACCESS_TOKEN_COOKIE]
 

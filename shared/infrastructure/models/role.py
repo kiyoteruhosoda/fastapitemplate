@@ -27,7 +27,7 @@ class Role(Base):
     name: Mapped[str] = mapped_column(sa.String(50), unique=True, nullable=False)
 
     permissions = relationship("Permission", secondary=role_permissions, lazy="selectin")
-    #: 作ったテナント（ADR-0063）。無ければ雛形で、全テナントが共有する。
+    #: 作ったテナント（ADR-0079 §3）。無ければ雛形で、全テナントが共有する。
     #: ⚠ 触れたときだけ引く（古い移行がこのモデルでロールを引く時点では表がまだ無い）。
     ownership: Mapped[RoleTenant | None] = relationship(cascade="all, delete-orphan", uselist=False)
 

@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 import { ADMIN } from './e2e/admin'
 
 /**
- * E2E（実ブラウザの煙試験）の設定（ADR-0054）。
+ * E2E（実ブラウザの煙試験）の設定（ADR-0072 §6）。
  *
  * 本物のサーバー（FastAPI ＋ 使い捨ての SQLite ＋ ビルドした画面）を立て、Chromium で
  * 画面を通す。Vitest（jsdom）には Service Worker が無いので、SW の働きはここでしか見られない。

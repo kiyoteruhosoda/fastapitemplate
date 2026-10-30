@@ -1,4 +1,4 @@
-"""往復状態の照合（ADR-0025）。"""
+"""往復状態の照合（ADR-0077 §1）。"""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def test_an_empty_state_never_matches() -> None:
 
 
 def test_belongs_only_to_the_issuer_it_was_sent_to() -> None:
-    """発行者の無い往復（テナントより前のもの）は、どの発行者のものでもない（ADR-0064）。"""
+    """発行者の無い往復（テナントより前のもの）は、どの発行者のものでもない（ADR-0079 §4）。"""
     sent = LoginTransaction(state="st", nonce="no", code_verifier="cv", issuer="https://a.example")
     assert sent.is_for("https://a.example")
     assert not sent.is_for("https://b.example")

@@ -1,4 +1,4 @@
-"""assay の名簿を引く実装（ADR-0043。idp の ADR-0057 の口を叩く）。
+"""assay の名簿を引く実装（ADR-0077 §7。idp の ADR-0057 の口を叩く）。
 
 ```
 GET {issuer}/admin/applications/self/users?subs=...

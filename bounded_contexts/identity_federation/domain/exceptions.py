@@ -2,7 +2,7 @@
 
 ``code`` がそのまま API のエラーコード（表示文言はフロントエンド）になる。
 ブラウザの往復の途中で起きた失敗は、ログイン画面へ ``?sso_error=<code>`` として
-返る（ADR-0025）。
+返る（ADR-0077 §1）。
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class SsoLoginTransactionInvalidError(IdentityFederationError):
 
     **Cookie を落とすブラウザではここで必ず止まる。** 自サイトの Cookie なので
     サードパーティ Cookie の制限とは別だが、Cookie を一切拒否する設定では
-    正規のログインも通らない（ADR-0025）。
+    正規のログインも通らない（ADR-0077 §1）。
     """
 
     code = "sso_state_invalid"
@@ -60,7 +60,7 @@ class InvalidLogoutTokenError(IdentityFederationError):
 
 
 class SsoAcrNotSatisfiedError(IdentityFederationError):
-    """要求した認証の強度（``acr_values``）が満たされていない（ADR-0026 決定 1）。
+    """要求した認証の強度（``acr_values``）が満たされていない（ADR-0076 §3 決定 1）。
 
     ``acr`` が返ってこない場合もこれになる。要求したのに保証が得られていない以上、
     通してはいけない。
@@ -88,7 +88,7 @@ class SsoAccountNotLinkedError(IdentityFederationError):
 
 
 class SsoIdentityTakenError(IdentityFederationError):
-    """その IdP アカウントは**別の利用者**に結び付いている（ADR-0040）。
+    """その IdP アカウントは**別の利用者**に結び付いている（ADR-0077 §5）。
 
     ⚠ **横取りになるので断る。** 付け替えを許すと、IdP 側で 1 つの口座を共有して
     いる相手が、後からこのアプリの別人の入り口を奪える。
@@ -98,7 +98,7 @@ class SsoIdentityTakenError(IdentityFederationError):
 
 
 class SsoAlreadyLinkedError(IdentityFederationError):
-    """この利用者には、その IdP の結び付きが**既にある**（ADR-0040）。
+    """この利用者には、その IdP の結び付きが**既にある**（ADR-0077 §5）。
 
     別の ``subject`` へ差し替えたいなら、いったん解除してから結び直す。黙って
     上書きすると、前の結び付きで入っていた経路が予告なく消える。
@@ -114,7 +114,7 @@ class SsoIdentityNotLinkedError(IdentityFederationError):
 
 
 class SsoLastEntranceError(IdentityFederationError):
-    """解除すると、この利用者が**どこからも入れなくなる**（ADR-0040）。
+    """解除すると、この利用者が**どこからも入れなくなる**（ADR-0077 §5）。
 
     ⚠ **締め出しを作らない。** ローカルのパスワードもパスキーも無い利用者から
     IdP を外すと、残るのは管理者による復旧だけになる。
@@ -140,7 +140,7 @@ class SsoAccountInactiveError(IdentityFederationError):
 
 
 class AppAccessTokenRejectedError(IdentityFederationError):
-    """アプリから来た assay のアクセストークンを受け取らない（ADR-0045）。
+    """アプリから来た assay のアクセストークンを受け取らない（ADR-0081 §1）。
 
     理由（署名・宛先・クライアント・停止）は応答で区別しない。401 になる。
     """
@@ -149,7 +149,7 @@ class AppAccessTokenRejectedError(IdentityFederationError):
 
 
 class MachineNotBoundToApplicationError(IdentityFederationError):
-    """名乗ったサービスアカウントが、assay でどのアプリにも結び付いていない（管理 API の 403。ADR-0043）。
+    """名乗ったサービスアカウントが、assay でどのアプリにも結び付いていない（管理 API の 403。ADR-0077 §7）。
 
     ⚠ **障害ではなく「まだ準備されていない」。** どのアプリの名簿を返すかは assay が
     呼び出し元のサービスアカウントから決めるので、結び付けるまで毎回この形で返る。

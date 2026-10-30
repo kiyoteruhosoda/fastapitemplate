@@ -1,9 +1,9 @@
-"""停止の伝播（IdP → RP）が効いているか（ADR-0036 / ADR-0041）。
+"""停止の伝播（IdP → RP）が効いているか（ADR-0077 §3 / ADR-0076 §5）。
 
 IdP との通信はゲートウェイを差し替えて止める。ここで確かめたいのは、**届いた通知が
 実際にセッションを終わらせること**と、終わらせる範囲を間違えないことである。
 
-⚠ **効くのは「次の更新のとき」である**（ADR-0041）。アクセストークンの検証は DB を
+⚠ **効くのは「次の更新のとき」である**（ADR-0076 §5）。アクセストークンの検証は DB を
 引かないので、止まった直後でも**手元のアクセストークンは寿命まで通る**。止める判定は
 更新の 1 点に集約してあり、**上限時間はアクセストークンの寿命**（既定 5 分）になる。
 """
@@ -123,7 +123,7 @@ def _sign_in_with_sso(client: TestClient) -> None:
 def _post_logout(client: TestClient, logout_token: str) -> int:
     """IdP のサーバーが叩く経路。**Cookie も CSRF トークンも持たない。**
 
-    通知は JWT の形で送る（発行者でテナントを選ぶため。ADR-0064）。中身の「``<sid>|<jti>``」は
+    通知は JWT の形で送る（発行者でテナントを選ぶため。ADR-0079 §4）。中身の「``<sid>|<jti>``」は
     ``raw`` に入れ、検証はスタブの IdP が受け持つ。
     """
     signed = jwt.encode({"iss": _ISSUER, "raw": logout_token}, "stub-idp-key", algorithm="HS256")
@@ -142,7 +142,7 @@ def test_a_stop_from_the_idp_ends_the_session_at_the_next_refresh(sso_client: Te
 
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
 
-    # ⚠ **手元のアクセストークンは寿命まで通る**（ADR-0041。検証は DB を引かない）。
+    # ⚠ **手元のアクセストークンは寿命まで通る**（ADR-0076 §5。検証は DB を引かない）。
     assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
     assert sso_client.get("/api/auth/me").status_code == 200
     # 終わるのは更新のとき。ここから先は新しいアクセストークンが出ない。
@@ -150,7 +150,7 @@ def test_a_stop_from_the_idp_ends_the_session_at_the_next_refresh(sso_client: Te
 
 
 def test_the_access_token_outlives_the_stop_only_until_it_expires(sso_client: TestClient) -> None:
-    """⚠ **これが引き受けた緩さである**（ADR-0041）。
+    """⚠ **これが引き受けた緩さである**（ADR-0076 §5）。
 
     止まった利用者が通り続ける上限は、アクセストークンの寿命そのものになる。
     短くするほど上限が縮み、長くするほど停止が遅れて効く。
@@ -164,7 +164,7 @@ def test_the_access_token_outlives_the_stop_only_until_it_expires(sso_client: Te
 
 
 def test_a_stopped_session_cannot_be_refreshed(sso_client: TestClient) -> None:
-    """⚠ **止める判定はここだけである**（ADR-0041）。
+    """⚠ **止める判定はここだけである**（ADR-0076 §5）。
 
     アクセストークンの検証は DB を引かないので、ここが抜けると停止はどこにも
     効かなくなる ——寿命による上限そのものが無くなる。
@@ -213,7 +213,7 @@ def test_switching_roles_keeps_the_session_stoppable(sso_client: TestClient) -> 
 
 
 def test_a_stopped_session_cannot_mint_new_tokens_by_switching_roles(sso_client: TestClient) -> None:
-    """⚠ **出し直しの経路を塞がないと、寿命による上限が破れる**（ADR-0041）。
+    """⚠ **出し直しの経路を塞がないと、寿命による上限が破れる**（ADR-0076 §5）。
 
     アクセストークンの検証は DB を引かないので、止まった利用者でも手元の 1 枚は
     寿命まで通る。その 1 枚でロールを切り替えられてしまうと、**5 分ごとに新しい
@@ -228,7 +228,7 @@ def test_a_stopped_session_cannot_mint_new_tokens_by_switching_roles(sso_client:
 
 
 def test_a_stopped_session_cannot_register_a_new_way_in(sso_client: TestClient) -> None:
-    """⚠ **止められた相手に、新しい入り口を作らせない**（ADR-0041 決定 6）。
+    """⚠ **止められた相手に、新しい入り口を作らせない**（ADR-0076 §5 決定 6）。
 
     二要素認証やパスキーの登録は「入り口を増やす」操作である。アクセストークンの
     検証は DB を引かないので、止まった利用者でも手元の 1 枚は寿命まで通る
@@ -259,7 +259,7 @@ def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient,
 
 
 def test_a_local_login_is_not_touched(sso_client: TestClient) -> None:
-    """停止の伝播が消せるのは IdP 経由で始まったセッションだけ（ADR-0026）。"""
+    """停止の伝播が消せるのは IdP 経由で始まったセッションだけ（ADR-0076 §3）。"""
     signed_in = sso_client.post(
         "/api/auth/login",
         json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": master_data.DEFAULT_ADMIN_PASSWORD},

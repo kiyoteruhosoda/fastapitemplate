@@ -6,14 +6,14 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class SignInEntrances(BaseModel):
-    """この利用者が**このアプリへ入れる手段**の一覧（ADR-0039）。
+    """この利用者が**このアプリへ入れる手段**の一覧（ADR-0076 §7）。
 
     ⚠ **認証系が 2 つあることを前提にした棚卸しのための値である。** IdP 側で
     多要素を必須にしても、こちらのパスワード・パスキーには掛からない。何本の口が
     開いているのかは、並べて見ないと分からない。
     """
 
-    #: パスワードで入れるか（``users.password_hash`` が NULL でない。ADR-0038）。
+    #: パスワードで入れるか（``users.password_hash`` が NULL でない。ADR-0076 §6）。
     password: bool = False
     #: このアプリ側の二要素認証（TOTP）が有効か。**IdP 側の多要素とは別物。**
     totp: bool = False
@@ -29,7 +29,7 @@ class UserResponse(BaseModel):
     username: str
     is_active: bool
     roles: list[str]
-    #: 入れる手段の一覧（ADR-0039）。一覧・作成・更新のどれでも同じ形で返す。
+    #: 入れる手段の一覧（ADR-0076 §7）。一覧・作成・更新のどれでも同じ形で返す。
     entrances: SignInEntrances = SignInEntrances()
 
 
@@ -51,7 +51,7 @@ class RoleResponse(BaseModel):
     id: int
     name: str
     permissions: list[str]
-    #: 全テナントが共有する雛形（中身は変えられない。ADR-0063）
+    #: 全テナントが共有する雛形（中身は変えられない。ADR-0079 §3）
     shared: bool = False
 
 

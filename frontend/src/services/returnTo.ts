@@ -1,5 +1,5 @@
 /**
- * サインインの往復で行き先を落とさない（ADR-0055）。
+ * サインインの往復で行き先を落とさない（ADR-0077 §8）。
  *
  * 未サインインで深いリンク（`/items?q=…` など）を開くと、ログイン画面へ送られる。
  * 行き先を持たずに送ると、サインインした先は着地（`/`）になり、**開こうとしていた画面には
@@ -42,7 +42,7 @@ export function sanitizeRedirectTo(candidate: string | null | undefined): string
  */
 export function signInPathFor(location: { pathname: string; search?: string }): string {
   const here = sanitizeRedirectTo(`${location.pathname}${location.search ?? ''}`)
-  // 前に入った入口（テナント）へ戻す（ADR-0064）
+  // 前に入った入口（テナント）へ戻す（ADR-0079 §4）
   const login = loginPathOf(rememberedTenant())
   if (here === LANDING) return login
   return `${login}?${REDIRECT_TO_PARAM}=${encodeURIComponent(here)}`

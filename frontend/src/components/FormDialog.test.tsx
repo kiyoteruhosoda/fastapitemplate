@@ -1,12 +1,12 @@
 /**
- * 入力ダイアログ（ADR-0027）の閉じ方。
+ * 入力ダイアログ（ADR-0080 §6）の閉じ方。
  *
  * 見るのは「閉じる操作がすべて呼び出し側へ伝わること」。`<dialog>` の既定では、
  * Esc はダイアログだけを閉じて呼び出し側の状態が開いたまま残り、次に「追加」を
  * 押しても何も出なくなる。
  *
  * 幅による見え方（狭い画面で下から幅いっぱい）は CSS が決めるため、jsdom では
- * 検証できない（ADR-0011）。
+ * 検証できない（ADR-0080 §2）。
  */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'

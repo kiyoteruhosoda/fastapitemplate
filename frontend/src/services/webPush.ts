@@ -1,5 +1,5 @@
 /**
- * 端末への通知（Web Push）の購読（ADR-0047）。
+ * 端末への通知（Web Push）の購読（ADR-0081 §3）。
  *
  * ブラウザの Service Worker に購読を作らせ、その宛先（endpoint）と鍵をサーバーへ
  * 預ける。通知を受け取って出すのは Service Worker 側（`public/push-sw.js`）。

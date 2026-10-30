@@ -3,7 +3,7 @@
 Docker ビルド時に ``scripts/generate_version.sh`` が ``shared/kernel/version.json``
 を生成し、ここで読み込む。ローカル開発では環境変数フォールバックのみで動く。
 
-**名前の正本は ``pyproject.toml`` の ``[project].name``**（ADR-0031）。ここから
+**名前の正本は ``pyproject.toml`` の ``[project].name``**（ADR-0073 §2）。ここから
 FastAPI の題と、外へ出るときに名乗る User-Agent が導かれる。テンプレートから
 起こしたアプリは名前を変える約束なので、変えた時点でどちらも追随する。
 """

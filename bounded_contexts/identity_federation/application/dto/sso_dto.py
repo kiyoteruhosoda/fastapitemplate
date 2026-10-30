@@ -30,7 +30,7 @@ class SsoAuthorizationDto:
 
     ``transaction`` は送り出したブラウザの Cookie へ署名して預ける往復状態で、
     戻ってきたときに「同じブラウザか」を確かめるために使う（ログイン CSRF を
-    止める）。サーバー側に控えは残らない（ADR-0025）。
+    止める）。サーバー側に控えは残らない（ADR-0077 §1）。
     """
 
     authorization_url: str
@@ -63,7 +63,7 @@ class SsoHandoffDto:
 class SsoSessionDto:
     """引き換え券から取り出したログイン結果。
 
-    ``login`` は発行するトークンへ刻む（ADR-0036）。刻んでおかないと、停止の通知が
+    ``login`` は発行するトークンへ刻む（ADR-0077 §3）。刻んでおかないと、停止の通知が
     届いても**どのトークンを無効にすればよいかが分からない**。
     """
 
@@ -74,7 +74,7 @@ class SsoSessionDto:
 
 @dataclass(frozen=True)
 class FederatedLinkDto:
-    """設定画面に出す「自分の連携の状態」（ADR-0040）。
+    """設定画面に出す「自分の連携の状態」（ADR-0077 §5）。
 
     ``available`` が偽なら、画面はこの区画そのものを出さない（SSO が無効）。
     """

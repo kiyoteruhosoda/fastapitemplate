@@ -1,4 +1,4 @@
-"""「ローカル認証を持たない」をデータで表せているか（ADR-0038）。
+"""「ローカル認証を持たない」をデータで表せているか（ADR-0076 §6）。
 
 ``users.password_hash`` が NULL の利用者は、パスワードで入れない・変更できない・
 **リセットでも生やせない**。持たせられるのは管理者が明示的に設定したときだけ。
@@ -112,7 +112,7 @@ def test_an_administrator_can_give_a_password_on_purpose(
     other_client: TestClient,
     sso_only_user: User,
 ) -> None:
-    """ローカル口座を持たせるのは、明示的な操作だけ（ADR-0038）。"""
+    """ローカル口座を持たせるのは、明示的な操作だけ（ADR-0076 §6）。"""
     headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     updated = client.put(
         f"/api/admin/users/{sso_only_user.id}",

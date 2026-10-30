@@ -45,7 +45,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # バージョン情報（shared/kernel/version.json）は **ビルドの前に生成してコンテキストへ入れる**。
 # build の「版を刻む」段が scripts/generate_version.sh を実行し、その出力がここへ
-# COPY されてくる（ADR-0044）。この RUN は「無かったときに dev として印を付ける」だけで、
+# COPY されてくる（ADR-0073 §1）。この RUN は「無かったときに dev として印を付ける」だけで、
 # 既にある内容は書き換えない。イメージには .git が入らないので、ここで git は引けない。
 # ⚠ **ビルド情報を受け取る ARG を足さない。** 渡す側ごとに名前がずれて壊れた実績がある
 #   （CLAUDE.md「ビルドとデプロイ」）。

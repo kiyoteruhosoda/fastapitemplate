@@ -63,7 +63,7 @@ class ResolveFederatedAccount:
         known = self._known_account(issuer, user.subject)
         if known is not None:
             self._ensure_active(known)
-            # ⚠ **写しは IdP を正とする**（ADR-0042）。ここで上書きしないと、
+            # ⚠ **写しは IdP を正とする**（ADR-0077 §6）。ここで上書きしないと、
             #   向こうで改名・メール変更をしても表示が永久に古いままになる。
             self.directory.refresh_profile(known.user_id, email=user.email, username=user.username)
             self._synchronize_roles(known)
@@ -100,7 +100,7 @@ class ResolveFederatedAccount:
     # ------------------------------------------------------------------
 
     def _attach(self, issuer: str, user: FederatedUser) -> ResolvedAccountDto:
-        # ⚠ **メールアドレスが要るのはここだけである**（ADR-0042）。既に結び付いて
+        # ⚠ **メールアドレスが要るのはここだけである**（ADR-0077 §6）。既に結び付いて
         #   いる相手は ``sub`` で引けるので、無くても入れる。
         if user.email is None:
             # 寄せる先も探せないし、作ることもできない（``users.email`` は必須）。

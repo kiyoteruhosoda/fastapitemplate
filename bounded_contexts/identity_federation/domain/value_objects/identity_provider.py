@@ -1,7 +1,7 @@
 """連携先の外部 IdP（OpenID Provider）1 つ分の設定。
 
 このアプリが持つ IdP は 1 つだけで、値は設定（``settings`` の ``OIDC_*``）から
-組み立てる（ADR-0025）。ここは組み立て済みの値を受け取り、「使える設定か」と
+組み立てる（ADR-0077 §1）。ここは組み立て済みの値を受け取り、「使える設定か」と
 「認可要求に載せる scope」だけを判断する。
 """
 
@@ -35,7 +35,7 @@ class IdentityProvider:
         """認可要求を始められるか（接続先と資格情報が揃っているか）。
 
         資格情報が揃っているかの判断は方式ごとに違うので
-        :class:`ClientCredential` に任せる（ADR-0025）。
+        :class:`ClientCredential` に任せる（ADR-0077 §1）。
         """
         return bool(self.issuer and self.client_id and self.redirect_uri and self.credential.is_complete)
 

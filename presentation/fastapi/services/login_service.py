@@ -48,7 +48,7 @@ from shared.kernel.timestamps import utcnow
 from shared.kernel.version import load_build_info
 
 #: 未知の宛名でも照合の時間を揃えるためのハッシュ。**何とも一致しない**
-#: （応答時間で存在が分かるのを防ぐ。ADR-0058）
+#: （応答時間で存在が分かるのを防ぐ。ADR-0076 §9）
 _DUMMY_HASH = generate_password_hash("no-account-has-this-password")
 
 
@@ -74,7 +74,7 @@ class LoginService:
         ``totp_required``、不一致は ``invalid_totp`` を返す（どちらもパスワードは
         正しかったことを意味するので、コードを添えて再度ログインすればよい）。
 
-        失敗は宛名ごとに数え、上限に達したらしばらく 429 で断る（ADR-0058）。
+        失敗は宛名ごとに数え、上限に達したらしばらく 429 で断る（ADR-0076 §9）。
         """
         self._require_not_locked(credentials.email)
         user = account_signing_in(self._db, credentials.email, credentials.tenant)
@@ -85,7 +85,7 @@ class LoginService:
         if not user.is_active:
             self._reject(user, "inactive_user", credentials.email)
         if user.password_hash is None:
-            # パスワードという入り口を持たない利用者（ADR-0038）。照合する相手が
+            # パスワードという入り口を持たない利用者（ADR-0076 §6）。照合する相手が
             # 無いので、ここで断る。
             self._reject(user, "no_local_password", credentials.email)
         if not check_password_hash(user.password_hash, credentials.password):
@@ -96,13 +96,13 @@ class LoginService:
         self._verify_second_factor(user, credentials)
         # 正しく入れた。それまでの失敗は打ち間違いなので忘れる
         self._throttle.record_success(PURPOSE_LOGIN, credentials.email)
-        # どの入口で入ったかを残す（ADR-0026 決定 1）。入口ごとに認証の強度が違うため、
+        # どの入口で入ったかを残す（ADR-0076 §3 決定 1）。入口ごとに認証の強度が違うため、
         # 記録が無いと「IdP 側で止めたのにまだ入れている」ことに後から気付けない。
         self._audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=password")
         return user
 
     def _require_not_locked(self, identifier: str) -> None:
-        """断っている最中なら、照合の前に 429（ADR-0058）。
+        """断っている最中なら、照合の前に 429（ADR-0076 §9）。
 
         断られた試行も監査に残す ——当たられていることは、断っているあいだにこそ見える。
         誰のアカウントかはまだ引いていないので対象は空。
@@ -114,7 +114,7 @@ class LoginService:
             raise
 
     def _verify_second_factor(self, user: User, credentials: LoginRequest) -> None:
-        """二要素のコードを確かめる。**間違いもパスワードと同じ数え上げに入れる**（ADR-0058）。"""
+        """二要素のコードを確かめる。**間違いもパスワードと同じ数え上げに入れる**（ADR-0076 §9）。"""
         try:
             self._second_factor.execute(user_id=user.id, code=credentials.totp_code)
         except (TotpRequiredError, InvalidTotpCodeError) as error:
@@ -141,9 +141,9 @@ class LoginService:
         """相手のアカウントは**実行者ではなく対象**として記録する。
 
         認証に失敗した時点で「誰が試したか」は分かっておらず、実行者に据えると
-        アカウントの持ち主が自分でやったように読めてしまう（ADR-0013）。
+        アカウントの持ち主が自分でやったように読めてしまう（ADR-0075 §1）。
 
-        失敗は宛名ごとに数え、上限に達したら断り始めたことも残す（ADR-0058）。
+        失敗は宛名ごとに数え、上限に達したら断り始めたことも残す（ADR-0076 §9）。
         """
         target = AuditTarget.of(AuditTargetType.USER, user.id) if user is not None else None
         self._audit.execute(AuditEventType.LOGIN_FAILED, AuditResult.FAILURE, target=target, reason=reason)
@@ -152,7 +152,7 @@ class LoginService:
 
 
 def _is_published_default(password: str) -> bool:
-    """本番で、公開されている既定のパスワードで入ろうとしているか（ADR-0056）。
+    """本番で、公開されている既定のパスワードで入ろうとしているか（ADR-0073 §4）。
 
     既定の管理者は ``ADMIN_INITIAL_PASSWORD`` を渡し忘れると、リポジトリに載っている
     パスワードのまま全権で据わる。**本番ではその値では入れない**ようにして、渡し忘れを

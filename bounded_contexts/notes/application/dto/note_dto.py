@@ -22,7 +22,7 @@ class NoteDTO:
     #: 自分のメモか（表示用）
     mine: bool
     #: この人がこの 1 件を書き換え・削除できるか（持ち主か）。**画面は scope と合わせて出し分ける**
-    #: （scope の ``note:write`` だけでは、どのメモかが分からない。ADR-0070）
+    #: （scope の ``note:write`` だけでは、どのメモかが分からない。ADR-0078 §6）
     can_change: bool
 
     @classmethod

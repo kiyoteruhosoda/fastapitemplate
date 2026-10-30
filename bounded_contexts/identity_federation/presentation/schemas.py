@@ -15,7 +15,7 @@ class SsoProviderResponse(BaseModel):
 
     enabled: bool
     display_name: str
-    #: パスワード・パスキーの入口が開いているか（ADR-0026 決定 2）。ログイン画面は
+    #: パスワード・パスキーの入口が開いているか（ADR-0076 §3 決定 2）。ログイン画面は
     #: これが偽ならパスワード欄とパスキーのボタンを出さない。
     local_login_enabled: bool = True
     #: サインアウトを IdP まで通すか。画面はこれが真のときだけ、アプリの
@@ -32,7 +32,7 @@ class SsoTicketRequest(BaseModel):
 class SsoSessionResponse(BaseModel):
     """引き換えの結果。``redirect_to`` は SSO を始めた画面（SPA 内の経路）。
 
-    ⚠ **トークンは載せない**（ADR-0028）。Cookie で運ぶ。
+    ⚠ **トークンは載せない**（ADR-0076 §4）。Cookie で運ぶ。
     """
 
     expires_in: int
@@ -40,7 +40,7 @@ class SsoSessionResponse(BaseModel):
 
 
 class FederatedLinkResponse(BaseModel):
-    """設定画面に出す「自分の連携の状態」（ADR-0040）。
+    """設定画面に出す「自分の連携の状態」（ADR-0077 §5）。
 
     ⚠ **相手の ``subject`` は載せない。** 画面に出す意味が無く、載せると
     IdP 側の内部の識別子がブラウザの履歴やログへ漏れていく。
@@ -51,7 +51,7 @@ class FederatedLinkResponse(BaseModel):
     display_name: str = ""
     linked: bool = False
     linked_at: UtcDatetime | None = None
-    #: 外しても入り口が残るか（ADR-0040）。偽なら画面は解除のボタンを出さない。
+    #: 外しても入り口が残るか（ADR-0077 §5）。偽なら画面は解除のボタンを出さない。
     can_unlink: bool = False
 
 

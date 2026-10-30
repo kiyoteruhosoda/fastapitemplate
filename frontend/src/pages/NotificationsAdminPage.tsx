@@ -1,5 +1,5 @@
 /**
- * お知らせの配信（ADR-0047。要 `notification:send`）。
+ * お知らせの配信（ADR-0081 §3。要 `notification:send`）。
  *
  * 上で書いて送り、下に送った記録（何人に配り、何人が読んだか）を並べる。
  * 出す場所（ベル・画面上部・端末への通知）は複数選べる。宛先は全員・グループ・個人の
@@ -42,7 +42,7 @@ export function NotificationsAdminPage() {
     void reload()
     void notificationsApi.audiences().then(setOptions)
     // 端末への通知は、サーバーが送れる設定のときだけ選ばせる。ブラウザ（Web Push）と
-    // スマホアプリ（FCM。ADR-0049）のどちらか 1 つでも送れれば選べる。
+    // スマホアプリ（FCM。ADR-0081 §5）のどちらか 1 つでも送れれば選べる。
     void api
       .get<{ enabled: boolean; device_enabled?: boolean }>('/api/notifications/push')
       .then((config) => {

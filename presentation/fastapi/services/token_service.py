@@ -1,11 +1,11 @@
 """JWT の発行・検証（access / refresh の2トークン）。
 
 - scope クレームはユーザーの保有権限の範囲内。未指定・空 = 権限なし。
-- ``active_role`` クレームは「いまどのロールで操作しているか」（ADR-0017）。
+- ``active_role`` クレームは「いまどのロールで操作しているか」（ADR-0078 §1）。
   ``None`` は「すべてのロール」＝保有権限の和集合。指定されている場合、scope は
   そのロール 1 つ分の権限に絞られる。切り替えは新しいトークンの発行で行う。
 - ``fed_iss`` / ``fed_sub`` / ``sid`` / ``fed_iat`` は、IdP 経由で始まったセッションの
-  宛名と**始まった時刻**（ADR-0036）。**検証のたびに「止められていないか」を照合
+  宛名と**始まった時刻**（ADR-0077 §3）。**検証のたびに「止められていないか」を照合
   する**——サーバーにセッションの控えが無いので、届いた停止はここでしか効かせ
   られない。ローカルのログインで発行したトークンには載らない。
 - 検証結果は ``AuthenticatedPrincipal`` として返す。
@@ -44,7 +44,7 @@ TYPE_REFRESH = "refresh"
 # アクティブロール名を載せるクレーム名（access / refresh の双方に入れる。
 # refresh に無いと、トークン更新のたびに「すべてのロール」へ戻ってしまう）
 CLAIM_ACTIVE_ROLE = "active_role"
-# IdP 側のセッションの宛名（ADR-0036）。``sid`` だけ OIDC と同じ綴りにする
+# IdP 側のセッションの宛名（ADR-0077 §3）。``sid`` だけ OIDC と同じ綴りにする
 # （ID トークンから写した値であることを読み取れるようにするため）。
 CLAIM_FEDERATED_ISSUER = "fed_iss"
 CLAIM_FEDERATED_SUBJECT = "fed_sub"
@@ -52,10 +52,10 @@ CLAIM_SESSION_ID = "sid"
 # セッションが始まった時刻（エポックからのマイクロ秒）。``iat`` は秒までしか持たず、
 # 止めた直後の同じ秒に入り直した利用者を巻き添えにするため、別に持つ。
 CLAIM_FEDERATED_ISSUED_AT = "fed_iat"
-# 本人が最後に実際にサインインした時刻（エポック秒。OIDC と同じ綴り。ADR-0060）。
+# 本人が最後に実際にサインインした時刻（エポック秒。OIDC と同じ綴り。ADR-0076 §10）。
 # 更新・ロールの切り替えでは引き継ぎ、新しくしない。
 CLAIM_AUTHENTICATED_AT = "auth_time"
-# 所属するテナント（ADR-0061）。テナントに属さない利用者は null。
+# 所属するテナント（ADR-0079 §1）。テナントに属さない利用者は null。
 # ⚠ **クレームが無いトークン（テナントより前のもの）は受け付けない。** null と読むと
 # 「どのテナントの中身も見えない」まま寿命まで過ごすことになるので、401 で更新させる
 # （更新は DB を引いて、いまの所属で出し直す）。
@@ -66,7 +66,7 @@ SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
 @dataclass(frozen=True)
 class RefreshedSession:
-    """更新の対象。**入り口（``federated_session``）も一緒に返す**（ADR-0036）。
+    """更新の対象。**入り口（``federated_session``）も一緒に返す**（ADR-0077 §3）。
 
     落とすと、更新のたびに IdP のセッションの宛名が消え、**トークンを 1 回更新する
     だけで停止の伝播をすり抜けられる**。
@@ -75,7 +75,7 @@ class RefreshedSession:
     user: User
     active_role: str | None
     federated_login: FederatedLogin | None
-    #: 本人が最後に実際にサインインした時刻（ADR-0060）。更新でも引き継ぐ
+    #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。更新でも引き継ぐ
     authenticated_at: datetime = SIGNED_IN_LONG_AGO
 
     @property
@@ -99,7 +99,7 @@ class TokenService:
         """access / refresh トークンを発行する。
 
         ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
-        ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0036）。
+        ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0077 §3）。
         """
         granted = user.permission_codes_of(carry.active_role)
         effective = sorted(granted if scopes is None else granted & set(scopes))
@@ -122,7 +122,7 @@ class TokenService:
                 "scope": effective,
                 "email": user.email,
                 # ⚠ **検証が DB を引かないので、principal の材料はここに全部載せる**
-                #   （ADR-0041）。載せ忘れた項目は、その経路でだけ空になる。
+                #   （ADR-0076 §5）。載せ忘れた項目は、その経路でだけ空になる。
                 "username": user.username,
                 "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
             },
@@ -163,7 +163,7 @@ class TokenService:
 
     @classmethod
     def verify_access_token_with_reason(cls, token: str) -> tuple[AuthenticatedPrincipal | None, str | None]:
-        """アクセストークンを**署名とクレームだけ**で検証する（ADR-0041）。
+        """アクセストークンを**署名とクレームだけ**で検証する（ADR-0076 §5）。
 
         ⚠ **DB を引かない。** 止まっている利用者・外された権限・IdP からの停止は、
         ここでは分からない。**分かるのは次の更新のとき**で、それまでの上限が
@@ -201,7 +201,7 @@ class TokenService:
     def verify_refresh_token(cls, token: str, *, session: Session) -> RefreshedSession | None:
         """更新対象のユーザーと、そのセッションのアクティブロール・入り口を返す。
 
-        ⚠ **止める判定はここに集約してある**（ADR-0041）。アクセストークンの検証は
+        ⚠ **止める判定はここに集約してある**（ADR-0076 §5）。アクセストークンの検証は
         DB を引かないので、**止まっている利用者を止められるのはこの 1 点だけ**である
         ——ここを緩めると、寿命による上限そのものが無くなる。
         """
@@ -222,7 +222,7 @@ class TokenService:
 
     @classmethod
     def session_is_revoked(cls, token: str, *, session: Session) -> bool:
-        """このアクセストークンのセッションが IdP 側で止められているか（ADR-0041）。
+        """このアクセストークンのセッションが IdP 側で止められているか（ADR-0076 §5）。
 
         ⚠ **普段の検証では呼ばない。** 呼ぶのは「新しいトークンを出す」経路だけで、
         そこだけは DB を引いて確かめる ——確かめないと、止められた利用者が
@@ -254,7 +254,7 @@ class TokenService:
         user = session.get(User, user_id)
         if user is None or not user.is_active:
             return None
-        # 止めたテナントの人には出し直さない（ADR-0061）。手元の 1 枚は寿命まで
+        # 止めたテナントの人には出し直さない（ADR-0079 §1）。手元の 1 枚は寿命まで
         if not tenant_admits(session, user):
             return None
         return user
@@ -305,7 +305,7 @@ def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
     """このトークンのセッションが終わっていないか。
 
     終わっているのは 2 通り: パスワードを変えるなどして、利用者がそれより前の
-    ログインを終わらせた（ADR-0057）／IdP 側で止められた（ADR-0036）。
+    ログインを終わらせた（ADR-0076 §8）／IdP 側で止められた（ADR-0077 §3）。
     """
     if _issued_before_sessions_ended(claims, session):
         return True
@@ -314,7 +314,7 @@ def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
 
 
 def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> bool:
-    """利用者の区切り（``user_session_boundaries``）より前に出したトークンか（ADR-0057）。
+    """利用者の区切り（``user_session_boundaries``）より前に出したトークンか（ADR-0076 §8）。
 
     ``iat`` は秒までしか持たないので、区切りも秒に切り捨てて比べる。切り上げると、
     区切った直後に**同じ秒の中で出し直した自分のトークン**まで断ってしまう。
@@ -333,7 +333,7 @@ def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> b
 
 
 def _authenticated_at_of(claims: dict[str, Any]) -> datetime:
-    """本人が最後に実際にサインインした時刻。無い・読めないものは「ずっと前」（ADR-0060）。
+    """本人が最後に実際にサインインした時刻。無い・読めないものは「ずっと前」（ADR-0076 §10）。
 
     ⚠ **無いときに「いま」へ倒さない。** 倒すと、この仕組みより前のトークンが更新 1 回で
     「入り直したばかり」に化ける。

@@ -1,4 +1,4 @@
-"""権限を配る・取り上げるときの規則（ADR-0051）。
+"""権限を配る・取り上げるときの規則（ADR-0078 §4）。
 
 ロールを付け外しする・ロールの中身を変える・利用者を止める操作は、それ自体が
 「権限を動かす」操作である。ここには、その操作が**操作する人の権限の範囲に
@@ -35,7 +35,7 @@ _SYSTEM_SEAT_PERMISSIONS = frozenset(code for role in SYSTEM_ROLES for code in R
 
 
 def within_the_seat(in_tenant: bool, granted: Iterable[str]) -> frozenset[str]:
-    """座る場所（テナントの中か外か）で効く権限だけに絞る（ADR-0061）。
+    """座る場所（テナントの中か外か）で効く権限だけに絞る（ADR-0079 §1）。
 
     **システム管理者とテナント管理者は兼ねない。** ロールの付け方を誤っても、
     テナントの利用者に全体の権限は効かず、テナントに属さない利用者に内側の権限は効かない。
@@ -49,7 +49,7 @@ def within_the_seat(in_tenant: bool, granted: Iterable[str]) -> frozenset[str]:
 
 def roles_fit_the_seat(in_tenant: bool, role_names: Iterable[str]) -> bool:
     """テナントの利用者にシステムのロールは付けられず、テナントに属さない利用者には
-    システムのロールしか付けられない（ADR-0061 決定 4）。"""
+    システムのロールしか付けられない（ADR-0079 §1 決定 4）。"""
     system = frozenset(SYSTEM_ROLES)
     names = frozenset(role_names)
     return not (names & system) if in_tenant else names <= system

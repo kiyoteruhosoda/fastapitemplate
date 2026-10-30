@@ -1,4 +1,4 @@
-"""``INoteRepository`` の SQLAlchemy 実装。テナントはコンストラクタで受け取る（ADR-0062）。"""
+"""``INoteRepository`` の SQLAlchemy 実装。テナントはコンストラクタで受け取る（ADR-0079 §2）。"""
 
 from __future__ import annotations
 

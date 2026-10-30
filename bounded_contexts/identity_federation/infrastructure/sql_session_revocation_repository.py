@@ -1,4 +1,4 @@
-"""停止の記録の SQLAlchemy 実装（ADR-0036）。"""
+"""停止の記録の SQLAlchemy 実装（ADR-0077 §3）。"""
 
 from __future__ import annotations
 

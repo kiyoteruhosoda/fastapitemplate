@@ -32,22 +32,22 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 することも同様に落ちる。
 
 `Presentation → Infrastructure` は**禁止しない**。最も外側の層が具体実装を組み立てて
-`Depends()` に渡すのは正しい向きで、DI の配線はどこかで行う必要がある（ADR-0006）。
+`Depends()` に渡すのは正しい向きで、DI の配線はどこかで行う必要がある（ADR-0072 §1）。
 
 ## bounded_contexts と shared の使い分け
 
 - 機能は `bounded_contexts/<context>/` として追加する。1コンテキスト = 1業務領域。
   `bounded_contexts/example/`（Item CRUD）が最小構成の見本。資源 1 件ずつの可否（持ち主・共有）が
-  要る機能は `bounded_contexts/notes/`（共有メモ。ADR-0070）が見本。
+  要る機能は `bounded_contexts/notes/`（共有メモ。ADR-0078 §6）が見本。
   現在のコンテキストは `example`（見本）・`notes`（資源ごとの可否の見本）・`account_security`（二要素認証・パスキー）・
   `audit`（監査ログ／アプリログの記録と閲覧）・`email_sender`（メール送信）・
-  `identity_federation`（SSO）・`notification`（お知らせの配信とベル・画面上部・Web Push。ADR-0047）・
-  `app_release`（スマホアプリの最新版を知らせる。ADR-0048）。
+  `identity_federation`（SSO）・`notification`（お知らせの配信とベル・画面上部・Web Push。ADR-0081 §3）・
+  `app_release`（スマホアプリの最新版を知らせる。ADR-0081 §4）。
 - 複数コンテキストから使う横断的な要素だけを `shared/` に置く:
   - `shared/domain/auth/` — 認可マスタデータ（`master_data.py` が唯一の出所）
   - `shared/infrastructure/models/` — 共有 SQLAlchemy モデル（User / Role / Permission /
     UserGroup / SystemSetting / Log / PasswordResetToken）。グループはロールと同じく
-    「人の組み立て」なのでここに置く（通知の概念に閉じない。ADR-0047）
+    「人の組み立て」なのでここに置く（通知の概念に閉じない。ADR-0081 §3）
   - `shared/kernel/` — settings / logging / database / restart / scheduling /
     timestamps（技術基盤。ドメイン知識を持たない）
 - `presentation/fastapi/` はコンテキスト横断の API（認証・管理系）と
@@ -63,40 +63,40 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 - 認可は **scope（権限コード値）** ベース。ロール名で分岐しない。
   - 有効 scope は**アクティブロール**（JWT の `active_role` クレーム）が決める。
     未指定（`null`）ならユーザーの全ロールが持つ権限の和集合、ロールを 1 つ選んで
-    いればそのロール 1 つ分の権限（ADR-0017）。切り替えは
+    いればそのロール 1 つ分の権限（ADR-0078 §1）。切り替えは
     `POST /api/auth/switch-role` によるトークンの再発行で行う。
   - エンドポイントでは `Depends(require_permission("user:manage"))` のように宣言する
     （指定した scope を**すべて**要求する）。読み取りが複数の職掌にまたがる資源だけ
-    `require_any_permission(...)`（いずれか 1 つ）を使う（ADR-0018）。
+    `require_any_permission(...)`（いずれか 1 つ）を使う（ADR-0078 §2）。
   - 検証済みの主体は `AuthenticatedPrincipal`（`shared/application/`）として渡る。
     `active_role` も持つが、これは表示・切り替えのためで認可には使わない。
-- 認可は 2 段に分ける（ADR-0070）。
-  - **機能を使えるか**は scope。トークンだけで確かめ、DB を引かない（ADR-0041）。scope は機能単位で、
+- 認可は 2 段に分ける（ADR-0078 §6）。
+  - **機能を使えるか**は scope。トークンだけで確かめ、DB を引かない（ADR-0076 §5）。scope は機能単位で、
     資源の ID や資源ごとの可否は入れない（入れると資源の数だけトークンが膨らむ）。
   - **この 1 件を扱えるか**は、持ち主・グループの所属などのデータで、リクエストのたびに DB で確かめる。
     1 件の可否はエンティティが答え（`Note.readable_by` / `changeable_by`）、ユースケースが確かめ、
     一覧はリポジトリが同じ決まりを SQL で書いて絞る。読めないものは 404、読めるが変えられないものは 403。
 - ロール・権限コード・初期管理者は `shared/domain/auth/master_data.py` で一元管理し、
   マイグレーションのシードと `scripts/seed_master_data.py` が参照する。
-  投入は 2 つに分かれている（ADR-0024）。`seed_master_data` は**ロールと権限だけ**、
+  投入は 2 つに分かれている（ADR-0078 §3）。`seed_master_data` は**ロールと権限だけ**、
   `ensure_default_admin` が初期管理者を据える。後者を呼ぶのは据え付けの `0002` と
   投入スクリプトだけで、権限を足すマイグレーションは前者しか呼ばない。
 
 - 第二の要素（二要素認証・パスキー）は `bounded_contexts/account_security/` が持つ
-  （ADR-0003）。パスワード認証は上記のまま、ログイン時に TOTP を検証する／パスキー
+  （ADR-0076 §2）。パスワード認証は上記のまま、ログイン時に TOTP を検証する／パスキー
   だけでトークンを発行する、という形で足している。詳細はコンテキストの README。
 
-サービスアカウント認証・外部 IdP 連携は初期スコープに含めない（ADR-0002）。
+サービスアカウント認証・外部 IdP 連携は初期スコープに含めない（ADR-0076 §1）。
 
-## テナントの設計（ADR-0061〜0065）
+## テナントの設計（ADR-0079）
 
 - **内側と外側。** テナントの内側は上の認証・認可そのもので、テナント管理者（`owner`）が管理する。
   外側（テナントの登録・停止・削除、テナント管理者の指名、全体の設定・アプリログ）はテナントに
   属さないシステム管理者（`system-admin`）が持ち、API は `/api/system/*`。2 つの席は兼ねない
-  （付けるロールの選び方と、トークンに載せる権限の両方で守る。ADR-0063）。
+  （付けるロールの選び方と、トークンに載せる権限の両方で守る。ADR-0079 §3）。
 - **主体のテナント**はトークンのクレーム `tenant` に載り、`AuthenticatedPrincipal.tenant_id` で渡る。
   `None` は「どのテナントでもない」で、全部のテナントではない。
-- **絞りはリポジトリの入口で掛ける**（ADR-0062）。テナントの中身を扱うリポジトリはテナントを
+- **絞りはリポジトリの入口で掛ける**（ADR-0079 §2）。テナントの中身を扱うリポジトリはテナントを
   コンストラクタで受け取る（見本は `SqlItemRepository`）。テナントは
   `presentation/fastapi/dependencies/tenant.py` の依存関数が取り出し、テナントに属さない主体は 403。
   共有の表（利用者・グループ・ロール）は `shared/infrastructure/tenant_scope.py` の `TenantMembers` を
@@ -105,12 +105,12 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
   利用者に付く表 / 全体の表。宣言漏れは `tests/integration/test_table_tenancy.py` が落とし、テナントの
   削除もこの宣言に従って表を消す。
 - **入口**はテナントごと（`/t/<slug>/login`）。SSO の連携先（発行者とクライアント ID）はテナントの行が
-  持つ（ADR-0064）。
+  持つ（ADR-0079 §4）。
 
 ## ログと監査の設計
 
 「システムが何をしたか」（アプリログ・`log`）と「誰が何をしたか」（監査ログ・
-`audit_log`）を別のテーブルとして持つ（ADR-0013）。どちらも `requestId` を持つので、
+`audit_log`）を別のテーブルとして持つ（ADR-0075 §1）。どちらも `requestId` を持つので、
 1 リクエストの記録を両側から突き合わせられる。
 
 書き手と読み手で責務が分かれている。
@@ -158,12 +158,12 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 
 要求を DB 経由にするのは、管理 API を処理したプロセスと再起動すべきプロセスが
 別だから（Gunicorn は複数ワーカー）。判定を時刻ではなく token の変化で行うのは、
-時計のずれで再起動ループに陥らないようにするため（ADR-0004）。
+時計のずれで再起動ループに陥らないようにするため（ADR-0074 §2）。
 
 ## 定期実行の設計
 
 一定間隔で繰り返す仕事は `shared/kernel/scheduling` の `IntervalWorker` に載せる。
-スケジューラのライブラリは入れていない（ADR-0021）。
+スケジューラのライブラリは入れていない（ADR-0075 §3）。
 
 ```python
 start_interval_worker("log-retention", purge_expired_logs_once, 6 * 60 * 60)
@@ -184,7 +184,7 @@ Infrastructure は Application を import できないため
 
 `shared/kernel/settings/settings.py` の `ApplicationSettings` が
 「**DB（system_settings テーブル）> 環境変数 > デフォルト値**」の優先順位で
-値を解決する（ADR-0034）。⚠ **環境変数は「配るときの初期値」**であって、
+値を解決する（ADR-0074 §1）。⚠ **環境変数は「配るときの初期値」**であって、
 運用中に決め直す場所は管理画面である。
 
 - DB 層は TTL キャッシュ付き。管理画面からの保存時は
@@ -202,7 +202,7 @@ Infrastructure は Application を import できないため
   書き込む。stdout への JSON 出力と併用する。
 - PII 禁止。ユーザー識別子はハッシュ（`user.id_hash`）のみ。
 
-**失敗の記録は `presentation/fastapi/error_handling.py` に集約する**（ADR-0019）。
+**失敗の記録は `presentation/fastapi/error_handling.py` に集約する**（ADR-0075 §2）。
 `HTTPException`・入力検証エラー・ドメイン例外は、送出された時点でルーターを抜けて
 例外ハンドラが応答へ変えるため、ルーターに `logger` を足しても記録されない。
 
@@ -235,7 +235,7 @@ Infrastructure は Application を import できないため
 - `theme/` — テーマ（light / dark / system）。配色は `index.css` の CSS 変数で持ち、
   `<html data-theme>` を切り替えて解決する。
 - 言語・テーマの既定値と選択肢は `GET /api/ui/settings`（公開）から受け取り、
-  利用者の選択は `localStorage` に持つ（ADR-0005）。
+  利用者の選択は `localStorage` に持つ（ADR-0080 §1）。
 - ビルド成果物（`frontend/dist`）は FastAPI の `routers/spa.py` が配信する。
   開発時は Vite dev server（`npm run dev`）から API へプロキシする。
 - テストは対象と同じ階層に `*.test.ts(x)` として置く（Vitest + jsdom +

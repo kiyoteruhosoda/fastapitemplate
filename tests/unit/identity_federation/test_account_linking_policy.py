@@ -1,4 +1,4 @@
-"""受け入れてよい相手か・寄せてよいか（ADR-0025 決定 4 / ADR-0037）。"""
+"""受け入れてよい相手か・寄せてよいか（ADR-0077 §1 決定 4 / ADR-0077 §4）。"""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def test_a_domain_outside_the_list_is_refused() -> None:
 
 
 def test_by_default_nothing_is_linked() -> None:
-    """⚠ 既定は寄せない（ADR-0037）。
+    """⚠ 既定は寄せない（ADR-0077 §4）。
 
     条件の ``email_verified`` は、自前 idp (assay) では「テナント管理者がそう
     主張している」であって本人の証明ではない。既定で開けておくと、意味の食い違いが

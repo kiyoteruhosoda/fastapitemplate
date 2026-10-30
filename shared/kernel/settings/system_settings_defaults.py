@@ -10,7 +10,7 @@ from __future__ import annotations
 DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # --- 認証 ---
     "SECRET_KEY": "default-secret-key",
-    # ⚠ **本番（APP_ENV=production）ではこの値のまま起動できない**（ADR-0056）。
+    # ⚠ **本番（APP_ENV=production）ではこの値のまま起動できない**（ADR-0073 §4）。
     "JWT_SECRET_KEY": "default-jwt-secret-change-me-in-production",
     "ACCESS_TOKEN_ISSUER": "fastapitemplate",
     "ACCESS_TOKEN_AUDIENCE": "fastapitemplate",
@@ -18,9 +18,9 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "REFRESH_TOKEN_EXPIRES_SECONDS": 14 * 24 * 3600,
     "SESSION_COOKIE_SECURE": False,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS": 3600,
-    # パスキーの追加・削除とメールの変更は、サインインからこの秒数以内に限る（ADR-0060）
+    # パスキーの追加・削除とメールの変更は、サインインからこの秒数以内に限る（ADR-0076 §10）
     "RECENT_SIGN_IN_SECONDS": 600,
-    # 宛名ごとの失敗の上限（ADR-0058）。窓の中で上限まで失敗したら、しばらく断る
+    # 宛名ごとの失敗の上限（ADR-0076 §9）。窓の中で上限まで失敗したら、しばらく断る
     "LOGIN_MAX_FAILURES": 5,
     "LOGIN_FAILURE_WINDOW_SECONDS": 900,
     "LOGIN_LOCK_SECONDS": 900,
@@ -62,11 +62,11 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "LOG_DB_MIN_LEVEL": "INFO",
     # 保持期間（日）。0 は「削除しない」。既定ではどちらも消さない——保持期間は
     # 運用・監査の要件で決まるもので、テンプレートが勝手に消し始めてよいものでは
-    # ないため。日数を入れた時点で定期的な掃除が働く（ADR-0021）。
+    # ないため。日数を入れた時点で定期的な掃除が働く（ADR-0075 §3）。
     "LOG_RETENTION_DAYS": 0,
     # 監査ログはアプリログと分けて持つ（少量・長命で、間引いてよい行が無い）。
     "AUDIT_LOG_RETENTION_DAYS": 0,
-    # --- 通知（ADR-0047） ---
+    # --- 通知（ADR-0081 §3） ---
     # Web Push（端末への通知）の VAPID 秘密鍵（PEM）のファイルの場所。空なら端末への
     # 通知は出せない（ベル・画面上部の知らせは動く）。⚠ 値ではなく場所で持つ。
     # 作り方は docs/OPERATIONS.md。公開鍵は秘密鍵から導くので設定は要らない。
@@ -74,10 +74,10 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # 通知サービス（FCM / Mozilla など）へ名乗る連絡先。``mailto:`` か ``https:``。
     # 送り過ぎたときに通知サービスがここへ連絡してくる。
     "WEB_PUSH_SUBJECT": "",
-    # スマホアプリへの通知（FCM。ADR-0049）。Firebase のサービスアカウントの鍵（JSON）の
+    # スマホアプリへの通知（FCM。ADR-0081 §5）。Firebase のサービスアカウントの鍵（JSON）の
     # ファイルの場所。空なら FCM へは送らない。⚠ 値ではなく場所で持つ。
     "FCM_SERVICE_ACCOUNT_FILE": "",
-    # --- スマホアプリの最新版（ADR-0048） ---
+    # --- スマホアプリの最新版（ADR-0081 §4） ---
     # 読む先（ENDPOINT_URL / OBJECT_KEY / ACCESS_KEY_ID / SECRET_ACCESS_KEY_FILE）が
     # 1 つでも空なら知らせない。⚠ 秘密の鍵は値ではなくファイルのパスで持つ。
     # ⚠ 鍵には artifacts の読み取りだけを持たせる（書けると配っている APK をすり替えられる）。
@@ -89,7 +89,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE": "",
     # 知らせを押したときにブラウザで開く先（APK を人が取りに行く画面）。
     "APP_RELEASE_DOWNLOAD_URL": "",
-    # --- 外部 IdP との SSO（ADR-0025 / ADR-0026） ---
+    # --- 外部 IdP との SSO（ADR-0077 §1 / ADR-0076 §3） ---
     # ⚠ **既定は無効。** テンプレートは連携先を知らない。設定が空のまま有効にすると、
     #   起動はするのにログインだけが失敗する状態になる。
     "OIDC_ENABLED": False,
@@ -99,7 +99,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "OIDC_ISSUER": "",
     "OIDC_CLIENT_ID": "",
     "OIDC_CLIENT_SECRET": "",
-    # トークンエンドポイントへの client 認証方式（ADR-0025 決定 5）。
+    # トークンエンドポイントへの client 認証方式（ADR-0077 §1 決定 5）。
     # client_secret_basic = 上の CLIENT_SECRET を使う。
     # private_key_jwt     = 下の PRIVATE_KEY_FILE の秘密鍵で署名する（秘密を
     #                       デプロイの変数にも DB にも置かずに済む）。
@@ -110,7 +110,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # IdP に鍵が複数登録されているときに、どれで検証するかを示す（RFC 7638 の
     # サムプリント）。1 つしか無ければ空でよい。
     "OIDC_PRIVATE_KEY_KID": "",
-    # このアプリが**機械として** IdP を呼ぶときの client_id（ADR-0043）。assay で
+    # このアプリが**機械として** IdP を呼ぶときの client_id（ADR-0077 §7）。assay で
     # サービスアカウントとして登録したもので、ログイン用の OIDC_CLIENT_ID とは別の登録。
     # 鍵は上の OIDC_PRIVATE_KEY_FILE / KID を共有し、方式は常に private_key_jwt。
     # 空なら定期照合は走らない。⚠ assay でアプリの「名乗り」に結び付けるまでは 403 で見送る。
@@ -128,7 +128,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # ⚠ **IdP 側の登録と完全一致でなければ使われない**（未登録でも失敗はせず、
     #   IdP 自身の完了ページで止まる）。
     "OIDC_POST_LOGOUT_REDIRECT_URI": "",
-    # 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0026 決定 1）。
+    # 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0076 §3 決定 1）。
     # ⚠ **入れたら fail closed になる。** 返ってきた acr が要求と一致しなければ
     #   （返ってこない場合も）ログインを断る。予約語を持たない IdP へつなぐときは
     #   空のままにする。自前 idp（assay）なら urn:assay:ac:mfa が使える。
@@ -146,7 +146,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # ⚠ **未知の利用者を初回ログインで作るか。既定は false。** IdP がテナント共用の
     #   場合、true は「IdP に口座がある人は全員このアプリに入れる」を意味する。
     "OIDC_AUTO_PROVISION": False,
-    # ⚠ **初回ログインで既存のローカルアカウントへ寄せるか。既定は false**（ADR-0037）。
+    # ⚠ **初回ログインで既存のローカルアカウントへ寄せるか。既定は false**（ADR-0077 §4）。
     #   条件の email_verified は、自前 idp (assay) では「テナント管理者がそう主張して
     #   いる」であって本人の証明ではない。開けるなら、つないだ IdP でこの値がどう立つ
     #   のかまで確かめること。
@@ -157,7 +157,7 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "OIDC_LOGIN_TRANSACTION_TTL_SECONDS": 600,
     # コールバックが発行する引き換え券（SPA がトークンへ交換する）の寿命
     "OIDC_LOGIN_TICKET_TTL_SECONDS": 60,
-    # --- ローカルの入口（ADR-0026 決定 2・3） ---
+    # --- ローカルの入口（ADR-0076 §3 決定 2・3） ---
     # ⚠ **false にするとパスワード・パスキーでのログインが塞がる。** 併せてローカルの
     #   資格情報の登録（パスキー・TOTP・パスワード変更）も止まる（閉じた入口の合鍵を
     #   作れないようにするため）。締め出されたら環境変数で true へ戻して再起動する。

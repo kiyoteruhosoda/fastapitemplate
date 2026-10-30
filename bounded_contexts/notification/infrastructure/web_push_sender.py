@@ -1,4 +1,4 @@
-"""端末への通知を Web Push（VAPID）で送る（ADR-0047）。
+"""端末への通知を Web Push（VAPID）で送る（ADR-0081 §3）。
 
 暗号化（RFC 8291）と VAPID の署名（RFC 8292）は ``pywebpush`` に任せる。
 

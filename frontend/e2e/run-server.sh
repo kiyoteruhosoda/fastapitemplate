@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E 用に本物のサーバーを 1 つ立てる（ADR-0054）。playwright.config.ts の webServer から呼ばれ、
+# E2E 用に本物のサーバーを 1 つ立てる（ADR-0072 §6）。playwright.config.ts の webServer から呼ばれ、
 # 画面のビルド（frontend/dist）はその前に済んでいる。FastAPI が dist をそのまま配る。
 #
 # DB は毎回まっさらな SQLite を作り、マイグレーションで初期管理者まで入れる

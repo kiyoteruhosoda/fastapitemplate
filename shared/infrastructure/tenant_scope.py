@@ -1,4 +1,4 @@
-"""テナントの中の利用者・グループへの入口（ADR-0061 決定 5）。
+"""テナントの中の利用者・グループへの入口（ADR-0079 §1 決定 5）。
 
 管理画面・お知らせの宛先・グループの所属候補は、どれも「自分のテナントの利用者・グループ」
 しか扱わない。``select(User)`` をルーターで書くと絞り忘れても動いてしまうので、
@@ -85,7 +85,7 @@ class TenantMembers:
         return UserGroup(tenant_id=self.tenant_id, name=name, description=description)
 
     def _roles(self) -> sa.Select[Role]:
-        """このテナントで使えるロール: 共有の雛形（システムのロールを除く）と、自分で作ったもの（ADR-0063）。"""
+        """このテナントで使えるロール: 共有の雛形（システムのロールを除く）と、自分で作ったもの（ADR-0079 §3）。"""
         shared = sa.and_(RoleTenant.tenant_id.is_(None), Role.name.not_in(list(master_data.SYSTEM_ROLES)))
         return (
             sa.select(Role)

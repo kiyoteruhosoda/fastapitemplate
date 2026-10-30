@@ -1,6 +1,6 @@
 # app（FastAPI）と front（nginx）。
 #
-# ⚠ **サービス名に一般名を使わない**（ADR-0023 から引き継ぐ）。`app` / `front` は
+# ⚠ **サービス名に一般名を使わない**（ADR-0073 §1 決定 8）。`app` / `front` は
 #   namespace で分かれているので衝突しないが、名前を変えると `20-config.yaml` の
 #   `proxy_pass` の FQDN も変わる。
 ---

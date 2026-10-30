@@ -38,7 +38,7 @@ function RequireAuth() {
         <span className="spinner" aria-hidden="true" /> {t('common.unreachable')}
       </p>
     )
-  // 開こうとしていた画面を持たせて送る（ADR-0055）。持たせないと、サインインした先は着地になる。
+  // 開こうとしていた画面を持たせて送る（ADR-0077 §8）。持たせないと、サインインした先は着地になる。
   if (!user) return <Navigate to={signInPathFor(location)} replace />
   return (
     <AppLayout>
@@ -51,7 +51,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      {/* テナントごとの入口（ADR-0064） */}
+      {/* テナントごとの入口（ADR-0079 §4） */}
       <Route path="/t/:tenant/login" element={<LoginPage />} />
       <Route path="/t/:tenant/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/login/sso" element={<SsoCallbackPage />} />
@@ -65,7 +65,7 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/security" element={<SecurityPage />} />
         {/* パスワード変更はセキュリティの区画になり、セキュリティはプロフィールの
-            下の画面へ移った（ADR-0020）。旧 URL のブックマークが行き止まりに
+            下の画面へ移った（ADR-0080 §4）。旧 URL のブックマークが行き止まりに
             ならないよう転送する。 */}
         <Route path="/change-password" element={<Navigate to="/profile/security" replace />} />
         <Route path="/security" element={<Navigate to="/profile/security" replace />} />

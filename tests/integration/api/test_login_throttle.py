@@ -1,4 +1,4 @@
-"""ログインの失敗を宛名ごとに数えて、しばらく断る（ADR-0058）。
+"""ログインの失敗を宛名ごとに数えて、しばらく断る（ADR-0076 §9）。
 
 見たいのは、**上限で 429 になること**（正しいパスワードでも）・**時間が過ぎれば
 入れること**・**二要素のコードの間違いも数えること**・**未知の宛名も同じに扱うこと**・
@@ -104,7 +104,7 @@ def test_locking_is_recorded_in_the_audit_log(
     # 断っているあいだの試行も残る（当たられていることが見える）
     assert other_client.post(LOGIN, json={"email": "nobody@example.com", "password": "x"}).status_code == 429
 
-    # 宛先の分からない失敗は全体の記録（ADR-0062）。システム管理者が読む
+    # 宛先の分からない失敗は全体の記録（ADR-0079 §2）。システム管理者が読む
     headers = system_admin_headers
     locked = client.get("/api/admin/audit-logs", headers=headers, params={"event_type": "login.locked"}).json()
     assert [entry["reason"] for entry in locked["entries"]] == ["unknown_email"]

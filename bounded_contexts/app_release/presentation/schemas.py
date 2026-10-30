@@ -1,4 +1,4 @@
-"""``GET /api/app-release/latest`` の応答スキーマ（ADR-0048）。"""
+"""``GET /api/app-release/latest`` の応答スキーマ（ADR-0081 §4）。"""
 
 from __future__ import annotations
 

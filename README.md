@@ -36,7 +36,7 @@ uv run python main.py                # http://127.0.0.1:8000
 ```
 
 - Swagger UI: http://127.0.0.1:8000/docs
-- 初期管理者: `admin@example.com` / `admin@example.com`（`ADMIN_INITIAL_PASSWORD` で上書き可。⚠ 本番（`APP_ENV=production`）ではこのパスワードでは入れない。ADR-0056）
+- 初期管理者: `admin@example.com` / `admin@example.com`（`ADMIN_INITIAL_PASSWORD` で上書き可。⚠ 本番（`APP_ENV=production`）ではこのパスワードでは入れない。ADR-0073 §4）
 
 フロントエンド:
 
@@ -50,7 +50,7 @@ RP ID はドメイン名でなければならず IP アドレスは使えない�
 
 ## 品質ゲート（テスト・Lint・型チェック）
 
-CI の必須ゲートを手元で流す。落ちたらマージできない（[ADR-0006](docs/decisions/ADR-0006-quality-gates.md)）。
+CI の必須ゲートを手元で流す。落ちたらマージできない（[ADR-0072 §1](docs/decisions/ADR-0072-development-workflow.md)）。
 
 ```bash
 make check              # Backend + Frontend の 8 ゲートすべて
@@ -68,7 +68,7 @@ make format             # 整形の指摘を自動修正
 ## Docker / デプロイ
 
 **デプロイ先は nolumialab の k3s で、成果物はコンテナイメージ 1 つです**
-（[ADR-0044](docs/decisions/ADR-0044-build-and-apply-on-k3s.md)）。
+（[ADR-0073 §1](docs/decisions/ADR-0073-build-and-deploy.md)）。
 
 ```
 forge のソース ──▶ build ──▶ hub.nolumia.com:5000/app/<image>:sha-<コミット>
@@ -100,7 +100,7 @@ docker compose up -d            # db / app / front が起動 → http://127.0.0.
 
 **`pyproject.toml` の `[project].name` も同時に変えてください。** ここがアプリ自身の
 名前の正本で、Swagger の題と、外へ出るときに名乗る `User-Agent` がここから導かれます
-（[ADR-0031](docs/decisions/ADR-0031-the-app-name-comes-from-pyproject.md)）。
+（[ADR-0073 §2](docs/decisions/ADR-0073-build-and-deploy.md)）。
 コード側に名前を直に書かないでください。
 
 ## ドキュメント

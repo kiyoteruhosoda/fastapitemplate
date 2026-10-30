@@ -1,4 +1,4 @@
-"""テナントごとの入口（ADR-0061 決定 8・ADR-0064）。
+"""テナントごとの入口（ADR-0079 §1 決定 8・ADR-0079 §4）。
 
 - パスワード: ``/t/<slug>/login`` はそのテナントの中で探す。名前の無い入口は、テナントに
   属さない人と、テナントが 1 つだけのときのそのテナント
@@ -115,7 +115,7 @@ def test_the_plain_entrance_serves_only_outsiders_once_there_are_two_tenants(
 
 
 def test_the_plain_entrance_still_works_with_a_single_tenant(client: TestClient) -> None:
-    """テナントが 1 つだけなら、入口は今までどおり（ADR-0061 決定 8）。"""
+    """テナントが 1 つだけなら、入口は今までどおり（ADR-0079 §1 決定 8）。"""
     sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
 
 
@@ -195,7 +195,7 @@ def test_a_failed_round_trip_returns_to_the_tenants_entrance(sso_client: tuple[T
 def test_a_declined_silent_attempt_returns_to_the_tenants_entrance(
     sso_client: tuple[TestClient, _StubGateway],
 ) -> None:
-    """ボタンを押さずに入る試し（ADR-0066）も、断られたら始めたテナントの入口へエラー無しで戻す。
+    """ボタンを押さずに入る試し（ADR-0077 §9）も、断られたら始めたテナントの入口へエラー無しで戻す。
 
     共通の入口へ戻すと、テナントが 2 つ以上ある環境ではそのテナントの IdP の入口が出ない。
     """

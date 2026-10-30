@@ -1,17 +1,17 @@
 """ロール管理 API（作成・更新・削除は要 ``role:manage``）。
 
 一覧の取得だけは ``user:manage`` でも通す。ユーザーへロールを割り当てる画面が
-「どんなロールがあるか」を知る必要があるため（ADR-0018）。
+「どんなロールがあるか」を知る必要があるため（ADR-0078 §2）。
 
 ロールへの権限（scope）付与は実質的な権限変更なので、作成・更新・削除を監査ログ
 へ残す。更新時の ``reason`` には**付与後の権限コード**を入れる（誰が何の権限を
 与えたかを後から検証できるようにするため。権限コードは PII ではない）。
 
-権限の中身を変える操作には、scope とは別に関門を掛ける（ADR-0051）。自分が
+権限の中身を変える操作には、scope とは別に関門を掛ける（ADR-0078 §4）。自分が
 持っていない権限は足すことも外すこともできず、「管理の要」を持つ人を 0 人に
 する変更は通さない。
 
-扱えるのは**自分のテナントで使えるロールだけ**（ADR-0063）。雛形（``master_data.ROLES``）は
+扱えるのは**自分のテナントで使えるロールだけ**（ADR-0079 §3）。雛形（``master_data.ROLES``）は
 全テナントが共有するので、一覧には出るが中身は変えられない（403 ``shared_role``）。
 作ったロールは作ったテナントのもので、ほかのテナントからは見えない（404）。
 """
@@ -43,7 +43,7 @@ from shared.kernel.database.session import get_db
 
 router = APIRouter(prefix="/api/admin/roles", tags=["admin"])
 
-# ロールを変える操作は role:manage。読むだけなら user:manage でも通す（ADR-0018）。
+# ロールを変える操作は role:manage。読むだけなら user:manage でも通す（ADR-0078 §2）。
 _MANAGE_ROLES = Depends(require_permission("role:manage"))
 _READ_ROLES = Depends(require_any_permission("role:manage", "user:manage"))
 

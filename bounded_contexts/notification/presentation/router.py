@@ -1,7 +1,7 @@
-"""お知らせの API（ADR-0047）。
+"""お知らせの API（ADR-0081 §3）。
 
 - ``/api/notifications`` —— 本人の手元（ベル・画面上部）と、端末への通知の購読。
-  **アプリからも叩いてよい**（:data:`AppOrWebPrincipalDep`。ADR-0045）ので、スマホアプリも
+  **アプリからも叩いてよい**（:data:`AppOrWebPrincipalDep`。ADR-0081 §1）ので、スマホアプリも
   同じ口でベルと上部の知らせを出せる。scope は要求しない（自分宛てのものしか見えない）
 - ``/api/admin/notifications`` —— 管理画面からの配信と履歴（``notification:send``）
 """
@@ -142,7 +142,7 @@ async def push_status(
     return PushStatusResponse(subscribed=subscriptions.exists(principal.user_id, body.endpoint))
 
 
-# --- スマホアプリの通知（FCM）の登録（ADR-0049） ---------------------------------
+# --- スマホアプリの通知（FCM）の登録（ADR-0081 §5） ---------------------------------
 
 
 @router.post("/device/register", status_code=status.HTTP_204_NO_CONTENT)

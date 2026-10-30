@@ -1,11 +1,11 @@
-"""アプリから来た assay のアクセストークンを、このアプリの利用者へ落とす（ADR-0045）。
+"""アプリから来た assay のアクセストークンを、このアプリの利用者へ落とす（ADR-0081 §1）。
 
 受け取る条件（どれか 1 つでも外れたら同じ 401）:
 
 - 署名・``typ``・発行者・宛先・期限（ゲートウェイが確かめる）
 - ``client_id`` が受け取ってよいアプリのもの
 - ``sub_type`` が無い（機械のトークンではない）
-- 停止の記録（ADR-0036）に当たらない
+- 停止の記録（ADR-0077 §3）に当たらない
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ class AuthenticateAppAccessToken:
         return subject
 
     def _first_visit(self, token: str, subject: str) -> int:
-        """アプリから先に来た人。SSO のログインと同じ規則で作る・寄せる（ADR-0045 決定 4）。"""
+        """アプリから先に来た人。SSO のログインと同じ規則で作る・寄せる（ADR-0081 §1 決定 4）。"""
         profile = dict(self.gateway.userinfo(self.acceptance.issuer, token))
         if profile.get("sub") not in (None, subject):
             profile = {}

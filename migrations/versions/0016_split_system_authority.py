@@ -1,6 +1,6 @@
 """split system authority
 
-全体の権限をテナントの中から外へ移す（ADR-0061 決定 4・ADR-0063）。
+全体の権限をテナントの中から外へ移す（ADR-0079 §1 決定 4・ADR-0079 §3）。
 
 - ``role_tenants`` を足す。いまある自作のロール（雛形の名前でないもの）は既定のテナントのものにする
 - 権限 ``tenant:manage`` を足し、``system-admin`` に持たせる（``seed_master_data``）
@@ -10,7 +10,7 @@
   ``system-admin`` だけを持つ人はテナントから出てシステム管理者になり、ほかのロールも持つ人は
   ``system-admin`` を外される
 
-初期管理者は据えない（ADR-0024）。モデルは ``seed_master_data`` の中だけで使う。
+初期管理者は据えない（ADR-0078 §3）。モデルは ``seed_master_data`` の中だけで使う。
 
 Revision ID: split_system_authority
 Revises: tenants

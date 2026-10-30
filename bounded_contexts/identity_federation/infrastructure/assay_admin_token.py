@@ -1,4 +1,4 @@
-"""assay の**管理 API** を叩くときに名乗るトークン（ADR-0043）。
+"""assay の**管理 API** を叩くときに名乗るトークン（ADR-0077 §7）。
 
 ``client_credentials`` ＋ ``private_key_jwt`` で取る。ログイン用の登録（``OIDC_CLIENT_ID``）とは別の、
 **このアプリのサービスアカウント**（``MACHINE_CLIENT_ID``）として名乗る。
@@ -6,7 +6,7 @@
 - **宛名は ``{issuer}/admin``。** 管理 API のトークンはこの ``aud`` でなければ通らない
   （idp の ADR-0037）。⚠ **設定にしない** ——発行者から決まる値で、運用者が選ぶものではない。
 - **方式は常に ``private_key_jwt``。** ログインが ``client_secret_basic`` でも、機械は秘密を持たない。
-  鍵はログインと同じ ``OIDC_PRIVATE_KEY_FILE`` / ``OIDC_PRIVATE_KEY_KID`` を使う（ADR-0025）。
+  鍵はログインと同じ ``OIDC_PRIVATE_KEY_FILE`` / ``OIDC_PRIVATE_KEY_KID`` を使う（ADR-0077 §1）。
 
 ⚠ **assay 側でこのサービスアカウントをアプリの名乗りとして結び付ける必要がある。** 結び付けるまで、
 管理 API は 403 を返し続ける（トークンそのものは取れる）。

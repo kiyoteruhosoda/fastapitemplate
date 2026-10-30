@@ -1,7 +1,7 @@
 # ローカル開発用の compose。**デプロイには使わない。**
 #
 # デプロイ先は k3s で、compose は無い（宣言は deploy-repo の k8s/<app>-<env>/。
-# 雛形は deploy/k8s/。ADR-0044）。サービス名（app / front）・上流の引き方・
+# 雛形は deploy/k8s/。ADR-0073 §1）。サービス名（app / front）・上流の引き方・
 # 前段 1 段だけを信用する形は、デプロイ側と同じになるよう揃えてある
 # ——「手元では動くのにデプロイすると 502」を避けるため。
 # ⚠ **nginx の設定だけは共有していない**（resolver が docker と k8s で違う）。
@@ -42,7 +42,7 @@ services:
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-template123}
       - MARIADB_DATABASE=${MARIADB_DATABASE:-appdb}
     # DB はホストへ公開しない。到達できるのは Docker ネットワーク内部だけで、
-    # 保守も `docker compose exec db mariadb ...` とコンテナ内で完結させる（ADR-0010）。
+    # 保守も `docker compose exec db mariadb ...` とコンテナ内で完結させる（ADR-0071 §2）。
     expose:
       - "3306"
     volumes:

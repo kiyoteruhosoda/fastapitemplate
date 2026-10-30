@@ -1,4 +1,4 @@
-"""配布面の ``latest.json`` を読む（ADR-0048）。
+"""配布面の ``latest.json`` を読む（ADR-0081 §4）。
 
 書き手はアプリの配布手順（deploy-repo の ``bin/flutter-release.sh`` の stage 4）で、
 次の形をしている::
