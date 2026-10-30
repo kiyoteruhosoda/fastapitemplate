@@ -38,6 +38,8 @@ export function ConfigPage() {
   const { t } = useI18n()
   const { notify } = useToast()
   const { hasScope } = useAuth()
+  // 見るだけの人（system-settings:view だけ）には入力欄を止め、保存ボタンを出さない（ADR-0084 §3）
+  const canWrite = hasScope('system-settings:write')
   const [items, setItems] = useState<SettingItem[]>([])
   const [edits, setEdits] = useState<Record<string, unknown>>({})
   const [pendingRestart, setPendingRestart] = useState<RestartRequirement | null>(null)
@@ -125,80 +127,88 @@ export function ConfigPage() {
         </div>
       )}
 
-      {categories.map((category) => (
-        <section key={category}>
-          <h2>{t(`config.category.${category}`)}</h2>
-          {items
-            .filter((item) => item.category === category)
-            .map((item) => (
-              <div key={item.key} className="config-row">
-                {/* 見出しと入力欄は `for` / `id` で結ぶ。パスワード欄は入力欄に加えて
-                 * 表示切り替えボタンを持ち、`<label>` で囲むと labelable な要素が
-                 * 2 つ入って対応付けが曖昧になるため（HTML の label の内容モデル）。 */}
-                {/* 設定名・環境変数名・注記は別の要素にする。1 行に流すと
-                 * 「名前 KEY (再起動後に反映)」がひと続きの文に見える。 */}
-                <label htmlFor={`config-${item.key}`}>
-                  <span className="config-label">{labelFor(item)}</span>
-                  <code className="config-key">{item.key}</code>
-                  {item.env_fallback && <em className="config-note">{t('config.envFallback')}</em>}
-                  {item.restart_scopes.length > 0 && (
-                    <em className="config-note">{t('config.needsRestart')}</em>
+      <fieldset className="config-fields" disabled={!canWrite}>
+        {categories.map((category) => (
+          <section key={category}>
+            <h2>{t(`config.category.${category}`)}</h2>
+            {items
+              .filter((item) => item.category === category)
+              .map((item) => (
+                <div key={item.key} className="config-row">
+                  {/* 見出しと入力欄は `for` / `id` で結ぶ。パスワード欄は入力欄に加えて
+                   * 表示切り替えボタンを持ち、`<label>` で囲むと labelable な要素が
+                   * 2 つ入って対応付けが曖昧になるため（HTML の label の内容モデル）。 */}
+                  {/* 設定名・環境変数名・注記は別の要素にする。1 行に流すと
+                   * 「名前 KEY (再起動後に反映)」がひと続きの文に見える。 */}
+                  <label htmlFor={`config-${item.key}`}>
+                    <span className="config-label">{labelFor(item)}</span>
+                    <code className="config-key">{item.key}</code>
+                    {item.env_fallback && (
+                      <em className="config-note">{t('config.envFallback')}</em>
+                    )}
+                    {item.restart_scopes.length > 0 && (
+                      <em className="config-note">{t('config.needsRestart')}</em>
+                    )}
+                  </label>
+                  {item.value_type === 'boolean' ? (
+                    <input
+                      id={`config-${item.key}`}
+                      type="checkbox"
+                      checked={Boolean(currentValue(item))}
+                      onChange={(e) => {
+                        setValue(item.key, e.target.checked)
+                      }}
+                    />
+                  ) : item.choices ? (
+                    <select
+                      id={`config-${item.key}`}
+                      value={asText(currentValue(item))}
+                      onChange={(e) => {
+                        setValue(item.key, e.target.value)
+                      }}
+                    >
+                      {item.choices.map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {choiceLabelFor(item, value, label)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : item.secret ? (
+                    <PasswordInput
+                      id={`config-${item.key}`}
+                      value={asText(currentValue(item))}
+                      onChange={(e) => {
+                        setValue(item.key, parseValue(item, e.target.value))
+                      }}
+                    />
+                  ) : (
+                    <input
+                      id={`config-${item.key}`}
+                      type={item.value_type === 'integer' ? 'number' : 'text'}
+                      value={asText(currentValue(item))}
+                      onChange={(e) => {
+                        setValue(item.key, parseValue(item, e.target.value))
+                      }}
+                    />
                   )}
-                </label>
-                {item.value_type === 'boolean' ? (
-                  <input
-                    id={`config-${item.key}`}
-                    type="checkbox"
-                    checked={Boolean(currentValue(item))}
-                    onChange={(e) => {
-                      setValue(item.key, e.target.checked)
-                    }}
-                  />
-                ) : item.choices ? (
-                  <select
-                    id={`config-${item.key}`}
-                    value={asText(currentValue(item))}
-                    onChange={(e) => {
-                      setValue(item.key, e.target.value)
-                    }}
-                  >
-                    {item.choices.map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {choiceLabelFor(item, value, label)}
-                      </option>
-                    ))}
-                  </select>
-                ) : item.secret ? (
-                  <PasswordInput
-                    id={`config-${item.key}`}
-                    value={asText(currentValue(item))}
-                    onChange={(e) => {
-                      setValue(item.key, parseValue(item, e.target.value))
-                    }}
-                  />
-                ) : (
-                  <input
-                    id={`config-${item.key}`}
-                    type={item.value_type === 'integer' ? 'number' : 'text'}
-                    value={asText(currentValue(item))}
-                    onChange={(e) => {
-                      setValue(item.key, parseValue(item, e.target.value))
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-        </section>
-      ))}
-      <ActionButton
-        type="button"
-        className="button-primary"
-        pending={saving}
-        onClick={save}
-        disabled={Object.keys(edits).length === 0}
-      >
-        {t('config.save')}
-      </ActionButton>
+                </div>
+              ))}
+          </section>
+        ))}
+      </fieldset>
+      {canWrite ? (
+        <ActionButton
+          type="button"
+          className="button-primary"
+          pending={saving}
+          onClick={save}
+          disabled={Object.keys(edits).length === 0}
+        >
+          {t('config.save')}
+        </ActionButton>
+      ) : (
+        <p className="hint">{t('config.readOnly')}</p>
+      )}
     </div>
   )
 }

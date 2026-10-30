@@ -16,7 +16,7 @@ def create_system_administrator(session: Session, *, email: str, username: str, 
     if email_taken(session, email, None):
         return False
     user = User(email=email, username=username, password_hash=generate_password_hash(password), is_active=True)
-    user.roles = list(session.scalars(sa.select(Role).where(Role.name.in_(list(master_data.SYSTEM_ROLES)))))
+    user.roles = list(session.scalars(sa.select(Role).where(Role.name == master_data.SYSTEM_ADMIN_ROLE)))
     session.add(user)
     session.flush()
     return True

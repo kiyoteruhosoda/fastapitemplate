@@ -7,7 +7,7 @@ from shared.domain.auth.authority import roles_fit_the_seat, within_the_seat
 
 
 def test_a_tenant_member_never_carries_system_permissions() -> None:
-    granted = {"item:view", "admin:system-settings", "tenant:manage", "log:view"}
+    granted = {"item:view", "system-settings:write", "tenant:manage", "log:view"}
     assert within_the_seat(True, granted) == {"item:view"}
 
 

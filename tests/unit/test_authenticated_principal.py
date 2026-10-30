@@ -6,9 +6,9 @@ def _principal(*scopes: str) -> AuthenticatedPrincipal:
 
 
 def test_can_requires_all_codes() -> None:
-    principal = _principal("item:view", "item:manage")
+    principal = _principal("item:view", "item:write")
     assert principal.can("item:view")
-    assert principal.can("item:view", "item:manage")
+    assert principal.can("item:view", "item:write")
     assert not principal.can("item:view", "user:manage")
 
 

@@ -93,7 +93,7 @@ def system_administrators(session: Session) -> Sequence[User]:
 
 
 def count_active_system_administrators(session: Session) -> int:
-    """テナントの登録・停止を担える有効なシステム管理者の数（0 にしない）。"""
+    """テナントの登録・停止を担える有効な運用者の数（0 にしない）。サポート担当は数えない。"""
     holders = (
         sa.select(User.id)
         .join(user_roles, user_roles.c.user_id == User.id)
@@ -102,7 +102,7 @@ def count_active_system_administrators(session: Session) -> int:
         .where(
             UserTenant.user_id.is_(None),
             User.is_active.is_(True),
-            Role.name.in_(list(master_data.SYSTEM_ROLES)),
+            Role.name == master_data.SYSTEM_ADMIN_ROLE,
         )
         .distinct()
         .subquery()

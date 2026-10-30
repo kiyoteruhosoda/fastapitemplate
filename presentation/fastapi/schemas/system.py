@@ -32,6 +32,16 @@ class DesignationRequest(BaseModel):
     username: str = Field(min_length=1, max_length=100)
 
 
+#: テナントの外の人に付けるロール（``master_data.SYSTEM_ROLES``。ADR-0084 §4）
+SystemRoleName = Literal["system-admin", "system-support"]
+
+
+class SystemPersonRequest(DesignationRequest):
+    """テナントの外の人（運用者・サポート担当）を足す。本人には招待のメールが届く。"""
+
+    role: SystemRoleName = "system-admin"
+
+
 class TenantCreateRequest(BaseModel):
     slug: str = Field(pattern=SLUG_PATTERN)
     display_name: str = Field(min_length=1, max_length=100)
@@ -64,6 +74,8 @@ class SystemAdministratorResponse(BaseModel):
     email: str
     username: str
     is_active: bool
+    #: ``system-admin``（運用者）か ``system-support``（サポート担当）
+    role: str | None
 
 
 __all__ = [
@@ -71,6 +83,8 @@ __all__ = [
     "DesignationRequest",
     "DesignationResponse",
     "SystemAdministratorResponse",
+    "SystemPersonRequest",
+    "SystemRoleName",
     "TenantCreateRequest",
     "TenantCreatedResponse",
     "TenantResponse",

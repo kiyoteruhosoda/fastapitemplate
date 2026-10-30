@@ -55,7 +55,7 @@ def test_me_lists_every_granted_role(client: TestClient, admin_headers: dict[str
     assert me["roles"] == ["manager", "member"]
     # 既定は「すべてのロール」= 保有権限の和集合
     assert me["active_role"] is None
-    assert "item:manage" in me["scopes"]
+    assert "item:write" in me["scopes"]
 
 
 def test_switching_narrows_the_effective_scopes(client: TestClient, admin_headers: dict[str, str]) -> None:
@@ -79,7 +79,7 @@ def test_switching_back_restores_the_union(client: TestClient, admin_headers: di
 
     me = client.get("/api/auth/me", headers=restored).json()
     assert me["active_role"] is None
-    assert "item:manage" in me["scopes"]
+    assert "item:write" in me["scopes"]
 
 
 def test_cannot_switch_to_a_role_not_granted(client: TestClient, admin_headers: dict[str, str]) -> None:

@@ -1,5 +1,6 @@
 /**
- * テナントの管理（ADR-0079 §1・§5。要 `tenant:manage`）。システム管理者だけが使う。
+ * テナントの管理（ADR-0079 §1・§5）。一覧は `tenant:view`（運用者とサポート担当）、
+ * 登録・変更・指名・停止・削除は `tenant:manage`（運用者だけ。ADR-0084 §3）。
  *
  * テナントの登録・連携先の変更・停止・削除と、テナント管理者の指名。⚠ **中身は出さない。**
  * 並べるのは台帳と人数だけ。指名した人には招待のメールが届き、本人がパスワードを決める
@@ -16,6 +17,7 @@ import { usePendingRows } from '../hooks/usePendingRows'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import { loginPathOf } from '../services/tenantEntrance'
+import { useAuth } from '../store/AuthContext'
 
 interface Tenant {
   id: number
@@ -65,6 +67,9 @@ type RowAction = 'status'
 export function TenantsPage() {
   const { t } = useI18n()
   const { notify } = useToast()
+  const { hasScope } = useAuth()
+  // サポート担当は一覧を見るだけ。変える操作のボタンは出さない
+  const canManage = hasScope('tenant:manage')
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [form, setForm] = useState<Form>(EMPTY_FORM)
@@ -179,15 +184,17 @@ export function TenantsPage() {
     <div className="card">
       <div className="card-head">
         <h1>{t('tenants.title')}</h1>
-        <button
-          type="button"
-          className="button-primary"
-          onClick={() => {
-            open({ kind: 'create' })
-          }}
-        >
-          {t('tenants.add')}
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            className="button-primary"
+            onClick={() => {
+              open({ kind: 'create' })
+            }}
+          >
+            {t('tenants.add')}
+          </button>
+        )}
       </div>
       <p className="hint">{t('tenants.hint')}</p>
       {dialog && (
@@ -250,7 +257,7 @@ export function TenantsPage() {
               <th>{t('tenants.sso')}</th>
               <th>{t('tenants.members')}</th>
               <th>{t('tenants.status')}</th>
-              <th>{t('common.actions')}</th>
+              {canManage && <th>{t('common.actions')}</th>}
             </tr>
           </thead>
           <tbody>
@@ -271,47 +278,49 @@ export function TenantsPage() {
                     })}
                   </td>
                   <td>{t(suspended ? 'tenants.suspended' : 'tenants.active')}</td>
-                  <td className="row-actions">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        open({ kind: 'edit', tenant })
-                      }}
-                    >
-                      {t('common.edit')}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        open({ kind: 'designate', tenant })
-                      }}
-                    >
-                      {t('tenants.designate')}
-                    </button>
-                    <ActionButton
-                      type="button"
-                      pending={busy}
-                      onClick={() => {
-                        void toggleStatus(tenant)
-                      }}
-                    >
-                      {t(suspended ? 'tenants.resume' : 'tenants.suspend')}
-                    </ActionButton>
-                    {suspended && (
+                  {canManage && (
+                    <td className="row-actions">
                       <button
                         type="button"
-                        className="button-danger"
                         disabled={busy}
                         onClick={() => {
-                          open({ kind: 'delete', tenant })
+                          open({ kind: 'edit', tenant })
                         }}
                       >
-                        {t('common.delete')}
+                        {t('common.edit')}
                       </button>
-                    )}
-                  </td>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          open({ kind: 'designate', tenant })
+                        }}
+                      >
+                        {t('tenants.designate')}
+                      </button>
+                      <ActionButton
+                        type="button"
+                        pending={busy}
+                        onClick={() => {
+                          void toggleStatus(tenant)
+                        }}
+                      >
+                        {t(suspended ? 'tenants.resume' : 'tenants.suspend')}
+                      </ActionButton>
+                      {suspended && (
+                        <button
+                          type="button"
+                          className="button-danger"
+                          disabled={busy}
+                          onClick={() => {
+                            open({ kind: 'delete', tenant })
+                          }}
+                        >
+                          {t('common.delete')}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )
             })}

@@ -26,10 +26,37 @@ def test_owner_holds_everything_inside_the_tenant() -> None:
 def test_only_system_roles_hold_system_permissions() -> None:
     """全体の権限をテナントの中のロールに持たせると、ほかのテナントまで動かせる。"""
     for role, codes in master_data.ROLE_PERMISSIONS.items():
-        if role in master_data.SYSTEM_ROLES:
-            assert set(master_data.SYSTEM_PERMISSIONS) <= set(codes)
-        else:
+        if role not in master_data.SYSTEM_ROLES:
             assert not set(codes) & set(master_data.SYSTEM_PERMISSIONS), role
+
+
+def test_the_operator_holds_every_system_permission() -> None:
+    codes = set(master_data.ROLE_PERMISSIONS[master_data.SYSTEM_ADMIN_ROLE])
+    assert set(master_data.SYSTEM_PERMISSIONS) <= codes
+
+
+def test_support_only_looks_at_the_state() -> None:
+    """サポート担当は状態を見るだけ。設定・アプリログ・監査ログ・変える権限は持たない（ADR-0084 §2）。"""
+    assert set(master_data.ROLE_PERMISSIONS["system-support"]) == {
+        "system:view",
+        "tenant:view",
+        "dashboard:view",
+        "gui:view",
+    }
+
+
+def test_content_admin_sets_the_rules_but_does_not_edit_content() -> None:
+    codes = set(master_data.ROLE_PERMISSIONS["content-admin"])
+    assert {"content-settings:view", "content-settings:write"} <= codes
+    assert not codes & {"item:write", "note:write", "notification:send", "user:manage", "role:manage"}
+
+
+def test_every_write_has_a_view() -> None:
+    """変えられるなら見られる（見るだけの人を作れるよう、読むと変えるを分けてある。ADR-0084 §3）。"""
+    for role, codes in master_data.ROLE_PERMISSIONS.items():
+        for code in codes:
+            if code.endswith(":write"):
+                assert code.replace(":write", ":view") in codes, (role, code)
 
 
 def test_default_admin_role_exists() -> None:
@@ -55,13 +82,14 @@ def test_system_admin_touches_neither_people_nor_content() -> None:
     assert not codes & {
         "user:manage",
         "role:manage",
-        "permission:manage",
         "group:manage",
         "item:view",
-        "item:manage",
+        "item:write",
         "note:view",
         "note:write",
         "notification:send",
+        "content-settings:view",
+        "content-settings:write",
     }
 
 

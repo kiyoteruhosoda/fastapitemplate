@@ -1,4 +1,4 @@
-"""システム設定 API（要 ``admin:system-settings``）。
+"""システム設定 API（見るには ``system-settings:view``、変えるには ``system-settings:write``。ADR-0084 §3）。
 
 保存は監査ログへ残す。``reason`` には**変更したキー名**だけを入れる。設定値には
 SMTP パスワードのような秘密が含まれるため、値そのものは記録しない（ADR-0075 §1）。
@@ -30,7 +30,6 @@ from shared.kernel.database.session import get_db
 router = APIRouter(
     prefix="/api/admin/config",
     tags=["admin"],
-    dependencies=[Depends(require_permission("admin:system-settings"))],
 )
 
 DbDep = Annotated[Session, Depends(get_db)]
@@ -39,12 +38,20 @@ DbDep = Annotated[Session, Depends(get_db)]
 _MAX_REASON_LENGTH = 255
 
 
-@router.get("", response_model=list[SystemSettingItemResponse])
+@router.get(
+    "",
+    response_model=list[SystemSettingItemResponse],
+    dependencies=[Depends(require_permission("system-settings:view"))],
+)
 async def get_config(db: DbDep) -> list[SystemSettingItemResponse]:
     return [SystemSettingItemResponse(**item) for item in SystemSettingService.effective_config(db)]
 
 
-@router.put("", response_model=SystemSettingsUpdateResponse)
+@router.put(
+    "",
+    response_model=SystemSettingsUpdateResponse,
+    dependencies=[Depends(require_permission("system-settings:write"))],
+)
 async def update_config(
     body: SystemSettingsUpdateRequest,
     db: DbDep,

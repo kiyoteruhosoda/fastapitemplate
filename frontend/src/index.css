@@ -695,6 +695,14 @@ input[type='radio'] {
   align-items: flex-end;
 }
 
+/* 見るだけの人には入力欄をまとめて止める（ADR-0084 §3）。枠は描かない。 */
+.config-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
 .config-row {
   display: flex;
   justify-content: space-between;
@@ -1001,9 +1009,9 @@ tbody tr:hover {
   writing-mode: vertical-rl;
   /* vertical-rl は上から下へ読ませる。180 度回して下から上（左下始まり）にする。 */
   transform: rotate(180deg);
-  /* いちばん長い scope（`admin:system-settings` = 21 文字）が入る高さ。
+  /* いちばん長い scope（`content-settings:write` = 22 文字）が入る高さ。
    * 足りないと末尾が黙って切れる。 */
-  height: 10.5rem;
+  height: 11rem;
   padding: var(--space-2) 0.3rem;
   text-align: left;
   vertical-align: bottom;

@@ -80,7 +80,7 @@ flowchart TD
         Audit["/admin/audit-logs<br/>監査ログ"]
         Status["/admin/system-status<br/>システムステータス"]
         Tenants["/system/tenants<br/>テナント"]
-        SysAdmins["/system/administrators<br/>システム管理者"]
+        SysAdmins["/system/administrators<br/>運用者とサポート担当"]
     end
 
     Login -->|"パスワード認証成功"| Dashboard
@@ -142,38 +142,38 @@ flowchart TD
 
 ## 画面一覧
 
-| #   | 画面                   | ルート                                           | 認証 | 必要 scope                                          | サイドバー |
-| --- | ---------------------- | ------------------------------------------------ | ---- | --------------------------------------------------- | ---------- |
-| S1  | サインイン             | `/login`・`/t/:tenant/login`                     | 不要 | —                                                   | —          |
-| S2  | パスワードリセット申請 | `/forgot-password`・`/t/:tenant/forgot-password` | 不要 | —                                                   | —          |
-| S3  | パスワード再設定       | `/reset-password?token=…`                        | 不要 | —                                                   | —          |
-| S15 | SSO の戻り             | `/login/sso?ticket=…`                            | 不要 | —                                                   | —          |
-| S16 | アプリへ戻る案内       | `/app/oauth2redirect`                            | 不要 | —                                                   | —          |
-| S4  | ダッシュボード         | `/`                                              | 必要 | `dashboard:view`                                    | ✅         |
-| S5  | アイテム               | `/items`                                         | 必要 | `item:view`（追加は `item:manage`）                 | ✅         |
-| S22 | 共有メモ               | `/notes`                                         | 必要 | `note:view`（書く・直す・消すは `note:write`）      | ✅         |
-| S6  | プロフィール           | `/profile`                                       | 必要 | —                                                   | —          |
-| S7  | セキュリティ           | `/profile/security`                              | 必要 | —                                                   | —          |
-| S8  | ユーザー管理           | `/admin/users`                                   | 必要 | `user:manage`                                       | ✅         |
-| S9  | ロール管理             | `/admin/roles`                                   | 必要 | `role:manage`（一覧の取得のみ `user:manage` も可）  | ✅         |
-| S10 | 権限一覧               | `/admin/permissions`                             | 必要 | `permission:manage`                                 | ✅         |
-| S17 | グループ管理           | `/admin/groups`                                  | 必要 | `group:manage`                                      | ✅         |
-| S18 | お知らせの配信         | `/admin/notifications`                           | 必要 | `notification:send`                                 | ✅         |
-| S11 | システム設定           | `/admin/config`                                  | 必要 | `admin:system-settings`（再起動は `system:manage`） | ✅         |
-| S12 | システムログ           | `/admin/logs`                                    | 必要 | `log:view`                                          | ✅         |
-| S13 | 監査ログ               | `/admin/audit-logs`                              | 必要 | `audit:view`                                        | ✅         |
-| S14 | システムステータス     | `/admin/system-status`                           | 必要 | `system:manage`                                     | ✅         |
-| S19 | テナント               | `/system/tenants`                                | 必要 | `tenant:manage`                                     | ✅         |
-| S20 | システム管理者         | `/system/administrators`                         | 必要 | `system:manage`                                     | ✅         |
-| S21 | メンテナンス中・停止中 | （URL は変わらない。どの画面にも重なる）         | 不要 | —                                                   | —          |
+| #   | 画面                   | ルート                                           | 認証 | 必要 scope                                                                         | サイドバー |
+| --- | ---------------------- | ------------------------------------------------ | ---- | ---------------------------------------------------------------------------------- | ---------- |
+| S1  | サインイン             | `/login`・`/t/:tenant/login`                     | 不要 | —                                                                                  | —          |
+| S2  | パスワードリセット申請 | `/forgot-password`・`/t/:tenant/forgot-password` | 不要 | —                                                                                  | —          |
+| S3  | パスワード再設定       | `/reset-password?token=…`                        | 不要 | —                                                                                  | —          |
+| S15 | SSO の戻り             | `/login/sso?ticket=…`                            | 不要 | —                                                                                  | —          |
+| S16 | アプリへ戻る案内       | `/app/oauth2redirect`                            | 不要 | —                                                                                  | —          |
+| S4  | ダッシュボード         | `/`                                              | 必要 | `dashboard:view`                                                                   | ✅         |
+| S5  | アイテム               | `/items`                                         | 必要 | `item:view`（追加は `item:write`）                                                 | ✅         |
+| S22 | 共有メモ               | `/notes`                                         | 必要 | `note:view`（書く・直す・消すは `note:write`）                                     | ✅         |
+| S6  | プロフィール           | `/profile`                                       | 必要 | —                                                                                  | —          |
+| S7  | セキュリティ           | `/profile/security`                              | 必要 | —                                                                                  | —          |
+| S8  | ユーザー管理           | `/admin/users`                                   | 必要 | `user:manage`                                                                      | ✅         |
+| S9  | ロール管理             | `/admin/roles`                                   | 必要 | `role:manage`（一覧の取得のみ `user:manage` も可）                                 | ✅         |
+| S10 | 権限一覧               | `/admin/permissions`                             | 必要 | `role:manage`                                                                      | ✅         |
+| S17 | グループ管理           | `/admin/groups`                                  | 必要 | `group:manage`                                                                     | ✅         |
+| S18 | お知らせの配信         | `/admin/notifications`                           | 必要 | `notification:send`                                                                | ✅         |
+| S11 | システム設定           | `/admin/config`                                  | 必要 | `system-settings:view`（保存は `system-settings:write`、再起動は `system:manage`） | ✅         |
+| S12 | システムログ           | `/admin/logs`                                    | 必要 | `log:view`                                                                         | ✅         |
+| S13 | 監査ログ               | `/admin/audit-logs`                              | 必要 | `audit:view`                                                                       | ✅         |
+| S14 | システムステータス     | `/admin/system-status`                           | 必要 | `system:view`                                                                      | ✅         |
+| S19 | テナント               | `/system/tenants`                                | 必要 | `tenant:view`（変えるのは `tenant:manage`）                                        | ✅         |
+| S20 | 運用者とサポート担当   | `/system/administrators`                         | 必要 | `system:manage`                                                                    | ✅         |
+| S21 | メンテナンス中・停止中 | （URL は変わらない。どの画面にも重なる）         | 不要 | —                                                                                  | —          |
 
 サイドバーの階層: S4・S5 は最上位、S8〜S10・S17・S18 は「管理」、S11〜S14・S19・S20 は「システム管理」の
 グループに入る。
 
 **テナントの内側と外側**（ADR-0079 §1）: S5・S8〜S10・S17・S18 と S13 の大半はテナントの中の画面で、
-テナント管理者（`owner`）が使う。S11・S12・S14・S19・S20 はアプリ全体の画面で、システム管理者
-（テナントに属さない `system-admin`）だけが使う。システム管理者には中身（S5）も人（S8・S17）も見えず、
-S13 では全体の操作の記録だけが見える。S6・S7 はサイドバーに出さない（scope ではなく本人かどうかで決まる
+テナント管理者（`owner`）が使う。S11・S12・S14・S19・S20 はアプリ全体の画面で、テナントに属さない人だけが使う。
+運用者（`system-admin`）は全部、サポート担当（`system-support`）は S14 と S19 を見るだけ（ADR-0084）。
+どちらにも中身（S5）も人（S8・S17）も見えず、S13 では全体の操作の記録だけが見える。S6・S7 はサイドバーに出さない（scope ではなく本人かどうかで決まる
 画面のため。ADR-0080 §4）。
 
 scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth/master_data.py`。
@@ -283,7 +283,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 
 - **目的**: `bounded_contexts/example`（Item CRUD）の画面側の見本。
 - **操作**: 一覧の表示と、「アイテムを追加」から開くダイアログでの追加。
-  追加ボタンは `item:manage` を持つ人にだけ出る。
+  追加ボタンは `item:write` を持つ人にだけ出る。
 - **使用 API**: `GET /api/items`, `POST /api/items`
 
 ### S22 共有メモ（`/notes`）
@@ -459,7 +459,8 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
   「再起動後に反映」と表示する。
 - **操作**: 値を編集して保存 → 再起動が必要な項目を含む場合は対象キーを示す
   メッセージと「今すぐ再起動」ボタンを出す。`system:manage` が無い場合は
-  管理者への依頼メッセージを表示する。
+  管理者への依頼メッセージを表示する。`system-settings:write` が無い（見るだけの）場合は、入力欄を止めて
+  保存ボタンの代わりに「見るだけの権限です」と出す。
 - **使用 API**: `GET|PUT /api/admin/config`, `POST /api/admin/system/restart`
 - **備考**: 項目の定義は `presentation/fastapi/admin/system_settings_definitions.py`。
   設定キーを追加するときは CLAUDE.md「設定管理」の 3 ファイルを更新する。
@@ -527,7 +528,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 ### S19 テナント（`/system/tenants`）
 
 - **目的**: テナント（家族・組織ごとの区切り）の登録・変更・停止・削除と、テナント管理者の指名
-  （ADR-0079 §1・§5）。システム管理者だけが使う。
+  （ADR-0079 §1・§5）。運用者が使う。サポート担当（`tenant:view` だけ）は一覧を見るだけで、操作のボタンは出ない。
 - **表示内容**: テナントごとにテナント名・入口の URL（`/t/<短い名前>/login`）・SSO の有無・人数
   （有効 / 全員）・状態。⚠ **中身と利用者の一覧は出さない。**
 - **操作**:
@@ -541,11 +542,12 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **使用 API**: `GET|POST /api/system/tenants`, `PUT|DELETE /api/system/tenants/{id}`,
   `POST /api/system/tenants/{id}/administrators`
 
-### S20 システム管理者（`/system/administrators`）
+### S20 運用者とサポート担当（`/system/administrators`）
 
-- **目的**: システム管理者（テナントに属さない人）どうしの付け外し。
-- **操作**: 「システム管理者を追加」でメールアドレスと表示名を入れる。招待のメールが届き、本人が
-  パスワードを決める。自分と最後の 1 人は外せない。
+- **目的**: テナントに属さない人（運用者・サポート担当）の付け外し（ADR-0084 §4）。
+- **表示内容**: 表示名・メールアドレス・役割（運用者 / サポート担当）。
+- **操作**: 「運用者・サポート担当を追加」でメールアドレスと表示名と役割を入れる。招待のメールが届き、本人が
+  パスワードを決める。自分と最後の運用者は外せない（サポート担当は運用者に数えない）。
 - **使用 API**: `GET|POST /api/system/administrators`, `DELETE /api/system/administrators/{id}`
 
 ### 共通レイアウト（Header / Sidebar / Footer）
@@ -753,9 +755,9 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 > 絞っているあいだはそのロール分だけ。ADR-0078 §1）。反映にはユーザーの
 > 再サインイン（トークン再発行）が必要。
 
-### システム設定を変えたいとき（`admin:system-settings`）
+### システム設定を変えたいとき（`system-settings:write`）
 
-システム管理者（テナントに属さない `system-admin`）で入る。テナント管理者（`owner`）には出ない。
+運用者（テナントに属さない `system-admin`）で入る。テナント管理者（`owner`）には出ない。
 
 1. サイドバーの「システム設定」を開く。
 2. 値を編集して「保存」。
@@ -831,7 +833,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 テーマは ライト / ダーク / OS 追従 の 3 つ。既定値はシステム設定の
 `DEFAULT_LOCALE` / `DEFAULT_THEME`。
 
-### システムの状態を確認したいとき（`system:manage`）
+### システムの状態を確認したいとき（`system:view`）
 
 1. サイドバーの「システム管理」→「システムステータス」を開く。
 2. API・データベースの状態（正常/異常）と稼働時間、バージョン・git SHA・

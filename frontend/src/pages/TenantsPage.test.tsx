@@ -13,16 +13,23 @@ import type * as ApiModule from '../services/api'
 import { ApiError } from '../services/api'
 import { TenantsPage } from './TenantsPage'
 
-const { apiGet, apiPost, apiPut, apiDelete } = vi.hoisted(() => ({
+const { apiGet, apiPost, apiPut, apiDelete, scopes } = vi.hoisted(() => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
+  scopes: { granted: [] as string[] },
 }))
 
 vi.mock('../services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
   api: { get: apiGet, post: apiPost, put: apiPut, delete: apiDelete },
+}))
+
+vi.mock('../store/AuthContext', () => ({
+  useAuth: () => ({
+    hasScope: (...codes: string[]) => codes.every((c) => scopes.granted.includes(c)),
+  }),
 }))
 
 const SETTINGS = { languages: ['en'], default_locale: 'en', default_theme: 'light' }
@@ -84,6 +91,7 @@ function submitWithout(button: HTMLElement) {
 describe('TenantsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    scopes.granted = ['tenant:view', 'tenant:manage']
     apiPut.mockResolvedValue({})
     apiDelete.mockResolvedValue(undefined)
   })
@@ -210,5 +218,13 @@ describe('TenantsPage', () => {
     await waitFor(() => {
       expect(apiDelete).toHaveBeenCalledWith('/api/system/tenants/3')
     })
+  })
+
+  it('tenant:view だけ（サポート担当）なら一覧だけで、変える操作のボタンを出さない', async () => {
+    scopes.granted = ['tenant:view']
+    await renderPage()
+    expect(within(rowOf('Acme')).getByText('/t/acme/login')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Register a tenant' })).not.toBeInTheDocument()
+    expect(within(rowOf('Acme')).queryAllByRole('button')).toHaveLength(0)
   })
 })

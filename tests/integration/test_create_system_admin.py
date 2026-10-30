@@ -54,7 +54,7 @@ def test_the_first_system_administrator_can_sign_in_and_manage_tenants(
     created = _find(engine, _EMAIL)
     assert created is not None
     assert created.username == "ops"
-    assert created.role_names == tuple(master_data.SYSTEM_ROLES)
+    assert created.role_names == (master_data.SYSTEM_ADMIN_ROLE,)
     # ⚠ テナントに属さない（属すとテナントの中の人になり、台帳に入れない）
     assert created.tenant_id is None
 

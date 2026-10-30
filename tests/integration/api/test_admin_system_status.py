@@ -1,4 +1,4 @@
-"""システムステータス API（要 ``system:manage``）。"""
+"""システムステータス API（要 ``system:view``）。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from tests.conftest import sign_in
 
 
 def _sign_in_member(client: TestClient, member_client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
-    """``system:manage`` を持たない利用者で**別のクライアント**にログインする。
+    """``system:view`` を持たない利用者で**別のクライアント**にログインする。
 
     セッションは Cookie で持つので（ADR-0076 §4）、管理者と同じクライアントで
     ログインすると管理者のセッションが置き換わってしまう。
@@ -27,7 +27,7 @@ def test_status_requires_authentication(client: TestClient) -> None:
     assert client.get("/api/admin/system/status").status_code == 401
 
 
-def test_status_requires_system_manage(
+def test_status_requires_system_view(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
     _sign_in_member(client, other_client, admin_headers)

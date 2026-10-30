@@ -1,4 +1,4 @@
-"""権限コード一覧 API（要 ``permission:manage``）。
+"""権限コード一覧 API（要 ``role:manage``。ロールを定義するために読む。ADR-0084 §3）。
 
 権限コードの正本は ``shared/domain/auth/master_data.py``。追加・削除は
 マスタデータ + マイグレーションで行うため、この API は読み取り専用。
@@ -23,7 +23,7 @@ from shared.kernel.database.session import get_db
 router = APIRouter(
     prefix="/api/admin/permissions",
     tags=["admin"],
-    dependencies=[Depends(require_permission("permission:manage"))],
+    dependencies=[Depends(require_permission("role:manage"))],
 )
 
 

@@ -29,7 +29,7 @@ const GROUPS: Group[] = [
     items: [
       { to: '/admin/users', labelKey: 'nav.users', scopes: ['user:manage'] },
       { to: '/admin/roles', labelKey: 'nav.roles', scopes: ['role:manage'] },
-      { to: '/admin/permissions', labelKey: 'nav.permissions', scopes: ['permission:manage'] },
+      { to: '/admin/permissions', labelKey: 'nav.permissions', scopes: ['role:manage'] },
       { to: '/admin/groups', labelKey: 'nav.groups', scopes: ['group:manage'] },
       { to: '/admin/notifications', labelKey: 'nav.notifications', scopes: ['notification:send'] },
     ],
@@ -37,13 +37,13 @@ const GROUPS: Group[] = [
   {
     labelKey: 'nav.group.system',
     items: [
-      // テナントの外側（ADR-0079 §1）。システム管理者だけに出る
-      { to: '/system/tenants', labelKey: 'nav.tenants', scopes: ['tenant:manage'] },
+      // テナントの外側（ADR-0079 §1）。運用者とサポート担当にだけ出る（ADR-0084）
+      { to: '/system/tenants', labelKey: 'nav.tenants', scopes: ['tenant:view'] },
       { to: '/system/administrators', labelKey: 'nav.systemAdmins', scopes: ['system:manage'] },
-      { to: '/admin/config', labelKey: 'nav.config', scopes: ['admin:system-settings'] },
+      { to: '/admin/config', labelKey: 'nav.config', scopes: ['system-settings:view'] },
       { to: '/admin/logs', labelKey: 'nav.logs', scopes: ['log:view'] },
       { to: '/admin/audit-logs', labelKey: 'nav.auditLogs', scopes: ['audit:view'] },
-      { to: '/admin/system-status', labelKey: 'nav.systemStatus', scopes: ['system:manage'] },
+      { to: '/admin/system-status', labelKey: 'nav.systemStatus', scopes: ['system:view'] },
     ],
   },
 ]
