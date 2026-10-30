@@ -40,6 +40,7 @@ _EXPECTED_EVENT_TYPES = {
     "role.updated",
     "role.deleted",
     "system_settings.updated",
+    "content_settings.updated",
     "service.restart_requested",
     "profile.updated",
     "group.created",

@@ -1,3 +1,11 @@
+## 2026-10-30（コンテンツ設定の受け皿。ADR-0085）
+
+- テナントごとのコンテンツ設定を足した（`bounded_contexts/content_settings`・画面 `/admin/content-settings`・API
+  `GET|PUT /api/admin/content-settings`）。項目の定義はコード、テナントが変えた値だけを表 `content_settings`
+  （移行 `0021_content_settings`）が持つ。見るのは `content-settings:view`（owner・content-admin・auditor）、
+  変えるのは `content-settings:write`（owner・content-admin）。変えると監査ログに項目名を残す。
+- 見本の項目「アイテムの一覧の並び順」（`item_list_order`）。アイテムの一覧（`/api/items`）がこれに従って並ぶ。
+
 ## 2026-10-30（ロールをアクターから導く。サポート担当とコンテンツ管理者。ADR-0084）
 
 - 使う人（アクター）とユースケースの表を ADR-0084 に置き、ロールを 1 アクターに 1 つ当てた。

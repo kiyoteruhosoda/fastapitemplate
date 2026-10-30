@@ -48,6 +48,7 @@ def _load_metadata() -> MetaData:
     """
     from bounded_contexts.account_security.infrastructure import account_security_models
     from bounded_contexts.audit.infrastructure import audit_log_model
+    from bounded_contexts.content_settings.infrastructure import content_setting_model
     from bounded_contexts.example.infrastructure import item_model
     from bounded_contexts.identity_federation.infrastructure import identity_federation_models
     from bounded_contexts.notes.infrastructure import note_model
@@ -58,6 +59,7 @@ def _load_metadata() -> MetaData:
     _registered = (
         account_security_models,
         audit_log_model,
+        content_setting_model,
         item_model,
         identity_federation_models,
         note_model,

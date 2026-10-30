@@ -30,6 +30,7 @@ from bounded_contexts.audit.presentation.router import (
 from bounded_contexts.audit.presentation.router import (
     audit_log_router as admin_audit_logs_router,
 )
+from bounded_contexts.content_settings.presentation.router import router as content_settings_router
 from bounded_contexts.example.presentation.router import router as items_router
 from bounded_contexts.identity_federation.presentation.error_handling import (
     register_identity_federation_error_handler,
@@ -133,6 +134,7 @@ def _include_routers(app: FastAPI) -> None:
         admin_notifications_router,
         system_tenants_router,
         system_administrators_router,
+        content_settings_router,
         items_router,
         notes_router,
     ):

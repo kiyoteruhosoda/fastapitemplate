@@ -450,5 +450,17 @@
   "config.readOnly": "You can view these settings only. Changing them needs the system-settings:write permission.",
   "systemAdmins.role": "Role",
   "systemAdmins.role.system-admin": "Operator",
-  "systemAdmins.role.system-support": "Support"
+  "systemAdmins.role.system-support": "Support",
+  "nav.contentSettings": "Content settings",
+  "contentSettings.title": "Content settings",
+  "contentSettings.hint": "Rules for this tenant's content. They do not affect other tenants.",
+  "contentSettings.isDefault": "Default",
+  "contentSettings.reset": "Reset to default",
+  "contentSettings.readOnly": "You can view these settings only. Changing them needs the content-settings:write permission.",
+  "contentSettings.field.item_list_order": "Order of the item list",
+  "contentSettings.choice.item_list_order.oldest": "Oldest first",
+  "contentSettings.choice.item_list_order.newest": "Newest first",
+  "contentSettings.choice.item_list_order.name": "By name",
+  "error.unknown_content_setting": "This setting is unknown. Reload the page.",
+  "error.invalid_content_setting": "That value is not allowed. Check your input."
 }

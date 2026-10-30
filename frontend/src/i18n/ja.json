@@ -450,5 +450,17 @@
   "config.readOnly": "見るだけの権限です。設定を変えるには system-settings:write 権限が必要です。",
   "systemAdmins.role": "役割",
   "systemAdmins.role.system-admin": "運用者",
-  "systemAdmins.role.system-support": "サポート担当"
+  "systemAdmins.role.system-support": "サポート担当",
+  "nav.contentSettings": "コンテンツ設定",
+  "contentSettings.title": "コンテンツ設定",
+  "contentSettings.hint": "このテナントの中身の決まりです。ほかのテナントには効きません。",
+  "contentSettings.isDefault": "既定のまま",
+  "contentSettings.reset": "既定に戻す",
+  "contentSettings.readOnly": "見るだけの権限です。設定を変えるには content-settings:write 権限が必要です。",
+  "contentSettings.field.item_list_order": "アイテムの一覧の並び順",
+  "contentSettings.choice.item_list_order.oldest": "追加した順（古いものが先）",
+  "contentSettings.choice.item_list_order.newest": "新しいものが先",
+  "contentSettings.choice.item_list_order.name": "名前の順",
+  "error.unknown_content_setting": "知らない設定の項目です。画面を読み込み直してください。",
+  "error.invalid_content_setting": "選べない値です。入力を見直してください。"
 }
