@@ -19,7 +19,7 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from shared.kernel.settings.system_settings_defaults import DEFAULT_APPLICATION_SETTINGS
+from shared.kernel.settings.system_settings_defaults import DEFAULT_APPLICATION_SETTINGS, ENV_ONLY_SETTINGS
 
 _logger = logging.getLogger(__name__)
 
@@ -138,10 +138,14 @@ class ApplicationSettings:
         ⚠ **ブートストラップの鍵はこの順序の外**（`DATABASE_URI` など）。
         解決に DB 接続が要る鍵を DB から読むと再帰するので、下の節では
         `self._env` を直接読んでいる。
+
+        ⚠ **通信先と鍵の場所（`ENV_ONLY_SETTINGS`）も順序の外**（ADR-0090）。DB に値が
+        残っていても読まない。
         """
-        db_value = self._db.get(key)
-        if db_value is not None:
-            return db_value
+        if key not in ENV_ONLY_SETTINGS:
+            db_value = self._db.get(key)
+            if db_value is not None:
+                return db_value
         env_value = self._env.get(key)
         if env_value is not None and env_value != "":
             return env_value

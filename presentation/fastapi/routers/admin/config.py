@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
@@ -24,7 +24,7 @@ from presentation.fastapi.schemas.admin import (
     SystemSettingsUpdateRequest,
     SystemSettingsUpdateResponse,
 )
-from presentation.fastapi.services.system_setting_service import SystemSettingService
+from presentation.fastapi.services.system_setting_service import SettingRefusedError, SystemSettingService
 from shared.kernel.database.session import get_db
 
 router = APIRouter(
@@ -62,7 +62,13 @@ async def update_config(
     起動時にしか読まれない設定を変更した場合は ``restart_required`` を返す。
     実際の再起動は ``POST /api/admin/system/restart`` で要求する。
     """
-    requirement = SystemSettingService.save(db, body.values)
+    try:
+        requirement = SystemSettingService.save(db, body.values)
+    except SettingRefusedError as refused:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": refused.error, "key": refused.key},
+        ) from refused
     audit.execute(
         AuditEventType.SYSTEM_SETTINGS_UPDATED,
         target=AuditTarget.of(AuditTargetType.SYSTEM_SETTINGS),

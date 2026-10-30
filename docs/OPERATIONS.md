@@ -393,10 +393,11 @@ assay の `client_credentials` で名乗る機械（AI のエージェント・�
 
 1. Garage に **`artifacts` の読み取りだけ**を持つ鍵を作る（⚠ 書ける鍵を渡さない。配っている APK を
    すり替えられる）。秘密はファイルにして read-only で渡す（値を画面にも設定にも置かない）。
-2. システム設定（スマホアプリの配布）に入れる:
-   - `APP_RELEASE_S3_ENDPOINT_URL` —— 例 `http://garage.blob-prod.svc.cluster.local:3900`
+2. 通信先と鍵の場所は環境変数で渡し（ADR-0090。画面では変えられない）、残りはシステム設定（スマホアプリの配布）に入れる:
+   - `APP_RELEASE_S3_ENDPOINT_URL`（環境変数）—— 例 `http://garage.blob-prod.svc.cluster.local:3900`
    - `APP_RELEASE_S3_OBJECT_KEY` —— `<アプリ名>/latest.json`
-   - `APP_RELEASE_S3_ACCESS_KEY_ID` / `APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE` —— 1 の鍵 ID と秘密のファイルの場所
+   - `APP_RELEASE_S3_ACCESS_KEY_ID` —— 1 の鍵 ID
+   - `APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE`（環境変数）—— 1 の秘密のファイルの場所
    - `APP_RELEASE_DOWNLOAD_URL` —— 知らせを押したときに開く画面（例 share.nolumia.com のアプリのフォルダ）
 3. ⚠ 配布面が k3s の別の namespace にあるなら、そちらの NetworkPolicy にこのアプリからの穴が要る
    （無いと黙って `latest: null` になる）。
@@ -485,7 +486,7 @@ Swagger UI（`/docs`）は同一オリジンなので、**ブラウザでログ�
           "token_endpoint_auth_method":"private_key_jwt","jwks":"<公開鍵の JWKS>"}'
    ```
 
-2. 設定を入れる（環境変数か管理画面 > システム設定 > SSO）。
+2. 設定を入れる（環境変数か管理画面 > システム設定 > SSO。⚠ `OIDC_ISSUER` と鍵のファイルの場所は環境変数だけ。ADR-0090）。
 
    ```
    OIDC_ENABLED=true

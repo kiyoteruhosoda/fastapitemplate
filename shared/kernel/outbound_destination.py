@@ -18,6 +18,7 @@ Web Push の送り先や、取りに行くファイルの URL のように、**�
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from collections.abc import Callable, Iterable
 from urllib.parse import SplitResult, urlsplit
@@ -33,6 +34,8 @@ PUSH_SERVICE_HOST_SUFFIXES = (
 
 #: 内側にしか無い名前の末尾。1 語の名前（``db``・``app`` = 同じ namespace の Service）も断る。
 INTERNAL_NAME_SUFFIXES = (".localhost", ".local", ".internal", ".lan", ".home.arpa", ".svc", ".cluster.local")
+
+_HOST_NAME = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
 
 IpAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 #: 名前 → アドレスの組。試験だけが差し替える。
@@ -97,6 +100,15 @@ def check_https_url(url: str, *, allowed_host_suffixes: Iterable[str] | None = N
     return parts
 
 
+def check_host_name(host: str) -> str:
+    """URL ではなくホスト名だけを持つ設定（メールサーバーなど）の形を確かめる（名前は引かない）。"""
+    name = host.strip().lower().rstrip(".")
+    if not _HOST_NAME.fullmatch(name) and _literal_address(name) is None:
+        raise DestinationRefusedError("invalid_url")
+    _check_host(name, None)
+    return name
+
+
 def resolve_addresses(host: str, port: int) -> set[IpAddress]:
     """名前を引いたアドレスの全部。引けなければ ``unresolvable``。"""
     try:
@@ -122,6 +134,7 @@ __all__ = [
     "DestinationRefusedError",
     "IpAddress",
     "Resolver",
+    "check_host_name",
     "check_https_url",
     "ensure_public_host",
     "resolve_addresses",

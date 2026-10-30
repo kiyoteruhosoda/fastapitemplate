@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
+from sqlalchemy.orm import Session
 
+from shared.infrastructure.models import SystemSetting
 from shared.kernel.settings.settings import settings
 
 
@@ -77,3 +79,58 @@ def test_saved_value_wins_over_environment(
     # 消せば環境変数へ戻る（デフォルトではない）
     client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": None}})
     assert settings.mail_server == "smtp.from-env.example"
+
+
+def test_env_only_setting_cannot_be_saved_from_the_screen(
+    client: TestClient, system_admin_headers: dict[str, str], monkeypatch: MonkeyPatch
+) -> None:
+    """通信先と鍵の場所は環境変数だけで決め、画面には見るだけで出す（ADR-0090）。"""
+    monkeypatch.setenv("OIDC_ISSUER", "https://idp.from-env.example")
+    for key, value in (
+        ("OIDC_ISSUER", "https://attacker.example"),
+        ("OIDC_PRIVATE_KEY_FILE", "/etc/passwd"),
+        ("FCM_SERVICE_ACCOUNT_FILE", "/etc/passwd"),
+        ("WEB_PUSH_VAPID_PRIVATE_KEY_FILE", "/etc/passwd"),
+        ("APP_RELEASE_S3_ENDPOINT_URL", "http://10.10.2.11:11000"),
+        ("APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE", "/etc/passwd"),
+    ):
+        response = client.put("/api/admin/config", headers=system_admin_headers, json={"values": {key: value}})
+        assert response.status_code == 400, key
+        assert response.json()["detail"] == {"error": "setting_env_only", "key": key}
+
+    items = {i["key"]: i for i in client.get("/api/admin/config", headers=system_admin_headers).json()}
+    assert items["OIDC_ISSUER"]["env_only"] is True
+    assert items["OIDC_ISSUER"]["value"] == "https://idp.from-env.example"
+    assert items["MAIL_SERVER"]["env_only"] is False
+
+
+def test_env_only_setting_ignores_a_value_left_in_the_database(
+    db_session: Session, monkeypatch: MonkeyPatch
+) -> None:
+    """取り込む前に画面で入れた値が DB に残っていても読まない。"""
+    monkeypatch.setenv("OIDC_ISSUER", "https://idp.from-env.example")
+    db_session.add(
+        SystemSetting(
+            setting_key="app.config",
+            setting_json={"OIDC_ISSUER": "https://left.example", "MAIL_SERVER": "smtp.left.example"},
+        )
+    )
+    db_session.commit()
+    settings.reload_db_overrides()
+
+    assert settings.oidc_issuer == "https://idp.from-env.example"
+    assert settings.mail_server == "smtp.left.example"
+
+
+def test_mail_server_inside_the_home_is_refused(client: TestClient, system_admin_headers: dict[str, str]) -> None:
+    for host in ("10.10.2.11", "127.0.0.1", "db", "db.ns.svc.cluster.local", "smtp.local", "https://smtp.example.com"):
+        response = client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": host}})
+        assert response.status_code == 400, host
+        assert response.json()["detail"] == {"error": "invalid_destination", "key": "MAIL_SERVER"}
+
+    # 空に戻す操作は通る
+    assert (
+        client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": ""}}).status_code
+        == 200
+    )
+    client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": None}})

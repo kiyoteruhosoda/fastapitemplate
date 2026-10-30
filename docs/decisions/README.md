@@ -24,3 +24,4 @@
 | [ADR-0087](ADR-0087-machine-entrance-and-allowlist.md) | 機械の口と許可簿 | 機械の口（`POST /api/machine/token`）は許可簿の操作（権限コード）だけを scope に載せ、scope で守った口だけを通す |
 | [ADR-0088](ADR-0088-no-task-list-in-the-repository.md) | タスクの一覧 | タスクの一覧（`Progress.md`）をリポジトリに置かない（ADR-0072 §2 のタスク管理を置き換え） |
 | [ADR-0089](ADR-0089-rules-are-enforced-by-tests.md) | 規則を機械で止める | CLAUDE.md の規則は試験で止める。例外は理由と一緒に試験の表へ。全部の API に認可を求め、公開する口は一覧にする |
+| [ADR-0090](ADR-0090-outbound-settings-are-env-only.md) | 通信先の設定 | 通信先の URL と鍵のファイルの場所は環境変数だけ（画面は見るだけ）。メールサーバーとテナントの発行者は形を確かめて受け取る |

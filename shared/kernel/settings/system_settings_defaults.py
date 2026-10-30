@@ -164,4 +164,17 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "LOCAL_LOGIN_ENABLED": True,
 }
 
-__all__ = ["DEFAULT_APPLICATION_SETTINGS"]
+#: 環境変数だけで決める設定（ADR-0090）。サーバーがつなぎに行く先と、鍵のファイルの場所。
+#: 管理画面には見るだけで出し、保存は断る。DB に古い値が残っていても読まない。
+ENV_ONLY_SETTINGS: frozenset[str] = frozenset(
+    {
+        "OIDC_ISSUER",
+        "OIDC_PRIVATE_KEY_FILE",
+        "WEB_PUSH_VAPID_PRIVATE_KEY_FILE",
+        "FCM_SERVICE_ACCOUNT_FILE",
+        "APP_RELEASE_S3_ENDPOINT_URL",
+        "APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE",
+    }
+)
+
+__all__ = ["DEFAULT_APPLICATION_SETTINGS", "ENV_ONLY_SETTINGS"]
