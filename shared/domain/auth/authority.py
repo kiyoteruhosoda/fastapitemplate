@@ -39,7 +39,7 @@ def within_the_seat(in_tenant: bool, granted: Iterable[str]) -> frozenset[str]:
 
     **システム管理者とテナント管理者は兼ねない。** ロールの付け方を誤っても、
     テナントの利用者に全体の権限は効かず、テナントに属さない利用者に内側の権限は効かない。
-    ロールの付け外しの関門（:func:`roles_fit_the_seat`）と二重にしてある。
+    ロールの付け外しの関門（``TenantMembers.roles``）と二重にしてある。
     """
     codes = frozenset(granted)
     if in_tenant:
@@ -47,12 +47,4 @@ def within_the_seat(in_tenant: bool, granted: Iterable[str]) -> frozenset[str]:
     return codes & _SYSTEM_SEAT_PERMISSIONS
 
 
-def roles_fit_the_seat(in_tenant: bool, role_names: Iterable[str]) -> bool:
-    """テナントの利用者にシステムのロールは付けられず、テナントに属さない利用者には
-    システムのロールしか付けられない（ADR-0079 §1 決定 4）。"""
-    system = frozenset(SYSTEM_ROLES)
-    names = frozenset(role_names)
-    return not (names & system) if in_tenant else names <= system
-
-
-__all__ = ["ADMINISTRATION_CORE", "beyond", "changed", "roles_fit_the_seat", "within_the_seat"]
+__all__ = ["ADMINISTRATION_CORE", "beyond", "changed", "within_the_seat"]

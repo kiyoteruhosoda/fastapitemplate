@@ -112,3 +112,20 @@ def test_role_catalog_still_requires_a_permission(
     response = other_client.get("/api/admin/roles")
 
     assert response.status_code == 403
+
+
+def test_renaming_a_role_to_a_name_in_use_is_a_conflict(client: TestClient, admin_headers: dict[str, str]) -> None:
+    """一意制約に当てて 500 にせず、作るときと同じ 409 で断る（task #762）。"""
+    created = client.post(
+        "/api/admin/roles",
+        headers=admin_headers,
+        json={"name": "item-reader", "permissions": ["item:view", "dashboard:view"]},
+    )
+    assert created.status_code == 201, created.text
+    role_id = created.json()["id"]
+
+    taken = client.put(f"/api/admin/roles/{role_id}", headers=admin_headers, json={"name": "member"})
+    assert taken.status_code == 409
+    assert taken.json()["detail"]["error"] == "role_already_exists"
+    same = client.put(f"/api/admin/roles/{role_id}", headers=admin_headers, json={"name": "item-reader"})
+    assert same.status_code == 200, same.text

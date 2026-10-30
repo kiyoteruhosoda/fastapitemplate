@@ -1,3 +1,8 @@
+## 2026-10-30（ロールの名前の変更の 500 を 409 に・task #762）
+
+- ほかのロールと同じ名前へ変えると、一意制約で 500 になっていたのを `409 role_already_exists` で断る。
+- 使われていなかった `roles_fit_the_seat` を消した（関門は `TenantMembers.roles` と `within_the_seat`）。
+
 ## 2026-10-30（機械の口と許可簿。ADR-0087・task #718・#721）
 
 - assay の `client_credentials` のトークンを換える口 `POST /api/machine/token` を足した。許可簿は環境変数
