@@ -1,4 +1,4 @@
-"""テナントの外側の管理 API（要 ``tenant:manage``。ADR-0079 §1・§5）。
+"""テナントの外側の管理 API（一覧は ``tenant:view``、変えるのは ``tenant:manage``。ADR-0079 §1・§5・ADR-0084 §3）。
 
 システム管理者がテナントを登録・変更・停止・削除し、最初のテナント管理者を指名する。
 
@@ -38,10 +38,12 @@ from shared.kernel.database.session import get_db
 router = APIRouter(
     prefix="/api/system/tenants",
     tags=["system"],
-    dependencies=[Depends(require_permission("tenant:manage"))],
+    dependencies=[Depends(require_permission("tenant:view"))],
 )
 
 DbDep = Annotated[Session, Depends(get_db)]
+#: 一覧を見るだけならサポート担当にも許す。登録・変更・指名・削除は運用者だけ
+_MANAGES = [Depends(require_permission("tenant:manage"))]
 
 
 def _to_response(tenant: Tenant, counts: dict[int, tuple[int, int]]) -> TenantResponse:
@@ -102,7 +104,7 @@ async def list_tenants(db: DbDep) -> list[TenantResponse]:
     return [_to_response(t, counts) for t in db.scalars(sa.select(Tenant).order_by(Tenant.id))]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=TenantCreatedResponse)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=TenantCreatedResponse, dependencies=_MANAGES)
 async def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecorderDep) -> TenantCreatedResponse:
     if tenant_named(db, body.slug) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "tenant_already_exists"})
@@ -120,7 +122,7 @@ async def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecord
     return TenantCreatedResponse(tenant=_to_response(tenant, member_counts(db)), designation=designation)
 
 
-@router.put("/{tenant_id}", response_model=TenantResponse)
+@router.put("/{tenant_id}", response_model=TenantResponse, dependencies=_MANAGES)
 async def update_tenant(
     tenant_id: int, body: TenantUpdateRequest, db: DbDep, audit: AuditRecorderDep
 ) -> TenantResponse:
@@ -146,7 +148,12 @@ async def update_tenant(
     return _to_response(tenant, member_counts(db))
 
 
-@router.post("/{tenant_id}/administrators", status_code=status.HTTP_201_CREATED, response_model=DesignationResponse)
+@router.post(
+    "/{tenant_id}/administrators",
+    status_code=status.HTTP_201_CREATED,
+    response_model=DesignationResponse,
+    dependencies=_MANAGES,
+)
 async def designate_administrator(
     tenant_id: int, body: DesignationRequest, db: DbDep, audit: AuditRecorderDep
 ) -> DesignationResponse:
@@ -158,7 +165,7 @@ async def designate_administrator(
     return _designate(db, _tenant(db, tenant_id), body, audit)
 
 
-@router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_MANAGES)
 async def delete_tenant(tenant_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
     """テナントを人と中身ごと消す（監査ログは残す）。**止めてからでないと消せない。**
 

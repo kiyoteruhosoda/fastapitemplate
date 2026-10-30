@@ -247,4 +247,4 @@ Infrastructure は Application を import できないため
 - Pydantic スキーマ: `〇〇Request` / `〇〇Response`
 - リポジトリインターフェース: `I〇〇Repository`（Domain）、実装は `Sql〇〇Repository` 等
 - ユースケース: 動詞句のクラス名（`CreateItem`、`ListItems`）
-- 権限コード: `<資源>:<操作>`（例 `user:manage`、`admin:system-settings`）
+- 権限コード: `<資源>:<操作>`（例 `item:view`、`system-settings:write`）。見ると変えるは `:view` と `:write` に分ける（ADR-0084 §3）

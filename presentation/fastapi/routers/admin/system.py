@@ -1,4 +1,4 @@
-"""アプリケーション再起動 API（要 ``system:manage``）。
+"""システムの状態（要 ``system:view``）とアプリケーション再起動（要 ``system:manage``）の API。
 
 起動時にしか読まれない設定（ログ・CORS 等）を管理画面から反映するための
 再起動要求を受け付ける。要求は DB に置かれ、各プロセスが自分宛かを判定して
@@ -51,6 +51,8 @@ router = APIRouter(prefix="/api/admin/system", tags=["admin"])
 
 DbDep = Annotated[Session, Depends(get_db)]
 SystemManagerDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("system:manage"))]
+#: 状態を見るだけ。サポート担当も持つ（ADR-0084 §3）
+SystemViewerDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("system:view"))]
 
 
 def _to_response(request: RestartRequest) -> RestartRequestResponse:
@@ -64,7 +66,7 @@ def _to_response(request: RestartRequest) -> RestartRequestResponse:
 
 
 @router.get("/status", response_model=SystemStatusResponse)
-async def system_status(request: Request, _principal: SystemManagerDep, db: DbDep) -> SystemStatusResponse:
+async def system_status(request: Request, _principal: SystemViewerDep, db: DbDep) -> SystemStatusResponse:
     """ビルド情報と各コンポーネント（API・DB）の状態を返す。
 
     このハンドラーまで到達した時点で API 自体は応答できているため ``api`` は

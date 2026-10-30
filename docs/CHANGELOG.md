@@ -1,3 +1,15 @@
+## 2026-10-30（ロールをアクターから導く。サポート担当とコンテンツ管理者。ADR-0084）
+
+- 使う人（アクター）とユースケースの表を ADR-0084 に置き、ロールを 1 アクターに 1 つ当てた。
+  新しいロールは `system-support`（テナントの外で、テナントの一覧とシステムの状態を見るだけ）と
+  `content-admin`（コンテンツ設定を決める。中身は読むだけ）。
+- 設定の権限をシステム（`system-settings:view` / `:write`）とコンテンツ（`content-settings:view` / `:write`）の 2 層に分け、
+  見ると変えるを分けた。`admin:system-settings` → `system-settings:view` ＋ `:write`、`item:manage` → `item:write` に改名し、
+  `system:view`・`tenant:view` を足した。`permission:manage` は廃止し、権限コードの一覧は `role:manage` で読む。
+  移行 `0020_actors_and_roles` が付与ごと引き継ぐ。前の名前を持つ発行済みのトークンは、更新されるまで（最長 5 分）その口で 403 になる。
+- 「システム管理者」の画面は「運用者とサポート担当」になり、足すときに役割を選ぶ。最後の運用者を外せない関門は `system-admin` だけを数える。
+- コンテンツ設定の受け皿（画面と API）はまだ無い（Progress の T16）。
+
 ## 2026-10-30（ADR を話題ごとの 12 本に束ねた）
 
 - ADR-0001〜0070 を、DB・開発の仕組み・ビルドと配布・設定・ログと監査・ローカルの認証・IdP 連携・認可とロール・

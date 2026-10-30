@@ -323,7 +323,7 @@ ssh -t nolumialab "sudo k3s kubectl -n <app>-<env> exec -it deploy/app -- \
 
 ## システム設定を変更したいとき
 
-管理画面（`/admin/config`。要 `admin:system-settings` 権限）から編集する。
+管理画面（`/admin/config`。要 `system-settings:write` 権限）から編集する。
 保存すると即時反映される。⚠ **保存した値は環境変数より強い**（ADR-0074 §1）——
 環境変数にも値がある鍵には「環境変数にも値があります（消すとそちらへ戻ります）」
 と出る。**消す**（空にして保存）と環境変数へ、環境変数も無ければ既定値へ戻る。

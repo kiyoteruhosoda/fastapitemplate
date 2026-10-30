@@ -1,7 +1,7 @@
 """example コンテキストの API（Item CRUD）。
 
 コンテキスト固有のルーター・スキーマ・依存関数は presentation/ 配下に
-まとめる。認可は scope（``item:view`` / ``item:manage``）で宣言する。
+まとめる。認可は scope（``item:view`` / ``item:write``）で宣言する。
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ RepoDep = Annotated[SqlItemRepository, Depends(get_item_repository)]
     "",
     status_code=status.HTTP_201_CREATED,
     response_model=ItemResponse,
-    dependencies=[Depends(require_permission("item:manage"))],
+    dependencies=[Depends(require_permission("item:write"))],
 )
 async def create_item(body: ItemCreateRequest, repo: RepoDep) -> ItemResponse:
     dto = CreateItemUseCase(repo).execute(body.name)

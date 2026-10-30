@@ -43,7 +43,7 @@ export function ItemsPage() {
     <div className="card">
       <div className="card-head">
         <h1>{t('items.title')}</h1>
-        {hasScope('item:manage') && (
+        {hasScope('item:write') && (
           <button
             type="button"
             className="button-primary"

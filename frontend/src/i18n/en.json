@@ -405,7 +405,7 @@
   "error.invalid_device_token": "This device's notification token was not accepted.",
   "error.unknown_platform": "Unknown kind of device.",
   "nav.tenants": "Tenants",
-  "nav.systemAdmins": "System administrators",
+  "nav.systemAdmins": "Operators and support",
   "tenants.title": "Tenants",
   "tenants.add": "Register a tenant",
   "tenants.edit": "Edit tenant",
@@ -435,9 +435,9 @@
   "tenants.resume": "Resume",
   "tenants.invitationSent": "The invitation was sent.",
   "tenants.invitationNotSent": "The invitation could not be sent (mail is turned off). For an SSO tenant, the person can take the seat by signing in with the IdP.",
-  "systemAdmins.title": "System administrators",
-  "systemAdmins.add": "Add a system administrator",
-  "systemAdmins.hint": "System administrators belong to no tenant. They register tenants and manage app-wide settings and logs, but cannot see any tenant's content. The person you add receives an invitation and chooses their own password.",
+  "systemAdmins.title": "Operators and support",
+  "systemAdmins.add": "Add an operator or support staff",
+  "systemAdmins.hint": "These people belong to no tenant. Operators register tenants and manage app-wide settings and logs; support staff can only view the tenant list and the system status. Neither can see any tenant's content. The person you add receives an invitation and chooses their own password.",
   "systemAdmins.invitationNotSent": "The invitation could not be sent (mail is turned off). Set up mail, then add them again.",
   "error.tenant_already_exists": "A tenant with that short name already exists.",
   "error.issuer_already_registered": "That issuer is already registered to another tenant.",
@@ -446,5 +446,9 @@
   "error.note_not_found": "The note was not found. It may have been deleted or is no longer shared with you.",
   "error.note_not_owned": "Only the writer can change this note.",
   "error.share_group_not_joined": "You can only share with groups you belong to.",
-  "error.invalid_note": "Titles are 1–100 characters and bodies up to 4000 characters."
+  "error.invalid_note": "Titles are 1–100 characters and bodies up to 4000 characters.",
+  "config.readOnly": "You can view these settings only. Changing them needs the system-settings:write permission.",
+  "systemAdmins.role": "Role",
+  "systemAdmins.role.system-admin": "Operator",
+  "systemAdmins.role.system-support": "Support"
 }

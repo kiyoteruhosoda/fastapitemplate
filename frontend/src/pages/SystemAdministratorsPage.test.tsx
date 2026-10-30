@@ -1,5 +1,5 @@
 /**
- * システム管理者どうしの付け外し（ADR-0079 §1・§5）。
+ * テナントの外の人（運用者・サポート担当）の付け外し（ADR-0079 §1・§5・ADR-0084 §4）。
  *
  * 見るのは、足すと招待を送れたかを知らせること・自分の行には外すボタンを出さないこと・
  * サーバーが断った理由（最後の 1 人など）を出すこと。
@@ -28,8 +28,14 @@ vi.mock('../store/AuthContext', () => ({ useAuth: () => ({ user: { user_id: 1 } 
 const SETTINGS = { languages: ['en'], default_locale: 'en', default_theme: 'light' }
 
 const ADMINISTRATORS = [
-  { id: 1, email: 'me@ops.example', username: 'me', is_active: true },
-  { id: 2, email: 'second@ops.example', username: 'second', is_active: true },
+  { id: 1, email: 'me@ops.example', username: 'me', is_active: true, role: 'system-admin' },
+  {
+    id: 2,
+    email: 'second@ops.example',
+    username: 'second',
+    is_active: true,
+    role: 'system-support',
+  },
 ]
 
 async function renderPage() {
@@ -85,7 +91,7 @@ describe('SystemAdministratorsPage', () => {
   it('足すと招待を送り、送れなければメールを整えてから足し直すよう案内する', async () => {
     apiPost.mockResolvedValue({ user_id: 3, invitation_sent: false })
     await renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Add a system administrator' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add an operator or support staff' }))
     const dialog = within(screen.getByRole('dialog'))
     fireEvent.change(dialog.getByLabelText('Email'), { target: { value: 'third@ops.example' } })
     fireEvent.change(dialog.getByLabelText('Display name'), { target: { value: 'third' } })
@@ -95,6 +101,7 @@ describe('SystemAdministratorsPage', () => {
       expect(apiPost).toHaveBeenCalledWith('/api/system/administrators', {
         email: 'third@ops.example',
         username: 'third',
+        role: 'system-admin',
       })
     })
     expect(await screen.findByText(/Set up mail, then add them again\./)).toBeInTheDocument()
@@ -104,8 +111,28 @@ describe('SystemAdministratorsPage', () => {
   it('同じメールアドレスの人が居れば理由を出す', async () => {
     apiPost.mockRejectedValue(new ApiError(409, 'email_already_exists'))
     await renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Add a system administrator' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add an operator or support staff' }))
     submitWithout(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add' }))
     expect(await screen.findByText('This email is already registered.')).toBeInTheDocument()
+  })
+
+  it('役割を並べ、足すときにサポート担当を選べる', async () => {
+    apiPost.mockResolvedValue({ user_id: 3, invitation_sent: true })
+    await renderPage()
+    expect(within(rowOf('second')).getByText('Support')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add an operator or support staff' }))
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('Email'), { target: { value: 'help@ops.example' } })
+    fireEvent.change(dialog.getByLabelText('Display name'), { target: { value: 'help' } })
+    fireEvent.change(dialog.getByLabelText('Role'), { target: { value: 'system-support' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => {
+      expect(apiPost).toHaveBeenCalledWith('/api/system/administrators', {
+        email: 'help@ops.example',
+        username: 'help',
+        role: 'system-support',
+      })
+    })
   })
 })

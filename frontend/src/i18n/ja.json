@@ -405,7 +405,7 @@
   "error.invalid_device_token": "この端末の通知の宛先を受け付けられませんでした。",
   "error.unknown_platform": "端末の種類の指定が正しくありません。",
   "nav.tenants": "テナント",
-  "nav.systemAdmins": "システム管理者",
+  "nav.systemAdmins": "運用者とサポート担当",
   "tenants.title": "テナント",
   "tenants.add": "テナントを登録",
   "tenants.edit": "テナントを編集",
@@ -435,9 +435,9 @@
   "tenants.resume": "再開",
   "tenants.invitationSent": "招待のメールを送りました。",
   "tenants.invitationNotSent": "招待のメールは送れませんでした（メールの送信が止めてあります）。SSO のテナントなら、その人が IdP で入れば受け取れます。",
-  "systemAdmins.title": "システム管理者",
-  "systemAdmins.add": "システム管理者を追加",
-  "systemAdmins.hint": "システム管理者はテナントに属さず、テナントの登録・全体の設定・アプリログを扱います。テナントの中身は見えません。追加した人には招待のメールが届き、本人がパスワードを決めます。",
+  "systemAdmins.title": "運用者とサポート担当",
+  "systemAdmins.add": "運用者・サポート担当を追加",
+  "systemAdmins.hint": "テナントに属さない人です。運用者はテナントの登録・全体の設定・アプリログを扱い、サポート担当はテナントの一覧とシステムの状態を見るだけです。どちらもテナントの中身は見えません。追加した人には招待のメールが届き、本人がパスワードを決めます。",
   "systemAdmins.invitationNotSent": "招待のメールは送れませんでした（メールの送信が止めてあります）。メールの設定を済ませてから追加し直してください。",
   "error.tenant_already_exists": "同じ短い名前のテナントが既にあります。",
   "error.issuer_already_registered": "その発行者は別のテナントに登録済みです。",
@@ -446,5 +446,9 @@
   "error.note_not_found": "メモが見つかりません。削除されたか、共有が外れた可能性があります。",
   "error.note_not_owned": "このメモを変えられるのは書いた人だけです。",
   "error.share_group_not_joined": "自分が入っていないグループには共有できません。",
-  "error.invalid_note": "題名は 1〜100 文字、本文は 4000 文字までです。"
+  "error.invalid_note": "題名は 1〜100 文字、本文は 4000 文字までです。",
+  "config.readOnly": "見るだけの権限です。設定を変えるには system-settings:write 権限が必要です。",
+  "systemAdmins.role": "役割",
+  "systemAdmins.role.system-admin": "運用者",
+  "systemAdmins.role.system-support": "サポート担当"
 }
