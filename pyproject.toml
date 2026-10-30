@@ -2,7 +2,7 @@
 name = "fastapitemplate"
 version = "0.2.0"
 description = "FastAPI + DDD template (photonest-based) – Clean Architecture / DDD"
-requires-python = ">=3.12"
+requires-python = ">=3.15"
 dependencies = [
     "fastapi>=0.136.1",
     "uvicorn[standard]>=0.47.0",
@@ -45,7 +45,7 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.15"
 
 # 検査対象。この構成に "src/" は無いため、実際のパッケージルートを列挙する
 # （引数なしの `uv run mypy` がそのまま品質ゲートになる）。
@@ -88,7 +88,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py315"
 
 [tool.ruff.format]
 quote-style = "double"

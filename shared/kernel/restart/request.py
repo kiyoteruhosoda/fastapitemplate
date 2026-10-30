@@ -25,6 +25,7 @@ from typing import Any, Protocol
 from sqlalchemy.orm import Session
 
 from shared.kernel.restart.scope import ALL_RESTART_SCOPES, RestartScope
+from shared.kernel.timestamps import utcnow_aware
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,7 @@ class RestartRequestStore:
         if not targets:
             targets = ALL_RESTART_SCOPES
 
-        moment = datetime.now(UTC)
+        moment = utcnow_aware()
         token = moment.isoformat()
 
         record = session.get(SystemSetting, RESTART_REQUEST_SETTING_KEY)

@@ -166,7 +166,7 @@ class ApplicationSettings:
         value = self._get(key, default)
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     def get_list(self, key: str) -> Sequence[str]:

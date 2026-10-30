@@ -1,3 +1,12 @@
+## 2026-10-30（書いてある規則を機械で止めるようにした。ADR-0089）
+
+- 試験を足した: `test_coding_rules.py`（時刻の生成口・`settings` 経由・動的呼び出し・ネイティブ ENUM・マイグレーションの書式・`util` / `helper`・スキーマの命名・ロール名の分岐）、
+  `test_route_authorization.py`（全部の API に認可・管理の口に scope・公開する口の一覧・`require_any_permission` は読み取りだけ）、
+  `test_documents_match.py`（ADR の番号と一覧・画面の経路・Dockerfile）、`test_er_document.py`（ER 図と表・列）。
+- 見つかったずれを直した: `datetime.now(UTC)` を `timestamps.utcnow_aware()` へ、`〇〇Schema` と `SignInEntrances` を `〇〇Request` / `〇〇Response` へ（OpenAPI のスキーマ名が変わる）、ER 図に無かった 4 つの表。
+- ruff と mypy の対象を Python 3.15 に、`requires-python` を `>=3.15` にした（実際に動く版と揃えた）。ruff が `except A, B:` の形に直す。
+- 派生アプリは、取り込むと自分のずれが試験で落ちる。直すか、理由を書いて例外の表に足す。公開する口を足していたら `test_route_authorization.py` の表に足す。
+
 ## 2026-10-30（タスクの一覧 `Progress.md` をやめた。ADR-0088）
 
 - `docs/Progress.md` を消し、CLAUDE.md からタスク管理の義務を外した。タスクはリポジトリの外の課題管理で持つ。

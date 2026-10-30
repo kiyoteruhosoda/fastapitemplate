@@ -26,7 +26,7 @@ class NoteDTO:
     can_change: bool
 
     @classmethod
-    def of(cls, note: Note, viewer: Viewer) -> "NoteDTO":
+    def of(cls, note: Note, viewer: Viewer) -> NoteDTO:
         return cls(
             id=note.id,
             title=note.content.title.value,

@@ -37,6 +37,7 @@ from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import User
 from shared.infrastructure.tenant_scope import tenant_admits
 from shared.kernel.settings.settings import settings
+from shared.kernel.timestamps import utcnow_aware
 
 _ALGORITHM = "HS256"
 TYPE_ACCESS = "access"
@@ -116,7 +117,7 @@ class TokenService:
         """
         granted = user.permission_codes_of(carry.active_role)
         effective = sorted(granted if scopes is None else granted & set(scopes))
-        now = datetime.now(UTC)
+        now = utcnow_aware()
         base_claims = {
             "sub": str(user.id),
             "iss": settings.access_token_issuer,
@@ -281,7 +282,7 @@ def create_machine_access_token(user: User, *, client_id: str, operations: froze
     ⚠ ``auth_time`` は「ずっと前」にする（入り直したばかりが要る操作を、機械は通れない。ADR-0076 §10）。
     """
     effective = sorted(user.permission_codes_of(None) & operations)
-    now = datetime.now(UTC)
+    now = utcnow_aware()
     token = jwt.encode(
         {
             "sub": str(user.id),
