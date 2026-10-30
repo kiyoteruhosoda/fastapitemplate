@@ -66,7 +66,7 @@ def _dependencies(dependant: Dependant) -> Iterator[Callable[..., object]]:
 def _api_routes(app: FastAPI) -> Iterator[tuple[str, str, APIRoute]]:
     for route in app.routes:
         if isinstance(route, APIRoute):
-            for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
+            for method in sorted(set(route.methods or ()) - {"HEAD", "OPTIONS"}):
                 yield method, route.path, route
 
 
