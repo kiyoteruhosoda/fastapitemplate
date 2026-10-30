@@ -32,9 +32,11 @@ from bounded_contexts.identity_federation.domain.value_objects.federated_session
 from bounded_contexts.identity_federation.infrastructure.sql_session_revocation_repository import (
     SqlSessionRevocationRepository,
 )
+from presentation.fastapi.services import refresh_sessions
+from presentation.fastapi.services.refresh_sessions import RefreshStanding
 from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
 from shared.application.authenticated_principal import AuthenticatedPrincipal
-from shared.infrastructure.models import User
+from shared.infrastructure.models import RefreshSession, User
 from shared.infrastructure.tenant_scope import tenant_admits
 from shared.kernel.settings.settings import settings
 from shared.kernel.timestamps import utcnow_aware
@@ -42,6 +44,7 @@ from shared.kernel.timestamps import utcnow_aware
 _ALGORITHM = "HS256"
 TYPE_ACCESS = "access"
 TYPE_REFRESH = "refresh"
+TYPE_LOGOUT = "logout"
 # アクティブロール名を載せるクレーム名（access / refresh の双方に入れる。
 # refresh に無いと、トークン更新のたびに「すべてのロール」へ戻ってしまう）
 CLAIM_ACTIVE_ROLE = "active_role"
@@ -64,6 +67,8 @@ CLAIM_TENANT = "tenant"
 #: 機械の口から出したトークンの印（名乗った機械の ``client_id``。ADR-0087）。人のトークンには載らない。
 #: ⚠ これが載ったトークンは、scope で守られた口（``require_permission``）でしか通らない。
 CLAIM_MACHINE_CLIENT = "machine_client"
+#: ログインの控え（``refresh_sessions.id``。ADR-0091）。アクセストークンにも載せ、ロールの切り替えで引き継ぐ
+CLAIM_REFRESH_SESSION = "rsid"
 #: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
 SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -91,6 +96,10 @@ class RefreshedSession:
     federated_login: FederatedLogin | None
     #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。更新でも引き継ぐ
     authenticated_at: datetime = SIGNED_IN_LONG_AGO
+    refresh_session_id: str = ""
+    #: 出されたトークンの識別子と、控えと比べた結果（ADR-0091）
+    jti: str = ""
+    standing: RefreshStanding = RefreshStanding.CURRENT
 
     @property
     def carry(self) -> SessionCarryOver:
@@ -99,6 +108,8 @@ class RefreshedSession:
             active_role=self.active_role,
             federated_login=self.federated_login,
             authenticated_at=self.authenticated_at,
+            refresh_session_id=self.refresh_session_id,
+            presented_jti=self.jti,
         )
 
 
@@ -118,6 +129,9 @@ class TokenService:
         granted = user.permission_codes_of(carry.active_role)
         effective = sorted(granted if scopes is None else granted & set(scopes))
         now = utcnow_aware()
+        refresh_session_id = carry.refresh_session_id or refresh_sessions.new_identifier()
+        refresh_jti = refresh_sessions.new_identifier()
+        expires_at = now + timedelta(seconds=settings.refresh_token_expires_seconds)
         base_claims = {
             "sub": str(user.id),
             "iss": settings.access_token_issuer,
@@ -127,6 +141,7 @@ class TokenService:
             CLAIM_AUTHENTICATED_AT: int((carry.authenticated_at or now).timestamp()),
             CLAIM_ACTIVE_ROLE: carry.active_role,
             CLAIM_TENANT: user.tenant_id,
+            CLAIM_REFRESH_SESSION: refresh_session_id,
             **_federation_claims(carry.federated_login),
         }
         access = jwt.encode(
@@ -147,7 +162,8 @@ class TokenService:
             {
                 **base_claims,
                 "type": TYPE_REFRESH,
-                "exp": now + timedelta(seconds=settings.refresh_token_expires_seconds),
+                "jti": refresh_jti,
+                "exp": expires_at,
             },
             settings.jwt_secret_key,
             algorithm=_ALGORITHM,
@@ -155,25 +171,12 @@ class TokenService:
         return {
             "access_token": access,
             "refresh_token": refresh,
+            "logout_token": _logout_token(user, refresh_session_id, now, expires_at),
+            "refresh_session_id": refresh_session_id,
+            "refresh_jti": refresh_jti,
             "token_type": "bearer",
             "expires_in": settings.access_token_expires_seconds,
         }
-
-    @staticmethod
-    def _decode(token: str) -> tuple[dict[str, Any] | None, str | None]:
-        try:
-            claims = jwt.decode(
-                token,
-                settings.jwt_secret_key,
-                algorithms=[_ALGORITHM],
-                audience=settings.access_token_audience,
-                issuer=settings.access_token_issuer,
-            )
-            return claims, None
-        except jwt.ExpiredSignatureError:
-            return None, "token_expired"
-        except jwt.InvalidTokenError:
-            return None, "token_invalid"
 
     @classmethod
     def verify_access_token_with_reason(cls, token: str) -> tuple[AuthenticatedPrincipal | None, str | None]:
@@ -187,7 +190,7 @@ class TokenService:
         :meth:`verify_refresh_token` は DB を引き、止まっていれば新しい
         アクセストークンを出さない。**止める判定はあちらの 1 点に集約してある。**
         """
-        claims, reason = cls._decode(token)
+        claims, reason = _decode(token)
         if claims is None:
             return None, reason
         if claims.get("type") != TYPE_ACCESS:
@@ -220,20 +223,47 @@ class TokenService:
         DB を引かないので、**止まっている利用者を止められるのはこの 1 点だけ**である
         ——ここを緩めると、寿命による上限そのものが無くなる。
         """
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_REFRESH:
             return None
-        user = cls._load_active_user(claims, session)
+        user = _load_active_user(claims, session)
         if user is None:
             return None
         if _session_revoked(claims, session):
+            return None
+        # ⚠ 控えを持たないトークン（ADR-0091 より前のもの）は受け付けない。使い回しを見分けられない
+        refresh_session_id, jti = claims.get(CLAIM_REFRESH_SESSION), claims.get("jti")
+        if not isinstance(refresh_session_id, str) or not isinstance(jti, str):
+            return None
+        row = session.get(RefreshSession, refresh_session_id)
+        if row is None:
             return None
         return RefreshedSession(
             user=user,
             active_role=_active_role_of(claims),
             federated_login=_federated_login_of(claims),
             authenticated_at=_authenticated_at_of(claims),
+            refresh_session_id=refresh_session_id,
+            jti=jti,
+            standing=refresh_sessions.standing_of(row, jti),
         )
+
+    @classmethod
+    def end_refresh_session(cls, logout_token: str, *, session: Session) -> None:
+        """ログアウトの札からログインの控えを消す（ADR-0091）。読めない札は何もしない。"""
+        claims, _ = _decode(logout_token)
+        if claims is None or claims.get("type") != TYPE_LOGOUT:
+            return
+        refresh_session_id = claims.get(CLAIM_REFRESH_SESSION)
+        if isinstance(refresh_session_id, str):
+            refresh_sessions.end(session, refresh_session_id)
+
+    @classmethod
+    def refresh_session_id_of(cls, token: str) -> str | None:
+        """アクセストークンに載っているログインの控え（ロールの切り替えで引き継ぐ）。"""
+        claims, _ = _decode(token)
+        value = claims.get(CLAIM_REFRESH_SESSION) if claims is not None else None
+        return value if isinstance(value, str) else None
 
     @classmethod
     def session_is_revoked(cls, token: str, *, session: Session) -> bool:
@@ -243,7 +273,7 @@ class TokenService:
         そこだけは DB を引いて確かめる ——確かめないと、止められた利用者が
         出し直しを繰り返すだけで寿命の上限を破れる。
         """
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_ACCESS:
             return False
         return _session_revoked(claims, session)
@@ -255,24 +285,57 @@ class TokenService:
         ロールの切り替えで新しいトークンを出すときに引き継ぐためのもの
         （引き継がないと、切り替えた瞬間に停止の伝播から外れる）。
         """
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_ACCESS:
             return None
         return _federated_login_of(claims)
 
-    @staticmethod
-    def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
-        try:
-            user_id = int(claims.get("sub", ""))
-        except ValueError:
-            return None
-        user = session.get(User, user_id)
-        if user is None or not user.is_active:
-            return None
-        # 止めたテナントの人には出し直さない（ADR-0079 §1）。手元の 1 枚は寿命まで
-        if not tenant_admits(session, user):
-            return None
-        return user
+
+def _decode(token: str) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[_ALGORITHM],
+            audience=settings.access_token_audience,
+            issuer=settings.access_token_issuer,
+        )
+        return claims, None
+    except jwt.ExpiredSignatureError:
+        return None, "token_expired"
+    except jwt.InvalidTokenError:
+        return None, "token_invalid"
+
+
+def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
+    try:
+        user_id = int(claims.get("sub", ""))
+    except ValueError:
+        return None
+    user = session.get(User, user_id)
+    if user is None or not user.is_active:
+        return None
+    # 止めたテナントの人には出し直さない（ADR-0079 §1）。手元の 1 枚は寿命まで
+    if not tenant_admits(session, user):
+        return None
+    return user
+
+
+def _logout_token(user: User, refresh_session_id: str, issued_at: datetime, expires_at: datetime) -> str:
+    """ログインを終わらせることしかできない札（ADR-0091）。"""
+    return jwt.encode(
+        {
+            "sub": str(user.id),
+            "iss": settings.access_token_issuer,
+            "aud": settings.access_token_audience,
+            "iat": issued_at,
+            "exp": expires_at,
+            "type": TYPE_LOGOUT,
+            CLAIM_REFRESH_SESSION: refresh_session_id,
+        },
+        settings.jwt_secret_key,
+        algorithm=_ALGORITHM,
+    )
 
 
 def create_machine_access_token(user: User, *, client_id: str, operations: frozenset[str]) -> MachineAccessToken:
@@ -349,13 +412,20 @@ def _from_microseconds(value: int) -> datetime:
 def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
     """このトークンのセッションが終わっていないか。
 
-    終わっているのは 2 通り: パスワードを変えるなどして、利用者がそれより前の
-    ログインを終わらせた（ADR-0076 §8）／IdP 側で止められた（ADR-0077 §3）。
+    終わっているのは 3 通り: パスワードを変えるなどして、利用者がそれより前の
+    ログインを終わらせた（ADR-0076 §8）／IdP 側で止められた（ADR-0077 §3）／
+    ログアウトした・使い回しが見つかった（ADR-0091）。
     """
-    if _issued_before_sessions_ended(claims, session):
+    if _issued_before_sessions_ended(claims, session) or _refresh_session_ended(claims, session):
         return True
     check = CheckSessionRevocation(revocations=SqlSessionRevocationRepository(session))
     return check.execute(_federated_login_of(claims))
+
+
+def _refresh_session_ended(claims: dict[str, Any], session: Session) -> bool:
+    """控えが消えたログインか（ADR-0091）。控えの載っていないトークンはここでは止めない。"""
+    refresh_session_id = claims.get(CLAIM_REFRESH_SESSION)
+    return isinstance(refresh_session_id, str) and session.get(RefreshSession, refresh_session_id) is None
 
 
 def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> bool:
@@ -415,10 +485,12 @@ __all__ = [
     "CLAIM_FEDERATED_ISSUER",
     "CLAIM_FEDERATED_SUBJECT",
     "CLAIM_MACHINE_CLIENT",
+    "CLAIM_REFRESH_SESSION",
     "CLAIM_SESSION_ID",
     "CLAIM_TENANT",
     "SIGNED_IN_LONG_AGO",
     "TYPE_ACCESS",
+    "TYPE_LOGOUT",
     "TYPE_REFRESH",
     "MachineAccessToken",
     "RefreshedSession",

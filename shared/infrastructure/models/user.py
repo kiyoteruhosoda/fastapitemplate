@@ -132,6 +132,25 @@ class UserSessionBoundary(Base):
     user: Mapped[User] = relationship(back_populates="session_boundary")
 
 
+class RefreshSession(Base):
+    """ログインごとの控え（ADR-0091）。1 ログイン 1 行で、行が無ければそのログインは終わっている。"""
+
+    __tablename__ = "refresh_sessions"
+    __table_args__ = declared(Tenancy.PERSONAL)
+
+    id: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    #: 新しいトークン対を受け取れる 1 本
+    current_jti: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    #: 振り替えの直後だけ受け付ける 1 本（同時に走った更新の負けた側）
+    previous_jti: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    rotated_at = mapped_column(sa.DateTime(), nullable=True)
+    expires_at = mapped_column(sa.DateTime(), nullable=False, index=True)
+    created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
+
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
     __table_args__ = declared(Tenancy.PERSONAL)
@@ -151,4 +170,4 @@ class PasswordResetToken(Base):
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
-__all__ = ["PasswordResetToken", "User", "UserSessionBoundary", "user_roles"]
+__all__ = ["PasswordResetToken", "RefreshSession", "User", "UserSessionBoundary", "user_roles"]

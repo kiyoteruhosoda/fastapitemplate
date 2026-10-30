@@ -25,3 +25,4 @@
 | [ADR-0088](ADR-0088-no-task-list-in-the-repository.md) | タスクの一覧 | タスクの一覧（`Progress.md`）をリポジトリに置かない（ADR-0072 §2 のタスク管理を置き換え） |
 | [ADR-0089](ADR-0089-rules-are-enforced-by-tests.md) | 規則を機械で止める | CLAUDE.md の規則は試験で止める。例外は理由と一緒に試験の表へ。全部の API に認可を求め、公開する口は一覧にする |
 | [ADR-0090](ADR-0090-outbound-settings-are-env-only.md) | 通信先の設定 | 通信先の URL と鍵のファイルの場所は環境変数だけ（画面は見るだけ）。メールサーバーとテナントの発行者は形を確かめて受け取る |
+| [ADR-0091](ADR-0091-refresh-sessions.md) | ログインの控え | ログインごとの控えを持ち、ログアウトで終わらせ、リフレッシュトークンを振り替えて使い回しを断る（ADR-0076 §8 の「ログアウトは Cookie を消すだけ」を置き換え） |

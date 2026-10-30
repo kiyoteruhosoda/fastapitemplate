@@ -10,12 +10,13 @@ from shared.infrastructure.models.log import Log
 from shared.infrastructure.models.role import Permission, Role, role_permissions
 from shared.infrastructure.models.system_setting import SystemSetting
 from shared.infrastructure.models.tenant import RoleTenant, Tenant, TenantStatus, UserTenant
-from shared.infrastructure.models.user import PasswordResetToken, User, UserSessionBoundary, user_roles
+from shared.infrastructure.models.user import PasswordResetToken, RefreshSession, User, UserSessionBoundary, user_roles
 
 __all__ = [
     "Log",
     "PasswordResetToken",
     "Permission",
+    "RefreshSession",
     "Role",
     "RoleTenant",
     "SystemSetting",

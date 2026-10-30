@@ -27,6 +27,7 @@
 erDiagram
     users ||--o{ user_roles : "所属する"
     users ||--o| user_session_boundaries : "ログインを区切る"
+    users ||--o{ refresh_sessions : "ログインごとの控え"
     roles ||--o{ user_roles : "割り当てられる"
     roles ||--o{ role_permissions : "持つ"
     permissions ||--o{ role_permissions : "付与される"
@@ -132,6 +133,16 @@ erDiagram
         boolean is_active "既定 true"
         datetime created_at "UTC"
         datetime updated_at "UTC"
+    }
+
+    refresh_sessions {
+        varchar(32) id PK "トークンの rsid"
+        bigint user_id FK "users.id（ON DELETE CASCADE）・索引あり"
+        varchar(32) current_jti "新しいトークン対を受け取れる 1 本"
+        varchar(32) previous_jti "振り替えの直後だけ受け付ける 1 本。NULL=まだ振り替えていない"
+        datetime rotated_at "NULL=まだ振り替えていない"
+        datetime expires_at "索引あり"
+        datetime created_at
     }
 
     user_session_boundaries {
@@ -334,7 +345,7 @@ erDiagram
 | 区分 | 意味 | 表 |
 |---|---|---|
 | テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `notes` / `content_settings` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
-| 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
+| 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `refresh_sessions` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
 | 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` |
 
 | テーブル | 役割 | モデル |
@@ -356,6 +367,7 @@ erDiagram
 |---|---|---|
 | `users` | ユーザー。`email` の一意は**同じ席の中だけ**（同じテナントの中、テナントに属さない人の中。ADR-0079 §4）で、DB には一意制約を置かずアプリが確かめる。無効化は削除ではなく `is_active` で行う。⚠ **`password_hash` が NULL = ローカル認証を持たない**（ADR-0076 §6）。「空のパスワード」でも「誰も知らない値が入っている」でもない | `user.py` |
 | `user_session_boundaries` | ログインの区切り（ADR-0076 §8）。1 人 1 行。`valid_from` より前に出したトークンでは更新・出し直しをさせない。パスワードを変えた・再設定した・管理者が付け直したときに入る。行が無ければ区切り無し。`users` の列にしないのは、古い移行が `User` のモデルで `users` を書くため | `user.py` |
+| `refresh_sessions` | ログインごとの控え（ADR-0091）。1 ログイン 1 行。行が無ければそのログインは終わっている。ログアウトと使い回しの検出で消え、期限切れは新しいログインのときに掃除する | `user.py` |
 | `roles` | ロール。`id` は `user_roles` からの参照キーとして固定値で投入する | `role.py` |
 | `permissions` | 権限コード（scope）。`code` を安定キーとし `id` は DB 採番 | `role.py` |
 | `user_roles` | ユーザー ⇔ ロール（多対多） | `user.py` |

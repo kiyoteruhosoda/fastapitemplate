@@ -24,6 +24,10 @@ class SessionCarryOver:
     federated_login: FederatedLogin | None = None
     #: ``None`` は「いまサインインした」。渡してよいのは入口（パスワード・パスキー・SSO）だけ
     authenticated_at: datetime | None = None
+    #: 続けるログインの控え（ADR-0091）。``None`` は新しいログインで、控えを 1 行作る
+    refresh_session_id: str | None = None
+    #: 更新の口で出されたリフレッシュトークン。これが今の 1 本のときだけ Cookie を載せ直す
+    presented_jti: str | None = None
 
 
 #: 入口から入ったばかりのセッション
