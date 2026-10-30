@@ -47,6 +47,9 @@ erDiagram
     tenants ||--o{ user_groups : "持つ"
     tenants ||--o{ notifications : "持つ"
     tenants ||--o{ items : "持つ"
+    tenants ||--o{ notes : "持つ"
+    users ||--o{ notes : "書く"
+    user_groups |o--o{ notes : "共有される"
     tenants ||--o{ role_tenants : "自分のロールを持つ"
     roles ||--o| role_tenants : "作ったテナント（無ければ共有の雛形）"
 
@@ -249,6 +252,17 @@ erDiagram
         bigint tenant_id FK "索引あり"
         varchar(255) name
     }
+
+    notes {
+        bigint id PK
+        bigint tenant_id FK "索引あり"
+        bigint owner_user_id FK "持ち主・索引あり・消えたらメモも消える"
+        bigint shared_group_id FK "NULL=自分だけ・索引あり・グループを消すと NULL"
+        varchar(100) title
+        text body
+        datetime created_at
+        datetime updated_at
+    }
 ```
 
 `system_settings` / `log` / `audit_log` は他テーブルと FK で結ばれない（意図的）。
@@ -262,6 +276,8 @@ erDiagram
   絞り込みに入れると、1 リクエストの記録を両側から突き合わせられる。
 - `system_settings` は設定キーごとの上書き値を持つ独立テーブル。
 - `items` は `bounded_contexts/example`（新機能追加の見本）のテーブル。
+- `notes` は `bounded_contexts/notes`（資源 1 件ずつの可否の見本。ADR-0070）のテーブル。誰が読めて変えられるかは
+  `owner_user_id` と、`shared_group_id` のグループの所属（`user_group_members`）で決まる。
 
 ---
 
@@ -272,7 +288,7 @@ erDiagram
 
 | 区分 | 意味 | 表 |
 |---|---|---|
-| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
+| テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `notes` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
 | 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
 | 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` |
 
@@ -360,6 +376,7 @@ Cookie でブラウザに預けるため（ADR-0025）。保管も掃除も要�
 | `log` | アプリログ（システムが何をしたか）。`request_id` でリクエスト単位に追跡する。索引は絞り込み軸（レベル・ロガー・利用者・期間・`request_id`）に対応する | `shared/infrastructure/models/log.py` |
 | `audit_log` | 監査ログ（誰が何をしたか）。ログイン・ユーザー／ロール管理・設定変更・再起動要求・MFA の変更を記録する | `bounded_contexts/audit/infrastructure/audit_log_model.py` |
 | `items` | example コンテキストのサンプルテーブル | `bounded_contexts/example/infrastructure/item_model.py` |
+| `notes` | 共有メモ（資源 1 件ずつの可否の見本。ADR-0070） | `bounded_contexts/notes/infrastructure/note_model.py` |
 
 `log` と `audit_log` の使い分け（ADR-0013）:
 

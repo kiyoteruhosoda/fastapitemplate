@@ -19,6 +19,7 @@ interface Group {
 const TOP_ITEMS: Item[] = [
   { to: '/', labelKey: 'nav.dashboard', scopes: ['dashboard:view'] },
   { to: '/items', labelKey: 'nav.items', scopes: ['item:view'] },
+  { to: '/notes', labelKey: 'nav.notes', scopes: ['note:view'] },
 ]
 
 /** 階層メニュー。グループは、表示できる項目が 1 つも無ければ見出しごと出さない。 */

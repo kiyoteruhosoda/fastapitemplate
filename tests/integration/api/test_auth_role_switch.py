@@ -65,8 +65,8 @@ def test_switching_narrows_the_effective_scopes(client: TestClient, admin_header
 
     me = client.get("/api/auth/me", headers=headers).json()
     assert me["active_role"] == "member"
-    # member が持つのは dashboard:view / gui:view / item:view だけ
-    assert me["scopes"] == ["dashboard:view", "gui:view", "item:view"]
+    # member が持つのは dashboard:view / gui:view / item:view / note:view だけ
+    assert me["scopes"] == ["dashboard:view", "gui:view", "item:view", "note:view"]
     # 絞り込んだあいだは manager 側の権限では通らない
     assert client.get("/api/admin/logs", headers=headers).status_code == 403
 

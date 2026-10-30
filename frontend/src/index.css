@@ -1081,6 +1081,12 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
+.note-body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .result-count {
   margin: 0;
   font-size: 0.85rem;

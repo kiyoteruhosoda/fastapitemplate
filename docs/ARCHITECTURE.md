@@ -37,8 +37,9 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 ## bounded_contexts と shared の使い分け
 
 - 機能は `bounded_contexts/<context>/` として追加する。1コンテキスト = 1業務領域。
-  `bounded_contexts/example/`（Item CRUD）が最小構成の見本。
-  現在のコンテキストは `example`（見本）・`account_security`（二要素認証・パスキー）・
+  `bounded_contexts/example/`（Item CRUD）が最小構成の見本。資源 1 件ずつの可否（持ち主・共有）が
+  要る機能は `bounded_contexts/notes/`（共有メモ。ADR-0070）が見本。
+  現在のコンテキストは `example`（見本）・`notes`（資源ごとの可否の見本）・`account_security`（二要素認証・パスキー）・
   `audit`（監査ログ／アプリログの記録と閲覧）・`email_sender`（メール送信）・
   `identity_federation`（SSO）・`notification`（お知らせの配信とベル・画面上部・Web Push。ADR-0047）・
   `app_release`（スマホアプリの最新版を知らせる。ADR-0048）。
@@ -69,6 +70,12 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
     `require_any_permission(...)`（いずれか 1 つ）を使う（ADR-0018）。
   - 検証済みの主体は `AuthenticatedPrincipal`（`shared/application/`）として渡る。
     `active_role` も持つが、これは表示・切り替えのためで認可には使わない。
+- 認可は 2 段に分ける（ADR-0070）。
+  - **機能を使えるか**は scope。トークンだけで確かめ、DB を引かない（ADR-0041）。scope は機能単位で、
+    資源の ID や資源ごとの可否は入れない（入れると資源の数だけトークンが膨らむ）。
+  - **この 1 件を扱えるか**は、持ち主・グループの所属などのデータで、リクエストのたびに DB で確かめる。
+    1 件の可否はエンティティが答え（`Note.readable_by` / `changeable_by`）、ユースケースが確かめ、
+    一覧はリポジトリが同じ決まりを SQL で書いて絞る。読めないものは 404、読めるが変えられないものは 403。
 - ロール・権限コード・初期管理者は `shared/domain/auth/master_data.py` で一元管理し、
   マイグレーションのシードと `scripts/seed_master_data.py` が参照する。
   投入は 2 つに分かれている（ADR-0024）。`seed_master_data` は**ロールと権限だけ**、

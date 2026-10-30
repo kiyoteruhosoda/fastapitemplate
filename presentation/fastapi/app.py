@@ -43,6 +43,8 @@ from bounded_contexts.identity_federation.presentation.router import (
 from bounded_contexts.identity_federation.presentation.startup_check import (
     report_sso_configuration,
 )
+from bounded_contexts.notes.presentation.error_handling import register_note_error_handler
+from bounded_contexts.notes.presentation.router import router as notes_router
 from bounded_contexts.notification.presentation.error_handling import (
     register_notification_error_handler,
 )
@@ -132,6 +134,7 @@ def _include_routers(app: FastAPI) -> None:
         system_tenants_router,
         system_administrators_router,
         items_router,
+        notes_router,
     ):
         app.include_router(router)
 
@@ -199,6 +202,7 @@ def create_app() -> FastAPI:
     register_account_security_error_handler(app)
     register_identity_federation_error_handler(app)
     register_notification_error_handler(app)
+    register_note_error_handler(app)
 
     _include_routers(app)
 
