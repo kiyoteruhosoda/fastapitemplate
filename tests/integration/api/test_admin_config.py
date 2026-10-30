@@ -104,9 +104,7 @@ def test_env_only_setting_cannot_be_saved_from_the_screen(
     assert items["MAIL_SERVER"]["env_only"] is False
 
 
-def test_env_only_setting_ignores_a_value_left_in_the_database(
-    db_session: Session, monkeypatch: MonkeyPatch
-) -> None:
+def test_env_only_setting_ignores_a_value_left_in_the_database(db_session: Session, monkeypatch: MonkeyPatch) -> None:
     """取り込む前に画面で入れた値が DB に残っていても読まない。"""
     monkeypatch.setenv("OIDC_ISSUER", "https://idp.from-env.example")
     db_session.add(

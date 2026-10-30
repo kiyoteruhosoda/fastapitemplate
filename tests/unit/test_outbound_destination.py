@@ -98,7 +98,18 @@ def test_host_name_outside_is_accepted(host: str) -> None:
 
 @pytest.mark.parametrize(
     "host",
-    ["10.10.2.11", "127.0.0.1", "[::1]", "db", "app.svc", "x.cluster.local", "smtp.local", "https://a.example", "a b.example", ""],
+    [
+        "10.10.2.11",
+        "127.0.0.1",
+        "[::1]",
+        "db",
+        "app.svc",
+        "x.cluster.local",
+        "smtp.local",
+        "https://a.example",
+        "a b.example",
+        "",
+    ],
 )
 def test_host_name_inside_or_malformed_is_refused(host: str) -> None:
     with pytest.raises(DestinationRefusedError):

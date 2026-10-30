@@ -16,9 +16,7 @@ def test_a_redirect_from_the_issuer_is_not_followed(monkeypatch: pytest.MonkeyPa
 
     def fake_get(url: str, **kwargs: Any) -> httpx.Response:
         calls.append(kwargs)
-        return httpx.Response(
-            302, headers={"Location": "https://10.10.2.11/x"}, request=httpx.Request("GET", url)
-        )
+        return httpx.Response(302, headers={"Location": "https://10.10.2.11/x"}, request=httpx.Request("GET", url))
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
