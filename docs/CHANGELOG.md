@@ -7,6 +7,21 @@
 - 監査ログに `machine_token.issued` / `machine_token.refused` / `machine_operation.refused` を足した（対象は
   `machine_client:<client_id>`、実行者は振る舞う利用者）。
 
+## 2026-10-30（CI の決まりを ADR に・文書の食い違いを直した。ADR-0086）
+
+- CI が forge の自前の台で動き GitHub から何も取らないこと、uv の版を書かずに写しの最新を使うことを ADR-0086 にした
+  （ADR-0072 §5 を置き換え）。CLAUDE.md の「`version` を固定」と「版は書かない」の食い違いも直した。
+- `bounded_contexts/identity_federation/README.md` に残っていた、消えた設定 `OIDC_ROLE_MAPPING` の説明を今の形に直した。
+
+## 2026-10-30（テンプレートとして文書を整えた）
+
+- テンプレートの使い方のマニュアル `docs/TEMPLATE.md` を足した（入っているもの・新しいアプリの作り方・名前の付け替え箇所の一覧・
+  見本の消し方・機能の足し方・雛形の更新の取り込み方）。`README.md` はテンプレートの紹介と文書の入口に書き直した。
+- 消したもの: `.claude/agents/`（`src/` 構成の頃の古い説明で、今の作りと合っていなかった）・`docs/history/`（2026-07 の経緯。
+  設定の優先順位など今と違う記述を含んでいた。要るときは git の履歴で読む）。
+- `docs/Progress.md` から済んだもの（ログイン試行の制限・本番での既定の署名鍵の拒否・パスワード変更での失効・守りのヘッダー）を外し、残りだけにした。
+- 画面仕様の「設定の優先順位は 環境変数 > DB」という誤りを、DB > 環境変数 > 既定値（ADR-0074 §1）に直した。
+
 ## 2026-10-30（コンテンツ設定の受け皿。ADR-0085）
 
 - テナントごとのコンテンツ設定を足した（`bounded_contexts/content_settings`・画面 `/admin/content-settings`・API
@@ -1142,7 +1157,7 @@ Domain 層は werkzeug を import できないため、ハッシュ生成をこ�
 
 CI を「Lint → Type Check → Test」の必須ゲートにした（ADR-0072 §1）。
 Backend 4 種・Frontend 4 種の計 8 ゲートで、落ちたらマージできない。
-経緯は `history/2026-07-quality-gates.md`。
+経緯は git の履歴（`docs/history/2026-07-quality-gates.md`。2026-10-30 に消した）。
 
 導入したツールと、それによって見つかった実際の不具合:
 
