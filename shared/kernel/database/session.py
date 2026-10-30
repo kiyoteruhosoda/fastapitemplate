@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from shared.kernel.database.db import get_session_factory
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[Session]:
     """リクエスト単位のセッション。正常終了で commit、例外で rollback する。
 
     使用例::

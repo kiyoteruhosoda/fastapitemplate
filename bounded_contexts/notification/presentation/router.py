@@ -42,15 +42,15 @@ from bounded_contexts.notification.presentation.dependencies import (
     SentNotificationRepoDep,
 )
 from bounded_contexts.notification.presentation.schemas import (
-    AudienceGroupSchema,
+    AudienceGroupResponse,
     AudienceOptionsResponse,
-    AudienceSchema,
-    AudienceUserSchema,
+    AudienceResponse,
+    AudienceUserResponse,
     DeviceRegisterRequest,
     DeviceUnregisterRequest,
-    InboxItemSchema,
+    InboxItemResponse,
     InboxResponse,
-    NotificationSchema,
+    NotificationResponse,
     PushConfigResponse,
     PushEndpointRequest,
     PushStatusResponse,
@@ -81,7 +81,7 @@ async def list_my_notifications(principal: AppOrWebPrincipalDep, repo: Notificat
     """ベルと画面上部に出すもの（新しい順）。どこに出すかは ``channels`` で画面が決める。"""
     inbox = ListInbox(repo).execute(principal.user_id)
     return InboxResponse(
-        items=[InboxItemSchema.of_entry(e) for e in inbox.entries],
+        items=[InboxItemResponse.of_entry(e) for e in inbox.entries],
         unread_count=inbox.unread_count,
     )
 
@@ -178,8 +178,8 @@ async def audience_options(_principal: SenderDep, members: TenantMembersDep) -> 
     groups = members.groups()
     users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
     return AudienceOptionsResponse(
-        groups=[AudienceGroupSchema(id=g.id, name=g.name, member_count=len(g.members)) for g in groups],
-        users=[AudienceUserSchema(id=u.id, username=u.username, email=u.email) for u in users],
+        groups=[AudienceGroupResponse(id=g.id, name=g.name, member_count=len(g.members)) for g in groups],
+        users=[AudienceUserResponse(id=u.id, username=u.username, email=u.email) for u in users],
     )
 
 
@@ -208,8 +208,8 @@ async def send_notification(
         reason=_audit_reason(result),
     )
     return SendNotificationResponse(
-        notification=NotificationSchema.of(result.notification),
-        audience=AudienceSchema(kind=body.audience.kind, target_id=result.notification.audience_target_id),
+        notification=NotificationResponse.of(result.notification),
+        audience=AudienceResponse(kind=body.audience.kind, target_id=result.notification.audience_target_id),
         recipient_count=len(result.recipient_user_ids),
         push_scheduled=result.push_scheduled,
     )

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import NoReturn
 
 from fastapi import Cookie, Depends, HTTPException, Request, Response, status
@@ -25,6 +25,7 @@ from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
 from shared.kernel.logging.request_context import actor_user_id_var, user_id_hash_var
 from shared.kernel.settings.settings import settings
+from shared.kernel.timestamps import utcnow_aware
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +321,7 @@ def ensure_recent_sign_in(principal: AuthenticatedPrincipal) -> None:
     """
     signed_in_at = principal.authenticated_at
     limit = timedelta(seconds=settings.recent_sign_in_seconds)
-    if signed_in_at is None or datetime.now(UTC) - signed_in_at > limit:
+    if signed_in_at is None or utcnow_aware() - signed_in_at > limit:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": REAUTHENTICATION_REQUIRED},

@@ -14,7 +14,7 @@ import secrets
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -32,9 +32,8 @@ _PASSWORD = master_data.DEFAULT_ADMIN_PASSWORD
 @contextmanager
 def _issued_earlier(seconds: int) -> Iterator[None]:
     """この中で出したトークンの ``iat`` を、*seconds* 秒前にする。"""
-    clock = MagicMock(wraps=datetime)
-    clock.now.return_value = datetime.now(UTC) - timedelta(seconds=seconds)
-    with patch("presentation.fastapi.services.token_service.datetime", clock):
+    moment = datetime.now(UTC) - timedelta(seconds=seconds)
+    with patch("presentation.fastapi.services.token_service.utcnow_aware", return_value=moment):
         yield
 
 

@@ -17,13 +17,17 @@ ChannelName = Literal["bell", "banner", "push"]
 AudienceKindName = Literal["all", "group", "user"]
 
 
-class AudienceSchema(BaseModel):
+class AudienceRequest(BaseModel):
     kind: AudienceKindName
     #: ``group`` / ``user`` のときの相手の ID。``all`` では空。
     target_id: int | None = None
 
 
-class NotificationSchema(BaseModel):
+class AudienceResponse(AudienceRequest):
+    pass
+
+
+class NotificationResponse(BaseModel):
     id: int
     title: str
     body: str
@@ -32,7 +36,7 @@ class NotificationSchema(BaseModel):
     sent_at: str
 
     @classmethod
-    def of(cls, dto: NotificationDTO) -> NotificationSchema:
+    def of(cls, dto: NotificationDTO) -> NotificationResponse:
         return cls(
             id=dto.id,
             title=dto.title,
@@ -43,13 +47,13 @@ class NotificationSchema(BaseModel):
         )
 
 
-class InboxItemSchema(NotificationSchema):
+class InboxItemResponse(NotificationResponse):
     read_at: str | None
     dismissed_at: str | None
 
     @classmethod
-    def of_entry(cls, entry: InboxEntryDTO) -> InboxItemSchema:
-        base = NotificationSchema.of(entry.notification)
+    def of_entry(cls, entry: InboxEntryDTO) -> InboxItemResponse:
+        base = NotificationResponse.of(entry.notification)
         return cls(
             **base.model_dump(),
             read_at=isoformat_utc(entry.read_at) if entry.read_at else None,
@@ -58,7 +62,7 @@ class InboxItemSchema(NotificationSchema):
 
 
 class InboxResponse(BaseModel):
-    items: list[InboxItemSchema]
+    items: list[InboxItemResponse]
     #: ベルに出す数（``bell`` を含み、まだ読んでいないもの）。
     unread_count: int
 
@@ -72,7 +76,7 @@ class PushConfigResponse(BaseModel):
     device_enabled: bool = False
 
 
-class PushKeysSchema(BaseModel):
+class PushKeysRequest(BaseModel):
     p256dh: str = Field(min_length=1, max_length=255)
     auth: str = Field(min_length=1, max_length=255)
 
@@ -81,7 +85,7 @@ class PushSubscribeRequest(BaseModel):
     """ブラウザの ``PushSubscription.toJSON()`` の形をそのまま受ける。"""
 
     endpoint: str = Field(min_length=1, max_length=1000)
-    keys: PushKeysSchema
+    keys: PushKeysRequest
 
 
 class PushEndpointRequest(BaseModel):
@@ -109,27 +113,27 @@ class SendNotificationRequest(BaseModel):
     body: str = Field(default="", max_length=2000)
     link_url: str | None = Field(default=None, max_length=1000)
     channels: list[ChannelName] = Field(min_length=1)
-    audience: AudienceSchema
+    audience: AudienceRequest
 
 
 class SendNotificationResponse(BaseModel):
-    notification: NotificationSchema
-    audience: AudienceSchema
+    notification: NotificationResponse
+    audience: AudienceResponse
     recipient_count: int
     push_scheduled: bool
 
 
 class SentNotificationResponse(BaseModel):
-    notification: NotificationSchema
-    audience: AudienceSchema
+    notification: NotificationResponse
+    audience: AudienceResponse
     recipient_count: int
     read_count: int
 
     @classmethod
     def of(cls, dto: SentNotificationDTO) -> SentNotificationResponse:
         return cls(
-            notification=NotificationSchema.of(dto.notification),
-            audience=AudienceSchema(
+            notification=NotificationResponse.of(dto.notification),
+            audience=AudienceResponse(
                 kind=dto.notification.audience_kind,  # type: ignore[arg-type]
                 target_id=dto.notification.audience_target_id,
             ),
@@ -138,13 +142,13 @@ class SentNotificationResponse(BaseModel):
         )
 
 
-class AudienceGroupSchema(BaseModel):
+class AudienceGroupResponse(BaseModel):
     id: int
     name: str
     member_count: int
 
 
-class AudienceUserSchema(BaseModel):
+class AudienceUserResponse(BaseModel):
     id: int
     username: str
     email: str
@@ -153,5 +157,5 @@ class AudienceUserSchema(BaseModel):
 class AudienceOptionsResponse(BaseModel):
     """宛先に選べる相手（グループと、有効な利用者）。"""
 
-    groups: list[AudienceGroupSchema]
-    users: list[AudienceUserSchema]
+    groups: list[AudienceGroupResponse]
+    users: list[AudienceUserResponse]

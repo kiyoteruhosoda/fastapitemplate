@@ -142,7 +142,8 @@ CI が落ちた箇所を順に直せば漏れない。
 3. `shared/domain/auth/master_data.py` の `PERMISSION_CODES` と `ROLE_PERMISSIONS` に足す。アプリ全体に効く権限は
    `SYSTEM_PERMISSIONS` にも入れる（入れないとテナント管理者が配れる）
 4. マイグレーションを足し、`seed_master_data` **だけ**を呼ぶ（`ensure_default_admin` は呼ばない。ADR-0078 §3）
-5. API には `Depends(require_permission("<権限>"))` を付ける。ロール名で分岐しない
+5. API には `Depends(require_permission("<権限>"))` を付ける。ロール名で分岐しない。付け忘れは試験が落とす
+   （公開する口は `tests/integration/api/test_route_authorization.py` の表に理由と一緒に足す）
 
 ### 3.4 画面を足す
 

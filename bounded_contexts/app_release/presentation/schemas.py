@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class AppReleaseSchema(BaseModel):
+class AppReleaseResponse(BaseModel):
     """配布面に最新として置かれている版。"""
 
     #: 人に見せる版（``1.53.0``）。
@@ -25,7 +25,7 @@ class LatestAppReleaseResponse(BaseModel):
     になる。端末から見て違いは無い（どちらも知らせない）。
     """
 
-    latest: AppReleaseSchema | None
+    latest: AppReleaseResponse | None
 
 
-__all__ = ["AppReleaseSchema", "LatestAppReleaseResponse"]
+__all__ = ["AppReleaseResponse", "LatestAppReleaseResponse"]

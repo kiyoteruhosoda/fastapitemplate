@@ -37,7 +37,7 @@ def project_name() -> str:
     try:
         with _PYPROJECT_FILE.open("rb") as handle:
             name = tomllib.load(handle)["project"]["name"]
-    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError):
+    except OSError, KeyError, TypeError, tomllib.TOMLDecodeError:
         return _FALLBACK_NAME
     return str(name).strip() or _FALLBACK_NAME
 
