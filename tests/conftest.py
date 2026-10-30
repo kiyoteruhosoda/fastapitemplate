@@ -20,6 +20,7 @@ from bounded_contexts.account_security.infrastructure import account_security_mo
 from bounded_contexts.audit.infrastructure import audit_log_model
 from bounded_contexts.example.infrastructure import item_model
 from bounded_contexts.identity_federation.infrastructure import identity_federation_models
+from bounded_contexts.notes.infrastructure import note_model
 from bounded_contexts.notification.infrastructure import notification_models
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
@@ -41,6 +42,7 @@ _REGISTERED_MODELS = (
     audit_log_model,
     item_model,
     identity_federation_models,
+    note_model,
     notification_models,
     shared_models,
 )

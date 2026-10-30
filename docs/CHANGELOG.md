@@ -1,3 +1,11 @@
+## 2026-10-30（資源 1 件ずつの可否は DB で。共有メモの見本。ADR-0070）
+
+- **認可を 2 段に分けると決めた**（ADR-0070）。機能を使えるかはトークンの scope（DB を引かない）、
+  この 1 件を扱えるかは持ち主・所属で DB が決める。scope に資源の ID やグループの所属は入れない。
+- 見本として**共有メモ**（`bounded_contexts/notes`・画面 `/notes`）を足した。権限 `note:view`（manager・member・user-admin）と
+  `note:write`（manager）。持ち主は読めて直せる、共有先のグループの一員は読むだけ、グループから外れると次のリクエストから読めない。
+  移行 `0019_notes` が表 `notes` を作り、権限を投入する。
+
 ## 2026-10-27（Python 3.15 へ。#60）
 
 - 本番のイメージ（`python:3.15-slim`）と CI（`.python-version`）を 3.15 に上げた。古い版の部品（cbor2・httptools・

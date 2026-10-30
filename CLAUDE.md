@@ -231,7 +231,8 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
 ```
 
 新しい機能は `bounded_contexts/<context>/` として追加する。
-`bounded_contexts/example/` が最小構成の見本（Item の CRUD）。
+`bounded_contexts/example/` が最小構成の見本（Item の CRUD）。持ち主や共有で 1 件ずつ可否が変わる機能は
+`bounded_contexts/notes/`（共有メモ。ADR-0070）が見本。
 
 ---
 
@@ -252,6 +253,9 @@ frontend/           # React + TypeScript + Vite（SPA スケルトン）
   使わない（ADR-0018）。
 - 権限の検証は依存関数で行い、ルーター本体には検証済みの
   `AuthenticatedPrincipal` のみ渡す。
+- **scope は機能単位。資源 1 件ずつの可否（持ち主・共有）は scope に入れず、DB で確かめる**（ADR-0070）。
+  `note:42:edit` のような scope やグループの所属をトークンに載せない。見本は `bounded_contexts/notes/`
+  （エンティティが可否を答え、読めないものは 404、読めるが変えられないものは 403）。
 - JWT 発行時の scope はユーザーの保有権限の範囲内で指定。未指定・空 = 権限なし。
 - **ロールは扱うものの系統で分ける**（システム / 人 / 監査 / コンテンツ。ADR-0051）。
   雛形は `shared/domain/auth/master_data.py`。系統をまたぐロールを作らない。

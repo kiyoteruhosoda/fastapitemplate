@@ -57,6 +57,10 @@ PERMISSION_CODES: Sequence[str] = (
     "gui:view",
     "item:view",
     "item:manage",
+    # 共有メモ（bounded_contexts/notes。ADR-0070 の見本）。scope が決めるのは「機能を使えるか」
+    # まで。どのメモを読めて変えられるかは、持ち主とグループの所属で DB が決める。
+    "note:view",
+    "note:write",
     # グループ（利用者のまとまり）の作成・編集・所属の変更（ADR-0047）。
     "group:manage",
     # 管理画面からのお知らせの配信。宛先を選ぶためにグループと利用者の一覧も読める
@@ -89,11 +93,14 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
     "manager": (
         "item:view",
         "item:manage",
+        "note:view",
+        "note:write",
         "dashboard:view",
         "gui:view",
     ),
     "member": (
         "item:view",
+        "note:view",
         "dashboard:view",
         "gui:view",
     ),
@@ -116,6 +123,7 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
         "user:manage",
         "group:manage",
         "item:view",
+        "note:view",
         "dashboard:view",
         "gui:view",
     ),

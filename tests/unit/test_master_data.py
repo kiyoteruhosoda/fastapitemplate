@@ -59,6 +59,8 @@ def test_system_admin_touches_neither_people_nor_content() -> None:
         "group:manage",
         "item:view",
         "item:manage",
+        "note:view",
+        "note:write",
         "notification:send",
     }
 

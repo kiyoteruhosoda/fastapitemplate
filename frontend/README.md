@@ -67,6 +67,7 @@ flowchart TD
     subgraph private["認証済み（Header + Sidebar + Footer レイアウト）"]
         Dashboard["/<br/>ダッシュボード"]
         Items["/items<br/>アイテム"]
+        Notes["/notes<br/>共有メモ"]
         Profile["/profile<br/>プロフィール"]
         Security["/profile/security<br/>セキュリティ<br/>（パスワード・2FA・パスキー・連携）"]
         Users["/admin/users<br/>ユーザー管理"]
@@ -96,6 +97,8 @@ flowchart TD
     Dashboard -->|"ログアウト"| Login
 
     Dashboard --> Items
+    Dashboard --> Notes
+    Notes -.->|"共有先に選ぶ"| Groups
     Dashboard --> Users
     Dashboard --> Roles
     Dashboard --> Perms
@@ -148,6 +151,7 @@ flowchart TD
 | S16 | アプリへ戻る案内       | `/app/oauth2redirect`                            | 不要 | —                                                   | —          |
 | S4  | ダッシュボード         | `/`                                              | 必要 | `dashboard:view`                                    | ✅         |
 | S5  | アイテム               | `/items`                                         | 必要 | `item:view`（追加は `item:manage`）                 | ✅         |
+| S22 | 共有メモ               | `/notes`                                         | 必要 | `note:view`（書く・直す・消すは `note:write`）      | ✅         |
 | S6  | プロフィール           | `/profile`                                       | 必要 | —                                                   | —          |
 | S7  | セキュリティ           | `/profile/security`                              | 必要 | —                                                   | —          |
 | S8  | ユーザー管理           | `/admin/users`                                   | 必要 | `user:manage`                                       | ✅         |
@@ -281,6 +285,22 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 - **操作**: 一覧の表示と、「アイテムを追加」から開くダイアログでの追加。
   追加ボタンは `item:manage` を持つ人にだけ出る。
 - **使用 API**: `GET /api/items`, `POST /api/items`
+
+### S22 共有メモ（`/notes`）
+
+- **目的**: `bounded_contexts/notes` の画面側の見本。認可の 2 段（機能は scope、1 件ずつは持ち主と所属）を
+  画面でどう出し分けるかを示す（ADR-0070）。
+- **表示内容**: 自分のメモと、自分が入っているグループに共有されたメモの一覧（題名・共有先・書いた人）。
+- **操作**:
+  1. 「メモを書く」から、題名・本文・共有先（自分だけ／自分が入っているグループ）を決めて保存する。
+     ボタンは `note:write` を持つ人にだけ出る。
+  2. 「開く」で本文を読む（どの行にも出る）。
+  3. 「編集」「削除」は、`note:write` を持ち、かつ**そのメモを書いた人**の行にだけ出る（サーバーが返す
+     `can_change` で決める）。共有されたメモは読むだけ。
+- **使用 API**: `GET /api/notes`, `POST /api/notes`, `PUT /api/notes/{id}`, `DELETE /api/notes/{id}`,
+  `GET /api/notes/share-targets`
+- **備考**: グループから外されると、そのグループに共有されたメモは次の読み込みから一覧に出なくなる
+  （トークンの更新を待たない）。
 
 ### S6 プロフィール（`/profile`）
 
@@ -849,6 +869,14 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 2. 題名・本文・行き先を書き、出す場所と宛先を選んで「送る」。
 3. 特定の人たちだけに送るなら、先に「グループ管理」でグループを作っておく（`group:manage`）。
 4. 下の「送ったお知らせ」で、何人が読んだかを確かめられる。
+
+### メモを家族やチームと共有したいとき（`note:write`）
+
+1. サイドバーの「共有メモ」を開き、「メモを書く」を押す。
+2. 題名と本文を書き、「共有先」で相手が入っているグループを選んで「保存」。
+   - 選べるのは自分が入っているグループだけ。無ければ管理者に「グループ管理」で作ってもらう（`group:manage`）。
+3. 共有された人は、同じ画面の一覧で「開く」から読める。直せるのは書いた人だけ。
+4. 共有をやめるときは「編集」で共有先を「自分だけ」に戻す。
 
 ### スマートフォンで画面を切り替えたいとき
 

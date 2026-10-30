@@ -10,6 +10,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { GroupsPage } from './pages/GroupsPage'
 import { ItemsPage } from './pages/ItemsPage'
 import { LoginPage } from './pages/LoginPage'
+import { NotesPage } from './pages/NotesPage'
 import { NotificationsAdminPage } from './pages/NotificationsAdminPage'
 import { SsoCallbackPage } from './pages/SsoCallbackPage'
 import { PermissionsPage } from './pages/PermissionsPage'
@@ -60,6 +61,7 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<AdminDashboardPage />} />
         <Route path="/items" element={<ItemsPage />} />
+        <Route path="/notes" element={<NotesPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/security" element={<SecurityPage />} />
         {/* パスワード変更はセキュリティの区画になり、セキュリティはプロフィールの
