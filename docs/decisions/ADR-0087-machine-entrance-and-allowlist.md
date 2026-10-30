@@ -36,6 +36,7 @@ ADR-0082 で、機械の口をテンプレートに入れること、何をし�
 8. **監査**（実行者は振る舞う利用者、対象は `machine_client:<client_id>`。ADR-0082 §1 決定 4）:
    - `machine_token.issued` —— トークンを出した
    - `machine_token.refused` —— 換える段で断った（理由はエラーコード）
+   - `machine_operation.performed` —— 機械が書く操作を通した（理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。task #724）
    - `machine_operation.refused` —— 機械の操作を断った（理由は `not_in_allowlist` / `role_lacks_permission` /
      `person_only` と、その操作）
 

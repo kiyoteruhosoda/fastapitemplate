@@ -161,6 +161,24 @@ def _operation_of(request: Request) -> str:
     return f"{request.method} {path}"
 
 
+def _record_machine_write(principal: AuthenticatedPrincipal, request: Request) -> None:
+    """機械が書く操作を監査に残す（どの機械が・誰として・何を。ADR-0087）。読むだけの操作は残さない。"""
+    if not principal.is_machine or request.method in {"GET", "HEAD", "OPTIONS"}:
+        return
+    from bounded_contexts.audit.domain.entities.audit_event import AuditEventType, AuditResult
+    from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget, AuditTargetType
+    from bounded_contexts.audit.presentation.dependencies import record_audit_event
+
+    route = request.scope.get("route")
+    path = route.path if isinstance(route, Route) else request.url.path
+    record_audit_event().as_actor(principal.user_id).execute(
+        AuditEventType.MACHINE_OPERATION_PERFORMED,
+        AuditResult.SUCCESS,
+        target=AuditTarget.of(AuditTargetType.MACHINE_CLIENT, principal.machine_client_id),
+        reason=f"{request.method} {path}",
+    )
+
+
 def _refuse_machine(principal: AuthenticatedPrincipal, operation: str, why: str) -> None:
     """機械の操作を断ったことを監査に残す（ADR-0087 決定 5。``client_id``・操作・理由）。"""
     from bounded_contexts.audit.domain.entities.audit_event import AuditEventType, AuditResult
@@ -349,6 +367,7 @@ def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrin
     """
 
     async def _check(
+        request: Request,
         principal: AuthenticatedPrincipal = Depends(get_operation_principal),
     ) -> AuthenticatedPrincipal:
         if not principal.can(*codes):
@@ -361,6 +380,7 @@ def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrin
                     "message": f"Required permissions: {', '.join(codes)}",
                 },
             )
+        _record_machine_write(principal, request)
         return principal
 
     return _check
@@ -375,6 +395,7 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
     """
 
     async def _check(
+        request: Request,
         principal: AuthenticatedPrincipal = Depends(get_operation_principal),
     ) -> AuthenticatedPrincipal:
         if not any(principal.can(code) for code in codes):
@@ -387,6 +408,7 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
                     "message": f"Required one of: {', '.join(codes)}",
                 },
             )
+        _record_machine_write(principal, request)
         return principal
 
     return _check

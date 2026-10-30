@@ -1,3 +1,7 @@
+## 2026-10-30（機械が書く操作を監査に残す。task #724）
+
+- `machine_operation.performed` を足した。対象は `machine_client:<client_id>`、実行者は振る舞う利用者、理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。
+
 ## 2026-10-30（お知らせの送り手にメールアドレスを見せない。nolumiatask #785）
 
 - `notification:send` だけの人に、宛先の候補（`/api/admin/notifications/audiences`）とグループの一覧（`/api/admin/groups`）で全員のメールアドレスが返っていた。`user:manage`（グループの一覧は `group:manage`）の無い人には `email` を null で返す。名前は今までどおり返す。

@@ -56,6 +56,7 @@ _EXPECTED_EVENT_TYPES = {
     "machine_token.issued",
     "machine_token.refused",
     "machine_operation.refused",
+    "machine_operation.performed",
 }
 
 

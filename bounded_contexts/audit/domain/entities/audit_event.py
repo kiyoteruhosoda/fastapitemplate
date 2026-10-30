@@ -84,6 +84,7 @@ class AuditEventType(StrEnum):
     MACHINE_TOKEN_ISSUED = "machine_token.issued"
     MACHINE_TOKEN_REFUSED = "machine_token.refused"
     MACHINE_OPERATION_REFUSED = "machine_operation.refused"
+    MACHINE_OPERATION_PERFORMED = "machine_operation.performed"
 
 
 class AuditResult(StrEnum):
