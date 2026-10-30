@@ -252,10 +252,6 @@ class ApplicationSettings:
     # ------------------------------------------------------------------
 
     @property
-    def secret_key(self) -> str:
-        return str(self._get("SECRET_KEY"))
-
-    @property
     def jwt_secret_key(self) -> str:
         return str(self._get("JWT_SECRET_KEY"))
 
