@@ -34,9 +34,9 @@ from shared.infrastructure.models import Role, Tenant, TenantStatus, User
 from shared.infrastructure.sign_in_directory import account_with_email
 from shared.infrastructure.tenant_directory import tenant_issuing, tenant_named
 from shared.infrastructure.tenant_registry import member_counts, remove_tenant
+from shared.kernel.database.session import get_db
 from shared.kernel.outbound_destination import DestinationRefusedError, check_https_url
 from shared.kernel.settings.settings import settings
-from shared.kernel.database.session import get_db
 
 router = APIRouter(
     prefix="/api/system/tenants",
