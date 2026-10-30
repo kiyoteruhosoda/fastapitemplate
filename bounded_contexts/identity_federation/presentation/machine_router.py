@@ -40,7 +40,7 @@ from bounded_contexts.identity_federation.infrastructure.httpx_machine_token_gat
     HttpxMachineTokenGateway,
 )
 from bounded_contexts.identity_federation.infrastructure.sql_machine_actors import SqlMachineActors
-from presentation.fastapi.services.token_service import TokenService
+from presentation.fastapi.services.token_service import create_machine_access_token
 from shared.infrastructure.models import User
 from shared.infrastructure.tenant_directory import tenant_issuing
 from shared.kernel.database.session import get_db
@@ -153,9 +153,7 @@ def _issue(db: Session, audit: RecordAuditEvent, session: MachineSession) -> Mac
     user = db.get(User, session.user_id)
     if user is None:  # pragma: no cover - 同じセッションで引けている
         raise _unauthorized()
-    issued = TokenService.create_machine_access_token(
-        user, client_id=session.client.client_id, operations=session.client.operations
-    )
+    issued = create_machine_access_token(user, client_id=session.client.client_id, operations=session.client.operations)
     # 「誰が」は振る舞う利用者、「どの機械が」は対象に残す（ADR-0082 §1 決定 4）
     audit.as_actor(user.id).execute(
         AuditEventType.MACHINE_TOKEN_ISSUED,

@@ -7,7 +7,6 @@ IdP は差し替える（署名・期限はゲートウェイの仕事。ここ�
 from __future__ import annotations
 
 import json
-import logging
 from collections.abc import Iterator, Mapping
 from typing import Any
 
@@ -28,7 +27,7 @@ from tests.conftest import register_issuer, sign_in
 _ISSUER = "https://idp.example.test/tenant"
 _AUDIENCE = "api://fastapitemplate"
 _CLIENTS = [
-    # 利用者（owner）は item:manage も持つが、許可簿には読むだけを書く
+    # 利用者（owner）は item:write も持つが、許可簿には読むだけを書く
     {"client_id": "robot", "name": "Robot", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": ["item:view"]},
     {"client_id": "idle", "name": "Idle", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": []},
     {"client_id": "ghost", "acts_as": "nobody@example.com", "operations": ["item:view"]},
@@ -125,7 +124,7 @@ def test_unlisted_operations_are_refused_even_if_the_role_allows_them(
 
     response = machine.post("/api/items", json={"name": "x"}, headers=_bearer(token))
     assert response.status_code == 403, response.text
-    assert _audit(engine, AuditEventType.MACHINE_OPERATION_REFUSED) == [("robot", "not_in_allowlist: item:manage")]
+    assert _audit(engine, AuditEventType.MACHINE_OPERATION_REFUSED) == [("robot", "not_in_allowlist: item:write")]
 
 
 def test_an_empty_allowlist_allows_nothing(machine: TestClient, gateway: _StubMachineTokenGateway) -> None:
@@ -191,10 +190,10 @@ def test_an_empty_audience_closes_the_entrance(
     engine: sa.Engine,
     gateway: _StubMachineTokenGateway,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """#718 AC1: 宛名が空なら、正しいトークンでも 401。起動のログにも出る。"""
-    with caplog.at_level(logging.ERROR), TestClient(_machine_app(gateway, monkeypatch, "")) as client:
+    """#718 AC1: 宛名が空なら、正しいトークンでも 401。起動のログにも出る（ログは JSON で標準出力へ出る）。"""
+    with TestClient(_machine_app(gateway, monkeypatch, "")) as client:
         response = client.post("/api/machine/token", headers=_bearer(gateway.issue("robot")))
     assert response.status_code == 401
-    assert "machine_entrance_closed_audience_missing" in caplog.messages
+    assert "machine_entrance_closed_audience_missing" in capsys.readouterr().out

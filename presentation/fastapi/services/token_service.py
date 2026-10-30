@@ -159,36 +159,6 @@ class TokenService:
         }
 
     @staticmethod
-    def create_machine_access_token(user: User, *, client_id: str, operations: frozenset[str]) -> MachineAccessToken:
-        """機械の口のアクセストークン（ADR-0087）。**リフレッシュトークンは出さない**（機械は取り直せばよい）。
-
-        scope は「利用者の全ロールの権限」と「許可簿の操作」の**両方にあるものだけ**。
-        ⚠ ``auth_time`` は「ずっと前」にする（入り直したばかりが要る操作を、機械は通れない。ADR-0076 §10）。
-        """
-        effective = sorted(user.permission_codes_of(None) & operations)
-        now = datetime.now(UTC)
-        token = jwt.encode(
-            {
-                "sub": str(user.id),
-                "iss": settings.access_token_issuer,
-                "aud": settings.access_token_audience,
-                "iat": now,
-                "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
-                "type": TYPE_ACCESS,
-                "scope": effective,
-                "email": user.email,
-                "username": user.username,
-                CLAIM_AUTHENTICATED_AT: int(SIGNED_IN_LONG_AGO.timestamp()),
-                CLAIM_ACTIVE_ROLE: None,
-                CLAIM_TENANT: user.tenant_id,
-                CLAIM_MACHINE_CLIENT: client_id,
-            },
-            settings.jwt_secret_key,
-            algorithm=_ALGORITHM,
-        )
-        return MachineAccessToken(token=token, expires_in=settings.access_token_expires_seconds, scopes=effective)
-
-    @staticmethod
     def _decode(token: str) -> tuple[dict[str, Any] | None, str | None]:
         try:
             claims = jwt.decode(
@@ -302,6 +272,36 @@ class TokenService:
         if not tenant_admits(session, user):
             return None
         return user
+
+
+def create_machine_access_token(user: User, *, client_id: str, operations: frozenset[str]) -> MachineAccessToken:
+    """機械の口のアクセストークン（ADR-0087）。**リフレッシュトークンは出さない**（機械は取り直せばよい）。
+
+    scope は「利用者の全ロールの権限」と「許可簿の操作」の**両方にあるものだけ**。
+    ⚠ ``auth_time`` は「ずっと前」にする（入り直したばかりが要る操作を、機械は通れない。ADR-0076 §10）。
+    """
+    effective = sorted(user.permission_codes_of(None) & operations)
+    now = datetime.now(UTC)
+    token = jwt.encode(
+        {
+            "sub": str(user.id),
+            "iss": settings.access_token_issuer,
+            "aud": settings.access_token_audience,
+            "iat": now,
+            "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
+            "type": TYPE_ACCESS,
+            "scope": effective,
+            "email": user.email,
+            "username": user.username,
+            CLAIM_AUTHENTICATED_AT: int(SIGNED_IN_LONG_AGO.timestamp()),
+            CLAIM_ACTIVE_ROLE: None,
+            CLAIM_TENANT: user.tenant_id,
+            CLAIM_MACHINE_CLIENT: client_id,
+        },
+        settings.jwt_secret_key,
+        algorithm=_ALGORITHM,
+    )
+    return MachineAccessToken(token=token, expires_in=settings.access_token_expires_seconds, scopes=effective)
 
 
 def _federation_claims(federated_login: FederatedLogin | None) -> dict[str, object]:
@@ -422,4 +422,5 @@ __all__ = [
     "MachineAccessToken",
     "RefreshedSession",
     "TokenService",
+    "create_machine_access_token",
 ]
