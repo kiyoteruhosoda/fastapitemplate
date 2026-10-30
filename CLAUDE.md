@@ -53,7 +53,7 @@ deploy-repo の `k8s/<app>-<env>/`。宣言の雛形と手順は `deploy/k8s/`�
 - **uv は PyPI から入れる。** `Dockerfile` は `ARG UV_VERSION` の版を `pip install` し、
   `uv sync` と同じ `RUN` の中で消す（最終イメージに uv は残らない）。⚠ **`ghcr.io/astral-sh/uv`
   の像から `COPY --from` しない**（像のビルドを GitHub に頼らせない。task #172）。
-  版は CI の setup-uv の `version` と揃える。
+  版は Renovate が上げる（CI の uv とは連動させない。ADR-0086）。
 - **版は digest で固定する。** `:latest` だと宣言が変わらず `kubectl apply` でも
   rollout が起きない（＝版が上がらない）。書き換えるのは pin の段の仕事。
 
@@ -431,8 +431,8 @@ tests/
 手元では `make check` で同じ順序・同じコマンドを流せる（`make format` で自動整形）。
 CI が走るのは **PR に対してと `main` への push だけ**（ADR-0072 §3）。PR を作る前の
 ブランチ push では走らないので、その間は `make check` で確認する。
-⚠ **CI は GitHub から何も取らない**（task #171）。uv 本体と Python は forge の置き場から
-（`ci.yml` の `version` 固定・`manifest-file`・`UV_PYTHON_INSTALL_MIRROR`）、Node は台の像のものを使う（setup-node に `node-version` を書かない）。
+⚠ **CI は forge の自前の台で動き、GitHub から何も取らない**（ADR-0086）。uv 本体と Python は forge の写しから
+（setup-uv は `version` を書かず `manifest-file` の写しの最新・`UV_PYTHON_INSTALL_MIRROR`）、Node は台の像のものを使う（setup-node に `node-version` を書かない）。
 
 | 対象 | 順 | ゲート | コマンド |
 |---|---|---|---|

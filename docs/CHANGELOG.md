@@ -1,3 +1,9 @@
+## 2026-10-30（CI の決まりを ADR に・文書の食い違いを直した。ADR-0086）
+
+- CI が forge の自前の台で動き GitHub から何も取らないこと、uv の版を書かずに写しの最新を使うことを ADR-0086 にした
+  （ADR-0072 §5 を置き換え）。CLAUDE.md の「`version` を固定」と「版は書かない」の食い違いも直した。
+- `bounded_contexts/identity_federation/README.md` に残っていた、消えた設定 `OIDC_ROLE_MAPPING` の説明を今の形に直した。
+
 ## 2026-10-30（コンテンツ設定の受け皿。ADR-0085）
 
 - テナントごとのコンテンツ設定を足した（`bounded_contexts/content_settings`・画面 `/admin/content-settings`・API
