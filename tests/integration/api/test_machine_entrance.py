@@ -29,6 +29,7 @@ _AUDIENCE = "api://fastapitemplate"
 _CLIENTS = [
     # 利用者（owner）は item:write も持つが、許可簿には読むだけを書く
     {"client_id": "robot", "name": "Robot", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": ["item:view"]},
+    {"client_id": "writer", "name": "Writer", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": ["item:write"]},
     {"client_id": "idle", "name": "Idle", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": []},
     {"client_id": "ghost", "acts_as": "nobody@example.com", "operations": ["item:view"]},
 ]
@@ -125,6 +126,18 @@ def test_unlisted_operations_are_refused_even_if_the_role_allows_them(
     response = machine.post("/api/items", json={"name": "x"}, headers=_bearer(token))
     assert response.status_code == 403, response.text
     assert _audit(engine, AuditEventType.MACHINE_OPERATION_REFUSED) == [("robot", "not_in_allowlist: item:write")]
+
+
+def test_a_write_by_the_machine_is_audited_with_the_client(
+    machine: TestClient, gateway: _StubMachineTokenGateway, engine: sa.Engine
+) -> None:
+    """どの機械が・誰として・何を、を監査で追える（task #724）。読むだけの操作は残さない。"""
+    token = _exchange(machine, gateway.issue("writer"))["access_token"]
+
+    response = machine.post("/api/items", json={"name": "x"}, headers=_bearer(token))
+
+    assert response.status_code == 201, response.text
+    assert _audit(engine, AuditEventType.MACHINE_OPERATION_PERFORMED) == [("writer", "POST /api/items")]
 
 
 def test_an_empty_allowlist_allows_nothing(machine: TestClient, gateway: _StubMachineTokenGateway) -> None:
