@@ -1,3 +1,7 @@
+## 2026-10-30（ロールの名前の変更の 500 を 409 に・task #762）
+
+- ほかのロールと同じ名前へ変えると、一意制約で 500 になっていたのを `409 role_already_exists` で断る。
+- 使われていなかった `roles_fit_the_seat` を消した（関門は `TenantMembers.roles` と `within_the_seat`）。
 ## 2026-10-30（書いてある規則を機械で止めるようにした。ADR-0089）
 
 - 試験を足した: `test_coding_rules.py`（時刻の生成口・`settings` 経由・動的呼び出し・ネイティブ ENUM・マイグレーションの書式・`util` / `helper`・スキーマの命名・ロール名の分岐）、

@@ -130,6 +130,12 @@ async def update_role(
     db = admin.db
     role = _own_role(admin, role_id)
     if body.name is not None:
+        same_name = db.scalar(select(Role).where(Role.name == body.name, Role.id != role_id))
+        if same_name is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "role_already_exists"},
+            )
         role.name = body.name
     if body.permissions is not None:
         permissions = _resolve_permissions(db, body.permissions)
