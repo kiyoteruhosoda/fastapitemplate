@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -29,9 +29,8 @@ _REGISTRATION = "/api/account/security/passkeys/registration"
 
 @contextmanager
 def _clock_set_back(minutes: int) -> Iterator[None]:
-    clock = MagicMock(wraps=datetime)
-    clock.now.return_value = datetime.now(UTC) - timedelta(minutes=minutes)
-    with patch("presentation.fastapi.services.token_service.datetime", clock):
+    moment = datetime.now(UTC) - timedelta(minutes=minutes)
+    with patch("presentation.fastapi.services.token_service.utcnow_aware", return_value=moment):
         yield
 
 

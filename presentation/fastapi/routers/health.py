@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, status
@@ -12,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from shared.kernel.database.session import get_db
-from shared.kernel.timestamps import isoformat_utc
+from shared.kernel.timestamps import isoformat_utc, utcnow_aware
 
 router = APIRouter(tags=["ops"])
 
@@ -46,7 +45,7 @@ async def health() -> dict[str, str]:
 
 @router.get("/healthz", response_model=LivenessResponse, summary="Liveness probe")
 async def liveness(request: Request) -> LivenessResponse:
-    now = datetime.now(UTC)
+    now = utcnow_aware()
     build_info = request.app.state.build_info
     startup_time = request.app.state.startup_time
     return LivenessResponse(
@@ -61,7 +60,7 @@ async def liveness(request: Request) -> LivenessResponse:
 async def readiness(
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
-    now = datetime.now(UTC)
+    now = utcnow_aware()
     checks: dict[str, str] = {}
     try:
         db.execute(text("SELECT 1"))

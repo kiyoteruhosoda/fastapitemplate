@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -43,7 +42,7 @@ from shared.kernel.restart import (
     RestartRequestStore,
     RestartScope,
 )
-from shared.kernel.timestamps import isoformat_utc
+from shared.kernel.timestamps import isoformat_utc, utcnow_aware
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ async def system_status(request: Request, _principal: SystemViewerDep, db: DbDep
     このハンドラーまで到達した時点で API 自体は応答できているため ``api`` は
     常に ``ok``。DB は ``/readyz`` と同じ ``SELECT 1`` で確かめる。
     """
-    now = datetime.now(UTC)
+    now = utcnow_aware()
     build_info = request.app.state.build_info
     try:
         db.execute(text("SELECT 1"))

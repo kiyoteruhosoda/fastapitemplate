@@ -52,7 +52,7 @@ from presentation.fastapi.routers.admin.authority_guard import (
     permissions_of,
 )
 from presentation.fastapi.schemas.admin import (
-    SignInEntrances,
+    SignInEntrancesResponse,
     UserCreateRequest,
     UserResponse,
     UserUpdateRequest,
@@ -89,9 +89,9 @@ class _Inventory:
         """作った直後の利用者。第二要素も結び付きもまだ無い。"""
         return cls(factors={}, issuers={})
 
-    def entrances_of(self, user: User) -> SignInEntrances:
+    def entrances_of(self, user: User) -> SignInEntrancesResponse:
         factors = self.factors.get(user.id, LocalFactors())
-        return SignInEntrances(
+        return SignInEntrancesResponse(
             password=user.has_local_password,
             totp=factors.totp,
             passkeys=factors.passkeys,

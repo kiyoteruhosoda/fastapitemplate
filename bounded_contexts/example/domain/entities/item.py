@@ -9,7 +9,7 @@ class Item:
     name: ItemName
 
     @classmethod
-    def create(cls, *, id: int, name: str) -> "Item":
+    def create(cls, *, id: int, name: str) -> Item:
         return cls(id=id, name=ItemName(name))
 
     @property

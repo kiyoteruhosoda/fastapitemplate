@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends
 from bounded_contexts.app_release.application.latest_app_release import LatestAppReleaseQuery
 from bounded_contexts.app_release.infrastructure.s3_latest_release_source import S3LatestReleaseSource
 from bounded_contexts.app_release.presentation.schemas import (
-    AppReleaseSchema,
+    AppReleaseResponse,
     LatestAppReleaseResponse,
 )
 from bounded_contexts.identity_federation.presentation.app_bearer import AppOrWebPrincipalDep
@@ -50,7 +50,7 @@ def latest_app_release(
     if release is None:
         return LatestAppReleaseResponse(latest=None)
     return LatestAppReleaseResponse(
-        latest=AppReleaseSchema(
+        latest=AppReleaseResponse(
             version=release.version,
             build=release.build,
             download_url=settings.app_release_download_url or None,

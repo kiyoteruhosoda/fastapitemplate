@@ -265,6 +265,40 @@ erDiagram
         datetime updated_at
     }
 
+    user_group_members {
+        bigint group_id PK "FK"
+        bigint user_id PK "FK"
+    }
+
+    federated_identities {
+        varchar(255) issuer PK
+        varchar(255) subject PK
+        bigint user_id FK
+        datetime created_at
+        datetime last_login_at
+    }
+
+    federated_session_revocations {
+        varchar(64) jti PK
+        varchar(255) issuer
+        varchar(255) subject
+        varchar(255) session_id "NULL=不明"
+        datetime revoked_at
+        datetime expires_at
+    }
+
+    sso_login_tickets {
+        varchar(64) ticket_hash PK
+        bigint user_id FK
+        varchar(255) redirect_to
+        varchar(255) issuer
+        varchar(255) subject
+        varchar(255) session_id "NULL=不明"
+        datetime session_started_at
+        datetime expires_at
+        datetime created_at
+    }
+
     content_settings {
         bigint id PK
         bigint tenant_id FK "索引あり"

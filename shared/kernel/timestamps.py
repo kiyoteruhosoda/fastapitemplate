@@ -20,6 +20,11 @@ def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+def utcnow_aware() -> datetime:
+    """現在時刻を tz 付きの UTC で返す（JWT の時刻や ``/healthz`` の表示のように tz 付きで扱う値）。"""
+    return datetime.now(UTC)
+
+
 def to_naive_utc(value: datetime | None) -> datetime | None:
     """外部から受け取った日時を、保存値と比較できる UTC naive へ揃える。
 
@@ -44,4 +49,4 @@ def isoformat_utc(value: datetime) -> str:
     return aware.isoformat().replace("+00:00", "Z")
 
 
-__all__ = ["isoformat_utc", "to_naive_utc", "utcnow"]
+__all__ = ["isoformat_utc", "to_naive_utc", "utcnow", "utcnow_aware"]

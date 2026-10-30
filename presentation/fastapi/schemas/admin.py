@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, EmailStr, Field
 
 
-class SignInEntrances(BaseModel):
+class SignInEntrancesResponse(BaseModel):
     """この利用者が**このアプリへ入れる手段**の一覧（ADR-0076 §7）。
 
     ⚠ **認証系が 2 つあることを前提にした棚卸しのための値である。** IdP 側で
@@ -30,7 +30,7 @@ class UserResponse(BaseModel):
     is_active: bool
     roles: list[str]
     #: 入れる手段の一覧（ADR-0076 §7）。一覧・作成・更新のどれでも同じ形で返す。
-    entrances: SignInEntrances = SignInEntrances()
+    entrances: SignInEntrancesResponse = SignInEntrancesResponse()
 
 
 class UserCreateRequest(BaseModel):

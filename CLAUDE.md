@@ -364,7 +364,8 @@ SystemSetting.query.get("some_key")
 ### 時刻の契約
 
 1. **保存・比較・ログはすべて UTC。** 生成口は `shared/kernel/timestamps.utcnow()`
-   （naive な UTC）。`datetime.now()` / `datetime.utcnow()` / `date.today()` は書かない。
+   （naive な UTC）と `utcnow_aware()`（tz 付き。JWT の時刻など）。`datetime.now()` / `datetime.now(UTC)` /
+   `datetime.utcnow()` / `date.today()` は書かない。
 2. **ローカルタイムへ直すのは画面だけ。** サーバは UTC のまま返し、フロントエンドが
    閲覧者のタイムゾーンで描く。
 3. **API の外へ出す ISO 文字列には必ず `Z` を付ける** — `timestamps.isoformat_utc()`
@@ -441,6 +442,17 @@ CI が走るのは **PR に対してと `main` への push だけ**（ADR-0072 �
 | 分岐数 | — | `PLR0912`（8 以下） | 複雑度の内訳として補助的に見る |
 | 複雑度 | 10 以下（推奨 5 以下） | `C901`（10） | 推奨値 5 はレビューで見る |
 | クラス長 | 200 行以下 | `tests/unit/test_design_metrics.py` | 例外はテスト内に理由付きで置く |
+
+**書いてある規則も機械で止める**（ADR-0089）。例外は理由と一緒に試験の表へ書き、要らなくなった例外は試験が落とす。
+
+| 規則 | 止める試験 |
+|---|---|
+| 時刻の生成口・設定は `settings` 経由・動的呼び出しの禁止・ネイティブ ENUM の禁止・マイグレーションの書式・`util` / `helper` の名前の禁止・スキーマの命名・ロール名で分岐しない | `tests/unit/test_coding_rules.py` |
+| 全部の API に認可・管理の口には scope・公開する口の一覧・`require_any_permission` は読み取りだけ | `tests/integration/api/test_route_authorization.py` |
+| ADR の番号と一覧・画面の経路が `frontend/README.md` にある・Dockerfile の `ARG` と `COPY --from` | `tests/unit/test_documents_match.py` |
+| ER 図と実際の表・列 | `tests/integration/test_er_document.py` |
+
+機械で止めていないもの（レビューで見る）: ログに PII を入れない・試験の時刻と乱数を固定する・DI と命名の良し悪し。
 
 閾値は `pyproject.toml`（`[tool.ruff.lint.mccabe]` / `[tool.ruff.lint.pylint]`）が正本。
 **基準どおりに書けない箇所を見つけたら、まず分割する。** どうしても超える場合は

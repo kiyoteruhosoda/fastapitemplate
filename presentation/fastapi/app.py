@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -92,6 +91,7 @@ from shared.kernel.restart import (
 from shared.kernel.scheduling import stop_interval_workers
 from shared.kernel.settings.secret_guard import require_usable_secret
 from shared.kernel.settings.settings import settings
+from shared.kernel.timestamps import utcnow_aware
 from shared.kernel.version import load_build_info
 
 
@@ -166,7 +166,7 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
     app.state.build_info = build_info
-    app.state.startup_time = datetime.now(UTC)
+    app.state.startup_time = utcnow_aware()
 
     # Prometheus metrics at /metrics
     Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(app, include_in_schema=False)
