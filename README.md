@@ -1,120 +1,77 @@
 # fastapitemplate
 
-FastAPI + DDD のアプリケーションテンプレートです（photonest の構成・設計思想がベース）。
-認証認可（JWT + scope）・システム設定管理・構造化ログ・管理画面 SPA・
-k3s へのデプロイ定義まで含んだ状態から開発を始められます。
+FastAPI（DDD の 4 層）＋ React の Web アプリを始めるための**テンプレート**です。
+認証・SSO・認可（ロールと scope）・テナント・設定・ログと監査・通知・管理画面・k3s への配布までが
+入った状態から、自分の機能だけを書き足して使います。
+
+**使い方は [docs/TEMPLATE.md](docs/TEMPLATE.md) にまとめてあります**
+（新しいアプリの作り方・名前の付け替え・見本の消し方・機能の足し方・雛形の更新の取り込み方）。
+
+⚠ **このテンプレートから作ったアプリは、名前を必ず変えてください。** `fastapitemplate` のまま配ると、
+雛形由来のほかのアプリとイメージや置き場を取り合います（[ADR-0073 §1](docs/decisions/ADR-0073-build-and-deploy.md)）。
 
 ## 技術スタック
 
-- Python 3.15 / uv（依存管理）
-- FastAPI + Pydantic（OpenAPI は `/docs`・`/openapi.json`）
+- Python 3.15 / uv / FastAPI + Pydantic（API の仕様は `/docs`・`/openapi.json`）
 - SQLAlchemy 2.x + Alembic（本番 MariaDB 10.11 / 開発・テスト SQLite）
-- React + TypeScript + Vite（`frontend/`、SPA スケルトン。i18n・テーマ切り替え込み）
-- Docker（db / app / front 構成）+ Gunicorn + UvicornWorker
-- 品質ゲート: Ruff / MyPy（strict）/ PyTest ・ Prettier / ESLint / TypeScript / Vitest
+- React + TypeScript + Vite（`frontend/`。日英・テーマ・PWA）
+- コンテナイメージ 1 つを k3s へ（Gunicorn + UvicornWorker と nginx）
+- 品質ゲート: Ruff / MyPy（strict）/ PyTest ・ Prettier / ESLint / TypeScript / Vitest ・ Playwright（煙試験）
 
-## 主な機能
+## 入っている機能
 
-- JWT 認証（access / refresh）・パスワード変更・パスワードリセット（SMTP）
-- **二要素認証（TOTP）とパスキー（WebAuthn）**（`bounded_contexts/account_security/`）
-- **scope（権限コード）ベースの認可**（ユーザー / ロール / 権限の管理 API + 画面）
-- システム設定（優先順位: **DB > 環境変数 > デフォルト**。管理画面から編集可）
-- 起動時にしか読まれない設定を反映するための**アプリ自己再起動**
-- **日英の言語切り替えとテーマ切り替え**（ライト / ダーク / OS 追従）
-- 構造化ログ（JSON stdout + `log` テーブル。`requestId` で追跡）と、
-  **監査ログ**（`audit_log`。誰が何をしたか）。どちらも管理画面から検索・絞り込みできる
-  （`bounded_contexts/audit/`）
-- 運用プローブ（`/healthz` `/readyz` `/info`）+ Prometheus `/metrics`
-- `bounded_contexts/example/`（Item CRUD）= 新しい機能を追加するときの見本
+| 区分 | 中身 |
+|---|---|
+| 認証 | パスワード・二要素認証（TOTP）・パスキー・パスワードリセット・ログイン試行の制限 |
+| SSO | 外部 IdP（OIDC）でのサインイン・IdP での停止の反映 |
+| 認可 | scope（権限コード）とロール。ロールは使う人（アクター）から導く（[ADR-0084](docs/decisions/ADR-0084-actors-and-roles.md)） |
+| テナント | 組織ごとの区切り。テナントの外に運用者とサポート担当 |
+| 設定 | システム設定（全体）とコンテンツ設定（テナントごと）を画面から変える |
+| 記録 | アプリログと監査ログ（画面で検索）・保持期間の掃除 |
+| 通知 | お知らせ（ベル・Web Push・FCM）とメール |
+| 運用 | `/healthz`・`/readyz`・`/info`・`/metrics`・画面からの再起動・メンテナンス画面 |
 
-## クイックスタート（ローカル開発）
+見本として、アイテム（いちばん小さな機能）と共有メモ（1 件ずつ可否が変わる機能）が入っています。
+自分の機能ができたら消します（[docs/TEMPLATE.md](docs/TEMPLATE.md) 2.5）。
+
+## クイックスタート（手元）
 
 ```bash
 uv sync
-uv run alembic upgrade head          # スキーマ + マスタデータ（SQLite: app.db）
-uv run python main.py                # http://127.0.0.1:8000
+uv run alembic upgrade head          # スキーマとマスタデータ（SQLite: app.db）
+uv run python main.py                # http://127.0.0.1:8000（Swagger は /docs）
 ```
-
-- Swagger UI: http://127.0.0.1:8000/docs
-- 初期管理者: `admin@example.com` / `admin@example.com`（`ADMIN_INITIAL_PASSWORD` で上書き可。⚠ 本番（`APP_ENV=production`）ではこのパスワードでは入れない。ADR-0073 §4）
-
-フロントエンド:
 
 ```bash
-cd frontend && npm install && npm run dev    # http://localhost:5173（/api をプロキシ）
+cd frontend && npm install && npm run dev    # http://localhost:5173（/api はプロキシ）
 ```
 
-パスキーを試す場合は **`localhost` で開く**（`127.0.0.1` ではない）。WebAuthn の
-RP ID はドメイン名でなければならず IP アドレスは使えないため、既定値は
-`localhost` になっている。
+初期管理者は `admin@example.com` / `admin@example.com` です（本番ではこのパスワードでは入れません）。
+パスキーを試すときは `127.0.0.1` ではなく `localhost` で開きます。
 
-## 品質ゲート（テスト・Lint・型チェック）
+品質ゲートは CI が PR ごとに流します。手元で流すときは `make check`（自動整形は `make format`）。
 
-CI の必須ゲートを手元で流す。落ちたらマージできない（[ADR-0072 §1](docs/decisions/ADR-0072-development-workflow.md)）。
+## 配布
 
-```bash
-make check              # Backend + Frontend の 8 ゲートすべて
-make format             # 整形の指摘を自動修正
-```
-
-| 対象 | ゲート |
-|---|---|
-| Backend | Ruff Format → Ruff Check → MyPy（strict）→ PyTest |
-| Frontend | Prettier → ESLint → TypeScript → Vitest |
-
-個別に回すときは `make check-backend` / `make check-frontend`、
-さらに `make lint` / `make typecheck` / `make test`（Frontend は `*-frontend`）。
-
-## Docker / デプロイ
-
-**デプロイ先は nolumialab の k3s で、成果物はコンテナイメージ 1 つです**
-（[ADR-0073 §1](docs/decisions/ADR-0073-build-and-deploy.md)）。
-
-```
-forge のソース ──▶ build ──▶ hub.nolumia.com:5000/app/<image>:sha-<コミット>
-（git.nolumia.com）             ＝ 成果物（コンテナイメージ）
-                                         │ digest
-                                         ▼
-    deploy-repo の k8s/<app>-<env>/ ──apply──▶ k3s（nolumialab）
-    ＝ 稼働状態の正（宣言）
-```
-
-**main へのマージで、deck（https://deck.nolumia.com）が build → pin → deploy の
-3 段を自動で走らせます**（deploy-repo の `resources/projects.json` に載せたプロジェクトの
-prod）。手で押すとき（stg を上げるときなど）は deck の画面で環境を選びます。
-
-手元で動かすときは compose を使います（デプロイには使いません）。
-
-```bash
-make image                      # Dockerfile が壊れていないかの確認用ビルド
-cp .env.example .env
-docker compose up -d            # db / app / front が起動 → http://127.0.0.1:8080
-```
-
-デプロイ定義の雛形（k8s の宣言一式）は [deploy/k8s/](deploy/k8s/README.md) に
-入っています。deploy-repo の `k8s/<app>-<env>/` へ複製して使います。
-
-**このテンプレートから作ったプロジェクトは名前を変えてください。** namespace・
-イメージ名・データディレクトリがその名前から派生します。`fastapitemplate` のまま
-登録すると、テンプレート由来の別プロジェクトとイメージと置き場を取り合います。
-
-**`pyproject.toml` の `[project].name` も同時に変えてください。** ここがアプリ自身の
-名前の正本で、Swagger の題と、外へ出るときに名乗る `User-Agent` がここから導かれます
-（[ADR-0073 §2](docs/decisions/ADR-0073-build-and-deploy.md)）。
-コード側に名前を直に書かないでください。
+main へマージすると、deck（https://deck.nolumia.com）がイメージのビルド → digest の固定 → k3s への反映を
+自動で行います。宣言の雛形と手順は [deploy/k8s/README.md](deploy/k8s/README.md) です。
 
 ## ドキュメント
 
 | ファイル | 内容 |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | 設計ルール・制約事項・ドキュメント運用（作業テンプレ） |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | レイヤー構成・DDD パターン解説 |
+| [docs/TEMPLATE.md](docs/TEMPLATE.md) | **テンプレートの使い方**（ここから読む） |
+| [CLAUDE.md](CLAUDE.md) | 守るべき設計規則・文書の運用 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | レイヤー構成・設計の解説 |
 | [docs/ER.md](docs/ER.md) | ER 図・テーブル定義 |
-| [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作手順書 |
-| [docs/Progress.md](docs/Progress.md) | 進行中タスク |
-| [docs/decisions/](docs/decisions/) | 設計判断（ADR） |
-| [deploy/k8s/README.md](deploy/k8s/README.md) | k3s へのデプロイ（宣言の雛形つき） |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | 操作の手順書（「〇〇したいとき」） |
+| [docs/decisions/](docs/decisions/README.md) | 設計判断（ADR） |
+| [docs/Progress.md](docs/Progress.md) | 雛形の残タスク |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 変更履歴（雛形の更新を取り込むときに読む） |
 | [frontend/README.md](frontend/README.md) | 画面遷移図・画面仕様・操作マニュアル |
+| [deploy/k8s/README.md](deploy/k8s/README.md) | k3s への配布（宣言の雛形つき） |
+| [scripts/README.md](scripts/README.md) | 同梱のスクリプト |
+| `bounded_contexts/*/README.md` | 各コンテキストの仕様（audit・account_security・identity_federation） |
 
 ## ライセンス
 

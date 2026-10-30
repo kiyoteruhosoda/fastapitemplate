@@ -4,7 +4,7 @@
 
 ## テンプレートとしての制約 — 名前を必ず変える
 
-このリポジトリは**テンプレート**である。ここから作ったプロジェクトは、
+このリポジトリは**テンプレート**である（使い方は `docs/TEMPLATE.md`）。ここから作ったプロジェクトは、
 **元テンプレートの名前（`fastapitemplate`）を名乗ってはならない。**
 デプロイの名前からは namespace・イメージ名・置き場のディレクトリが導かれるため、
 名乗ったままだとテンプレート由来の別プロジェクトとそれらを取り合う（ADR-0073 §1）。
@@ -63,13 +63,14 @@ deploy-repo の `k8s/<app>-<env>/`。宣言の雛形と手順は `deploy/k8s/`�
 
 ```
 docs/
+├── TEMPLATE.md        # テンプレートの使い方（派生アプリの作り方・見本の消し方・更新の取り込み方）
 ├── ARCHITECTURE.md    # 設計・レイヤー構成・命名規則（DDDの実装パターン解説）
 ├── ER.md              # ER図・テーブル定義（DB スキーマを変えたら更新）
 ├── OPERATIONS.md      # 手順書（下記「ドキュメントの役割分担」参照）
 ├── Progress.md        # 進行中・未着手タスクのみ
 ├── CHANGELOG.md       # 完了した重要な変更の要約
 ├── decisions/         # 設計判断（ADR-NNNN-*.md、雛形は ADR-template.md）
-└── history/           # 後から経緯を追いたい規模の変更記録
+└── history/           # 後から経緯を追いたい規模の変更記録（要るときに作る）
 
 frontend/README.md     # 画面遷移図・画面仕様・操作マニュアル（画面を変えたら更新）
 ```
@@ -154,6 +155,7 @@ ADR を書く対象の例:
 | レイヤー構成・命名規則・DDD パターンの変更 | `docs/ARCHITECTURE.md` |
 | 設定キーの追加・変更 | 下記「設定管理」の 3 ファイル |
 | 設計判断を伴う変更 | `docs/decisions/ADR-NNNN-*.md`（上記） |
+| 派生アプリの作り方・名前の付け替え箇所・見本の消し方が変わる変更 | `docs/TEMPLATE.md` |
 | 進行中タスクの状態 | `docs/Progress.md`（上記） |
 
 `frontend/README.md` の画面遷移図と `docs/ER.md` の ER 図は **Mermaid** で書く
@@ -168,7 +170,8 @@ ADR を書く対象の例:
 | `docs/ER.md` | データモデル仕様 | ER 図・テーブルとカラムの意味・モデリング規約 | 個別機能の操作手順、SQL の実行手順（OPERATIONS.md へ）、過去のスキーマの経緯（CHANGELOG.md へ） |
 | `frontend/README.md` | 画面仕様・操作マニュアル | 画面遷移図・画面ごとの目的と操作・必要 scope・利用者向けの操作手順 | API のリクエスト／レスポンス仕様（Swagger が正本）、過去の画面の経緯 |
 | `scripts/README.md`（および各コンテキストの README） | 仕様書 | スクリプト・設定が**現在どう動くか**（現状の挙動・制約・注意点） | 「以前は〜だったが」「原因は〜だった」という過去の不具合の経緯 |
-| `docs/CHANGELOG.md` | 変更履歴 | 過去の不具合とその原因・修正内容 | — |
+| `docs/TEMPLATE.md` | テンプレートの使い方 | 派生アプリを作る・名前を付け替える・見本を消す・機能を足す・雛形の更新を取り込む手順 | 個々のコマンドの詳細（OPERATIONS.md へリンク）、設計の理由（ADR へリンク） |
+| `docs/CHANGELOG.md` | 変更履歴 | 過去の不具合とその原因・修正内容。派生アプリに手当てが要る変更は「派生アプリは〜」と書く | — |
 
 迷ったら「これは手順か（OPERATIONS）」「設計の解説か（ARCHITECTURE）」
 「データ構造か（ER）」「画面か（frontend/README）」「現在の仕様か（README）」
@@ -203,7 +206,7 @@ Swagger UI（`/docs`）・`/openapi.json` が唯一の出所。
 | Alembic | migrations/ 配下で管理 |
 | ASGI | Uvicorn（本番は Gunicorn + UvicornWorker、`--workers=2` 推奨） |
 | Node.js | 24.x LTS（フロントエンドビルド用） |
-| ホスト | Linux（Docker 上。Synology DSM 7.x 等） |
+| 実行環境 | k3s 上のコンテナ（手元は docker compose か `uv run`） |
 
 ---
 
@@ -399,7 +402,7 @@ SystemSetting.query.get("some_key")
    レスポンスに `datetime` を直接載せるときは `presentation/fastapi/schemas/types.py` の `UtcDatetime` を使う。
 4. **シェルスクリプトの `date` は `-u` を明示する。** コンテナの `TZ` に引きずられない。
 
-コンテナ側は「作られるときに一律 UTC」が別途契約になっている（HANDOVER §14）。
+コンテナは `TZ` を設定せず UTC で動かす（コードもシェルもそれに頼らず、上の 4 つを守る）。
 
 ---
 
