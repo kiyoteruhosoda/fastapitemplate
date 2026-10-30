@@ -180,7 +180,9 @@ async def audience_options(principal: SenderDep, members: TenantMembersDep) -> A
     with_email = principal.can("user:manage")
     return AudienceOptionsResponse(
         groups=[AudienceGroupResponse(id=g.id, name=g.name, member_count=len(g.members)) for g in groups],
-        users=[AudienceUserResponse(id=u.id, username=u.username, email=u.email if with_email else None) for u in users],
+        users=[
+            AudienceUserResponse(id=u.id, username=u.username, email=u.email if with_email else None) for u in users
+        ],
     )
 
 
