@@ -168,44 +168,15 @@ class TokenService:
             settings.jwt_secret_key,
             algorithm=_ALGORITHM,
         )
-        logout = jwt.encode(
-            {
-                "sub": str(user.id),
-                "iss": settings.access_token_issuer,
-                "aud": settings.access_token_audience,
-                "iat": now,
-                "exp": expires_at,
-                "type": TYPE_LOGOUT,
-                CLAIM_REFRESH_SESSION: refresh_session_id,
-            },
-            settings.jwt_secret_key,
-            algorithm=_ALGORITHM,
-        )
         return {
             "access_token": access,
             "refresh_token": refresh,
-            "logout_token": logout,
+            "logout_token": _logout_token(user, refresh_session_id, now, expires_at),
             "refresh_session_id": refresh_session_id,
             "refresh_jti": refresh_jti,
             "token_type": "bearer",
             "expires_in": settings.access_token_expires_seconds,
         }
-
-    @staticmethod
-    def _decode(token: str) -> tuple[dict[str, Any] | None, str | None]:
-        try:
-            claims = jwt.decode(
-                token,
-                settings.jwt_secret_key,
-                algorithms=[_ALGORITHM],
-                audience=settings.access_token_audience,
-                issuer=settings.access_token_issuer,
-            )
-            return claims, None
-        except jwt.ExpiredSignatureError:
-            return None, "token_expired"
-        except jwt.InvalidTokenError:
-            return None, "token_invalid"
 
     @classmethod
     def verify_access_token_with_reason(cls, token: str) -> tuple[AuthenticatedPrincipal | None, str | None]:
@@ -219,7 +190,7 @@ class TokenService:
         :meth:`verify_refresh_token` は DB を引き、止まっていれば新しい
         アクセストークンを出さない。**止める判定はあちらの 1 点に集約してある。**
         """
-        claims, reason = cls._decode(token)
+        claims, reason = _decode(token)
         if claims is None:
             return None, reason
         if claims.get("type") != TYPE_ACCESS:
@@ -252,10 +223,10 @@ class TokenService:
         DB を引かないので、**止まっている利用者を止められるのはこの 1 点だけ**である
         ——ここを緩めると、寿命による上限そのものが無くなる。
         """
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_REFRESH:
             return None
-        user = cls._load_active_user(claims, session)
+        user = _load_active_user(claims, session)
         if user is None:
             return None
         if _session_revoked(claims, session):
@@ -280,7 +251,7 @@ class TokenService:
     @classmethod
     def end_refresh_session(cls, logout_token: str, *, session: Session) -> None:
         """ログアウトの札からログインの控えを消す（ADR-0091）。読めない札は何もしない。"""
-        claims, _ = cls._decode(logout_token)
+        claims, _ = _decode(logout_token)
         if claims is None or claims.get("type") != TYPE_LOGOUT:
             return
         refresh_session_id = claims.get(CLAIM_REFRESH_SESSION)
@@ -290,7 +261,7 @@ class TokenService:
     @classmethod
     def refresh_session_id_of(cls, token: str) -> str | None:
         """アクセストークンに載っているログインの控え（ロールの切り替えで引き継ぐ）。"""
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         value = claims.get(CLAIM_REFRESH_SESSION) if claims is not None else None
         return value if isinstance(value, str) else None
 
@@ -302,7 +273,7 @@ class TokenService:
         そこだけは DB を引いて確かめる ——確かめないと、止められた利用者が
         出し直しを繰り返すだけで寿命の上限を破れる。
         """
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_ACCESS:
             return False
         return _session_revoked(claims, session)
@@ -314,24 +285,57 @@ class TokenService:
         ロールの切り替えで新しいトークンを出すときに引き継ぐためのもの
         （引き継がないと、切り替えた瞬間に停止の伝播から外れる）。
         """
-        claims, _ = cls._decode(token)
+        claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_ACCESS:
             return None
         return _federated_login_of(claims)
 
-    @staticmethod
-    def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
-        try:
-            user_id = int(claims.get("sub", ""))
-        except ValueError:
-            return None
-        user = session.get(User, user_id)
-        if user is None or not user.is_active:
-            return None
-        # 止めたテナントの人には出し直さない（ADR-0079 §1）。手元の 1 枚は寿命まで
-        if not tenant_admits(session, user):
-            return None
-        return user
+
+def _decode(token: str) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[_ALGORITHM],
+            audience=settings.access_token_audience,
+            issuer=settings.access_token_issuer,
+        )
+        return claims, None
+    except jwt.ExpiredSignatureError:
+        return None, "token_expired"
+    except jwt.InvalidTokenError:
+        return None, "token_invalid"
+
+
+def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
+    try:
+        user_id = int(claims.get("sub", ""))
+    except ValueError:
+        return None
+    user = session.get(User, user_id)
+    if user is None or not user.is_active:
+        return None
+    # 止めたテナントの人には出し直さない（ADR-0079 §1）。手元の 1 枚は寿命まで
+    if not tenant_admits(session, user):
+        return None
+    return user
+
+
+def _logout_token(user: User, refresh_session_id: str, issued_at: datetime, expires_at: datetime) -> str:
+    """ログインを終わらせることしかできない札（ADR-0091）。"""
+    return jwt.encode(
+        {
+            "sub": str(user.id),
+            "iss": settings.access_token_issuer,
+            "aud": settings.access_token_audience,
+            "iat": issued_at,
+            "exp": expires_at,
+            "type": TYPE_LOGOUT,
+            CLAIM_REFRESH_SESSION: refresh_session_id,
+        },
+        settings.jwt_secret_key,
+        algorithm=_ALGORITHM,
+    )
 
 
 def create_machine_access_token(user: User, *, client_id: str, operations: frozenset[str]) -> MachineAccessToken:
