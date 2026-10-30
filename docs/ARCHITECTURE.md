@@ -38,7 +38,8 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 
 - 機能は `bounded_contexts/<context>/` として追加する。1コンテキスト = 1業務領域。
   `bounded_contexts/example/`（Item CRUD）が最小構成の見本。資源 1 件ずつの可否（持ち主・共有）が
-  要る機能は `bounded_contexts/notes/`（共有メモ。ADR-0078 §6）が見本。
+  要る機能は `bounded_contexts/notes/`（共有メモ。ADR-0078 §6）が見本。テナントごとの決まりを読む側の
+  見本は、アイテムの一覧の並び順（コンテンツ設定 `item_list_order`。ADR-0085）。
   現在のコンテキストは `example`（見本）・`notes`（資源ごとの可否の見本）・`account_security`（二要素認証・パスキー）・
   `audit`（監査ログ／アプリログの記録と閲覧）・`email_sender`（メール送信）・
   `identity_federation`（SSO）・`notification`（お知らせの配信とベル・画面上部・Web Push。ADR-0081 §3）・
