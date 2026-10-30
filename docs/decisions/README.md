@@ -21,3 +21,4 @@
 | [ADR-0084](ADR-0084-actors-and-roles.md) | アクターとロール | §1 アクター<br>§2 ユースケースと担当<br>§3 権限は「対象:操作」で、見ると変えるを分ける（設定はシステムとコンテンツの 2 層）<br>§4 ロール（サポート担当・コンテンツ管理者を足す） |
 | [ADR-0085](ADR-0085-content-settings.md) | コンテンツ設定 | 定義をコードに、テナントが変えた値だけを DB に持つ（`content_settings`・`/api/admin/content-settings`） |
 | [ADR-0086](ADR-0086-ci-runs-on-forge-without-github.md) | CI の台と取り寄せ先 | CI は forge の自前の台で動き、GitHub から何も取らない（ADR-0072 §5 を置き換え。uv は版を書かず写しの最新） |
+| [ADR-0087](ADR-0087-machine-entrance-and-allowlist.md) | 機械の口と許可簿 | 機械の口（`POST /api/machine/token`）は許可簿の操作（権限コード）だけを scope に載せ、scope で守った口だけを通す |

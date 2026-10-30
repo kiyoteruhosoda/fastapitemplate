@@ -60,8 +60,21 @@ CLAIM_AUTHENTICATED_AT = "auth_time"
 # 「どのテナントの中身も見えない」まま寿命まで過ごすことになるので、401 で更新させる
 # （更新は DB を引いて、いまの所属で出し直す）。
 CLAIM_TENANT = "tenant"
+#: 機械の口から出したトークンの印（名乗った機械の ``client_id``。ADR-0087）。人のトークンには載らない。
+#: ⚠ これが載ったトークンは、scope で守られた口（``require_permission``）でしか通らない。
+CLAIM_MACHINE_CLIENT = "machine_client"
 #: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
 SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+@dataclass(frozen=True)
+class MachineAccessToken:
+    """機械の口で出したトークン（ADR-0087）。"""
+
+    token: str
+    expires_in: int
+    #: 実際に載った scope（許可簿の操作と利用者の権限の重なり）
+    scopes: list[str]
 
 
 @dataclass(frozen=True)
@@ -193,6 +206,7 @@ class TokenService:
                 active_role=_active_role_of(claims),
                 authenticated_at=_authenticated_at_of(claims),
                 tenant_id=_tenant_of(claims),
+                machine_client_id=_machine_client_of(claims),
             ),
             None,
         )
@@ -258,6 +272,36 @@ class TokenService:
         if not tenant_admits(session, user):
             return None
         return user
+
+
+def create_machine_access_token(user: User, *, client_id: str, operations: frozenset[str]) -> MachineAccessToken:
+    """機械の口のアクセストークン（ADR-0087）。**リフレッシュトークンは出さない**（機械は取り直せばよい）。
+
+    scope は「利用者の全ロールの権限」と「許可簿の操作」の**両方にあるものだけ**。
+    ⚠ ``auth_time`` は「ずっと前」にする（入り直したばかりが要る操作を、機械は通れない。ADR-0076 §10）。
+    """
+    effective = sorted(user.permission_codes_of(None) & operations)
+    now = datetime.now(UTC)
+    token = jwt.encode(
+        {
+            "sub": str(user.id),
+            "iss": settings.access_token_issuer,
+            "aud": settings.access_token_audience,
+            "iat": now,
+            "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
+            "type": TYPE_ACCESS,
+            "scope": effective,
+            "email": user.email,
+            "username": user.username,
+            CLAIM_AUTHENTICATED_AT: int(SIGNED_IN_LONG_AGO.timestamp()),
+            CLAIM_ACTIVE_ROLE: None,
+            CLAIM_TENANT: user.tenant_id,
+            CLAIM_MACHINE_CLIENT: client_id,
+        },
+        settings.jwt_secret_key,
+        algorithm=_ALGORITHM,
+    )
+    return MachineAccessToken(token=token, expires_in=settings.access_token_expires_seconds, scopes=effective)
 
 
 def _federation_claims(federated_login: FederatedLogin | None) -> dict[str, object]:
@@ -349,6 +393,11 @@ def _tenant_of(claims: dict[str, Any]) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def _machine_client_of(claims: dict[str, Any]) -> str | None:
+    value = claims.get(CLAIM_MACHINE_CLIENT)
+    return value if isinstance(value, str) and value else None
+
+
 def _active_role_of(claims: dict[str, Any]) -> str | None:
     """クレームのアクティブロール。無い・文字列でないものは「すべてのロール」扱い。
 
@@ -364,11 +413,14 @@ __all__ = [
     "CLAIM_FEDERATED_ISSUED_AT",
     "CLAIM_FEDERATED_ISSUER",
     "CLAIM_FEDERATED_SUBJECT",
+    "CLAIM_MACHINE_CLIENT",
     "CLAIM_SESSION_ID",
     "CLAIM_TENANT",
     "SIGNED_IN_LONG_AGO",
     "TYPE_ACCESS",
     "TYPE_REFRESH",
+    "MachineAccessToken",
     "RefreshedSession",
     "TokenService",
+    "create_machine_access_token",
 ]
