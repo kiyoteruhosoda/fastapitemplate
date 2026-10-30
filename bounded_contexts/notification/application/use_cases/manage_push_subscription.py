@@ -10,6 +10,7 @@ from bounded_contexts.notification.domain.repositories.push_subscription_reposit
     IPushSubscriptionRepository,
 )
 from bounded_contexts.notification.domain.services.push_sender import DevicePushSender, PushSender
+from shared.kernel.outbound_destination import PUSH_SERVICE_HOST_SUFFIXES, DestinationRefusedError, check_https_url
 
 #: 通知サービスの endpoint は数百文字。これを超えるものは購読として受け取らない。
 ENDPOINT_MAX_LENGTH = 1000
@@ -29,10 +30,14 @@ class SubscribeToPush:
     def execute(self, user_id: int, endpoint: str, p256dh: str, auth: str) -> None:
         if not self._sender.enabled:
             raise NotificationValidationError("push_not_configured")
-        # ⚠ endpoint はこのサーバーが POST しに行く先。https 以外を受けると、
-        #   利用者がサーバーに内側の URL を叩かせられる。
-        if not endpoint.startswith("https://") or len(endpoint) > ENDPOINT_MAX_LENGTH:
+        # ⚠ endpoint はこのサーバーが POST しに行く先。ブラウザの通知サービスのホスト（443）だけ受け取る。
+        #   ほかを受けると、利用者がサーバーに宅内やクラスタの内側を叩かせられる（ADR-0083）
+        if len(endpoint) > ENDPOINT_MAX_LENGTH:
             raise NotificationValidationError("invalid_push_endpoint")
+        try:
+            check_https_url(endpoint, allowed_host_suffixes=PUSH_SERVICE_HOST_SUFFIXES)
+        except DestinationRefusedError as error:
+            raise NotificationValidationError("invalid_push_endpoint") from error
         if not (0 < len(p256dh) <= KEY_MAX_LENGTH and 0 < len(auth) <= KEY_MAX_LENGTH):
             raise NotificationValidationError("invalid_push_keys")
         self._subscriptions.save(PushSubscription(user_id=user_id, endpoint=endpoint, p256dh=p256dh, auth=auth))

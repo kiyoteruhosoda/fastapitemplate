@@ -233,7 +233,7 @@ def test_audience_options_list_groups_and_active_people(client: TestClient, admi
 
 # --- 端末への通知 ---------------------------------------------------------------
 
-_ENDPOINT = "https://push.example.test/v1/device-1"
+_ENDPOINT = "https://fcm.googleapis.com/fcm/send/device-1"
 _KEYS = {"p256dh": "BKeyForTests", "auth": "authForTests"}
 
 
@@ -298,17 +298,48 @@ def test_unsubscribing(client: TestClient, admin_headers: dict[str, str], push_s
     assert push_sender.sent == []
 
 
-def test_a_plain_http_endpoint_is_refused(
-    client: TestClient, admin_headers: dict[str, str], push_sender: _FakePushSender
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://127.0.0.1:8000/api/admin/users",
+        # 通知サービス以外の https（task #738 で stg から届いたもの）
+        "https://127.0.0.1:8000/",
+        "https://db:3306/",
+        "https://front.fastapitemplate-stg.svc.cluster.local:80/",
+        "https://10.10.2.11:10910/",
+        # 通知サービスの名前でも 443 以外・利用者情報付き・名前の後ろに足したものは断る
+        "https://fcm.googleapis.com:8443/fcm/send/x",
+        "https://user@fcm.googleapis.com/fcm/send/x",
+        "https://fcm.googleapis.com.attacker.example/fcm/send/x",
+    ],
+)
+def test_an_endpoint_that_is_not_a_push_service_is_refused(
+    client: TestClient, admin_headers: dict[str, str], push_sender: _FakePushSender, endpoint: str
 ) -> None:
-    """endpoint はサーバーが POST しに行く先。https 以外を受けると内側の URL を叩かされる。"""
+    """endpoint はサーバーが POST しに行く先。通知サービス以外を受けると内側の URL を叩かされる（ADR-0083）。"""
     response = client.post(
-        "/api/notifications/push/subscribe",
-        json={"endpoint": "http://127.0.0.1:8000/api/admin/users", "keys": _KEYS},
-        headers=admin_headers,
+        "/api/notifications/push/subscribe", json={"endpoint": endpoint, "keys": _KEYS}, headers=admin_headers
     )
     assert response.status_code == 400
     assert response.json()["detail"]["error"] == "invalid_push_endpoint"
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://fcm.googleapis.com/fcm/send/abc:APA91b",  # Chrome・Edge（Android）
+        "https://updates.push.services.mozilla.com/wpush/v2/gAAAAA",  # Firefox
+        "https://wns2-par02p.notify.windows.com/w/?token=BQYAAA",  # Edge（Windows）
+        "https://web.push.apple.com/QGuQyavXutnMH",  # Safari
+    ],
+)
+def test_real_browser_endpoints_are_accepted(
+    client: TestClient, admin_headers: dict[str, str], push_sender: _FakePushSender, endpoint: str
+) -> None:
+    response = client.post(
+        "/api/notifications/push/subscribe", json={"endpoint": endpoint, "keys": _KEYS}, headers=admin_headers
+    )
+    assert response.status_code == 204, response.text
 
 
 def test_signing_in_is_required(client: TestClient) -> None:
