@@ -1,3 +1,7 @@
+## 2026-10-31（使えなくなったパスワード再設定トークンを消す。ADR-0097・task #798）
+
+- `password_reset_tokens` の使用済みと期限切れの行を、6 時間ごとに消すようにした（設定は無い）。
+
 ## 2026-10-30（機械が書く操作を監査に残す。task #724）
 
 - `machine_operation.performed` を足した。対象は `machine_client:<client_id>`、実行者は振る舞う利用者、理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。
