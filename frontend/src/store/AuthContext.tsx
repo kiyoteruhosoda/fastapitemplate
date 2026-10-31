@@ -28,6 +28,8 @@ export interface Me {
    * `/me` に載せてあるので、サインアウトのために問い合わせを増やさない。
    */
   rp_logout_enabled: boolean
+  /** IdP と結び付いている。名前とメールは IdP で直す（ADR-0093）。 */
+  profile_managed_by_idp?: boolean
 }
 
 /** ログインが成立したことと、アクセストークンの寿命（トークン本体は Cookie）。 */

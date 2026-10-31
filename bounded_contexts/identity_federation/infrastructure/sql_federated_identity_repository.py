@@ -39,6 +39,10 @@ class SqlFederatedIdentityRepository:
         ).first()
         return _as_identity(record)
 
+    def is_linked(self, user_id: int) -> bool:
+        linked = select(FederatedIdentityRecord.user_id).where(FederatedIdentityRecord.user_id == user_id).limit(1)
+        return self.session.scalar(linked) is not None
+
     def unlink(self, identity: FederatedIdentity) -> None:
         record = self.session.get(FederatedIdentityRecord, (identity.issuer, identity.subject))
         if record is None:

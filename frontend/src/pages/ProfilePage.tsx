@@ -1,7 +1,8 @@
 /**
  * プロフィール（本人のアカウント情報と表示設定。ADR-0080 §3）。
  *
- * - メールアドレス・表示名はここから本人が変更できる（PUT /api/auth/me）。
+ * - メールアドレス・表示名はここから本人が変更できる（PUT /api/auth/me）。IdP と結び付いている人は
+ *   次のログインで上書きされるので、入力欄を出さず IdP へ案内する（ADR-0093）。
  * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0080 §1）。
  * - サインインの手段（パスワード・二要素認証・パスキー）は別画面
  *   （`/profile/security`）。ここからは入口だけを出す（ADR-0080 §4）。
@@ -47,36 +48,48 @@ export function ProfilePage() {
 
       <section className="settings-section">
         <h2>{t('profile.account')}</h2>
-        <form className="settings-form" onSubmit={submit}>
-          <label>
-            {t('common.email')}
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value)
-              }}
-              required
-            />
-          </label>
-          <label>
-            {t('common.username')}
-            <input
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => {
-                setUsername(e.target.value)
-              }}
-              maxLength={100}
-              required
-            />
-          </label>
-          <ActionButton type="submit" pending={submitting}>
-            {t('common.save')}
-          </ActionButton>
-        </form>
+        {user.profile_managed_by_idp ? (
+          <>
+            <p>
+              {t('common.email')}: {user.email}
+            </p>
+            <p>
+              {t('common.username')}: {user.username}
+            </p>
+            <p className="hint">{t('profile.managedByIdp')}</p>
+          </>
+        ) : (
+          <form className="settings-form" onSubmit={submit}>
+            <label>
+              {t('common.email')}
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                }}
+                required
+              />
+            </label>
+            <label>
+              {t('common.username')}
+              <input
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value)
+                }}
+                maxLength={100}
+                required
+              />
+            </label>
+            <ActionButton type="submit" pending={submitting}>
+              {t('common.save')}
+            </ActionButton>
+          </form>
+        )}
       </section>
 
       <section className="settings-section">

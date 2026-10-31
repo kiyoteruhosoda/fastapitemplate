@@ -20,6 +20,9 @@ class FederatedIdentityRepository(Protocol):
     def find_for_user(self, issuer: str, user_id: int) -> FederatedIdentity | None:
         """その利用者が、その IdP と結び付いているかを引く（ADR-0077 §5）。"""
 
+    def is_linked(self, user_id: int) -> bool:
+        """その利用者がどこかの IdP と結び付いているか（名前とメールは IdP が正。ADR-0093）。"""
+
     def unlink(self, identity: FederatedIdentity) -> None:
         """結び付きを消す。**利用者そのものには触らない。**"""
 
