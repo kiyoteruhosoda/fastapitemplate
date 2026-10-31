@@ -1,3 +1,8 @@
+## 2026-10-31（未認証の `/info` を版だけにした。ADR-0096・task #797）
+
+- `/info` から枝・ビルド時刻・環境名を外し、`version` と `git_sha` だけにした。外した 3 つは今までどおり `/api/admin/system`（`system:view`）で読める。
+- 派生アプリが `/info` の `branch` などを読んでいたら、`/api/admin/system` へ移す。
+
 ## 2026-10-30（機械が書く操作を監査に残す。task #724）
 
 - `machine_operation.performed` を足した。対象は `machine_client:<client_id>`、実行者は振る舞う利用者、理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。

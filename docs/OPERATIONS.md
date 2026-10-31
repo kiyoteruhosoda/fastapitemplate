@@ -250,7 +250,7 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 ## デプロイした版を確認したいとき
 
 ```bash
-curl -s http://10.10.2.11:<NodePort>/info    # version / commit / branch / build_date
+curl -s http://10.10.2.11:<NodePort>/info    # version / git_sha（枝・ビルド時刻・環境名は画面のシステムステータス）
 ```
 
 ⚠ **成功表示を証拠にしない。** 押した digest と、実際に動いている Pod を突き合わせる。

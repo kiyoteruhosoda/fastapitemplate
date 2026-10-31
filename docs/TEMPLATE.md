@@ -23,7 +23,7 @@
 | スマホ | Android アプリからの呼び出し（口の例は `routers/app_session.py`）・最新版の案内 | `bounded_contexts/app_release/` | ADR-0081 |
 | 機械の口 | 他のアプリ・バッチから呼ばれる口（`POST /api/machine/token`）と許可簿 | `MACHINE_CLIENTS`・`MACHINE_AUDIENCE`（空なら閉じる） | ADR-0082・ADR-0087 |
 | 画面 | 管理画面 SPA（日英・テーマ・PWA・メンテナンス画面） | `frontend/` | ADR-0080 |
-| 運用 | `/healthz`・`/readyz`・`/info`・`/metrics`・自己再起動 | `presentation/fastapi/routers/health.py` | ADR-0074 §2 |
+| 運用 | `/healthz`・`/readyz`・`/info`（版だけ）・`/metrics`・自己再起動 | `presentation/fastapi/routers/health.py` | ADR-0074 §2・ADR-0096 |
 | 配布 | コンテナイメージ 1 つ・k3s の宣言の雛形 | `Dockerfile`・`deploy/k8s/` | ADR-0073 |
 | 品質 | 8 つの必須ゲート・設計の定量基準・E2E の煙試験 | `Makefile`・`.forgejo/workflows/` | ADR-0072 |
 
