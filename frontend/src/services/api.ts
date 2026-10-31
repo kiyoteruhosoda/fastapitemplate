@@ -16,6 +16,7 @@ import { currentOutage, outageFrom, reportOutage, reportReopened } from './maint
 const CSRF_COOKIE = 'csrf_token'
 const CSRF_HEADER = 'X-CSRF-Token'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const TWO_FACTOR_SETUP_REQUIRED = 'two_factor_setup_required'
 
 export class ApiError extends Error {
   status: number
@@ -86,6 +87,25 @@ async function sendRefresh(): Promise<boolean> {
   return response.ok
 }
 
+/** 失敗の応答を例外へ変える。前段が閉じている・二要素の登録が要る、はここで画面へ知らせる。 */
+async function failureOf(response: Response): Promise<ApiError> {
+  let payload: unknown = null
+  try {
+    payload = await response.json()
+  } catch {
+    /* 非 JSON 応答 */
+  }
+  const outage = outageFrom(response.status, payload)
+  if (outage) {
+    reportOutage(outage)
+    return new ApiError(response.status, 'service_unavailable')
+  }
+  const code = extractErrorCode(payload)
+  // 使っている途中で必須になった。/me を読み直せば登録の画面が出る（ADR-0093）
+  if (code === TWO_FACTOR_SETUP_REQUIRED) window.location.reload()
+  return new ApiError(response.status, code)
+}
+
 async function request<T>(method: string, path: string, body?: unknown, retry = true): Promise<T> {
   const headers: Record<string, string> = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
@@ -102,20 +122,7 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
   if (response.status === 401 && retry && (await tryRefresh())) {
     return request<T>(method, path, body, false)
   }
-  if (!response.ok) {
-    let payload: unknown = null
-    try {
-      payload = await response.json()
-    } catch {
-      /* 非 JSON 応答 */
-    }
-    const outage = outageFrom(response.status, payload)
-    if (outage) {
-      reportOutage(outage)
-      throw new ApiError(response.status, 'service_unavailable')
-    }
-    throw new ApiError(response.status, extractErrorCode(payload))
-  }
+  if (!response.ok) throw await failureOf(response)
   // 答えが返った＝閉じていない（メンテナンスの画面を出していれば戻す）
   if (currentOutage()) reportReopened()
   if (response.status === 204) return undefined as T

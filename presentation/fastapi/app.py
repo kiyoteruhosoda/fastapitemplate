@@ -83,6 +83,7 @@ from presentation.fastapi.routers.health import router as health_router
 from presentation.fastapi.routers.system.administrators import router as system_administrators_router
 from presentation.fastapi.routers.system.tenants import router as system_tenants_router
 from presentation.fastapi.routers.ui_settings import router as ui_settings_router
+from presentation.fastapi.services.password_token_purge import start_password_token_purge_worker
 from shared.kernel.logging.logging_config import setup_logging
 from shared.kernel.restart import (
     RestartScope,
@@ -102,6 +103,8 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     start_restart_watcher(RestartScope.WEB)
     # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0075 §3）
     start_log_retention_worker()
+    # 使えなくなったパスワード再設定トークンを消す（ADR-0097）
+    start_password_token_purge_worker()
     # IdP で止まった人の SSO のセッションを、毎時聞き直して止める
     # （MACHINE_CLIENT_ID が空なら何もしない。ADR-0077 §7）
     start_sso_reconciliation_worker()

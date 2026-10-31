@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from bounded_contexts.account_security.application.dto.account_security_dto import (
     PasskeySummaryDto,
@@ -55,6 +55,7 @@ from presentation.fastapi.dependencies.auth import get_settled_principal, requir
 from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.schemas.auth import StatusResponse
 from shared.application.authenticated_principal import AuthenticatedPrincipal
+from shared.kernel.settings.settings import settings
 from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(prefix="/api/account/security", tags=["account-security"])
@@ -86,7 +87,11 @@ async def two_factor_status(
     use_case: Annotated[GetTwoFactorStatus, Depends(dependencies.get_two_factor_status)],
 ) -> TwoFactorStatusResponse:
     status_dto = use_case.execute(principal.user_id)
-    return TwoFactorStatusResponse(enabled=status_dto.enabled, enrolling=status_dto.enrolling)
+    return TwoFactorStatusResponse(
+        enabled=status_dto.enabled,
+        enrolling=status_dto.enrolling,
+        required=settings.local_two_factor_required,
+    )
 
 
 @router.post(
@@ -128,6 +133,9 @@ async def disable_two_factor(
     use_case: Annotated[DisableTotp, Depends(dependencies.disable_totp)],
     audit: AuditRecorderDep,
 ) -> StatusResponse:
+    if settings.local_two_factor_required:
+        # 外せるとログインのたびに登録し直しになるだけで、守りにならない（ADR-0093）
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "two_factor_required"})
     use_case.execute(user_id=principal.user_id, code=body.code)
     audit.execute(
         AuditEventType.TWO_FACTOR_DISABLED,

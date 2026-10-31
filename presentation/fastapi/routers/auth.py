@@ -33,6 +33,9 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
     AuditTargetType,
 )
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
+from bounded_contexts.identity_federation.infrastructure.sql_federated_identity_repository import (
+    SqlFederatedIdentityRepository,
+)
 from presentation.fastapi.dependencies.auth import (
     LOGOUT_TOKEN_COOKIE,
     REFRESH_TOKEN_COOKIE,
@@ -78,7 +81,7 @@ CurrentUserDep = Annotated[User, Depends(get_current_user)]
 CurrentSessionDep = Annotated[CurrentSession, Depends(get_current_session)]
 
 
-def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
+def _me_response(user: User, principal: AuthenticatedPrincipal, *, profile_managed_by_idp: bool) -> MeResponse:
     """本人の情報。scope は「いま有効なもの」、roles は「切り替えられる先」。"""
     return MeResponse(
         user_id=user.id,
@@ -89,6 +92,8 @@ def _me_response(user: User, principal: AuthenticatedPrincipal) -> MeResponse:
         active_role=principal.active_role,
         has_password=user.has_local_password,
         rp_logout_enabled=settings.oidc_rp_logout_enabled,
+        profile_managed_by_idp=profile_managed_by_idp,
+        two_factor_setup_required=principal.two_factor_setup_required,
     )
 
 
@@ -144,13 +149,15 @@ async def logout(
     """このログインだけを終わらせる（ほかの端末は続く。ADR-0091）。"""
     if logout_token:
         TokenService.end_refresh_session(logout_token, session=db)
+        # 振り替えと同じ行のロックを応答まで持ち越さない（session_cookies.py）
+        db.commit()
     clear_access_token_cookie(response)
     return StatusResponse(status="ok")
 
 
 @router.get("/me", response_model=MeResponse)
-async def me(principal: PrincipalDep, user: CurrentUserDep) -> MeResponse:
-    return _me_response(user, principal)
+async def me(principal: PrincipalDep, user: CurrentUserDep, db: DbDep) -> MeResponse:
+    return _me_response(user, principal, profile_managed_by_idp=SqlFederatedIdentityRepository(db).is_linked(user.id))
 
 
 @router.post("/switch-role", response_model=SessionResponse)
@@ -180,6 +187,7 @@ async def switch_role(
             federated_login=current.federated_login,
             authenticated_at=current.authenticated_at,
             refresh_session_id=current.refresh_session_id,
+            signed_in_with_passkey=current.signed_in_with_passkey,
         ),
     )
     audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
@@ -202,6 +210,12 @@ async def update_me(
     user = db.get(User, principal.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
+    if SqlFederatedIdentityRepository(db).is_linked(user.id):
+        # ログインのたびに IdP の値で上書きされるので、受けると黙って戻る（ADR-0094）
+        if (body.email, body.username) != (user.email, user.username):
+            audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="profile_managed_by_idp")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "profile_managed_by_idp"})
+        return _me_response(user, principal, profile_managed_by_idp=True)
     if body.email != user.email:
         # メールは再設定のメールの宛先。替えるのは入り直したばかりのときだけ（ADR-0076 §10）
         ensure_recent_sign_in(principal)
@@ -225,7 +239,7 @@ async def update_me(
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"}) from None
     audit.execute(AuditEventType.PROFILE_UPDATED, reason=f"fields={','.join(changed) if changed else 'none'}")
-    return _me_response(user, principal)
+    return _me_response(user, principal, profile_managed_by_idp=False)
 
 
 @router.post("/change-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
@@ -257,7 +271,13 @@ async def change_password(
     user.end_sessions()
     # 今のパスワードを確かめた直後なので、入り直したものとして扱う（ADR-0076 §10）
     establish_session(
-        response, user, SessionCarryOver(active_role=current.active_role, federated_login=current.federated_login)
+        response,
+        user,
+        SessionCarryOver(
+            active_role=current.active_role,
+            federated_login=current.federated_login,
+            signed_in_with_passkey=current.signed_in_with_passkey,
+        ),
     )
     logger.info("password_changed")
     audit.execute(AuditEventType.PASSWORD_CHANGED)

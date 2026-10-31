@@ -250,7 +250,7 @@ docker run --rm -it --network "$(grep -E '^DOCKER_NETWORK_NAME=' .env | tail -n1
 ## デプロイした版を確認したいとき
 
 ```bash
-curl -s http://10.10.2.11:<NodePort>/info    # version / commit / branch / build_date
+curl -s http://10.10.2.11:<NodePort>/info    # version / git_sha（枝・ビルド時刻・環境名は画面のシステムステータス）
 ```
 
 ⚠ **成功表示を証拠にしない。** 押した digest と、実際に動いている Pod を突き合わせる。
@@ -672,6 +672,29 @@ docker compose restart app
 
 ⚠ **行ごと消さない**（`system_settings` の 1 行に全部の鍵が入っているので、
 他の設定まで既定へ戻る）。上のスクリプトは 1 鍵だけ消す。
+
+## パスワードで入る人に二要素認証を必須にしたいとき
+
+システム設定の「パスワードでのサインインに二要素認証を必須にする」（`LOCAL_TWO_FACTOR_REQUIRED`）を有効にする。
+
+- 未登録の人は、次にトークンが更新されたとき（5 分以内）か次のログインから、二要素認証の登録の画面しか使えなくなる。
+- SSO とパスキーで入る人には求めない。
+- 有効の間は本人が二要素認証を外せない。
+
+**端末を失くした人を戻すとき**は、その人の登録を DB から消す（画面の口は無い）。次のログインで登録し直せる。
+
+```bash
+sudo k3s kubectl -n <app>-<env> exec deploy/db -- sh -c 'mariadb -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE" -e "DELETE FROM totp_secrets WHERE user_id = <user_id>"'
+```
+
+**必須をやめるとき**は画面で無効にする。画面に入れないときは保存を消す:
+
+```bash
+sudo k3s kubectl -n <app>-<env> exec deploy/app -- python scripts/unset_setting.py LOCAL_TWO_FACTOR_REQUIRED
+sudo k3s kubectl -n <app>-<env> rollout restart deploy/app
+```
+
+⚠ `LOCAL_TWO_FACTOR_REQUIRED=true` を環境変数に書いていると、保存を消しても有効のまま。そのときは宣言からも外す。
 
 ## 管理者がパスワードを忘れてサインインできないとき
 

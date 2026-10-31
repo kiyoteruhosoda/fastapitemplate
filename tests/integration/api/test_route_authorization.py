@@ -27,6 +27,7 @@ _PUBLIC_ROUTES = {
     ("GET", "/api/health"),
     ("GET", "/healthz"),
     ("GET", "/readyz"),
+    # 版だけを返す。画面のフッターと配ったあとの確かめが読む（ADR-0096）
     ("GET", "/info"),
     # Android が確かめに来るファイル（ADR-0081 §1）
     ("GET", "/.well-known/assetlinks.json"),
