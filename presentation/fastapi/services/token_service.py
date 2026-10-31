@@ -35,6 +35,7 @@ from bounded_contexts.identity_federation.infrastructure.sql_session_revocation_
 from presentation.fastapi.services import refresh_sessions
 from presentation.fastapi.services.refresh_sessions import RefreshStanding
 from presentation.fastapi.services.session_carry_over import FRESH_SIGN_IN, SessionCarryOver
+from presentation.fastapi.services.two_factor_requirement import needs_two_factor_setup
 from shared.application.authenticated_principal import AuthenticatedPrincipal
 from shared.infrastructure.models import RefreshSession, User
 from shared.infrastructure.tenant_scope import tenant_admits
@@ -69,6 +70,10 @@ CLAIM_TENANT = "tenant"
 CLAIM_MACHINE_CLIENT = "machine_client"
 #: ログインの控え（``refresh_sessions.id``。ADR-0091）。アクセストークンにも載せ、ロールの切り替えで引き継ぐ
 CLAIM_REFRESH_SESSION = "rsid"
+# パスキーで入ったログインの印（access / refresh。更新で落とさない）と、二要素の登録待ちの印（access だけ。
+# 更新のたびに決め直す）。ADR-0093
+CLAIM_SIGNED_IN_WITH_PASSKEY = "passkey"
+CLAIM_TWO_FACTOR_SETUP = "two_factor_setup"
 #: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
 SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -96,6 +101,7 @@ class RefreshedSession:
     federated_login: FederatedLogin | None
     #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。更新でも引き継ぐ
     authenticated_at: datetime = SIGNED_IN_LONG_AGO
+    signed_in_with_passkey: bool = False
     refresh_session_id: str = ""
     #: 出されたトークンの識別子と、控えと比べた結果（ADR-0091）
     jti: str = ""
@@ -110,6 +116,7 @@ class RefreshedSession:
             authenticated_at=self.authenticated_at,
             refresh_session_id=self.refresh_session_id,
             presented_jti=self.jti,
+            signed_in_with_passkey=self.signed_in_with_passkey,
         )
 
 
@@ -125,9 +132,11 @@ class TokenService:
 
         ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
         ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0077 §3）。
+        二要素の登録待ちのログインには権限を載せない（ADR-0093）。
         """
         granted = user.permission_codes_of(carry.active_role)
-        effective = sorted(granted if scopes is None else granted & set(scopes))
+        setup_required = needs_two_factor_setup(user, carry)
+        effective = [] if setup_required else sorted(granted if scopes is None else granted & set(scopes))
         now = utcnow_aware()
         refresh_session_id = carry.refresh_session_id or refresh_sessions.new_identifier()
         refresh_jti = refresh_sessions.new_identifier()
@@ -142,6 +151,7 @@ class TokenService:
             CLAIM_ACTIVE_ROLE: carry.active_role,
             CLAIM_TENANT: user.tenant_id,
             CLAIM_REFRESH_SESSION: refresh_session_id,
+            CLAIM_SIGNED_IN_WITH_PASSKEY: carry.signed_in_with_passkey,
             **_federation_claims(carry.federated_login),
         }
         access = jwt.encode(
@@ -153,6 +163,7 @@ class TokenService:
                 # ⚠ **検証が DB を引かないので、principal の材料はここに全部載せる**
                 #   （ADR-0076 §5）。載せ忘れた項目は、その経路でだけ空になる。
                 "username": user.username,
+                CLAIM_TWO_FACTOR_SETUP: setup_required,
                 "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
             },
             settings.jwt_secret_key,
@@ -211,6 +222,7 @@ class TokenService:
                 authenticated_at=_authenticated_at_of(claims),
                 tenant_id=_tenant_of(claims),
                 machine_client_id=_machine_client_of(claims),
+                two_factor_setup_required=claims.get(CLAIM_TWO_FACTOR_SETUP) is True,
             ),
             None,
         )
@@ -243,6 +255,7 @@ class TokenService:
             active_role=_active_role_of(claims),
             federated_login=_federated_login_of(claims),
             authenticated_at=_authenticated_at_of(claims),
+            signed_in_with_passkey=claims.get(CLAIM_SIGNED_IN_WITH_PASSKEY) is True,
             refresh_session_id=refresh_session_id,
             jti=jti,
             standing=refresh_sessions.standing_of(row, jti),
@@ -264,6 +277,12 @@ class TokenService:
         claims, _ = _decode(token)
         value = claims.get(CLAIM_REFRESH_SESSION) if claims is not None else None
         return value if isinstance(value, str) else None
+
+    @classmethod
+    def signed_in_with_passkey_of(cls, token: str) -> bool:
+        """パスキーで入ったログインのトークンか（ADR-0093）。出し直すときに引き継ぐ。"""
+        claims, _ = _decode(token)
+        return claims is not None and claims.get(CLAIM_SIGNED_IN_WITH_PASSKEY) is True
 
     @classmethod
     def session_is_revoked(cls, token: str, *, session: Session) -> bool:
@@ -487,7 +506,9 @@ __all__ = [
     "CLAIM_MACHINE_CLIENT",
     "CLAIM_REFRESH_SESSION",
     "CLAIM_SESSION_ID",
+    "CLAIM_SIGNED_IN_WITH_PASSKEY",
     "CLAIM_TENANT",
+    "CLAIM_TWO_FACTOR_SETUP",
     "SIGNED_IN_LONG_AGO",
     "TYPE_ACCESS",
     "TYPE_LOGOUT",
