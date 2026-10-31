@@ -209,7 +209,7 @@ async def update_me(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
     if SqlFederatedIdentityRepository(db).is_linked(user.id):
-        # ログインのたびに IdP の値で上書きされるので、受けると黙って戻る（ADR-0093）
+        # ログインのたびに IdP の値で上書きされるので、受けると黙って戻る（ADR-0094）
         if (body.email, body.username) != (user.email, user.username):
             audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="profile_managed_by_idp")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "profile_managed_by_idp"})
