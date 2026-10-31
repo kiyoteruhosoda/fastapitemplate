@@ -212,7 +212,7 @@ Infrastructure は Application を import できないため
 
 | 経路 | 記録するもの | ロガー |
 |---|---|---|
-| アクセスログ（ミドルウェア） | `http_request`（method / path / status / duration） | `app.request` |
+| アクセスログ（ミドルウェア） | `http_request`（method / path / status / duration。認証済みなら `user_id_hash` も） | `app.request` |
 | `HTTPException`・ドメイン例外 | `request_failed`（+ `error_code`） | `presentation.fastapi.error_handling` |
 | 入力検証エラー | `request_validation_failed`（+ `invalid_fields`。値は入れない） | 同上 |
 | 想定外の例外 | `unhandled_exception`（+ traceback） | 同上 |

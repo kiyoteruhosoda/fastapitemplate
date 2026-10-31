@@ -188,3 +188,36 @@ def test_the_500_log_line_knows_whose_request_it_was(
     assert response.status_code == 500
     records = _records(caplog)
     assert [record.user_id_hash for record in records] != [None]  # type: ignore[attr-defined]
+
+
+def _access_log_lines(caplog: pytest.LogCaptureFixture, path: str) -> list[logging.LogRecord]:
+    return [
+        record
+        for record in caplog.records
+        if record.name == "app.request" and record.path == path  # type: ignore[attr-defined]
+    ]
+
+
+def test_the_access_log_line_knows_whose_request_it_was(
+    client_with_failing_endpoint: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """認証済みのリクエストなら、``http_request`` の行に ``user_id_hash`` が乗ること。
+
+    ``RequestLoggingMiddleware`` を ``BaseHTTPMiddleware`` で書くと、500 の行と同じ理由で空になる。
+    同じ行に同じ利用者が入っていること、未認証の次のリクエストへ値が持ち越されないことも見る。
+    """
+    sign_in(client_with_failing_endpoint, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
+    with caplog.at_level(logging.DEBUG):
+        response = client_with_failing_endpoint.get("/api/test/authenticated-boom")
+        client_with_failing_endpoint.cookies.clear()
+        client_with_failing_endpoint.get("/api/test/authenticated-boom")
+        client_with_failing_endpoint.get("/api/test/boom")
+
+    signed_in, signed_out = _access_log_lines(caplog, "/api/test/authenticated-boom")
+    assert response.status_code == 500
+    assert signed_in.status_code == 500  # type: ignore[attr-defined]
+    assert signed_in.user_id_hash is not None  # type: ignore[attr-defined]
+    assert signed_in.request_id == response.headers["X-Request-Id"]  # type: ignore[attr-defined]
+    assert signed_out.status_code == 401  # type: ignore[attr-defined]
+    assert signed_out.user_id_hash is None  # type: ignore[attr-defined]
+    assert [line.user_id_hash for line in _access_log_lines(caplog, "/api/test/boom")] == [None]  # type: ignore[attr-defined]
