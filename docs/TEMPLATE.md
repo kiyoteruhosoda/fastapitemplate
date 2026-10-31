@@ -42,35 +42,28 @@
 ### 2.1 リポジトリを作る
 
 - **deck から作る（推奨）**: deck の「プロジェクトを作る」（`https://deck.nolumia.com/projects/new`）で
-  fastapitemplate 型を選ぶ。リポジトリ・deploy-repo の宣言・秘密・IdP の登録までまとめて作られる。
+  雛形の型を選ぶ。リポジトリ・deploy-repo の宣言・秘密・IdP の登録までまとめて作られる。
 - **手で作る**: forge に空のリポジトリを作り、このリポジトリの `main` を押し込む。デプロイの宣言は
   [deploy/k8s/README.md](../deploy/k8s/README.md) の手順 1〜10 で作る。
 
-どちらの場合も、後で雛形の更新を取り込めるように、このリポジトリを `template` という名前の remote に足しておく
-（5 章）。
+後で雛形の更新を取り込むための remote（`template`）は、2.2 のスクリプトが足す（5 章）。
 
 ### 2.2 名前を付け替える
 
-⚠ **`fastapitemplate` のまま動かさない。** namespace・イメージ名・置き場がこの名前から決まり、名乗ったままだと
+⚠ **雛形の名前のまま動かさない。** namespace・イメージ名・置き場がこの名前から決まり、名乗ったままだと
 雛形由来のほかのアプリとそれらを取り合う（ADR-0073 §1）。名前を間違えても自動では止まらない。
 
-| ファイル | 変えるところ |
-|---|---|
-| `pyproject.toml` | `[project].name`（**アプリ自身の名前の正本**。Swagger の題と外向きの `User-Agent` がここから決まる。ADR-0073 §2） |
-| `shared/kernel/settings/system_settings_defaults.py` | `ACCESS_TOKEN_ISSUER`・`ACCESS_TOKEN_AUDIENCE`・`TOTP_ISSUER`・`WEBAUTHN_RP_NAME` |
-| `tests/unit/test_settings.py` | 上の既定値を確かめている行 |
-| `frontend/package.json` | `name` |
-| `frontend/index.html` | `<title>` |
-| `frontend/vite.config.ts` | PWA の `name`・`short_name` |
-| `frontend/src/i18n/ja.json`・`en.json` | `app.title` |
-| `Makefile` | `IMAGE` |
-| `docker-compose.yml`・`.env.example` | `WEB_IMAGE`・`APP_WEB_ALIAS`・`DOCKER_NETWORK_NAME`・`WEBAUTHN_RP_NAME` の既定値 |
-| `README.md` | 題と説明（2.4） |
+```bash
+scripts/rename_project.sh <new-name>
+```
 
-付け替えたら、名前が残っていないかを確かめる。
+名前は小文字の英数字とハイフンだけ（例: `my-app`）。コミットはしないので、`git diff` で見てからコミットする。
+`docs/CHANGELOG.md` と `docs/decisions/` は雛形の記録なので変えない（ADR-0099）。
+
+名前が残っていないかは次で確かめる（何も出なければよい）。
 
 ```bash
-git grep -n -i fastapitemplate -- ':!docs/CHANGELOG.md' ':!docs/decisions' ':!uv.lock' ':!frontend/package-lock.json'
+git grep -n -i 'fastapi[t]emplate' -- ':!docs/CHANGELOG.md' ':!docs/decisions'
 ```
 
 アイコンを変えるときは [OPERATIONS.md「アプリのアイコン（PWA・favicon）を変えたいとき」](OPERATIONS.md)。
@@ -184,7 +177,6 @@ CI が落ちた箇所を順に直せば漏れない。
 派生アプリは雛形の変更を**自動では受け取らない**。取り込むときは次のとおり。
 
 ```bash
-git remote add template https://git.nolumia.com/kyon/fastapitemplate.git   # 最初の 1 回だけ
 git fetch template
 git switch -c chore/template-update origin/main
 git merge template/main      # 衝突を解いて PR を出す
