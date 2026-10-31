@@ -160,6 +160,24 @@ def test_the_rotation_is_committed_before_the_response(db_session: Session) -> N
     assert not db_session.in_transaction()
 
 
+def test_the_rotation_sets_the_previous_token_first(client: TestClient, engine: sa.Engine) -> None:
+    """MariaDB は SET を左から評価する。current_jti が先だと previous_jti に新しい値が入る（SQLite では起きない）。"""
+    sign_in(client, _EMAIL, _PASSWORD)
+    statements: list[str] = []
+
+    def remember(_conn: object, _cursor: object, statement: str, *_rest: object) -> None:
+        statements.append(statement)
+
+    sa.event.listen(engine, "before_cursor_execute", remember)
+    try:
+        assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", remember)
+
+    rotation = next(s for s in statements if s.startswith("UPDATE refresh_sessions"))
+    assert rotation.index("previous_jti=") < rotation.index("current_jti=")
+
+
 def test_the_row_follows_the_rotation(client: TestClient, engine: sa.Engine) -> None:
     sign_in(client, _EMAIL, _PASSWORD)
     client.post(_REFRESH, headers=_headers(client))
