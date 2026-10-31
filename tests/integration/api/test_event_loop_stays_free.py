@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.dependencies.models import Dependant
@@ -35,8 +35,10 @@ def _reaches_db(dependant: Dependant) -> bool:
 
 
 def _coroutines_on_the_way_to_db(dependant: Dependant) -> Iterator[str]:
-    if inspect.iscoroutinefunction(dependant.call) and _reaches_db(dependant):
-        yield dependant.call.__name__
+    call = dependant.call
+    # ``yield`` の依存関数は ``iscoroutinefunction`` が偽になる
+    if (inspect.iscoroutinefunction(call) or inspect.isasyncgenfunction(call)) and _reaches_db(dependant):
+        yield call.__name__
     for child in dependant.dependencies:
         yield from _coroutines_on_the_way_to_db(child)
 
@@ -60,6 +62,9 @@ def _an_app_that_blocks() -> FastAPI:
     async def async_dependency(db: object = Depends(get_db)) -> object:
         return db
 
+    async def async_yield_dependency(db: object = Depends(get_db)) -> AsyncIterator[object]:
+        yield db
+
     def sync_dependency(db: object = Depends(get_db)) -> object:
         return db
 
@@ -72,6 +77,9 @@ def _an_app_that_blocks() -> FastAPI:
 
     @inner.get("/nested")
     def sync_route_with_async_dependency(db: object = Depends(async_dependency)) -> None: ...
+
+    @inner.get("/yielding")
+    def sync_route_with_async_yield_dependency(db: object = Depends(async_yield_dependency)) -> None: ...
 
     @inner.get("/through")
     async def async_route_through_sync_dependency(db: object = Depends(sync_dependency)) -> None: ...
@@ -93,6 +101,7 @@ def test_the_check_catches_a_route_that_breaks_the_rule() -> None:
     assert _blocking(_an_app_that_blocks()) == {
         "async_route",
         "async_dependency",
+        "async_yield_dependency",
         "async_route_through_sync_dependency",
     }
 
