@@ -13,7 +13,7 @@
 
 | 区分 | 中身 | 場所 | 決定 |
 |---|---|---|---|
-| 認証 | パスワード・二要素認証（TOTP）・パスキー・パスワードリセット・ログイン試行の制限 | `presentation/fastapi/`・`bounded_contexts/account_security/` | ADR-0076 |
+| 認証 | パスワード・二要素認証（TOTP、必須にもできる）・パスキー・パスワードリセット・ログイン試行の制限 | `presentation/fastapi/`・`bounded_contexts/account_security/` | ADR-0076・ADR-0093 |
 | SSO | 外部 IdP（OIDC）でのサインイン・停止の受け取り・定期照合 | `bounded_contexts/identity_federation/` | ADR-0077 |
 | 認可 | scope（権限コード）・ロール・アクティブロールの切り替え・権限を動かす関門 | `shared/domain/auth/master_data.py` | ADR-0078・ADR-0084 |
 | テナント | 組織ごとの区切り・テナントの外の運用者とサポート担当 | `shared/infrastructure/` | ADR-0079 |

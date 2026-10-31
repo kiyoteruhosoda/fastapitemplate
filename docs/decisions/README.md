@@ -26,3 +26,7 @@
 | [ADR-0089](ADR-0089-rules-are-enforced-by-tests.md) | 規則を機械で止める | CLAUDE.md の規則は試験で止める。例外は理由と一緒に試験の表へ。全部の API に認可を求め、公開する口は一覧にする |
 | [ADR-0090](ADR-0090-outbound-settings-are-env-only.md) | 通信先の設定 | 通信先の URL と鍵のファイルの場所は環境変数だけ（画面は見るだけ）。メールサーバーとテナントの発行者は形を確かめて受け取る |
 | [ADR-0091](ADR-0091-refresh-sessions.md) | ログインの控え | ログインごとの控えを持ち、ログアウトで終わらせ、リフレッシュトークンを振り替えて使い回しを断る（ADR-0076 §8 の「ログアウトは Cookie を消すだけ」を置き換え） |
+| [ADR-0092](ADR-0092-refresh-rotation-interval.md) | 振り替えの間隔 | リフレッシュトークンは猶予（30 秒）に 1 回だけ振り替える。複数のタブの更新を使い回しに見せない（ADR-0091 決定 3 を置き換え） |
+| [ADR-0093](ADR-0093-require-two-factor-for-password-sign-in.md) | 二要素の必須化 | パスワードで入る人に二要素認証を必須にする設定をアプリ全体に 1 つ持つ。未登録のログインは登録の口しか通さない |
+| [ADR-0094](ADR-0094-profile-is-owned-by-the-idp.md) | 名前とメールの正 | IdP と結び付いている利用者の名前とメールは、IdP でだけ直す（画面と `PUT /api/auth/me` で断る。ADR-0080 §3 決定 2 を置き換え） |
+| [ADR-0095](ADR-0095-list-api-paging.md) | 一覧 API | `limit`・`offset` で受け、`entries`・`total` で返す。上限を超える指定は 422。見本は `/api/items` |

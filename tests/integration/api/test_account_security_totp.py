@@ -48,7 +48,7 @@ def test_enrollment_is_not_enabled_until_confirmed(client: TestClient, admin_hea
     assert body["qr_code"].startswith("data:image/svg+xml;base64,")
 
     status = client.get("/api/account/security/two-factor", headers=admin_headers)
-    assert status.json() == {"enabled": False, "enrolling": True}
+    assert status.json() == {"enabled": False, "enrolling": True, "required": False}
 
     # 確認前はログインにコードを要求しない（登録を中断しても締め出されない）
     assert _login(client).status_code == 200
@@ -58,7 +58,7 @@ def test_confirmation_enables_two_factor(
     client: TestClient, admin_headers: dict[str, str], enrolled_secret: str
 ) -> None:
     status = client.get("/api/account/security/two-factor", headers=admin_headers)
-    assert status.json() == {"enabled": True, "enrolling": False}
+    assert status.json() == {"enabled": True, "enrolling": False, "required": False}
 
 
 def test_confirmation_rejects_wrong_code(client: TestClient, admin_headers: dict[str, str]) -> None:
