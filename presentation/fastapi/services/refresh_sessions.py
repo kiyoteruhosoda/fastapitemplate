@@ -79,11 +79,13 @@ def rotate(session: Session, *, session_id: str, new_jti: str, expected_jti: str
         session.execute(
             update(RefreshSession)
             .where(and_(*conditions))
-            .values(
-                previous_jti=RefreshSession.current_jti,
-                current_jti=new_jti,
-                rotated_at=utcnow(),
-                expires_at=_expires_at(),
+            # ⚠ **順番を固定する。** MariaDB は SET を左から評価する（標準 SQL と違う）。``values()`` は列の定義順に
+            #   並べるので、current_jti が先だと previous_jti に新しい値が入り、直前の 1 本が使い回しに見える。
+            .ordered_values(
+                (RefreshSession.previous_jti, RefreshSession.current_jti),
+                (RefreshSession.current_jti, new_jti),
+                (RefreshSession.rotated_at, utcnow()),
+                (RefreshSession.expires_at, _expires_at()),
             ),
             execution_options={"synchronize_session": False},
         ),
