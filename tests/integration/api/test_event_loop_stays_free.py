@@ -56,20 +56,23 @@ def _blocking(app: FastAPI) -> set[str]:
     }
 
 
+async def async_dependency(db: object = Depends(get_db)) -> object:
+    return db
+
+
+async def async_yield_dependency(db: object = Depends(get_db)) -> AsyncIterator[object]:
+    yield db
+
+
+def sync_dependency(db: object = Depends(get_db)) -> object:
+    return db
+
+
+async def free_dependency() -> None: ...
+
+
 def _an_app_that_blocks() -> FastAPI:
     """規則を破った口を、``include_router`` の奥に置いたアプリ（判定の空振りを見つけるため）。"""
-
-    async def async_dependency(db: object = Depends(get_db)) -> object:
-        return db
-
-    async def async_yield_dependency(db: object = Depends(get_db)) -> AsyncIterator[object]:
-        yield db
-
-    def sync_dependency(db: object = Depends(get_db)) -> object:
-        return db
-
-    async def free_dependency() -> None: ...
-
     inner = APIRouter()
 
     @inner.get("/direct")
