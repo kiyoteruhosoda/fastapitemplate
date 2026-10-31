@@ -145,9 +145,7 @@ def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecorderDep)
 
 
 @router.put("/{tenant_id}", response_model=TenantResponse, dependencies=_MANAGES)
-def update_tenant(
-    tenant_id: int, body: TenantUpdateRequest, db: DbDep, audit: AuditRecorderDep
-) -> TenantResponse:
+def update_tenant(tenant_id: int, body: TenantUpdateRequest, db: DbDep, audit: AuditRecorderDep) -> TenantResponse:
     """名前・連携先・状態（有効 / 停止）を変える。止めたテナントの人は入れなくなる。"""
     tenant = _tenant(db, tenant_id)
     if body.issuer is not None:
