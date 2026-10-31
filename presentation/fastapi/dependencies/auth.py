@@ -243,7 +243,7 @@ def _refuse_missing_operation(principal: AuthenticatedPrincipal, codes: tuple[st
     _refuse_machine(principal, ",".join(missing), why)
 
 
-async def get_current_user(
+def get_current_user(
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> User:
@@ -261,7 +261,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_user_or_none(
+def get_current_user_or_none(
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
     db: Session = Depends(get_db),
 ) -> User | None:
@@ -302,7 +302,7 @@ class CurrentSession:
     signed_in_with_passkey: bool = False
 
 
-async def get_current_session(
+def get_current_session(
     user: User = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
@@ -339,7 +339,7 @@ async def get_current_session(
     )
 
 
-async def get_settled_principal(
+def get_settled_principal(
     # ⚠ **値は使わない。関門として通すためだけに置いてある**（名前の ``_`` はその印）。
     _session: CurrentSession = Depends(get_current_session),
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),

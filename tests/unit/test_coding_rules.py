@@ -46,6 +46,11 @@ _ATTRIBUTE_READERS: dict[str, str] = {
     "bounded_contexts/account_security/infrastructure/py_webauthn_relying_party.py": "webauthn の enum か文字列か",
 }
 
+#: 同期の関数で ``ContextVar`` を置いてよいファイルと理由（ADR-0100）
+_CONTEXT_SETTERS: dict[str, str] = {
+    "bounded_contexts/audit/presentation/pending_events.py": "ミドルウェア（イベントループの上）からだけ呼ばれる",
+}
+
 _FORBIDDEN_DYNAMIC_CALLS = frozenset({"setattr", "delattr", "eval", "exec", "globals", "locals", "vars", "__import__"})
 
 _VAGUE_MODULE = re.compile(r"(^|_)(utils?|helpers?)(_|$)")
@@ -158,6 +163,37 @@ def test_migrations_can_go_both_ways() -> None:
 
     found = [path for path, tree in _migrations() if not {"upgrade", "downgrade"} <= functions(tree)]
     assert not found, f"upgrade() と downgrade() の両方が要ります: {found}"
+
+
+def _context_sets_in_sync_functions(tree: ast.AST) -> list[str]:
+    """``def`` の中の ``なんとか_var.set(...)``。``def`` はスレッドで動くので、置いた値は呼び出し元へ戻らない。"""
+    return [
+        function.name
+        for function in ast.walk(tree)
+        if isinstance(function, ast.FunctionDef)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "set"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id.endswith("_var")
+    ]
+
+
+def test_the_context_check_catches_a_sync_function() -> None:
+    tree = ast.parse("async def fine():\n    a_var.set(1)\ndef broken():\n    a_var.set(1)\n")
+    assert _context_sets_in_sync_functions(tree) == ["broken"]
+
+
+def test_presentation_does_not_set_context_in_sync_functions() -> None:
+    """依存関数を ``def`` にすると、ログと監査の「誰が」が黙って消える（試験では気付きにくい。ADR-0100）。"""
+    found = [
+        f"{path}: {name}"
+        for path, tree in _sources()
+        if path not in _CONTEXT_SETTERS and "presentation/" in path
+        for name in _context_sets_in_sync_functions(tree)
+    ]
+    assert not found, f"ContextVar は async def の依存関数かミドルウェアで置いてください: {found}"
 
 
 def test_no_vague_names() -> None:

@@ -82,7 +82,7 @@ def _to_passkey_response(summary: PasskeySummaryDto) -> PasskeyResponse:
 
 
 @router.get("/two-factor", response_model=TwoFactorStatusResponse)
-async def two_factor_status(
+def two_factor_status(
     principal: PrincipalDep,
     use_case: Annotated[GetTwoFactorStatus, Depends(dependencies.get_two_factor_status)],
 ) -> TwoFactorStatusResponse:
@@ -97,7 +97,7 @@ async def two_factor_status(
 @router.post(
     "/two-factor/enrollment", response_model=TotpEnrollmentResponse, dependencies=[Depends(require_local_login)]
 )
-async def start_two_factor_enrollment(
+def start_two_factor_enrollment(
     principal: PrincipalDep,
     use_case: Annotated[StartTotpEnrollment, Depends(dependencies.start_totp_enrollment)],
 ) -> TotpEnrollmentResponse:
@@ -111,7 +111,7 @@ async def start_two_factor_enrollment(
 
 
 @router.post("/two-factor/confirmation", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
-async def confirm_two_factor_enrollment(
+def confirm_two_factor_enrollment(
     body: TotpCodeRequest,
     principal: PrincipalDep,
     use_case: Annotated[ConfirmTotpEnrollment, Depends(dependencies.confirm_totp_enrollment)],
@@ -127,7 +127,7 @@ async def confirm_two_factor_enrollment(
 
 
 @router.post("/two-factor/removal", response_model=StatusResponse)
-async def disable_two_factor(
+def disable_two_factor(
     body: TotpCodeRequest,
     principal: PrincipalDep,
     use_case: Annotated[DisableTotp, Depends(dependencies.disable_totp)],
@@ -150,7 +150,7 @@ async def disable_two_factor(
 
 
 @router.get("/passkeys", response_model=list[PasskeyResponse])
-async def list_registered_passkeys(
+def list_registered_passkeys(
     principal: PrincipalDep,
     use_case: Annotated[ListPasskeys, Depends(dependencies.list_passkeys)],
 ) -> list[PasskeyResponse]:
@@ -163,7 +163,7 @@ async def list_registered_passkeys(
     # 入り口を足す操作。入り直したばかりのときだけ（ADR-0076 §10）
     dependencies=[Depends(require_local_login), Depends(require_recent_sign_in)],
 )
-async def start_passkey_registration(
+def start_passkey_registration(
     principal: PrincipalDep,
     use_case: Annotated[StartPasskeyRegistration, Depends(dependencies.start_passkey_registration)],
 ) -> PasskeyChallengeResponse:
@@ -182,7 +182,7 @@ async def start_passkey_registration(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_recent_sign_in)],
 )
-async def complete_passkey_registration(
+def complete_passkey_registration(
     body: PasskeyRegistrationRequest,
     principal: PrincipalDep,
     use_case: Annotated[CompletePasskeyRegistration, Depends(dependencies.complete_passkey_registration)],
@@ -207,7 +207,7 @@ async def complete_passkey_registration(
     # 本人のパスキーを消して締め出す操作も、入り直したばかりのときだけ（ADR-0076 §10）
     dependencies=[Depends(require_recent_sign_in)],
 )
-async def delete_registered_passkey(
+def delete_registered_passkey(
     passkey_id: int,
     principal: PrincipalDep,
     use_case: Annotated[DeletePasskey, Depends(dependencies.delete_passkey)],

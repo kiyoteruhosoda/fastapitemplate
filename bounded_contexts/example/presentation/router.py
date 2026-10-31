@@ -79,7 +79,7 @@ RepoDep = Annotated[SqlItemRepository, Depends(get_item_repository)]
     response_model=ItemResponse,
     dependencies=[Depends(require_permission("item:write"))],
 )
-async def create_item(body: ItemRequest, repo: RepoDep) -> ItemResponse:
+def create_item(body: ItemRequest, repo: RepoDep) -> ItemResponse:
     dto = CreateItemUseCase(repo).execute(body.name)
     logger.info("item_created", extra={"item_id": dto.id})
     return ItemResponse.of(dto)
@@ -90,7 +90,7 @@ async def create_item(body: ItemRequest, repo: RepoDep) -> ItemResponse:
     response_model=PageResponse[ItemResponse],
     dependencies=[Depends(require_permission("item:view"))],
 )
-async def list_items(
+def list_items(
     query: Annotated[PageQueryRequest, Query()],
     repo: RepoDep,
     settings: Annotated[ContentSettingsBook, Depends(get_content_settings_book)],
@@ -106,7 +106,7 @@ async def list_items(
     response_model=ItemResponse,
     dependencies=[Depends(require_permission("item:write"))],
 )
-async def update_item(item_id: int, body: ItemRequest, repo: RepoDep) -> ItemResponse:
+def update_item(item_id: int, body: ItemRequest, repo: RepoDep) -> ItemResponse:
     dto = UpdateItemUseCase(repo).execute(item_id, body.name)
     logger.info("item_updated", extra={"item_id": item_id})
     return ItemResponse.of(dto)
@@ -117,6 +117,6 @@ async def update_item(item_id: int, body: ItemRequest, repo: RepoDep) -> ItemRes
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_permission("item:write"))],
 )
-async def delete_item(item_id: int, repo: RepoDep) -> None:
+def delete_item(item_id: int, repo: RepoDep) -> None:
     DeleteItemUseCase(repo).execute(item_id)
     logger.info("item_deleted", extra={"item_id": item_id})

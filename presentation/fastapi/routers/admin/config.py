@@ -43,7 +43,7 @@ _MAX_REASON_LENGTH = 255
     response_model=list[SystemSettingItemResponse],
     dependencies=[Depends(require_permission("system-settings:view"))],
 )
-async def get_config(db: DbDep) -> list[SystemSettingItemResponse]:
+def get_config(db: DbDep) -> list[SystemSettingItemResponse]:
     return [SystemSettingItemResponse(**item) for item in SystemSettingService.effective_config(db)]
 
 
@@ -52,7 +52,7 @@ async def get_config(db: DbDep) -> list[SystemSettingItemResponse]:
     response_model=SystemSettingsUpdateResponse,
     dependencies=[Depends(require_permission("system-settings:write"))],
 )
-async def update_config(
+def update_config(
     body: SystemSettingsUpdateRequest,
     db: DbDep,
     audit: AuditRecorderDep,

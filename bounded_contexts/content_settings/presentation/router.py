@@ -79,7 +79,7 @@ def _listed(book: ContentSettingsBook) -> list[ContentSettingResponse]:
     response_model=list[ContentSettingResponse],
     dependencies=[Depends(require_permission("content-settings:view"))],
 )
-async def list_content_settings(book: BookDep) -> list[ContentSettingResponse]:
+def list_content_settings(book: BookDep) -> list[ContentSettingResponse]:
     return _listed(book)
 
 
@@ -88,7 +88,7 @@ async def list_content_settings(book: BookDep) -> list[ContentSettingResponse]:
     response_model=list[ContentSettingResponse],
     dependencies=[Depends(require_permission("content-settings:write"))],
 )
-async def update_content_settings(
+def update_content_settings(
     body: ContentSettingsUpdateRequest, book: BookDep, audit: AuditRecorderDep
 ) -> list[ContentSettingResponse]:
     try:

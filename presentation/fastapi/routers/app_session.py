@@ -25,7 +25,7 @@ class AppMeResponse(BaseModel):
 
 
 @router.get("/me", response_model=AppMeResponse)
-async def app_me(principal: AppOrWebPrincipalDep) -> AppMeResponse:
+def app_me(principal: AppOrWebPrincipalDep) -> AppMeResponse:
     """いま誰として叩いているか。アプリがログインの直後に 1 回呼んで、口座ができたことを確かめる。"""
     return AppMeResponse(
         user_id=principal.user_id,

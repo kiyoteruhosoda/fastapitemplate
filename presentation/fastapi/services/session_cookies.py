@@ -66,8 +66,8 @@ def _record_refresh_session(user: User, pair: dict[str, object], carry: SessionC
         refresh_sessions.begin(session, session_id=session_id, user_id=user.id, jti=jti)
         return True
     rotated = refresh_sessions.rotate(session, session_id=session_id, new_jti=jti, expected_jti=carry.presented_jti)
-    # ⚠ **行のロックを応答まで持ち越さない。** 口は async def で DB の呼び出しは同期なので、同じプロセスの次の更新が
-    #   このロックを待つと、イベントループごと止まって確定の順番が回ってこない（MariaDB の待ちの上限 50 秒まで固まる）。
+    # ⚠ **行のロックを応答まで持ち越さない。** 同じログインの更新が同時に来ると、後の更新は確定までこの行を待つ。
+    #   確定は応答を返した後（``get_db`` の後始末）なので、ここで確定して待ちを短くする。
     session.commit()
     return rotated
 

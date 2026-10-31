@@ -129,7 +129,7 @@ def _changed_fields(body: UserUpdateRequest) -> str:
 
 
 @router.get("", response_model=list[UserResponse])
-async def list_users(db: DbDep, members: TenantMembersDep) -> list[UserResponse]:
+def list_users(db: DbDep, members: TenantMembersDep) -> list[UserResponse]:
     users = members.users()
     inventory = _Inventory.of(db)
     return [_to_response(u, inventory) for u in users]
@@ -152,7 +152,7 @@ def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
-async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> UserResponse:
+def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> UserResponse:
     db = admin.db
     # メールアドレスはテナントの中で一意（ADR-0079 §4）
     if admin.members.user_with_email(body.email) is not None:
@@ -180,7 +180,7 @@ async def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: 
 
 
 @router.put("/{user_id}", response_model=UserResponse)
-async def update_user(
+def update_user(
     user_id: int,
     body: UserUpdateRequest,
     admin: AdministrationDep,
@@ -211,7 +211,7 @@ async def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
+def delete_user(user_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
     db = admin.db
     user = admin.members.user(user_id)
     if user is None:

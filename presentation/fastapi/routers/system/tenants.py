@@ -120,13 +120,13 @@ def _designate(db: Session, tenant: Tenant, person: DesignationRequest, audit: A
 
 
 @router.get("", response_model=list[TenantResponse])
-async def list_tenants(db: DbDep) -> list[TenantResponse]:
+def list_tenants(db: DbDep) -> list[TenantResponse]:
     counts = member_counts(db)
     return [_to_response(t, counts) for t in db.scalars(sa.select(Tenant).order_by(Tenant.id))]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=TenantCreatedResponse, dependencies=_MANAGES)
-async def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecorderDep) -> TenantCreatedResponse:
+def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecorderDep) -> TenantCreatedResponse:
     if tenant_named(db, body.slug) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "tenant_already_exists"})
     issuer = _checked_issuer(body.issuer)
@@ -145,7 +145,7 @@ async def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecord
 
 
 @router.put("/{tenant_id}", response_model=TenantResponse, dependencies=_MANAGES)
-async def update_tenant(
+def update_tenant(
     tenant_id: int, body: TenantUpdateRequest, db: DbDep, audit: AuditRecorderDep
 ) -> TenantResponse:
     """名前・連携先・状態（有効 / 停止）を変える。止めたテナントの人は入れなくなる。"""
@@ -176,7 +176,7 @@ async def update_tenant(
     response_model=DesignationResponse,
     dependencies=_MANAGES,
 )
-async def designate_administrator(
+def designate_administrator(
     tenant_id: int, body: DesignationRequest, db: DbDep, audit: AuditRecorderDep
 ) -> DesignationResponse:
     """テナント管理者を指名する（最初の 1 人、または管理者が居なくなったときの立て直し）。
@@ -188,7 +188,7 @@ async def designate_administrator(
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_MANAGES)
-async def delete_tenant(tenant_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
+def delete_tenant(tenant_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
     """テナントを人と中身ごと消す（監査ログは残す）。**止めてからでないと消せない。**
 
     止める段を挟むのは、押し間違い 1 回で家族・組織のデータが消えないようにするため。

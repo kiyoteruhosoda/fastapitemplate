@@ -77,7 +77,7 @@ _MAX_REASON_LENGTH = 255
 
 
 @router.get("", response_model=InboxResponse)
-async def list_my_notifications(principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> InboxResponse:
+def list_my_notifications(principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> InboxResponse:
     """ベルと画面上部に出すもの（新しい順）。どこに出すかは ``channels`` で画面が決める。"""
     inbox = ListInbox(repo).execute(principal.user_id)
     return InboxResponse(
@@ -87,17 +87,17 @@ async def list_my_notifications(principal: AppOrWebPrincipalDep, repo: Notificat
 
 
 @router.post("/read-all", status_code=status.HTTP_204_NO_CONTENT)
-async def mark_all_read(principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
+def mark_all_read(principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
     MarkAllNotificationsRead(repo).execute(principal.user_id, utcnow())
 
 
 @router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
-async def mark_read(notification_id: int, principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
+def mark_read(notification_id: int, principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
     MarkNotificationRead(repo).execute(principal.user_id, notification_id, utcnow())
 
 
 @router.post("/{notification_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
-async def dismiss(notification_id: int, principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
+def dismiss(notification_id: int, principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
     """画面上部から閉じる（既読にもなる）。"""
     DismissNotification(repo).execute(principal.user_id, notification_id, utcnow())
 
@@ -106,7 +106,7 @@ async def dismiss(notification_id: int, principal: AppOrWebPrincipalDep, repo: N
 
 
 @router.get("/push", response_model=PushConfigResponse)
-async def push_config(_principal: AppOrWebPrincipalDep, channels: PushChannelsDep) -> PushConfigResponse:
+def push_config(_principal: AppOrWebPrincipalDep, channels: PushChannelsDep) -> PushConfigResponse:
     public_key = channels.web.public_key() if channels.web.enabled else None
     return PushConfigResponse(
         enabled=public_key is not None, public_key=public_key, device_enabled=channels.device.enabled
@@ -114,7 +114,7 @@ async def push_config(_principal: AppOrWebPrincipalDep, channels: PushChannelsDe
 
 
 @router.post("/push/subscribe", status_code=status.HTTP_204_NO_CONTENT)
-async def subscribe(
+def subscribe(
     body: PushSubscribeRequest,
     principal: AppOrWebPrincipalDep,
     subscriptions: PushSubscriptionRepoDep,
@@ -124,14 +124,14 @@ async def subscribe(
 
 
 @router.post("/push/unsubscribe", status_code=status.HTTP_204_NO_CONTENT)
-async def unsubscribe(
+def unsubscribe(
     body: PushEndpointRequest, principal: AppOrWebPrincipalDep, subscriptions: PushSubscriptionRepoDep
 ) -> None:
     UnsubscribeFromPush(subscriptions).execute(principal.user_id, body.endpoint)
 
 
 @router.post("/push/status", response_model=PushStatusResponse)
-async def push_status(
+def push_status(
     body: PushEndpointRequest, principal: AppOrWebPrincipalDep, subscriptions: PushSubscriptionRepoDep
 ) -> PushStatusResponse:
     """この端末の購読が、いまの利用者のものとして登録されているか。
@@ -146,7 +146,7 @@ async def push_status(
 
 
 @router.post("/device/register", status_code=status.HTTP_204_NO_CONTENT)
-async def register_device(
+def register_device(
     body: DeviceRegisterRequest,
     principal: AppOrWebPrincipalDep,
     devices: DeviceTokenRepoDep,
@@ -157,7 +157,7 @@ async def register_device(
 
 
 @router.post("/device/unregister", status_code=status.HTTP_204_NO_CONTENT)
-async def unregister_device(
+def unregister_device(
     body: DeviceUnregisterRequest, principal: AppOrWebPrincipalDep, devices: DeviceTokenRepoDep
 ) -> None:
     """サインアウトのときに呼ぶ（その端末に前の人のお知らせが届き続けないように）。"""
@@ -168,12 +168,12 @@ async def unregister_device(
 
 
 @admin_router.get("", response_model=list[SentNotificationResponse])
-async def list_sent(_principal: SenderDep, repo: SentNotificationRepoDep) -> list[SentNotificationResponse]:
+def list_sent(_principal: SenderDep, repo: SentNotificationRepoDep) -> list[SentNotificationResponse]:
     return [SentNotificationResponse.of(s) for s in ListSentNotifications(repo).execute()]
 
 
 @admin_router.get("/audiences", response_model=AudienceOptionsResponse)
-async def audience_options(principal: SenderDep, members: TenantMembersDep) -> AudienceOptionsResponse:
+def audience_options(principal: SenderDep, members: TenantMembersDep) -> AudienceOptionsResponse:
     """宛先に選べる相手（送り手のテナントの中だけ）。``user:manage`` を持たない送り手にも、名前だけは見せる。"""
     groups = members.groups()
     users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
@@ -187,7 +187,7 @@ async def audience_options(principal: SenderDep, members: TenantMembersDep) -> A
 
 
 @admin_router.post("", status_code=status.HTTP_201_CREATED, response_model=SendNotificationResponse)
-async def send_notification(
+def send_notification(
     body: SendNotificationRequest,
     principal: SenderDep,
     send: SendAndDeliverPushDep,

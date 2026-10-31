@@ -34,3 +34,4 @@
 | [ADR-0097](ADR-0097-purge-spent-password-tokens.md) | 再設定トークンの掃除 | 使えなくなったパスワード再設定トークンは、設定なしで 6 時間ごとに消す |
 | [ADR-0098](ADR-0098-example-crud.md) | example の見本 | アイテムの更新・削除・時刻・404 まで揃える。無い ID もほかのテナントの ID も 404 |
 | [ADR-0099](ADR-0099-rename-script.md) | 名前の付け替え | 雛形の名前の付け替えは `scripts/rename_project.sh` の 1 行で行う。履歴と決定の記録は変えない |
+| [ADR-0100](ADR-0100-database-routes-are-sync.md) | イベントループを止めない | DB を使う口と依存関数は `def`。ログの文脈を置く依存関数は `async def` のまま、DB はスレッドへ逃がす |

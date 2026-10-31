@@ -56,7 +56,7 @@ def login_recording(db: DbDep, audit: AuditRecorderDep) -> _LoginRecording:
 
 
 @router.post("/challenge", response_model=PasskeyChallengeResponse, dependencies=[Depends(require_local_login)])
-async def create_login_challenge(
+def create_login_challenge(
     use_case: Annotated[StartPasskeyAuthentication, Depends(dependencies.start_passkey_authentication)],
 ) -> PasskeyChallengeResponse:
     """ログイン用のチャレンジを発行する（``navigator.credentials.get`` 用）。
@@ -69,7 +69,7 @@ async def create_login_challenge(
 
 
 @router.post("/login", response_model=SessionResponse, dependencies=[Depends(require_local_login)])
-async def login_with_passkey(
+def login_with_passkey(
     body: PasskeyAuthenticationRequest,
     response: Response,
     recording: Annotated[_LoginRecording, Depends(login_recording)],

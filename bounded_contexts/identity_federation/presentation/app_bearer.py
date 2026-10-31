@@ -22,6 +22,7 @@ import jwt
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from bounded_contexts.identity_federation.application.use_cases.authenticate_app_access_token import (
     AppTokenAcceptance,
@@ -100,17 +101,22 @@ def _is_our_token(token: str) -> bool:
     return principal is not None
 
 
-def _principal_of(user: User) -> AuthenticatedPrincipal:
-    principal = AuthenticatedPrincipal(
+def _principal_of_app_token(db: Session, gateway: AppTokenGateway, bearer: str) -> AuthenticatedPrincipal:
+    user = db.get(User, authenticate_app_access_token(db, gateway, bearer).execute(bearer))
+    if user is None or not user.is_active or not tenant_admits(db, user):
+        logger.info("app_access_token_user_inactive")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_token"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return AuthenticatedPrincipal(
         user_id=user.id,
         email=user.email,
         username=user.username,
         permissions=frozenset(user.permission_codes_of(None)),
         tenant_id=user.tenant_id,
     )
-    user_id_hash_var.set(principal.id_hash)
-    actor_user_id_var.set(principal.user_id)
-    return principal
 
 
 async def get_app_or_web_principal(
@@ -127,15 +133,12 @@ async def get_app_or_web_principal(
             refuse_machine(principal, "app_or_web")
         refuse_during_two_factor_setup(principal)
         return principal
-    user = db.get(User, authenticate_app_access_token(db, gateway, bearer).execute(bearer))
-    if user is None or not user.is_active or not tenant_admits(db, user):
-        logger.info("app_access_token_user_inactive")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "invalid_token"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return _principal_of(user)
+    # ⚠ **DB と HTTP はスレッドへ逃がし、ログの文脈はここで置く。** スレッドの中で置いた ``ContextVar`` は
+    #   ミドルウェアへ戻らない（ADR-0100 決定 3）。
+    principal = await run_in_threadpool(_principal_of_app_token, db, gateway, bearer)
+    user_id_hash_var.set(principal.id_hash)
+    actor_user_id_var.set(principal.user_id)
+    return principal
 
 
 AppOrWebPrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_app_or_web_principal)]

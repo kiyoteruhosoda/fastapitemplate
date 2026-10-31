@@ -72,7 +72,7 @@ SearchApplicationLogsDep = Annotated[SearchApplicationLogs, Depends(dependencies
 
 
 @audit_log_router.get("", response_model=AuditLogSearchResponse)
-async def search_audit_logs(
+def search_audit_logs(
     query: Annotated[AuditLogSearchRequest, Query()],
     use_case: SearchAuditLogsDep,
 ) -> AuditLogSearchResponse:
@@ -112,7 +112,7 @@ async def audit_log_filter_options() -> AuditLogFilterOptionsResponse:
 
 
 @application_log_router.get("", response_model=LogSearchResponse)
-async def search_application_logs(
+def search_application_logs(
     query: Annotated[LogSearchRequest, Query()],
     use_case: SearchApplicationLogsDep,
 ) -> LogSearchResponse:
