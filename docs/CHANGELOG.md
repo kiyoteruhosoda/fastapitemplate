@@ -1,3 +1,7 @@
+## 2026-10-31（未認証の `/info` を版だけにした。ADR-0096・task #797）
+
+- `/info` から枝・ビルド時刻・環境名を外し、`version` と `git_sha` だけにした。外した 3 つは今までどおり `/api/admin/system`（`system:view`）で読める。
+- 派生アプリが `/info` の `branch` などを読んでいたら、`/api/admin/system` へ移す。
 ## 2026-10-31（一覧 API のページングの規約を決めた。ADR-0095・task #796）
 
 - `limit`・`offset` で指定し、`{"entries": [...], "total": n}` で返す。`/api/items` を見本にし、画面も 20 件ずつにした。

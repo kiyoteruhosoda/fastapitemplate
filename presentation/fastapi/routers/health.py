@@ -31,11 +31,10 @@ class ReadinessResponse(BaseModel):
 
 
 class InfoResponse(BaseModel):
+    """未認証で読める版だけ（ADR-0096）。枝・ビルド時刻・環境名は ``/api/admin/system``。"""
+
     version: str
     git_sha: str
-    branch: str
-    build_time: str
-    environment: str
 
 
 @router.get("/api/health")
@@ -83,10 +82,4 @@ async def readiness(
 @router.get("/info", response_model=InfoResponse, summary="Build / version info")
 async def info(request: Request) -> InfoResponse:
     build_info = request.app.state.build_info
-    return InfoResponse(
-        version=build_info.version,
-        git_sha=build_info.git_sha,
-        branch=build_info.branch,
-        build_time=build_info.build_time,
-        environment=build_info.environment,
-    )
+    return InfoResponse(version=build_info.version, git_sha=build_info.git_sha)

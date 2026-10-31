@@ -30,3 +30,4 @@
 | [ADR-0093](ADR-0093-require-two-factor-for-password-sign-in.md) | 二要素の必須化 | パスワードで入る人に二要素認証を必須にする設定をアプリ全体に 1 つ持つ。未登録のログインは登録の口しか通さない |
 | [ADR-0094](ADR-0094-profile-is-owned-by-the-idp.md) | 名前とメールの正 | IdP と結び付いている利用者の名前とメールは、IdP でだけ直す（画面と `PUT /api/auth/me` で断る。ADR-0080 §3 決定 2 を置き換え） |
 | [ADR-0095](ADR-0095-list-api-paging.md) | 一覧 API | `limit`・`offset` で受け、`entries`・`total` で返す。上限を超える指定は 422。見本は `/api/items` |
+| [ADR-0096](ADR-0096-public-info-endpoint.md) | 未認証の `/info` | 残して版（`version`・`git_sha`）だけを返す。読み手の一覧は ADR にある |
