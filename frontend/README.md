@@ -332,7 +332,7 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 
 ### 二要素認証の登録（どの経路でも）
 
-- **目的**: `LOCAL_TWO_FACTOR_REQUIRED` が有効なとき、パスワードで入った未登録の人に登録してもらう（ADR-0092）。
+- **目的**: `LOCAL_TWO_FACTOR_REQUIRED` が有効なとき、パスワードで入った未登録の人に登録してもらう（ADR-0093）。
 - **表示内容**: `RequireAuth` の内側のどの経路を開いても、この画面だけが出る（ヘッダー・サイドバーも出ない）。QR コードと手入力用の鍵、サインアウトのボタン。
 - **操作**: 「設定する」→ QR を認証アプリで読み取り → コードを入力して確定。確定すると、開こうとしていた画面が出る。
 - **使用 API**: `GET|POST /api/account/security/two-factor*`, `POST /api/auth/refresh`, `POST /api/auth/logout`

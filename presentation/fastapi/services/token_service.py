@@ -71,7 +71,7 @@ CLAIM_MACHINE_CLIENT = "machine_client"
 #: ログインの控え（``refresh_sessions.id``。ADR-0091）。アクセストークンにも載せ、ロールの切り替えで引き継ぐ
 CLAIM_REFRESH_SESSION = "rsid"
 # パスキーで入ったログインの印（access / refresh。更新で落とさない）と、二要素の登録待ちの印（access だけ。
-# 更新のたびに決め直す）。ADR-0092
+# 更新のたびに決め直す）。ADR-0093
 CLAIM_SIGNED_IN_WITH_PASSKEY = "passkey"
 CLAIM_TWO_FACTOR_SETUP = "two_factor_setup"
 #: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
@@ -132,7 +132,7 @@ class TokenService:
 
         ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
         ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0077 §3）。
-        二要素の登録待ちのログインには権限を載せない（ADR-0092）。
+        二要素の登録待ちのログインには権限を載せない（ADR-0093）。
         """
         granted = user.permission_codes_of(carry.active_role)
         setup_required = needs_two_factor_setup(user, carry)
@@ -280,7 +280,7 @@ class TokenService:
 
     @classmethod
     def signed_in_with_passkey_of(cls, token: str) -> bool:
-        """パスキーで入ったログインのトークンか（ADR-0092）。出し直すときに引き継ぐ。"""
+        """パスキーで入ったログインのトークンか（ADR-0093）。出し直すときに引き継ぐ。"""
         claims, _ = _decode(token)
         return claims is not None and claims.get(CLAIM_SIGNED_IN_WITH_PASSKEY) is True
 

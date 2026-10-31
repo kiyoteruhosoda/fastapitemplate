@@ -31,7 +31,7 @@ class AuthenticatedPrincipal:
     #: 機械の口から出したトークンなら、名乗った機械の ``client_id``（ADR-0087）。人のログインなら ``None``。
     #: ⚠ 機械の主体は scope で守られた口でしか通らない（:func:`get_current_principal` は断る）。
     machine_client_id: str | None = None
-    #: 二要素認証の登録が済むまで、登録の口しか通らないログインか（ADR-0092）。
+    #: 二要素認証の登録が済むまで、登録の口しか通らないログインか（ADR-0093）。
     two_factor_setup_required: bool = False
 
     @property

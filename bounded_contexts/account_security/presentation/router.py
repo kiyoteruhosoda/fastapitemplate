@@ -134,7 +134,7 @@ async def disable_two_factor(
     audit: AuditRecorderDep,
 ) -> StatusResponse:
     if settings.local_two_factor_required:
-        # 外せるとログインのたびに登録し直しになるだけで、守りにならない（ADR-0092）
+        # 外せるとログインのたびに登録し直しになるだけで、守りにならない（ADR-0093）
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "two_factor_required"})
     use_case.execute(user_id=principal.user_id, code=body.code)
     audit.execute(

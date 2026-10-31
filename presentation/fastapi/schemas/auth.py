@@ -45,7 +45,7 @@ class MeResponse(BaseModel):
     # 入った利用者を巻き込む形にはならない（ローカル口座を持つアプリは偽のまま）。
     # SSO の可否とは別に **/me で返す**——サインアウトのたびに問い合わせを増やさない。
     rp_logout_enabled: bool = False
-    # 二要素認証の登録が済むまで、登録の画面しか使えない（ADR-0092）。
+    # 二要素認証の登録が済むまで、登録の画面しか使えない（ADR-0093）。
     two_factor_setup_required: bool = False
 
 

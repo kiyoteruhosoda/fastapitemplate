@@ -116,7 +116,7 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
       throw new ApiError(response.status, 'service_unavailable')
     }
     const code = extractErrorCode(payload)
-    // 使っている途中で必須になった。/me を読み直せば登録の画面が出る（ADR-0092）
+    // 使っている途中で必須になった。/me を読み直せば登録の画面が出る（ADR-0093）
     if (code === TWO_FACTOR_SETUP_REQUIRED) window.location.reload()
     throw new ApiError(response.status, code)
   }

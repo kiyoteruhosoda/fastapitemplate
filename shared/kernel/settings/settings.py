@@ -660,7 +660,7 @@ class ApplicationSettings:
 
     @property
     def local_two_factor_required(self) -> bool:
-        """パスワードで入る人に二要素認証を必須にするか（ADR-0092）。
+        """パスワードで入る人に二要素認証を必須にするか（ADR-0093）。
 
         ローカルの入口が閉じていれば効かない。閉じていると登録の口も断るので、効かせると行き止まりになる。
         """

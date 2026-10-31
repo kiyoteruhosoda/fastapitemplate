@@ -18,7 +18,7 @@ import { useToast } from './ToastNotification'
 interface TwoFactorStatus {
   enabled: boolean
   enrolling: boolean
-  /** アプリの設定で必須か（ADR-0092）。真のとき外す導線を出さない。 */
+  /** アプリの設定で必須か（ADR-0093）。真のとき外す導線を出さない。 */
   required: boolean
 }
 

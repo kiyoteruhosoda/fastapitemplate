@@ -28,7 +28,7 @@ class SessionCarryOver:
     refresh_session_id: str | None = None
     #: 更新の口で出されたリフレッシュトークン。これが今の 1 本のときだけ Cookie を載せ直す
     presented_jti: str | None = None
-    #: パスキーで入ったログインか。パスキーはそれだけで二要素を満たす（ADR-0092）
+    #: パスキーで入ったログインか。パスキーはそれだけで二要素を満たす（ADR-0093）
     signed_in_with_passkey: bool = False
 
 

@@ -149,7 +149,7 @@ async def get_operation_principal(
 
 MACHINE_NOT_ALLOWED = "machine_not_allowed"
 TWO_FACTOR_SETUP_REQUIRED = "two_factor_setup_required"
-#: 二要素の登録待ちのログインで通る口（ADR-0092）。更新とログアウトは主体を見ないので、ここに無くても通る。
+#: 二要素の登録待ちのログインで通る口（ADR-0093）。更新とログアウトは主体を見ないので、ここに無くても通る。
 _OPEN_DURING_TWO_FACTOR_SETUP = frozenset(
     {
         ("GET", "/api/auth/me"),
@@ -178,7 +178,7 @@ async def get_current_principal(
 
 
 def refuse_during_two_factor_setup(principal: AuthenticatedPrincipal) -> None:
-    """二要素の登録待ちのログインを断る（ADR-0092）。画面はこの 403 で登録の画面へ切り替わる。"""
+    """二要素の登録待ちのログインを断る（ADR-0093）。画面はこの 403 で登録の画面へ切り替わる。"""
     if principal.two_factor_setup_required:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TWO_FACTOR_SETUP_REQUIRED})
 
@@ -298,7 +298,7 @@ class CurrentSession:
     authenticated_at: datetime | None = None
     #: このログインの控え（ADR-0091）。ロールの切り替えで引き継ぐ。
     refresh_session_id: str | None = None
-    #: パスキーで入ったログインか（ADR-0092）。出し直すときに引き継ぐ。
+    #: パスキーで入ったログインか（ADR-0093）。出し直すときに引き継ぐ。
     signed_in_with_passkey: bool = False
 
 

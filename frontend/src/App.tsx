@@ -42,7 +42,7 @@ function RequireAuth() {
     )
   // 開こうとしていた画面を持たせて送る（ADR-0077 §8）。持たせないと、サインインした先は着地になる。
   if (!user) return <Navigate to={signInPathFor(location)} replace />
-  // 経路は変えない。登録が済めば、開こうとしていた画面がそのまま出る（ADR-0092）
+  // 経路は変えない。登録が済めば、開こうとしていた画面がそのまま出る（ADR-0093）
   if (user.two_factor_setup_required) return <TwoFactorSetupPage />
   return (
     <AppLayout>

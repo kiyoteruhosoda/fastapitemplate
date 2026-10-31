@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class TwoFactorStatusResponse(BaseModel):
     enabled: bool
     enrolling: bool
-    # アプリの設定で必須か（ADR-0092）。真のとき画面は外す導線を出さない
+    # アプリの設定で必須か（ADR-0093）。真のとき画面は外す導線を出さない
     required: bool = False
 
 
