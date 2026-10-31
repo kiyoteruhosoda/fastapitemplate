@@ -1,3 +1,7 @@
+## 2026-10-31（名前の付け替えをスクリプトにした。ADR-0099・task #800）
+
+- `scripts/rename_project.sh <new-name>` を足した。`docs/TEMPLATE.md` 2.2 の手順はこの 1 行になった。
+
 ## 2026-10-30（機械が書く操作を監査に残す。task #724）
 
 - `machine_operation.performed` を足した。対象は `machine_client:<client_id>`、実行者は振る舞う利用者、理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。

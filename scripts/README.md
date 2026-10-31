@@ -7,6 +7,7 @@
 | `seed_master_data.py` | ロール・権限を投入し、**初期管理者が居なければ**据える（冪等）。値の正本は `shared/domain/auth/master_data.py`。`ADMIN_INITIAL_PASSWORD` 環境変数で初期管理者パスワードを上書きできる。⚠ 管理者を据えるのはこのスクリプトと据え付けのマイグレーション（`0002`）だけ。権限を足すマイグレーションは `seed_master_data` しか呼ばない（ADR-0078 §3）。 |
 | `create_system_admin.py` | 運用者（テナントに属さない `system-admin`。ADR-0079 §1・§3・ADR-0084）を 1 人作る。サポート担当は運用者が画面から足す。パスワードは環境変数 `SYSTEM_ADMIN_PASSWORD`（12 文字以上）で渡す。同じメールアドレスの利用者が居れば何もしない。 |
 | `unset_setting.py` | 画面で保存したシステム設定を 1 つ消し、環境変数か既定値へ戻す（`--list` で保存済みの鍵の名前を並べる。値は出さない）。画面に入れなくなったときの戻り道（DB > 環境変数 > 既定値なので、保存した値は環境変数では上書きできない。ADR-0074 §1）。 |
+| `rename_project.sh` | 雛形の名前を派生アプリの名前へ付け替える（`scripts/rename_project.sh <new-name>`。ADR-0099）。追跡しているファイルを全部置き換え、`docs/CHANGELOG.md` と `docs/decisions/` は変えない。コミットはしない。 |
 | `generate_pwa_icons.py` | `frontend/public/` のアイコン（`favicon.svg`・`pwa-192x192.png`・`pwa-512x512.png`・`pwa-maskable-512x512.png`・`apple-touch-icon.png`）を生成する。配色と図形の正本はこのスクリプトで、出力物は生成結果としてコミットする。PNG の書き出しは標準ライブラリ（`zlib` / `struct`）だけで行うため追加の依存は要らない。`maskable` 用は OS の切り抜きに備えてセーフゾーンを取った別画像、`apple-touch-icon.png` は iOS が独自に角丸へ切るため透明な角を持たない。 |
 | `generate_version.sh` | `shared/kernel/version.json` を作る。**ビルドの前に走らせる**（build の「版を刻む」段／`make image`）。詳細は下記。 |
 

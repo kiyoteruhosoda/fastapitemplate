@@ -62,7 +62,7 @@ digest を置き換える。**実物の見本は deploy-repo の `k8s/fastapitem
 
 ### 1. 名前
 
-テンプレートの名前（`fastapitemplate`）のままにしない。namespace・イメージ名・
+テンプレートの名前のままにしない。namespace・イメージ名・
 置き場のディレクトリがこの名前から派生する。**アプリ自身の名前の正本は
 `pyproject.toml` の `[project].name`**（[ADR-0073 §2](../../docs/decisions/ADR-0073-build-and-deploy.md)）。
 
