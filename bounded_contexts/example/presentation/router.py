@@ -4,6 +4,7 @@
 まとめる。認可は scope（``item:view`` / ``item:write``）で宣言する。
 
 一覧の並び順はテナントのコンテンツ設定 ``item_list_order`` に従う（コンテンツ設定を読む見本。ADR-0085）。
+一覧はページで返す（一覧 API の規約の見本。ADR-0095）。
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from bounded_contexts.example.domain.value_objects.item_list_order import ItemLi
 from bounded_contexts.example.infrastructure.sql_item_repository import SqlItemRepository
 from presentation.fastapi.dependencies.auth import require_permission
 from presentation.fastapi.dependencies.tenant import TenantIdDep
+from presentation.fastapi.schemas.pagination import PageQueryRequest, PageResponse
 from shared.kernel.database.session import get_db
 
 router = APIRouter(prefix="/api/items", tags=["items"])
@@ -70,13 +72,15 @@ async def create_item(body: ItemCreateRequest, repo: RepoDep) -> ItemResponse:
 
 @router.get(
     "",
-    response_model=list[ItemResponse],
+    response_model=PageResponse[ItemResponse],
     dependencies=[Depends(require_permission("item:view"))],
 )
 async def list_items(
-    repo: RepoDep, settings: Annotated[ContentSettingsBook, Depends(get_content_settings_book)]
-) -> list[ItemResponse]:
+    query: Annotated[PageQueryRequest, Query()],
+    repo: RepoDep,
+    settings: Annotated[ContentSettingsBook, Depends(get_content_settings_book)],
+) -> PageResponse[ItemResponse]:
     # 選択の項目なので値は選べる値のどれか（合わない値は既定値で読む）
     order = ItemListOrder(str(settings.value_of(ITEM_LIST_ORDER)))
-    dtos = ListItemsUseCase(repo).execute(order)
-    return [ItemResponse(id=dto.id, name=dto.name) for dto in dtos]
+    page = ListItemsUseCase(repo).execute(order, query.to_page())
+    return PageResponse(entries=[ItemResponse(id=dto.id, name=dto.name) for dto in page.entries], total=page.total)

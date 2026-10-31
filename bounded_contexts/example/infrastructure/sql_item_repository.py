@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from bounded_contexts.example.domain.entities.item import Item
@@ -15,6 +15,7 @@ from bounded_contexts.example.domain.repositories.item_repository import IItemRe
 from bounded_contexts.example.domain.value_objects.item_list_order import ItemListOrder
 from bounded_contexts.example.domain.value_objects.item_name import ItemName
 from bounded_contexts.example.infrastructure.item_model import ItemModel
+from shared.domain.page import Page, PageRequest
 
 _ORDER_BY = {
     ItemListOrder.OLDEST: (ItemModel.id,),
@@ -35,8 +36,10 @@ class SqlItemRepository(IItemRepository):
         self._session.flush()
         return Item(id=row.id, name=validated_name)
 
-    def find_all(self, order: ItemListOrder = ItemListOrder.OLDEST) -> list[Item]:
+    def find_page(self, order: ItemListOrder, page: PageRequest) -> Page[Item]:
+        owned = ItemModel.tenant_id == self._tenant_id
         rows = self._session.scalars(
-            select(ItemModel).where(ItemModel.tenant_id == self._tenant_id).order_by(*_ORDER_BY[order])
+            select(ItemModel).where(owned).order_by(*_ORDER_BY[order]).limit(page.limit).offset(page.offset)
         ).all()
-        return [Item.create(id=row.id, name=row.name) for row in rows]
+        total = self._session.scalar(select(func.count()).select_from(ItemModel).where(owned))
+        return Page(entries=[Item.create(id=row.id, name=row.name) for row in rows], total=total or 0)

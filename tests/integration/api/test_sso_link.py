@@ -21,12 +21,17 @@ import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
+from bounded_contexts.identity_federation.domain.entities.federated_identity import FederatedIdentity
 from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway import (
     AuthorizationRequest,
     CodeExchange,
 )
+from bounded_contexts.identity_federation.infrastructure.sql_federated_identity_repository import (
+    SqlFederatedIdentityRepository,
+)
 from bounded_contexts.identity_federation.presentation import dependencies, transaction_cookie
 from shared.domain.auth import master_data
+from shared.infrastructure.models import User
 from tests.conftest import register_issuer, sign_in
 
 _ISSUER = "https://idp.example.test"
@@ -204,3 +209,42 @@ def _drop_password(engine: sa.Engine, email: str) -> None:
         user = session.scalars(sa.select(User).where(User.email == email)).one()
         user.password_hash = None
         session.commit()
+
+
+def _link_the_admin(db_session: Session) -> None:
+    admin = db_session.scalars(sa.select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL)).one()
+    SqlFederatedIdentityRepository(db_session).link(
+        FederatedIdentity(issuer="https://idp.example", subject="linked", user_id=admin.id)
+    )
+    db_session.commit()
+
+
+def test_a_linked_user_cannot_change_the_name_and_email_here(
+    client: TestClient, db_session: Session, admin_headers: dict[str, str]
+) -> None:
+    _link_the_admin(db_session)
+    headers = admin_headers
+    me = client.get("/api/auth/me").json()
+    assert me["profile_managed_by_idp"] is True
+
+    for body in (
+        {"email": "changed@example.com", "username": me["username"]},
+        {"email": me["email"], "username": "changed"},
+    ):
+        response = client.put("/api/auth/me", json=body, headers=headers)
+        assert response.status_code == 403
+        assert response.json()["detail"]["error"] == "profile_managed_by_idp"
+
+    same = {"email": me["email"], "username": me["username"]}
+    assert client.put("/api/auth/me", json=same, headers=headers).status_code == 200
+    after = client.get("/api/auth/me").json()
+    assert (after["email"], after["username"]) == (me["email"], me["username"])
+
+
+def test_a_local_user_can_still_change_the_name(client: TestClient, admin_headers: dict[str, str]) -> None:
+    me = client.get("/api/auth/me").json()
+    assert me["profile_managed_by_idp"] is False
+
+    response = client.put("/api/auth/me", json={"email": me["email"], "username": "renamed"}, headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["username"] == "renamed"

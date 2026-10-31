@@ -2,7 +2,8 @@
 
 リフレッシュトークンの振り替えと、使い回しの見分けをここに集める。
 
-- **今の 1 本**（``current_jti``）だけが新しいトークン対を受け取れる
+- **今の 1 本**（``current_jti``）だけが新しいトークン対を受け取れる。ただし前の振り替えから
+  :data:`REUSE_GRACE_SECONDS` が過ぎるまでは振り替えず、アクセストークンだけを受け取る（ADR-0092）
 - **直前の 1 本**（``previous_jti``）は振り替えから :data:`REUSE_GRACE_SECONDS` のあいだだけ、
   アクセストークンだけを受け取れる。タブが同時に更新したときの負けた側で、Cookie は勝った側のものを残す
 - **それ以外**は使い回し。そのログインだけを終わらせる（ほかの端末は巻き込まない）
@@ -15,7 +16,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, and_, delete, update
+from sqlalchemy import CursorResult, and_, delete, or_, update
 from sqlalchemy.orm import Session
 
 from shared.infrastructure.models import RefreshSession
@@ -63,11 +64,16 @@ def rotate(session: Session, *, session_id: str, new_jti: str, expected_jti: str
     ``UPDATE`` の条件である。負けた側は Cookie を載せない（負けた側が後から載せると、捨てられた
     トークンが Cookie に残り、次の更新で使い回しに見える）。
 
+    ⚠ **前の振り替えから猶予が過ぎるまでは振り替えない**（ADR-0092）。続けて振り替えると、まだ届いていない
+    ほかのタブの更新が持つ 1 本が「直前」から外れ、使い回しに見えてログインが終わる。
+
     ``expected_jti`` が ``None`` なのはロールの切り替え（更新の Cookie が届かない口で、どの 1 本かを問わない）。
     """
     conditions = [RefreshSession.id == session_id]
     if expected_jti is not None:
+        settled = utcnow() - timedelta(seconds=REUSE_GRACE_SECONDS)
         conditions.append(RefreshSession.current_jti == expected_jti)
+        conditions.append(or_(RefreshSession.rotated_at.is_(None), RefreshSession.rotated_at < settled))
     result = cast(
         "CursorResult[Any]",
         session.execute(
