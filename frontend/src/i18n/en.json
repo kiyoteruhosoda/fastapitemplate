@@ -93,6 +93,8 @@
   "items.title": "Items",
   "items.add": "Add item",
   "items.range": "{first}–{last} of {total}",
+  "items.edit": "Edit item",
+  "items.updatedAt": "Updated",
   "items.name": "Name",
   "notes.title": "Shared notes",
   "notes.add": "Write a note",

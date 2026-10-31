@@ -81,6 +81,17 @@ def test_items_stay_in_their_tenant(mine: Side, other: Side) -> None:
     assert [i["name"] for i in other_client.get("/api/items").json()["entries"]] == ["theirs"]
 
 
+def test_another_tenants_item_looks_missing(mine: Side, other: Side) -> None:
+    client, headers = mine
+    item_id = client.post("/api/items", json={"name": "mine"}, headers=headers).json()["id"]
+    other_client, other_headers = other
+
+    renamed = other_client.put(f"/api/items/{item_id}", json={"name": "taken"}, headers=other_headers)
+    assert renamed.status_code == 404
+    assert other_client.delete(f"/api/items/{item_id}", headers=other_headers).status_code == 404
+    assert [i["name"] for i in client.get("/api/items").json()["entries"]] == ["mine"]
+
+
 def test_people_stay_in_their_tenant(mine: Side, other: Side) -> None:
     member_id = _create_member(mine, "alice")
     other_client, other_headers = other

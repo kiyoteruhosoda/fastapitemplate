@@ -1,23 +1,35 @@
+/**
+ * アイテム（`bounded_contexts/example`）の画面側の見本。一覧のページ送り（ADR-0095）・追加・編集・削除。
+ */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
+import { usePendingRows } from '../hooks/usePendingRows'
 import { useI18n } from '../i18n'
-import { api } from '../services/api'
-import { buildLogQuery, hasNextPage, pageRange } from '../services/logSearch'
+import { api, errorMessageKey } from '../services/api'
+import { buildLogQuery, formatUtcTimestamp, hasNextPage, pageRange } from '../services/logSearch'
 import { useAuth } from '../store/AuthContext'
 
 interface Item {
   id: number
   name: string
+  created_at: string
+  updated_at: string
 }
 
 /** 一覧 API の規約の形（ADR-0095）。`total` はページの件数ではなく全体の件数。 */
 interface ItemPage {
   entries: Item[]
   total: number
+}
+
+/** 入力中の 1 件。`id` が `null` なら追加。 */
+interface Draft {
+  id: number | null
+  name: string
 }
 
 const PAGE_SIZE = 20
@@ -28,8 +40,10 @@ export function ItemsPage() {
   const { notify } = useToast()
   const [items, setItems] = useState<ItemPage>({ entries: [], total: 0 })
   const [page, setPage] = useState(0)
-  const [name, setName] = useState('')
-  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const { pendingActionOf, runForRow } = usePendingRows<'removal'>()
+
+  const canWrite = hasScope('item:write')
 
   const reload = useCallback(
     () => api.get<ItemPage>(`/api/items${buildLogQuery({}, page, PAGE_SIZE)}`).then(setItems),
@@ -40,50 +54,67 @@ export function ItemsPage() {
     void reload()
   }, [reload])
 
-  const range = pageRange(items.total, page, items.entries.length, PAGE_SIZE)
-
   const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
     e.preventDefault()
+    if (!draft) return
     try {
-      await api.post('/api/items', { name })
-      setName('')
-      setAdding(false)
+      if (draft.id === null) {
+        await api.post('/api/items', { name: draft.name })
+      } else {
+        await api.put(`/api/items/${String(draft.id)}`, { name: draft.name })
+      }
+      setDraft(null)
       await reload()
-    } catch {
-      notify('error', t('error.unknown_error'))
+    } catch (err) {
+      notify('error', t(errorMessageKey(err)))
     }
   })
+
+  const remove = (item: Item) =>
+    runForRow(item.id, 'removal', async () => {
+      try {
+        await api.delete(`/api/items/${String(item.id)}`)
+        // ページの最後の 1 件を消したら、空のページに残らず 1 つ戻る
+        if (items.entries.length === 1 && page > 0) setPage(page - 1)
+        else await reload()
+      } catch (err) {
+        notify('error', t(errorMessageKey(err)))
+      }
+    })
+
+  const range = pageRange(items.total, page, items.entries.length, PAGE_SIZE)
 
   return (
     <div className="card">
       <div className="card-head">
         <h1>{t('items.title')}</h1>
-        {hasScope('item:write') && (
+        {canWrite && (
           <button
             type="button"
             className="button-primary"
             onClick={() => {
-              setAdding(true)
+              setDraft({ id: null, name: '' })
             }}
           >
             {t('items.add')}
           </button>
         )}
       </div>
-      {adding && (
+      {draft && (
         <FormDialog
-          title={t('items.add')}
+          title={draft.id === null ? t('items.add') : t('items.edit')}
           onClose={() => {
-            setAdding(false)
+            setDraft(null)
           }}
         >
           <form className="dialog-form" onSubmit={submit}>
             <label>
               {t('items.name')}
               <input
-                value={name}
+                value={draft.name}
+                maxLength={255}
                 onChange={(e) => {
-                  setName(e.target.value)
+                  setDraft({ ...draft, name: e.target.value })
                 }}
                 required
               />
@@ -92,13 +123,13 @@ export function ItemsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setAdding(false)
+                  setDraft(null)
                 }}
               >
                 {t('common.cancel')}
               </button>
               <ActionButton type="submit" pending={submitting}>
-                {t('common.add')}
+                {draft.id === null ? t('common.add') : t('common.save')}
               </ActionButton>
             </div>
           </form>
@@ -110,15 +141,44 @@ export function ItemsPage() {
             <tr>
               <th>ID</th>
               <th>{t('items.name')}</th>
+              <th>{t('items.updatedAt')}</th>
+              {canWrite && <th />}
             </tr>
           </thead>
           <tbody>
-            {items.entries.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
-                <td>{item.name}</td>
-              </tr>
-            ))}
+            {items.entries.map((item) => {
+              const removing = pendingActionOf(item.id) === 'removal'
+              return (
+                <tr key={item.id}>
+                  <td>{item.id}</td>
+                  <td>{item.name}</td>
+                  <td className="timestamp">{formatUtcTimestamp(item.updated_at)}</td>
+                  {canWrite && (
+                    <td>
+                      <button
+                        type="button"
+                        disabled={removing}
+                        onClick={() => {
+                          setDraft({ id: item.id, name: item.name })
+                        }}
+                      >
+                        {t('common.edit')}
+                      </button>
+                      <ActionButton
+                        type="button"
+                        className="button-danger"
+                        pending={removing}
+                        onClick={() => {
+                          void remove(item)
+                        }}
+                      >
+                        {t('common.delete')}
+                      </ActionButton>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

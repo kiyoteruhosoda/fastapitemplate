@@ -263,6 +263,8 @@ erDiagram
         bigint id PK
         bigint tenant_id FK "索引あり"
         varchar(255) name
+        datetime created_at
+        datetime updated_at "名前を変えた時刻"
     }
 
     notes {
