@@ -79,7 +79,7 @@ def _granted_scopes(role: Role) -> str:
 
 
 @router.get("", response_model=list[RoleResponse], dependencies=[_READ_ROLES])
-async def list_roles(admin: AdministrationDep) -> list[RoleResponse]:
+def list_roles(admin: AdministrationDep) -> list[RoleResponse]:
     return [_to_response(r) for r in admin.members.roles()]
 
 
@@ -99,7 +99,7 @@ def _own_role(admin: Administration, role_id: int) -> Role:
     response_model=RoleResponse,
     dependencies=[_MANAGE_ROLES],
 )
-async def create_role(body: RoleCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> RoleResponse:
+def create_role(body: RoleCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> RoleResponse:
     db = admin.db
     if db.scalar(select(Role).where(Role.name == body.name)):
         raise HTTPException(
@@ -121,7 +121,7 @@ async def create_role(body: RoleCreateRequest, admin: AdministrationDep, audit: 
 
 
 @router.put("/{role_id}", response_model=RoleResponse, dependencies=[_MANAGE_ROLES])
-async def update_role(
+def update_role(
     role_id: int,
     body: RoleUpdateRequest,
     admin: AdministrationDep,
@@ -151,7 +151,7 @@ async def update_role(
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MANAGE_ROLES])
-async def delete_role(role_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
+def delete_role(role_id: int, admin: AdministrationDep, audit: AuditRecorderDep) -> None:
     db = admin.db
     role = _own_role(admin, role_id)
     admin.ensure_within_authority(permissions_of([role]))

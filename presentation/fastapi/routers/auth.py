@@ -98,7 +98,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal, *, profile_manag
 
 
 @router.post("/login", response_model=SessionResponse, dependencies=[Depends(require_local_login)])
-async def login(body: LoginRequest, response: Response, login_service: LoginServiceDep) -> SessionResponse:
+def login(body: LoginRequest, response: Response, login_service: LoginServiceDep) -> SessionResponse:
     """パスワード認証。二要素認証が有効なら ``totp_code`` も必須になる。"""
     user = login_service.authenticate(body)
     logger.info("login_succeeded")
@@ -106,7 +106,7 @@ async def login(body: LoginRequest, response: Response, login_service: LoginServ
 
 
 @router.post("/refresh", response_model=SessionResponse)
-async def refresh(
+def refresh(
     response: Response,
     db: DbDep,
     audit: AuditRecorderDep,
@@ -141,7 +141,7 @@ async def refresh(
 
 
 @router.post("/logout", response_model=StatusResponse)
-async def logout(
+def logout(
     response: Response,
     db: DbDep,
     logout_token: Annotated[str | None, Cookie(alias=LOGOUT_TOKEN_COOKIE)] = None,
@@ -156,12 +156,12 @@ async def logout(
 
 
 @router.get("/me", response_model=MeResponse)
-async def me(principal: PrincipalDep, user: CurrentUserDep, db: DbDep) -> MeResponse:
+def me(principal: PrincipalDep, user: CurrentUserDep, db: DbDep) -> MeResponse:
     return _me_response(user, principal, profile_managed_by_idp=SqlFederatedIdentityRepository(db).is_linked(user.id))
 
 
 @router.post("/switch-role", response_model=SessionResponse)
-async def switch_role(
+def switch_role(
     body: RoleSwitchRequest,
     response: Response,
     current: CurrentSessionDep,
@@ -196,7 +196,7 @@ async def switch_role(
 
 
 @router.put("/me", response_model=MeResponse)
-async def update_me(
+def update_me(
     body: ProfileUpdateRequest,
     principal: PrincipalDep,
     db: DbDep,
@@ -243,7 +243,7 @@ async def update_me(
 
 
 @router.post("/change-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
-async def change_password(
+def change_password(
     body: ChangePasswordRequest,
     response: Response,
     current: CurrentSessionDep,
@@ -285,7 +285,7 @@ async def change_password(
 
 
 @router.post("/forgot-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
-async def forgot_password(
+def forgot_password(
     body: ForgotPasswordRequest,
     db: DbDep,
     audit: AuditRecorderDep,
@@ -313,7 +313,7 @@ async def forgot_password(
 
 
 @router.post("/reset-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
-async def reset_password(body: ResetPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
+def reset_password(body: ResetPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
     """トークンで新しいパスワードを設定する。
 
     こちらも未認証（トークンの提示だけ）なので、対象として記録し実行者は空にする。

@@ -321,6 +321,8 @@ SystemSetting.query.get("some_key")
 
 `response_model` を指定すると OpenAPI 仕様が自動生成される。
 
+**DB を使う口と依存関数は `def` で書く**（ADR-0100）。`async def` の中で同期の DB を呼ぶと、同じ行への同時の書き込みでイベントループごと止まる（SQLite の試験では出ない）。`await` が要る口は DB を `run_in_threadpool` へ逃がす。ログの文脈（`ContextVar`）は `async def` の依存関数で置く（`def` の中で置いた値はミドルウェアへ戻らない）。どちらも試験で止める。
+
 **一覧**: `limit`・`offset` で受け、`entries`・`total` で返す（ADR-0095。`PageQueryRequest` / `PageResponse`。見本は `bounded_contexts/example`）。
 
 ---

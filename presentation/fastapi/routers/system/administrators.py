@@ -51,12 +51,12 @@ def _to_response(user: User) -> SystemAdministratorResponse:
 
 
 @router.get("", response_model=list[SystemAdministratorResponse])
-async def list_administrators(_operator: OperatorDep, db: DbDep) -> list[SystemAdministratorResponse]:
+def list_administrators(_operator: OperatorDep, db: DbDep) -> list[SystemAdministratorResponse]:
     return [_to_response(u) for u in system_administrators(db)]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=DesignationResponse)
-async def add_administrator(
+def add_administrator(
     body: SystemPersonRequest, _operator: OperatorDep, db: DbDep, audit: AuditRecorderDep
 ) -> DesignationResponse:
     if account_with_email(db, body.email, None) is not None:
@@ -71,7 +71,7 @@ async def add_administrator(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_administrator(user_id: int, operator: OperatorDep, db: DbDep, audit: AuditRecorderDep) -> None:
+def remove_administrator(user_id: int, operator: OperatorDep, db: DbDep, audit: AuditRecorderDep) -> None:
     user = next((u for u in system_administrators(db) if u.id == user_id), None)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "user_not_found"})

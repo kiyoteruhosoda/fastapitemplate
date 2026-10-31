@@ -1,3 +1,7 @@
+## 2026-10-31（同じ行への同時の書き込みでプロセスごと固まるのを直した。ADR-0100・task #807）
+
+- DB を使う口と依存関数を `def` にした。`async def` のままだと、同じ行を書く要求が重なったとき、イベントループごと止まって確定の順番が回らず、MariaDB のロック待ちの上限か gunicorn の上限まで全部の要求が止まった（SQLite の試験では出ない）。
+- 派生アプリは同じ直しを入れる。依存関数を全部 `def` にしない（ログの文脈を置くものは `async def` のまま。ADR-0100 決定 3）。`test_event_loop_stays_free.py` と `test_coding_rules.py` の検査も一緒に取り込む。
 ## 2026-10-31（名前の付け替えをスクリプトにした。ADR-0099・task #800）
 
 - `scripts/rename_project.sh <new-name>` を足した。`docs/TEMPLATE.md` 2.2 の手順はこの 1 行になった。

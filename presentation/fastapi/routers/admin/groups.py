@@ -72,7 +72,7 @@ def _member_count(group: UserGroup) -> str:
 
 
 @router.get("", response_model=list[GroupResponse], dependencies=[_READ_GROUPS])
-async def list_groups(
+def list_groups(
     members: TenantMembersDep,
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ) -> list[GroupResponse]:
@@ -82,14 +82,14 @@ async def list_groups(
 
 
 @router.get("/users", response_model=list[GroupMemberResponse], dependencies=[_MANAGE_GROUPS])
-async def member_candidates(members: TenantMembersDep) -> list[GroupMemberResponse]:
+def member_candidates(members: TenantMembersDep) -> list[GroupMemberResponse]:
     """所属に選べる利用者（自分のテナントの、有効な人だけ）。"""
     users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
     return [_member(u) for u in users]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=GroupResponse, dependencies=[_MANAGE_GROUPS])
-async def create_group(body: GroupCreateRequest, members: TenantMembersDep, audit: AuditRecorderDep) -> GroupResponse:
+def create_group(body: GroupCreateRequest, members: TenantMembersDep, audit: AuditRecorderDep) -> GroupResponse:
     name = body.name.strip()
     _ensure_unique_name(members, name)
     group = members.new_group(name, body.description.strip())
@@ -105,7 +105,7 @@ async def create_group(body: GroupCreateRequest, members: TenantMembersDep, audi
 
 
 @router.put("/{group_id}", response_model=GroupResponse, dependencies=[_MANAGE_GROUPS])
-async def update_group(
+def update_group(
     group_id: int, body: GroupUpdateRequest, members: TenantMembersDep, audit: AuditRecorderDep
 ) -> GroupResponse:
     group = members.group(group_id)
@@ -129,7 +129,7 @@ async def update_group(
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[_MANAGE_GROUPS])
-async def delete_group(group_id: int, members: TenantMembersDep, audit: AuditRecorderDep) -> None:
+def delete_group(group_id: int, members: TenantMembersDep, audit: AuditRecorderDep) -> None:
     group = members.group(group_id)
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "group_not_found"})

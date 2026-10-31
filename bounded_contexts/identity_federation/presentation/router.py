@@ -162,7 +162,7 @@ class SsoCallbackQuery:
 
 
 @router.get("/provider", response_model=SsoProviderResponse)
-async def describe_provider(
+def describe_provider(
     use_case: Annotated[DescribeSsoProvider, Depends(dependencies.describe_sso_provider)],
 ) -> SsoProviderResponse:
     """SSO が使えるかを答える（未認証で呼べる。接続先の情報は返さない）。"""
@@ -427,7 +427,7 @@ def _has_other_entrance(db: Session, user: User) -> bool:
 
 
 @router.post("/token", response_model=SsoSessionResponse)
-async def exchange_ticket(
+def exchange_ticket(
     body: SsoTicketRequest,
     response: Response,
     db: DbDep,

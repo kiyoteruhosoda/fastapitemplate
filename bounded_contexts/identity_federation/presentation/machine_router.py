@@ -133,7 +133,7 @@ def _refused(audit: RecordAuditEvent, error: IdentityFederationError) -> HTTPExc
 
 
 @router.post("/token", response_model=MachineTokenResponse)
-async def issue_machine_token(
+def issue_machine_token(
     db: DbDep, audit: AuditRecorderDep, credentials: BearerDep, gateway: MachineTokenGatewayDep
 ) -> MachineTokenResponse:
     """機械のトークンを、このアプリのアクセストークンへ換える。"""

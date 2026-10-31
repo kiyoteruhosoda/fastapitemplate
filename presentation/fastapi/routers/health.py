@@ -56,7 +56,7 @@ async def liveness(request: Request) -> LivenessResponse:
 
 
 @router.get("/readyz", summary="Readiness probe")
-async def readiness(
+def readiness(
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
     now = utcnow_aware()

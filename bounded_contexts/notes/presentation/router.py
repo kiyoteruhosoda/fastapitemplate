@@ -78,37 +78,37 @@ WriterDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("note:w
 
 
 @router.get("", response_model=list[NoteResponse])
-async def list_notes(principal: ReaderDep, book: NoteBookDep) -> list[NoteResponse]:
+def list_notes(principal: ReaderDep, book: NoteBookDep) -> list[NoteResponse]:
     """自分のメモと、自分が入っているグループに共有されたメモ。"""
     return [NoteResponse.of(dto) for dto in book.list_readable(principal.user_id)]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=NoteResponse)
-async def create_note(body: NoteRequest, principal: WriterDep, book: NoteBookDep) -> NoteResponse:
+def create_note(body: NoteRequest, principal: WriterDep, book: NoteBookDep) -> NoteResponse:
     dto = book.create(principal.user_id, body.to_input())
     logger.info("note_created", extra={"note_id": dto.id})
     return NoteResponse.of(dto)
 
 
 @router.get("/share-targets", response_model=list[ShareTargetResponse])
-async def list_share_targets(principal: WriterDep, book: NoteBookDep) -> list[ShareTargetResponse]:
+def list_share_targets(principal: WriterDep, book: NoteBookDep) -> list[ShareTargetResponse]:
     """共有先に選べるグループ（自分が入っているものだけ）。"""
     return [ShareTargetResponse(id=t.id, name=t.name) for t in book.share_targets(principal.user_id)]
 
 
 @router.get("/{note_id}", response_model=NoteResponse)
-async def get_note(note_id: int, principal: ReaderDep, book: NoteBookDep) -> NoteResponse:
+def get_note(note_id: int, principal: ReaderDep, book: NoteBookDep) -> NoteResponse:
     return NoteResponse.of(book.get(principal.user_id, note_id))
 
 
 @router.put("/{note_id}", response_model=NoteResponse)
-async def update_note(note_id: int, body: NoteRequest, principal: WriterDep, book: NoteBookDep) -> NoteResponse:
+def update_note(note_id: int, body: NoteRequest, principal: WriterDep, book: NoteBookDep) -> NoteResponse:
     dto = book.update(principal.user_id, note_id, body.to_input())
     logger.info("note_updated", extra={"note_id": note_id})
     return NoteResponse.of(dto)
 
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_note(note_id: int, principal: WriterDep, book: NoteBookDep) -> None:
+def delete_note(note_id: int, principal: WriterDep, book: NoteBookDep) -> None:
     book.delete(principal.user_id, note_id)
     logger.info("note_deleted", extra={"note_id": note_id})
