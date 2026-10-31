@@ -20,7 +20,7 @@ def _entries(client: TestClient) -> dict[str, dict[str, object]]:
 
 
 def _item_names(client: TestClient) -> list[str]:
-    return [i["name"] for i in client.get("/api/items").json()]
+    return [i["name"] for i in client.get("/api/items").json()["entries"]]
 
 
 def test_unsaved_settings_show_their_default(client: TestClient, admin_headers: dict[str, str]) -> None:

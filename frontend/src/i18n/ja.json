@@ -97,6 +97,7 @@
   "dashboard.title": "管理ダッシュボード",
   "items.title": "アイテム",
   "items.add": "アイテムを追加",
+  "items.range": "{first}〜{last} / 全 {total} 件",
   "items.name": "名前",
   "notes.title": "共有メモ",
   "notes.add": "メモを書く",

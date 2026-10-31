@@ -127,6 +127,9 @@ CI が落ちた箇所を順に直せば漏れない。
 2. ルーターを `presentation/fastapi/app.py` に足す
 3. 選択肢のある決定は ADR に書く（`docs/decisions/ADR-template.md`）
 
+一覧を返す口は [ADR-0095](decisions/ADR-0095-list-api-paging.md) の規約に揃える（`limit`・`offset` で受け、`entries`・`total` で返す）。
+見本は `bounded_contexts/example/presentation/router.py`。
+
 ### 3.2 表を足す
 
 1. モデルを `bounded_contexts/<context>/infrastructure/` に置き、**区分を宣言する**
