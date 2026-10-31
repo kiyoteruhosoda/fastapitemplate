@@ -11,6 +11,14 @@
 ログのレベルは応答のステータスコードで決める（:func:`~presentation.fastapi.error_handling.log_level_for_status`）。
 成功だけを INFO で並べても異常は見つからないので、4xx は WARNING、5xx は ERROR
 として、レベルで絞り込めば失敗だけが残るようにする。
+
+**素の ASGI ミドルウェアとして書いている**（``BaseHTTPMiddleware`` を使わない）。
+``BaseHTTPMiddleware`` は下流を**別のタスク**で走らせるため、認証依存関数が設定した
+``user_id_hash`` がログを出す側へ戻らず、``http_request`` の行だけ「誰のリクエストか」
+が空になる（:mod:`presentation.fastapi.middleware.internal_error` と同じ事情）。
+
+行を出すのは**応答の先頭を送るとき**で、下流が終わるのを待たない。大きなファイルの
+流し読みでも ``duration_ms`` は先頭までの時間のままで、途中で接続が切れても行は残る。
 """
 
 from __future__ import annotations
@@ -20,9 +28,9 @@ import time
 import uuid
 
 from starlette import status
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from presentation.fastapi.error_handling import log_level_for_status
 from shared.kernel.logging.request_context import (
@@ -77,8 +85,16 @@ def _client_ip(request: Request) -> str | None:
     return addresses[-hops]
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+class RequestLoggingMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
         request_id = str(uuid.uuid4())
         request_id_var.set(request_id)
         # 前のリクエストの値が残らないよう、リクエストごとに明示的に初期化する
@@ -88,23 +104,26 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         user_agent_var.set(request.headers.get("user-agent"))
         start = time.perf_counter()
 
-        response = await call_next(request)
+        async def _send(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                duration_ms = round((time.perf_counter() - start) * 1000, 2)
+                if _should_log(request.url.path, status_code):
+                    access_logger.log(
+                        log_level_for_status(status_code),
+                        "http_request",
+                        extra={
+                            "request_id": request_id,
+                            "method": request.method,
+                            "path": request.url.path,
+                            "status_code": status_code,
+                            "duration_ms": duration_ms,
+                        },
+                    )
+                MutableHeaders(scope=message)["X-Request-Id"] = request_id
+            await send(message)
 
-        duration_ms = round((time.perf_counter() - start) * 1000, 2)
-        if _should_log(request.url.path, response.status_code):
-            access_logger.log(
-                log_level_for_status(response.status_code),
-                "http_request",
-                extra={
-                    "request_id": request_id,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": response.status_code,
-                    "duration_ms": duration_ms,
-                },
-            )
-        response.headers["X-Request-Id"] = request_id
-        return response
+        await self.app(scope, receive, _send)
 
 
 __all__ = ["RequestLoggingMiddleware"]
