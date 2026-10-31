@@ -1,3 +1,8 @@
+## 2026-10-31（一覧 API のページングの規約を決めた。ADR-0095・task #796）
+
+- `limit`・`offset` で指定し、`{"entries": [...], "total": n}` で返す。`/api/items` を見本にし、画面も 20 件ずつにした。
+- ⚠ `GET /api/items` の応答が配列からこの形に変わった。派生アプリが `/api/items` を自前の画面やアプリから読んでいたら直す。
+
 ## 2026-10-30（機械が書く操作を監査に残す。task #724）
 
 - `machine_operation.performed` を足した。対象は `machine_client:<client_id>`、実行者は振る舞う利用者、理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。

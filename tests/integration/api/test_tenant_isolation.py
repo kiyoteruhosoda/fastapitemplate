@@ -77,8 +77,8 @@ def test_items_stay_in_their_tenant(mine: Side, other: Side) -> None:
     other_client, other_headers = other
     assert other_client.post("/api/items", json={"name": "theirs"}, headers=other_headers).status_code == 201
 
-    assert [i["name"] for i in client.get("/api/items").json()] == ["mine"]
-    assert [i["name"] for i in other_client.get("/api/items").json()] == ["theirs"]
+    assert [i["name"] for i in client.get("/api/items").json()["entries"]] == ["mine"]
+    assert [i["name"] for i in other_client.get("/api/items").json()["entries"]] == ["theirs"]
 
 
 def test_people_stay_in_their_tenant(mine: Side, other: Side) -> None:
