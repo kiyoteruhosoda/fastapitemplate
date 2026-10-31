@@ -44,6 +44,7 @@ from presentation.fastapi.dependencies.auth import (
     ACCESS_TOKEN_COOKIE,
     _bearer_scheme,
     get_operation_principal,
+    refuse_during_two_factor_setup,
     refuse_machine,
 )
 from shared.application.authenticated_principal import AuthenticatedPrincipal
@@ -124,6 +125,7 @@ async def get_app_or_web_principal(
         if principal.is_machine:
             # scope で守られていない口なので、機械のトークンはここでも断る（ADR-0087 決定 4）
             refuse_machine(principal, "app_or_web")
+        refuse_during_two_factor_setup(principal)
         return principal
     user = db.get(User, authenticate_app_access_token(db, gateway, bearer).execute(bearer))
     if user is None or not user.is_active or not tenant_admits(db, user):

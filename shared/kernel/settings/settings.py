@@ -658,6 +658,14 @@ class ApplicationSettings:
         """
         return self.get_bool("LOCAL_LOGIN_ENABLED", True)
 
+    @property
+    def local_two_factor_required(self) -> bool:
+        """パスワードで入る人に二要素認証を必須にするか（ADR-0092）。
+
+        ローカルの入口が閉じていれば効かない。閉じていると登録の口も断るので、効かせると行き止まりになる。
+        """
+        return self.local_login_enabled and self.get_bool("LOCAL_TWO_FACTOR_REQUIRED", False)
+
 
 def _env_list(raw: str | None) -> list[str]:
     """環境変数のリスト（JSON の配列か、カンマ区切り）。空の要素は捨てる。"""

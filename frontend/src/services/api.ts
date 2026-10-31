@@ -16,6 +16,7 @@ import { currentOutage, outageFrom, reportOutage, reportReopened } from './maint
 const CSRF_COOKIE = 'csrf_token'
 const CSRF_HEADER = 'X-CSRF-Token'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const TWO_FACTOR_SETUP_REQUIRED = 'two_factor_setup_required'
 
 export class ApiError extends Error {
   status: number
@@ -114,7 +115,10 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
       reportOutage(outage)
       throw new ApiError(response.status, 'service_unavailable')
     }
-    throw new ApiError(response.status, extractErrorCode(payload))
+    const code = extractErrorCode(payload)
+    // 使っている途中で必須になった。/me を読み直せば登録の画面が出る（ADR-0092）
+    if (code === TWO_FACTOR_SETUP_REQUIRED) window.location.reload()
+    throw new ApiError(response.status, code)
   }
   // 答えが返った＝閉じていない（メンテナンスの画面を出していれば戻す）
   if (currentOutage()) reportReopened()

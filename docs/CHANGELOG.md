@@ -1,3 +1,8 @@
+## 2026-10-31（パスワードで入る人に二要素認証を必須にできるようにした。ADR-0092・task #794）
+
+- システム設定 `LOCAL_TWO_FACTOR_REQUIRED`（既定は無効）を足した。有効にすると、未登録の人は登録の画面しか使えない。SSO とパスキーは対象外。
+- 派生アプリで主体の検証を自前で書いた口があれば、`refuse_during_two_factor_setup` を通す。
+
 ## 2026-10-30（機械が書く操作を監査に残す。task #724）
 
 - `machine_operation.performed` を足した。対象は `machine_client:<client_id>`、実行者は振る舞う利用者、理由は `POST /api/items` のような経路の型。読むだけの操作は残さない。

@@ -28,6 +28,8 @@ export interface Me {
    * `/me` に載せてあるので、サインアウトのために問い合わせを増やさない。
    */
   rp_logout_enabled: boolean
+  /** 真のあいだ、二要素認証の登録の画面しか使えない（ADR-0092）。 */
+  two_factor_setup_required?: boolean
 }
 
 /** ログインが成立したことと、アクセストークンの寿命（トークン本体は Cookie）。 */

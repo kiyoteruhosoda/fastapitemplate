@@ -148,6 +148,16 @@ async def get_operation_principal(
 
 
 MACHINE_NOT_ALLOWED = "machine_not_allowed"
+TWO_FACTOR_SETUP_REQUIRED = "two_factor_setup_required"
+#: 二要素の登録待ちのログインで通る口（ADR-0092）。更新とログアウトは主体を見ないので、ここに無くても通る。
+_OPEN_DURING_TWO_FACTOR_SETUP = frozenset(
+    {
+        ("GET", "/api/auth/me"),
+        ("GET", "/api/account/security/two-factor"),
+        ("POST", "/api/account/security/two-factor/enrollment"),
+        ("POST", "/api/account/security/two-factor/confirmation"),
+    }
+)
 
 
 async def get_current_principal(
@@ -162,7 +172,15 @@ async def get_current_principal(
     """
     if principal.is_machine:
         refuse_machine(principal, _operation_of(request))
+    if (request.method, request.url.path) not in _OPEN_DURING_TWO_FACTOR_SETUP:
+        refuse_during_two_factor_setup(principal)
     return principal
+
+
+def refuse_during_two_factor_setup(principal: AuthenticatedPrincipal) -> None:
+    """二要素の登録待ちのログインを断る（ADR-0092）。画面はこの 403 で登録の画面へ切り替わる。"""
+    if principal.two_factor_setup_required:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TWO_FACTOR_SETUP_REQUIRED})
 
 
 def refuse_machine(principal: AuthenticatedPrincipal, operation: str) -> NoReturn:
@@ -280,6 +298,8 @@ class CurrentSession:
     authenticated_at: datetime | None = None
     #: このログインの控え（ADR-0091）。ロールの切り替えで引き継ぐ。
     refresh_session_id: str | None = None
+    #: パスキーで入ったログインか（ADR-0092）。出し直すときに引き継ぐ。
+    signed_in_with_passkey: bool = False
 
 
 async def get_current_session(
@@ -315,6 +335,7 @@ async def get_current_session(
         active_role=principal.active_role if principal is not None else None,
         authenticated_at=principal.authenticated_at if principal is not None else None,
         refresh_session_id=TokenService.refresh_session_id_of(token) if token else None,
+        signed_in_with_passkey=TokenService.signed_in_with_passkey_of(token) if token else False,
     )
 
 
@@ -390,6 +411,7 @@ def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrin
         request: Request,
         principal: AuthenticatedPrincipal = Depends(get_operation_principal),
     ) -> AuthenticatedPrincipal:
+        refuse_during_two_factor_setup(principal)
         if not principal.can(*codes):
             if principal.is_machine:
                 _refuse_missing_operation(principal, codes)
@@ -418,6 +440,7 @@ def require_any_permission(*codes: str) -> Callable[..., Awaitable[Authenticated
         request: Request,
         principal: AuthenticatedPrincipal = Depends(get_operation_principal),
     ) -> AuthenticatedPrincipal:
+        refuse_during_two_factor_setup(principal)
         if not any(principal.can(code) for code in codes):
             if principal.is_machine:
                 _refuse_missing_operation(principal, codes)
@@ -442,6 +465,7 @@ __all__ = [
     "REAUTHENTICATION_REQUIRED",
     "REFRESH_COOKIE_PATH",
     "REFRESH_TOKEN_COOKIE",
+    "TWO_FACTOR_SETUP_REQUIRED",
     "CurrentSession",
     "clear_access_token_cookie",
     "ensure_recent_sign_in",
@@ -449,6 +473,7 @@ __all__ = [
     "get_current_session",
     "get_current_user",
     "get_operation_principal",
+    "refuse_during_two_factor_setup",
     "refuse_machine",
     "require_any_permission",
     "require_permission",

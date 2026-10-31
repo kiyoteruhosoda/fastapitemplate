@@ -18,6 +18,8 @@ import { useToast } from './ToastNotification'
 interface TwoFactorStatus {
   enabled: boolean
   enrolling: boolean
+  /** アプリの設定で必須か（ADR-0092）。真のとき外す導線を出さない。 */
+  required: boolean
 }
 
 interface TotpEnrollment {
@@ -25,6 +27,8 @@ interface TotpEnrollment {
   otpauth_uri: string
   qr_code: string
 }
+
+const CONFIRMATION_PATH = '/api/account/security/two-factor/confirmation'
 
 /** 確認コードの入力欄（有効化の確認・無効化の双方で使う）。 */
 function CodeField({
@@ -54,7 +58,7 @@ function CodeField({
   )
 }
 
-export function TwoFactorControls() {
+export function TwoFactorControls({ onEnabled }: { onEnabled?: () => Promise<void> }) {
   const { t } = useI18n()
   const { notify } = useToast()
   const [status, setStatus] = useState<TwoFactorStatus | null>(null)
@@ -101,6 +105,7 @@ export function TwoFactorControls() {
         setCode('')
         await reloadStatus()
         notify('success', t(successKey))
+        if (path === CONFIRMATION_PATH) await onEnabled?.()
       } catch (err) {
         setError(errorMessageKey(err))
       }
@@ -112,6 +117,8 @@ export function TwoFactorControls() {
   }
 
   if (status === null) return <p className="loading">{t('common.loading')}</p>
+
+  if (status.enabled && status.required) return <p>{t('security.twoFactorRequired')}</p>
 
   if (status.enabled) {
     return (
@@ -136,10 +143,7 @@ export function TwoFactorControls() {
     return (
       <form
         className="card-inset"
-        onSubmit={onSubmit(
-          '/api/account/security/two-factor/confirmation',
-          'security.twoFactorEnabled',
-        )}
+        onSubmit={onSubmit(CONFIRMATION_PATH, 'security.twoFactorEnabled')}
       >
         {error && <p className="error">{t(error)}</p>}
         <p>{t('security.scanQr')}</p>

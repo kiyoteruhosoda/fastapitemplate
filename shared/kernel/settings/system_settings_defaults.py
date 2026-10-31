@@ -161,6 +161,9 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     #   資格情報の登録（パスキー・TOTP・パスワード変更）も止まる（閉じた入口の合鍵を
     #   作れないようにするため）。締め出されたら環境変数で true へ戻して再起動する。
     "LOCAL_LOGIN_ENABLED": True,
+    # パスワードで入る人に二要素認証を必須にする（ADR-0092）。アプリ全体に 1 つ。
+    # ⚠ 戻すときは画面か scripts/unset_setting.py（保存した値は環境変数より強い）。
+    "LOCAL_TWO_FACTOR_REQUIRED": False,
 }
 
 #: 環境変数だけで決める設定（ADR-0090）。サーバーがつなぎに行く先と、鍵のファイルの場所。
