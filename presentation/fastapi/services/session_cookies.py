@@ -65,7 +65,11 @@ def _record_refresh_session(user: User, pair: dict[str, object], carry: SessionC
     if carry.refresh_session_id is None:
         refresh_sessions.begin(session, session_id=session_id, user_id=user.id, jti=jti)
         return True
-    return refresh_sessions.rotate(session, session_id=session_id, new_jti=jti, expected_jti=carry.presented_jti)
+    rotated = refresh_sessions.rotate(session, session_id=session_id, new_jti=jti, expected_jti=carry.presented_jti)
+    # ⚠ **行のロックを応答まで持ち越さない。** 口は async def で DB の呼び出しは同期なので、同じプロセスの次の更新が
+    #   このロックを待つと、イベントループごと止まって確定の順番が回ってこない（MariaDB の待ちの上限 50 秒まで固まる）。
+    session.commit()
+    return rotated
 
 
 TENANT_SUSPENDED = "tenant_suspended"
