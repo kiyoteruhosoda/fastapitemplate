@@ -30,6 +30,8 @@ export interface Me {
   rp_logout_enabled: boolean
   /** IdP と結び付いている。名前とメールは IdP で直す（ADR-0093）。 */
   profile_managed_by_idp?: boolean
+  /** 真のあいだ、二要素認証の登録の画面しか使えない（ADR-0093）。 */
+  two_factor_setup_required?: boolean
 }
 
 /** ログインが成立したことと、アクセストークンの寿命（トークン本体は Cookie）。 */

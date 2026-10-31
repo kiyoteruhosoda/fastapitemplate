@@ -93,6 +93,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal, *, profile_manag
         has_password=user.has_local_password,
         rp_logout_enabled=settings.oidc_rp_logout_enabled,
         profile_managed_by_idp=profile_managed_by_idp,
+        two_factor_setup_required=principal.two_factor_setup_required,
     )
 
 
@@ -184,6 +185,7 @@ async def switch_role(
             federated_login=current.federated_login,
             authenticated_at=current.authenticated_at,
             refresh_session_id=current.refresh_session_id,
+            signed_in_with_passkey=current.signed_in_with_passkey,
         ),
     )
     audit.execute(AuditEventType.ROLE_SWITCHED, reason=f"role={body.role or 'all'}")
@@ -267,7 +269,13 @@ async def change_password(
     user.end_sessions()
     # 今のパスワードを確かめた直後なので、入り直したものとして扱う（ADR-0076 §10）
     establish_session(
-        response, user, SessionCarryOver(active_role=current.active_role, federated_login=current.federated_login)
+        response,
+        user,
+        SessionCarryOver(
+            active_role=current.active_role,
+            federated_login=current.federated_login,
+            signed_in_with_passkey=current.signed_in_with_passkey,
+        ),
     )
     logger.info("password_changed")
     audit.execute(AuditEventType.PASSWORD_CHANGED)

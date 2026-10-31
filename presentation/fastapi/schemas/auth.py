@@ -47,6 +47,8 @@ class MeResponse(BaseModel):
     rp_logout_enabled: bool = False
     # IdP と結び付いている。名前とメールは IdP が正なので、画面は入力欄を出さない（ADR-0093）。
     profile_managed_by_idp: bool = False
+    # 二要素認証の登録が済むまで、登録の画面しか使えない（ADR-0093）。
+    two_factor_setup_required: bool = False
 
 
 class RoleSwitchRequest(BaseModel):
