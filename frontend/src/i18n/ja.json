@@ -98,6 +98,8 @@
   "items.title": "アイテム",
   "items.add": "アイテムを追加",
   "items.range": "{first}〜{last} / 全 {total} 件",
+  "items.edit": "アイテムを編集",
+  "items.updatedAt": "更新日時",
   "items.name": "名前",
   "notes.title": "共有メモ",
   "notes.add": "メモを書く",

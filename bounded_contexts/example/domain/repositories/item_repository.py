@@ -10,4 +10,12 @@ class IItemRepository(ABC):
     def save(self, name: str) -> Item: ...
 
     @abstractmethod
+    def rename(self, item_id: int, name: str) -> Item:
+        """無ければ :class:`~bounded_contexts.example.domain.exceptions.ItemNotFoundError`。"""
+
+    @abstractmethod
+    def delete(self, item_id: int) -> None:
+        """無ければ :class:`~bounded_contexts.example.domain.exceptions.ItemNotFoundError`。"""
+
+    @abstractmethod
     def find_page(self, order: ItemListOrder, page: PageRequest) -> Page[Item]: ...

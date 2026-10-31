@@ -1,10 +1,14 @@
 class DomainError(Exception):
-    pass
+    """example コンテキストのドメイン例外の基底。``code`` は画面へ返す安定キー。"""
+
+    code = "item_error"
 
 
 class ItemNotFoundError(DomainError):
-    pass
+    """そのアイテムが無い。**ほかのテナントのものも「無い」と答える**（在ることを漏らさない）。"""
+
+    code = "item_not_found"
 
 
 class ItemValidationError(DomainError):
-    pass
+    code = "item_invalid"

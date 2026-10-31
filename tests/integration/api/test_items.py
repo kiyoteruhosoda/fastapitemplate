@@ -1,7 +1,13 @@
-import pytest
-from fastapi.testclient import TestClient
+from datetime import timedelta
 
+import pytest
+import sqlalchemy as sa
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from bounded_contexts.example.infrastructure.item_model import ItemModel
 from shared.domain.page import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from shared.kernel.timestamps import utcnow
 
 
 def test_items_require_authentication(client: TestClient) -> None:
@@ -57,3 +63,61 @@ def test_the_largest_size_is_accepted(client: TestClient, admin_headers: dict[st
 def test_create_item_empty_name_rejected(client: TestClient, admin_headers: dict[str, str]) -> None:
     response = client.post("/api/items", headers=admin_headers, json={"name": "  "})
     assert response.status_code == 422
+
+
+def _create(client: TestClient, headers: dict[str, str], name: str = "alpha") -> int:
+    response = client.post("/api/items", headers=headers, json={"name": name})
+    assert response.status_code == 201
+    return int(response.json()["id"])
+
+
+def test_an_item_has_its_times(client: TestClient, admin_headers: dict[str, str]) -> None:
+    body = client.post("/api/items", headers=admin_headers, json={"name": "alpha"}).json()
+    assert body["created_at"].endswith("Z")
+    assert body["updated_at"].endswith("Z")
+    assert client.get("/api/items").json()["entries"][0]["created_at"] == body["created_at"]
+
+
+def test_update_changes_the_name_and_the_time(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session
+) -> None:
+    item_id = _create(client, admin_headers)
+    long_ago = utcnow() - timedelta(days=1)
+    db_session.execute(sa.update(ItemModel).values(created_at=long_ago, updated_at=long_ago))
+    db_session.commit()
+
+    response = client.put(f"/api/items/{item_id}", headers=admin_headers, json={"name": "renamed"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "renamed"
+    assert body["updated_at"] > body["created_at"]
+    assert [item["name"] for item in client.get("/api/items").json()["entries"]] == ["renamed"]
+
+
+def test_delete_removes_the_item(client: TestClient, admin_headers: dict[str, str]) -> None:
+    item_id = _create(client, admin_headers)
+    assert client.delete(f"/api/items/{item_id}", headers=admin_headers).status_code == 204
+    assert client.get("/api/items").json() == {"entries": [], "total": 0}
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 256])
+def test_a_bad_name_is_refused_on_update(client: TestClient, admin_headers: dict[str, str], name: str) -> None:
+    item_id = _create(client, admin_headers)
+    response = client.put(f"/api/items/{item_id}", headers=admin_headers, json={"name": name})
+    assert response.status_code == 422
+
+
+def test_an_unknown_id_is_404(client: TestClient, admin_headers: dict[str, str]) -> None:
+    for response in (
+        client.put("/api/items/999", headers=admin_headers, json={"name": "x"}),
+        client.delete("/api/items/999", headers=admin_headers),
+    ):
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "item_not_found"
+
+
+def test_writing_needs_the_permission(client: TestClient) -> None:
+    client.cookies.clear()
+    assert client.put("/api/items/1", json={"name": "x"}).status_code in (401, 403)
+    assert client.delete("/api/items/1").status_code in (401, 403)

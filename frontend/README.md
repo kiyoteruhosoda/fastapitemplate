@@ -286,9 +286,9 @@ scope の一覧と各ロールへの割り当ての正本は `shared/domain/auth
 ### S5 アイテム（`/items`）
 
 - **目的**: `bounded_contexts/example`（Item CRUD）の画面側の見本。
-- **操作**: 一覧の表示（20 件ずつ。「前へ」「次へ」で送る。ADR-0095）と、「アイテムを追加」から開くダイアログでの追加。
-  追加ボタンは `item:write` を持つ人にだけ出る。
-- **使用 API**: `GET /api/items?limit=&offset=`, `POST /api/items`
+- **操作**: 一覧の表示（20 件ずつ。「前へ」「次へ」で送る。ADR-0095）と、ダイアログでの追加・編集、削除。
+  追加・編集・削除のボタンは `item:write` を持つ人にだけ出る。
+- **使用 API**: `GET /api/items?limit=&offset=`, `POST /api/items`, `PUT|DELETE /api/items/{id}`
 
 ### S22 共有メモ（`/notes`）
 
