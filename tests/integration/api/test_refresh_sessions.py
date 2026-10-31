@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import jwt
 import sqlalchemy as sa
+from fastapi import Response
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -20,8 +21,10 @@ from presentation.fastapi.dependencies.auth import (
 )
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from presentation.fastapi.services.refresh_sessions import REUSE_GRACE_SECONDS
+from presentation.fastapi.services.session_carry_over import SessionCarryOver
+from presentation.fastapi.services.session_cookies import establish_session
 from shared.domain.auth import master_data
-from shared.infrastructure.models import RefreshSession
+from shared.infrastructure.models import RefreshSession, User
 from shared.kernel.settings.settings import settings
 from shared.kernel.timestamps import utcnow
 from tests.conftest import sign_in
@@ -117,6 +120,62 @@ def test_a_refresh_racing_from_another_tab_does_not_sign_out(client: TestClient)
     assert client.get("/api/auth/me").status_code == 200
 
     assert _present(client, winner) == 200
+
+
+def test_a_chain_of_refreshes_from_several_tabs_does_not_sign_out(client: TestClient) -> None:
+    """1 つ目のタブが振り替えた直後に 2 つ目が新しい 1 本で更新しても、3 つ目の古い 1 本は使い回しにならない。"""
+    sign_in(client, _EMAIL, _PASSWORD)
+    first = _refresh_cookie(client)
+    assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    second = _refresh_cookie(client)
+
+    # 振り替えたばかりなので、今の 1 本でも振り替えない
+    assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    assert _refresh_cookie(client) == second
+
+    assert _present(client, first) == 200
+    assert _present(client, second) == 200
+
+
+def test_the_current_token_rotates_again_after_the_grace(client: TestClient) -> None:
+    sign_in(client, _EMAIL, _PASSWORD)
+    client.post(_REFRESH, headers=_headers(client))
+    second = _refresh_cookie(client)
+
+    with patch("presentation.fastapi.services.refresh_sessions.utcnow", return_value=_after_the_grace()):
+        assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    assert _refresh_cookie(client) != second
+
+
+def test_the_rotation_is_committed_before_the_response(db_session: Session) -> None:
+    """行のロックを応答まで持ち越すと、同じプロセスの次の更新がイベントループごと止まる（MariaDB）。"""
+    user = db_session.scalars(sa.select(User).where(User.email == _EMAIL)).one()
+    establish_session(Response(), user)
+    db_session.commit()
+    row = db_session.scalars(sa.select(RefreshSession)).one()
+    db_session.rollback()
+
+    establish_session(Response(), user, SessionCarryOver(refresh_session_id=row.id))
+
+    assert not db_session.in_transaction()
+
+
+def test_the_rotation_sets_the_previous_token_first(client: TestClient, engine: sa.Engine) -> None:
+    """MariaDB は SET を左から評価する。current_jti が先だと previous_jti に新しい値が入る（SQLite では起きない）。"""
+    sign_in(client, _EMAIL, _PASSWORD)
+    statements: list[str] = []
+
+    def remember(_conn: object, _cursor: object, statement: str, *_rest: object) -> None:
+        statements.append(statement)
+
+    sa.event.listen(engine, "before_cursor_execute", remember)
+    try:
+        assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", remember)
+
+    rotation = next(s for s in statements if s.startswith("UPDATE refresh_sessions"))
+    assert rotation.index("previous_jti=") < rotation.index("current_jti=")
 
 
 def test_the_row_follows_the_rotation(client: TestClient, engine: sa.Engine) -> None:

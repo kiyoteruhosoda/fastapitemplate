@@ -377,6 +377,12 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Allow password and passkey sign-in",
         "value_type": "boolean",
     },
+    {
+        "key": "LOCAL_TWO_FACTOR_REQUIRED",
+        "category": "auth",
+        "label": "Require two-factor authentication for password sign-in",
+        "value_type": "boolean",
+    },
 ]
 
 SYSTEM_SETTING_DEFINITIONS_BY_KEY: dict[str, dict[str, object]] = {

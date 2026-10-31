@@ -13,7 +13,7 @@
 
 | 区分 | 中身 | 場所 | 決定 |
 |---|---|---|---|
-| 認証 | パスワード・二要素認証（TOTP）・パスキー・パスワードリセット・ログイン試行の制限 | `presentation/fastapi/`・`bounded_contexts/account_security/` | ADR-0076 |
+| 認証 | パスワード・二要素認証（TOTP、必須にもできる）・パスキー・パスワードリセット・ログイン試行の制限 | `presentation/fastapi/`・`bounded_contexts/account_security/` | ADR-0076・ADR-0093 |
 | SSO | 外部 IdP（OIDC）でのサインイン・停止の受け取り・定期照合 | `bounded_contexts/identity_federation/` | ADR-0077 |
 | 認可 | scope（権限コード）・ロール・アクティブロールの切り替え・権限を動かす関門 | `shared/domain/auth/master_data.py` | ADR-0078・ADR-0084 |
 | テナント | 組織ごとの区切り・テナントの外の運用者とサポート担当 | `shared/infrastructure/` | ADR-0079 |
@@ -23,7 +23,7 @@
 | スマホ | Android アプリからの呼び出し（口の例は `routers/app_session.py`）・最新版の案内 | `bounded_contexts/app_release/` | ADR-0081 |
 | 機械の口 | 他のアプリ・バッチから呼ばれる口（`POST /api/machine/token`）と許可簿 | `MACHINE_CLIENTS`・`MACHINE_AUDIENCE`（空なら閉じる） | ADR-0082・ADR-0087 |
 | 画面 | 管理画面 SPA（日英・テーマ・PWA・メンテナンス画面） | `frontend/` | ADR-0080 |
-| 運用 | `/healthz`・`/readyz`・`/info`・`/metrics`・自己再起動 | `presentation/fastapi/routers/health.py` | ADR-0074 §2 |
+| 運用 | `/healthz`・`/readyz`・`/info`（版だけ）・`/metrics`・自己再起動 | `presentation/fastapi/routers/health.py` | ADR-0074 §2・ADR-0096 |
 | 配布 | コンテナイメージ 1 つ・k3s の宣言の雛形 | `Dockerfile`・`deploy/k8s/` | ADR-0073 |
 | 品質 | 8 つの必須ゲート・設計の定量基準・E2E の煙試験 | `Makefile`・`.forgejo/workflows/` | ADR-0072 |
 
@@ -119,6 +119,9 @@ CI が落ちた箇所を順に直せば漏れない。
    `bounded_contexts/notes/`（1 件ずつ可否が変わる機能）。層の決まりは [ARCHITECTURE.md](ARCHITECTURE.md)
 2. ルーターを `presentation/fastapi/app.py` に足す
 3. 選択肢のある決定は ADR に書く（`docs/decisions/ADR-template.md`）
+
+一覧を返す口は [ADR-0095](decisions/ADR-0095-list-api-paging.md) の規約に揃える（`limit`・`offset` で受け、`entries`・`total` で返す）。
+見本は `bounded_contexts/example/presentation/router.py`。
 
 ### 3.2 表を足す
 

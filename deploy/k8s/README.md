@@ -141,7 +141,7 @@ ssh nolumialab 'bash -s' -- <app>-<env> < k8s/sealed-secrets/adopt.sh
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' http://10.10.2.11:<NodePort>/healthz
-curl -s http://10.10.2.11:<NodePort>/info        # version / commit / branch
+curl -s http://10.10.2.11:<NodePort>/info        # version / git_sha
 ```
 
 ⚠ **成功表示を証拠にしない。** 押した digest と、実際に動いている Pod の

@@ -134,6 +134,29 @@ describe('ProfilePage', () => {
     ).toBeInTheDocument()
   })
 
+  it('IdP と結び付いている人には入力欄を出さず、IdP で直す案内を出す', async () => {
+    apiGet.mockResolvedValue({ ...ME, profile_managed_by_idp: true })
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <I18nProvider settings={SETTINGS}>
+          <ThemeProvider settings={SETTINGS}>
+            <AuthProvider>
+              <ToastProvider>
+                <Gate />
+              </ToastProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/Change your name and email/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(screen.getByText(/admin@example.com/)).toBeInTheDocument()
+  })
+
   it('言語・テーマの選択がこのページに出る', async () => {
     await renderPage()
 

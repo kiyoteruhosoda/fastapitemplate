@@ -321,6 +321,8 @@ SystemSetting.query.get("some_key")
 
 `response_model` を指定すると OpenAPI 仕様が自動生成される。
 
+**一覧**: `limit`・`offset` で受け、`entries`・`total` で返す（ADR-0095。`PageQueryRequest` / `PageResponse`。見本は `bounded_contexts/example`）。
+
 ---
 
 ## 国際化（i18n）

@@ -23,6 +23,7 @@ import { SystemAdministratorsPage } from './pages/SystemAdministratorsPage'
 import { SystemLogsPage } from './pages/SystemLogsPage'
 import { SystemStatusPage } from './pages/SystemStatusPage'
 import { TenantsPage } from './pages/TenantsPage'
+import { TwoFactorSetupPage } from './pages/TwoFactorSetupPage'
 import { UsersPage } from './pages/UsersPage'
 import { signInPathFor } from './services/returnTo'
 import { useAuth } from './store/AuthContext'
@@ -41,6 +42,8 @@ function RequireAuth() {
     )
   // 開こうとしていた画面を持たせて送る（ADR-0077 §8）。持たせないと、サインインした先は着地になる。
   if (!user) return <Navigate to={signInPathFor(location)} replace />
+  // 経路は変えない。登録が済めば、開こうとしていた画面がそのまま出る（ADR-0093）
+  if (user.two_factor_setup_required) return <TwoFactorSetupPage />
   return (
     <AppLayout>
       <Outlet />

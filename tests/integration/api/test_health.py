@@ -31,7 +31,8 @@ def test_info(client: TestClient) -> None:
     response = client.get("/info")
     assert response.status_code == 200
     data = response.json()
-    assert {"version", "git_sha", "branch", "build_time", "environment"} <= set(data)
+    # 未認証で読めるのは版だけ（ADR-0096）。増やすときは ADR を書き直す
+    assert set(data) == {"version", "git_sha"}
 
 
 def test_metrics_endpoint_available(client: TestClient) -> None:

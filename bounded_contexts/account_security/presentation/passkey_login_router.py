@@ -27,6 +27,7 @@ from bounded_contexts.audit.domain.entities.audit_event import AuditEventType
 from bounded_contexts.audit.presentation.dependencies import AuditRecorderDep
 from presentation.fastapi.dependencies.local_login import require_local_login
 from presentation.fastapi.schemas.auth import SessionResponse
+from presentation.fastapi.services.session_carry_over import SessionCarryOver
 from presentation.fastapi.services.session_cookies import establish_session
 from shared.infrastructure.models import User
 from shared.kernel.database.session import get_db
@@ -86,7 +87,7 @@ async def login_with_passkey(
             detail={"error": "invalid_credentials"},
         )
 
-    session = establish_session(response, user)
+    session = establish_session(response, user, SessionCarryOver(signed_in_with_passkey=True))
     # どの入口で入ったかを残す（ADR-0076 §3 決定 1）。
     recording.audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=passkey")
     logger.info("passkey_login_succeeded")
