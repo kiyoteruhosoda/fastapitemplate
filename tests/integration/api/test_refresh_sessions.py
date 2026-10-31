@@ -119,6 +119,31 @@ def test_a_refresh_racing_from_another_tab_does_not_sign_out(client: TestClient)
     assert _present(client, winner) == 200
 
 
+def test_a_chain_of_refreshes_from_several_tabs_does_not_sign_out(client: TestClient) -> None:
+    """1 つ目のタブが振り替えた直後に 2 つ目が新しい 1 本で更新しても、3 つ目の古い 1 本は使い回しにならない。"""
+    sign_in(client, _EMAIL, _PASSWORD)
+    first = _refresh_cookie(client)
+    assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    second = _refresh_cookie(client)
+
+    # 振り替えたばかりなので、今の 1 本でも振り替えない
+    assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    assert _refresh_cookie(client) == second
+
+    assert _present(client, first) == 200
+    assert _present(client, second) == 200
+
+
+def test_the_current_token_rotates_again_after_the_grace(client: TestClient) -> None:
+    sign_in(client, _EMAIL, _PASSWORD)
+    client.post(_REFRESH, headers=_headers(client))
+    second = _refresh_cookie(client)
+
+    with patch("presentation.fastapi.services.refresh_sessions.utcnow", return_value=_after_the_grace()):
+        assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
+    assert _refresh_cookie(client) != second
+
+
 def test_the_row_follows_the_rotation(client: TestClient, engine: sa.Engine) -> None:
     sign_in(client, _EMAIL, _PASSWORD)
     client.post(_REFRESH, headers=_headers(client))
