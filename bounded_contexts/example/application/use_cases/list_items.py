@@ -10,4 +10,4 @@ class ListItemsUseCase:
 
     def execute(self, order: ItemListOrder, page: PageRequest) -> Page[ItemDTO]:
         found = self._repository.find_page(order, page)
-        return Page(entries=[ItemDTO(id=item.id, name=item.name_value) for item in found.entries], total=found.total)
+        return Page(entries=[ItemDTO.of(item) for item in found.entries], total=found.total)

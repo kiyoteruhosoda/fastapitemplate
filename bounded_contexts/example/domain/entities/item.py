@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 from bounded_contexts.example.domain.value_objects.item_name import ItemName
 
@@ -7,10 +8,8 @@ from bounded_contexts.example.domain.value_objects.item_name import ItemName
 class Item:
     id: int
     name: ItemName
-
-    @classmethod
-    def create(cls, *, id: int, name: str) -> Item:
-        return cls(id=id, name=ItemName(name))
+    created_at: datetime
+    updated_at: datetime
 
     @property
     def name_value(self) -> str:

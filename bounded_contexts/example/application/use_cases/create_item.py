@@ -7,5 +7,4 @@ class CreateItemUseCase:
         self._repository = repository
 
     def execute(self, name: str) -> ItemDTO:
-        item = self._repository.save(name)
-        return ItemDTO(id=item.id, name=item.name_value)
+        return ItemDTO.of(self._repository.save(name))
