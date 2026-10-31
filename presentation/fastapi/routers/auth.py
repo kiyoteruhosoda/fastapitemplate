@@ -149,6 +149,8 @@ async def logout(
     """このログインだけを終わらせる（ほかの端末は続く。ADR-0091）。"""
     if logout_token:
         TokenService.end_refresh_session(logout_token, session=db)
+        # 振り替えと同じ行のロックを応答まで持ち越さない（session_cookies.py）
+        db.commit()
     clear_access_token_cookie(response)
     return StatusResponse(status="ok")
 
