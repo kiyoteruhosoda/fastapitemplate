@@ -141,7 +141,7 @@ erDiagram
         varchar(32) current_jti "新しいトークン対を受け取れる 1 本"
         varchar(32) previous_jti "振り替えの直後だけ受け付ける 1 本。NULL=まだ振り替えていない"
         datetime rotated_at "NULL=まだ振り替えていない"
-        datetime expires_at "索引あり"
+        datetime expires_at "索引あり。秒まで。延長なしでは更新で変わらない（ADR-0101）"
         datetime created_at
     }
 

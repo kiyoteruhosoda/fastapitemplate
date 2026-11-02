@@ -277,6 +277,8 @@ def change_password(
             active_role=current.active_role,
             federated_login=current.federated_login,
             signed_in_with_passkey=current.signed_in_with_passkey,
+            # 行は作り直すが、延長なしの寿命は延ばさない（ADR-0101）
+            lifetime_from_session_id=current.refresh_session_id,
         ),
     )
     logger.info("password_changed")

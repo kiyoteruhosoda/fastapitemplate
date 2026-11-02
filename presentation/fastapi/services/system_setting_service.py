@@ -22,7 +22,11 @@ from shared.infrastructure.models import SystemSetting
 from shared.kernel.outbound_destination import DestinationRefusedError, check_host_name
 from shared.kernel.restart import ALL_RESTART_SCOPES, RestartScope
 from shared.kernel.settings.settings import settings
-from shared.kernel.settings.system_settings_defaults import DEFAULT_APPLICATION_SETTINGS, ENV_ONLY_SETTINGS
+from shared.kernel.settings.system_settings_defaults import (
+    DEFAULT_APPLICATION_SETTINGS,
+    ENV_ONLY_SETTINGS,
+    MAX_REFRESH_TOKEN_EXPIRES_SECONDS,
+)
 
 _SETTING_KEY = "app.config"
 _SECRET_PLACEHOLDER = "********"
@@ -31,8 +35,18 @@ _SECRET_PLACEHOLDER = "********"
 _CHECKED_HOST_SETTINGS = frozenset({"MAIL_SERVER"})
 
 
+def _is_refresh_lifetime(value: Any) -> bool:
+    """正の整数か。⚠ ``True`` は ``int`` の仲間なので先に除く。"""
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        return False
+    try:
+        return 0 < int(value) <= MAX_REFRESH_TOKEN_EXPIRES_SECONDS
+    except ValueError:
+        return False
+
+
 class SettingRefusedError(ValueError):
-    """保存できない設定。``error`` は ``setting_env_only`` / ``invalid_destination``。"""
+    """保存できない設定。``error`` は ``setting_env_only`` / ``invalid_destination`` / ``invalid_setting_value``。"""
 
     def __init__(self, error: str, key: str) -> None:
         super().__init__(error)
@@ -125,6 +139,11 @@ class SystemSettingService:
                 check_host_name(str(value))
             except DestinationRefusedError as error:
                 raise SettingRefusedError("invalid_destination", key) from error
+        # ``None`` は「保存を消して既定へ戻す」で、いつでも通す
+        if key == "REFRESH_TOKEN_EXPIRES_SECONDS" and value is not None and not _is_refresh_lifetime(value):
+            raise SettingRefusedError("invalid_setting_value", key)
+        if key == "REFRESH_TOKEN_SLIDING_ENABLED" and value is not None and not isinstance(value, bool):
+            raise SettingRefusedError("invalid_setting_value", key)
 
     @staticmethod
     def restart_requirement(keys: Iterable[str]) -> RestartRequirement:

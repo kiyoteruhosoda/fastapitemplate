@@ -57,7 +57,7 @@ def set_access_token_cookie(response: Response, token: str) -> None:
     )
 
 
-def set_refresh_token_cookie(response: Response, token: str) -> None:
+def set_refresh_token_cookie(response: Response, token: str, *, max_age: int) -> None:
     """リフレッシュトークンを Cookie へ載せる（ADR-0076 §4）。
 
     ⚠ **応答本文には載せない。** Cookie は自動で送られるので、本文にも返すと
@@ -67,7 +67,7 @@ def set_refresh_token_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         REFRESH_TOKEN_COOKIE,
         token,
-        max_age=settings.refresh_token_expires_seconds,
+        max_age=max_age,
         httponly=True,
         secure=settings.session_cookie_secure,
         samesite="lax",
@@ -75,11 +75,11 @@ def set_refresh_token_cookie(response: Response, token: str) -> None:
     )
 
 
-def set_logout_token_cookie(response: Response, token: str) -> None:
+def set_logout_token_cookie(response: Response, token: str, *, max_age: int) -> None:
     response.set_cookie(
         LOGOUT_TOKEN_COOKIE,
         token,
-        max_age=settings.refresh_token_expires_seconds,
+        max_age=max_age,
         httponly=True,
         secure=settings.session_cookie_secure,
         samesite="lax",

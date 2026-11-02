@@ -169,6 +169,7 @@ def test_a_passkey_sign_in_is_not_asked_and_the_mark_survives_the_refresh(
         session_id=str(pair["refresh_session_id"]),
         user_id=user.id,
         jti=str(pair["refresh_jti"]),
+        expires_at=refresh_sessions.lifetime_for(db_session, None).expires_at,
     )
     db_session.commit()
     client.cookies.set(REFRESH_TOKEN_COOKIE, str(pair["refresh_token"]), path=REFRESH_COOKIE_PATH)

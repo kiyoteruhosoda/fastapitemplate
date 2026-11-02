@@ -30,6 +30,8 @@ class SessionCarryOver:
     presented_jti: str | None = None
     #: パスキーで入ったログインか。パスキーはそれだけで二要素を満たす（ADR-0093）
     signed_in_with_passkey: bool = False
+    #: 新しい行を作るが、寿命はこの控えから受け継ぐ（パスワードの変更。ADR-0101）
+    lifetime_from_session_id: str | None = None
 
 
 #: 入口から入ったばかりのセッション
