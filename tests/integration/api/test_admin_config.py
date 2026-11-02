@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 from sqlalchemy.orm import Session
@@ -79,6 +80,48 @@ def test_saved_value_wins_over_environment(
     # 消せば環境変数へ戻る（デフォルトではない）
     client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": None}})
     assert settings.mail_server == "smtp.from-env.example"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("false", False),
+        ("FALSE", False),
+        ("0", False),
+        ("no", False),
+        ("off", False),
+        ("anything", False),
+        ("true", True),
+        (" True ", True),
+        ("1", True),
+        ("yes", True),
+        ("on", True),
+    ],
+)
+def test_boolean_from_environment_is_shown_as_the_server_reads_it(
+    client: TestClient, system_admin_headers: dict[str, str], monkeypatch: MonkeyPatch, raw: str, expected: bool
+) -> None:
+    """環境変数の ``"false"`` を文字列のまま返すと、画面ではオンに見える（task #828）。"""
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", raw)
+    settings.reload_db_overrides()
+
+    items = {i["key"]: i for i in client.get("/api/admin/config", headers=system_admin_headers).json()}
+
+    assert items["SESSION_COOKIE_SECURE"]["value"] is expected
+    assert settings.session_cookie_secure is expected
+    assert items["SESSION_COOKIE_SECURE"]["env_fallback"] is True
+
+
+def test_saved_boolean_wins_over_environment_string(
+    client: TestClient, system_admin_headers: dict[str, str], monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
+    settings.reload_db_overrides()
+
+    client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"SESSION_COOKIE_SECURE": True}})
+
+    items = {i["key"]: i for i in client.get("/api/admin/config", headers=system_admin_headers).json()}
+    assert items["SESSION_COOKIE_SECURE"]["value"] is True
 
 
 def test_env_only_setting_cannot_be_saved_from_the_screen(

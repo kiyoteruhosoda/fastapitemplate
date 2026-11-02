@@ -80,7 +80,11 @@ class SystemSettingService:
         for definition in SYSTEM_SETTING_DEFINITIONS:
             key = str(definition["key"])
             value = settings.resolve(key)
-            if definition.get("secret") and value:
+            if definition.get("value_type") == "boolean":
+                # 環境変数の値は文字列のまま来る。画面がそのまま真偽に直すと "false" でも
+                # オンに見えるので、動きを決める ``get_bool`` と同じ読み方で返す（task #828）
+                value = settings.get_bool(key)
+            elif definition.get("secret") and value:
                 value = _SECRET_PLACEHOLDER
             result.append(
                 {
