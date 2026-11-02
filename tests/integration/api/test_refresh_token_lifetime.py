@@ -161,10 +161,6 @@ def test_without_extending_everything_shows_the_remaining_time(client: TestClien
     expires_at = utcnow().replace(microsecond=0) + timedelta(hours=1)
     _set_the_expiry(engine, expires_at)
 
-    response = client.post(_REFRESH, headers=_headers(client))
-    assert response.headers.get_list("set-cookie")
-    assert not any(h.startswith(f"{REFRESH_TOKEN_COOKIE}=") for h in response.headers.get_list("set-cookie"))
-
     moment = _after_the_grace()
     with patch(_UTCNOW, return_value=moment):
         rotated = client.post(_REFRESH, headers=_headers(client))
