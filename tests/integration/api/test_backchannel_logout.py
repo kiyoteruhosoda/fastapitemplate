@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 import jwt
@@ -31,11 +32,13 @@ from bounded_contexts.identity_federation.domain.services.oidc_provider_gateway 
 from bounded_contexts.identity_federation.domain.value_objects.logout_notice import (
     LOGOUT_EVENT,
 )
+from bounded_contexts.identity_federation.infrastructure import sql_session_revocation_repository
 from bounded_contexts.identity_federation.presentation import dependencies
 from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 from presentation.fastapi.middleware.csrf import CSRF_COOKIE, CSRF_HEADER
 from shared.domain.auth import master_data
 from shared.kernel.settings.settings import settings
+from shared.kernel.timestamps import utcnow
 from tests.conftest import register_issuer
 
 _ISSUER = "https://idp.example.test"
@@ -161,6 +164,24 @@ def test_the_access_token_outlives_the_stop_only_until_it_expires(sso_client: Te
     assert sso_client.get("/api/auth/me").status_code == 200
     # その「まだ」の上限が寿命である。
     assert settings.access_token_expires_seconds <= 300
+
+
+def test_a_stop_outlives_the_period_when_the_period_was_shortened(
+    sso_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """期間を短くしても、止めた記録は今あるログインより先に消えない（ADR-0102）。"""
+    monkeypatch.setenv("REFRESH_TOKEN_EXPIRES_SECONDS", "3600")
+    _sign_in_with_sso(sso_client)
+    monkeypatch.setenv("REFRESH_TOKEN_EXPIRES_SECONDS", "60")
+    assert _post_logout(sso_client, "session-1|delivery-1") == 200
+
+    # 今の期間（60 秒）を過ぎたころに別の停止が届く。掃除はこのときに走る。
+    later = utcnow() + timedelta(seconds=120)
+    monkeypatch.setattr(sql_session_revocation_repository, "utcnow", lambda: later)
+    assert _post_logout(sso_client, "another-session|delivery-2") == 200
+
+    assert _refresh(sso_client) == 401
 
 
 def test_a_stopped_session_cannot_be_refreshed(sso_client: TestClient) -> None:

@@ -61,7 +61,7 @@ class ReconcileFederatedUsers:
     identities: FederatedIdentityRepository
     revocations: SessionRevocationRepository
     roster: RosterGateway
-    #: 失効の記録を残す秒数。**リフレッシュトークンの寿命**を渡す（受け口と同じ。ADR-0077 §3）。
+    #: 失効の記録を残す最低限の秒数。**リフレッシュトークンの寿命**を渡す（受け口と同じ。ADR-0102）。
     keep_for_seconds: int
 
     def execute(self) -> ReconciliationOutcome:

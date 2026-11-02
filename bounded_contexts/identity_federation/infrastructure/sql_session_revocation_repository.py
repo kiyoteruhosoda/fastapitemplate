@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -17,6 +18,7 @@ from bounded_contexts.identity_federation.domain.value_objects.federated_login i
 from bounded_contexts.identity_federation.infrastructure.identity_federation_models import (
     FederatedSessionRevocationRecord,
 )
+from shared.infrastructure.models import RefreshSession
 from shared.kernel.timestamps import utcnow
 
 
@@ -38,11 +40,19 @@ class SqlSessionRevocationRepository:
                 subject=revocation.session.subject,
                 session_id=revocation.session.session_id,
                 revoked_at=revocation.revoked_at,
-                expires_at=revocation.expires_at,
+                expires_at=self._kept_until(revocation.expires_at),
             )
         )
         self.session.flush()
         return True
+
+    def _kept_until(self, earliest: datetime) -> datetime:
+        """記録を残す時刻。今あるログインのうち最後に終わるものより先に消さない（ADR-0102）。
+
+        ⚠ **利用者を絞らない。** ログインの控えは IdP 側の宛名を持たず、結び付きは外されていることがある。
+        """
+        last_end: datetime | None = self.session.scalar(select(func.max(RefreshSession.expires_at)))
+        return earliest if last_end is None else max(earliest, last_end)
 
     def is_revoked(self, login: FederatedLogin) -> bool:
         """そのログインを無効にする記録があるか。
