@@ -40,6 +40,13 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "integer",
     },
     {
+        # 偽でも振り替えは続ける。変えて効くのは次の更新から（ADR-0101）
+        "key": "REFRESH_TOKEN_SLIDING_ENABLED",
+        "category": "auth",
+        "label": "Extend the refresh token lifetime on each refresh",
+        "value_type": "boolean",
+    },
+    {
         "key": "SESSION_COOKIE_SECURE",
         "category": "auth",
         "label": "Secure cookie (HTTPS only)",

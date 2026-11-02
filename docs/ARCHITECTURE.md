@@ -85,6 +85,7 @@ Domain がフレームワーク・DB（`fastapi` / `sqlalchemy` / `pydantic` 等
 
 - ログインごとの控えを `refresh_sessions` に持つ（ADR-0091）。リフレッシュトークンは更新のたびに振り替え、使い回しはそのログインだけを
   終わらせる。ログアウトも同じ。トークンを Cookie へ載せる口は `establish_session` を必ず通す（通さないと控えが無く更新できない）。
+  更新で寿命を延ばすかは `REFRESH_TOKEN_SLIDING_ENABLED` で決める（ADR-0101）。
 
 - 第二の要素（二要素認証・パスキー）は `bounded_contexts/account_security/` が持つ
   （ADR-0076 §2）。パスワード認証は上記のまま、ログイン時に TOTP を検証する／パスキー

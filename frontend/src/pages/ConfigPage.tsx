@@ -6,7 +6,7 @@ import { PasswordInput } from '../components/PasswordInput'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
-import { api } from '../services/api'
+import { api, errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
 
 interface SettingItem {
@@ -57,10 +57,15 @@ export function ConfigPage() {
   }, [])
 
   const [save, saving] = usePendingAction(async () => {
-    const result = await api.put<SaveResult>('/api/admin/config', { values: edits })
-    await reload()
-    notify('success', t('common.saved'))
-    setPendingRestart(result.restart_required)
+    try {
+      const result = await api.put<SaveResult>('/api/admin/config', { values: edits })
+      await reload()
+      notify('success', t('common.saved'))
+      setPendingRestart(result.restart_required)
+    } catch (error) {
+      // 断られた値は編集中のまま残す（直して押し直せるように）
+      notify('error', t(errorMessageKey(error)))
+    }
   })
 
   const [requestRestart, restarting] = usePendingAction(async () => {

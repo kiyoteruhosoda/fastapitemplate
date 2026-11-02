@@ -127,12 +127,14 @@ class TokenService:
         *,
         scopes: list[str] | None = None,
         carry: SessionCarryOver = FRESH_SIGN_IN,
+        refresh_expires_at: datetime | None = None,
     ) -> dict[str, object]:
         """access / refresh トークンを発行する。
 
         ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
         ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0077 §3）。
         二要素の登録待ちのログインには権限を載せない（ADR-0093）。
+        ``refresh_expires_at`` は控えと揃える終わりの時刻（UTC naive。ADR-0101）。
         """
         granted = user.permission_codes_of(carry.active_role)
         setup_required = needs_two_factor_setup(user, carry)
@@ -140,7 +142,11 @@ class TokenService:
         now = utcnow_aware()
         refresh_session_id = carry.refresh_session_id or refresh_sessions.new_identifier()
         refresh_jti = refresh_sessions.new_identifier()
-        expires_at = now + timedelta(seconds=settings.refresh_token_expires_seconds)
+        expires_at = (
+            refresh_expires_at.replace(tzinfo=UTC)
+            if refresh_expires_at is not None
+            else now + timedelta(seconds=settings.refresh_token_expires_seconds)
+        )
         base_claims = {
             "sub": str(user.id),
             "iss": settings.access_token_issuer,
@@ -431,9 +437,9 @@ def _from_microseconds(value: int) -> datetime:
 def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
     """このトークンのセッションが終わっていないか。
 
-    終わっているのは 3 通り: パスワードを変えるなどして、利用者がそれより前の
+    終わっているのは 4 通り: パスワードを変えるなどして、利用者がそれより前の
     ログインを終わらせた（ADR-0076 §8）／IdP 側で止められた（ADR-0077 §3）／
-    ログアウトした・使い回しが見つかった（ADR-0091）。
+    ログアウトした・使い回しが見つかった（ADR-0091）／控えの期限を過ぎた（ADR-0101）。
     """
     if _issued_before_sessions_ended(claims, session) or _refresh_session_ended(claims, session):
         return True
@@ -442,9 +448,16 @@ def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
 
 
 def _refresh_session_ended(claims: dict[str, Any], session: Session) -> bool:
-    """控えが消えたログインか（ADR-0091）。控えの載っていないトークンはここでは止めない。"""
+    """控えが消えたか、期限を過ぎたログインか（ADR-0091・0101）。控えの載っていないトークンはここでは止めない。
+
+    ⚠ **期限もここで見る。** アクセストークンは期限の後も少し生きるので、見ないとロールの切り替えを
+    繰り返すだけで出し直しが続き、延長なしの期限を破れる。
+    """
     refresh_session_id = claims.get(CLAIM_REFRESH_SESSION)
-    return isinstance(refresh_session_id, str) and session.get(RefreshSession, refresh_session_id) is None
+    if not isinstance(refresh_session_id, str):
+        return False
+    row = session.get(RefreshSession, refresh_session_id)
+    return row is None or refresh_sessions.has_expired(row)
 
 
 def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> bool:

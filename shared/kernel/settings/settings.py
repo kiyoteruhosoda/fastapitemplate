@@ -19,7 +19,12 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from shared.kernel.settings.system_settings_defaults import DEFAULT_APPLICATION_SETTINGS, ENV_ONLY_SETTINGS
+from shared.kernel.settings.system_settings_defaults import (
+    DEFAULT_APPLICATION_SETTINGS,
+    DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS,
+    ENV_ONLY_SETTINGS,
+    MAX_REFRESH_TOKEN_EXPIRES_SECONDS,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -269,7 +274,14 @@ class ApplicationSettings:
 
     @property
     def refresh_token_expires_seconds(self) -> int:
-        return self.get_int("REFRESH_TOKEN_EXPIRES_SECONDS", 14 * 24 * 3600)
+        """⚠ 使えない値（0 以下・長すぎ）は既定へ戻す。環境変数は保存時の検査を通らない（ADR-0101）。"""
+        value = self.get_int("REFRESH_TOKEN_EXPIRES_SECONDS", DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS)
+        return value if 0 < value <= MAX_REFRESH_TOKEN_EXPIRES_SECONDS else DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS
+
+    @property
+    def refresh_token_sliding_enabled(self) -> bool:
+        """更新のたびに寿命を今から数え直すか。偽ならログインから数える（ADR-0101）。"""
+        return self.get_bool("REFRESH_TOKEN_SLIDING_ENABLED", True)
 
     @property
     def session_cookie_secure(self) -> bool:

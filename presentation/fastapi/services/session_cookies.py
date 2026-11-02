@@ -15,7 +15,7 @@ from __future__ import annotations
 import secrets
 
 from fastapi import HTTPException, Response, status
-from sqlalchemy.orm import object_session
+from sqlalchemy.orm import Session, object_session
 
 from presentation.fastapi.dependencies.auth import (
     set_access_token_cookie,
@@ -47,25 +47,35 @@ def establish_session(
     from presentation.fastapi.services.token_service import TokenService
 
     ensure_tenant_admits(user)
-    pair = TokenService.create_token_pair(user, carry=carry)
+    session = object_session(user)
+    if session is None:  # pragma: no cover - 入口は全部 DB から読んだ利用者を渡す
+        raise RuntimeError("the user must belong to a session")
+    lifetime = refresh_sessions.lifetime_for(session, carry.refresh_session_id or carry.lifetime_from_session_id)
+    pair = TokenService.create_token_pair(user, carry=carry, refresh_expires_at=lifetime.expires_at)
     set_access_token_cookie(response, str(pair["access_token"]))
-    if _record_refresh_session(user, pair, carry):
-        set_refresh_token_cookie(response, str(pair["refresh_token"]))
-        set_logout_token_cookie(response, str(pair["logout_token"]))
+    issued = refresh_sessions.IssuedRefreshToken(
+        session_id=str(pair["refresh_session_id"]),
+        jti=str(pair["refresh_jti"]),
+        lifetime=lifetime,
+    )
+    if _record_refresh_session(session, user, issued, carry):
+        set_refresh_token_cookie(response, str(pair["refresh_token"]), max_age=lifetime.max_age)
+        set_logout_token_cookie(response, str(pair["logout_token"]), max_age=lifetime.max_age)
     _set_csrf_cookie(response)
     return SessionResponse(expires_in=settings.access_token_expires_seconds)
 
 
-def _record_refresh_session(user: User, pair: dict[str, object], carry: SessionCarryOver) -> bool:
+def _record_refresh_session(
+    session: Session,
+    user: User,
+    issued: refresh_sessions.IssuedRefreshToken,
+    carry: SessionCarryOver,
+) -> bool:
     """控えを作るか振り替える（ADR-0091）。リフレッシュトークンの Cookie を載せてよければ真。"""
-    session = object_session(user)
-    if session is None:  # pragma: no cover - 入口は全部 DB から読んだ利用者を渡す
-        raise RuntimeError("the user must belong to a session")
-    session_id, jti = str(pair["refresh_session_id"]), str(pair["refresh_jti"])
     if carry.refresh_session_id is None:
-        refresh_sessions.begin(session, session_id=session_id, user_id=user.id, jti=jti)
+        refresh_sessions.begin(session, issued=issued, user_id=user.id)
         return True
-    rotated = refresh_sessions.rotate(session, session_id=session_id, new_jti=jti, expected_jti=carry.presented_jti)
+    rotated = refresh_sessions.rotate(session, issued=issued, expected_jti=carry.presented_jti)
     # ⚠ **行のロックを応答まで持ち越さない。** 同じログインの更新が同時に来ると、後の更新は確定までこの行を待つ。
     #   確定は応答を返した後（``get_db`` の後始末）なので、ここで確定して待ちを短くする。
     session.commit()

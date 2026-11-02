@@ -7,6 +7,10 @@
 
 from __future__ import annotations
 
+DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS = 14 * 24 * 3600
+#: これより長い寿命は受け付けない。桁を間違えると日時の計算があふれ、ログインが全部 500 になる（ADR-0101 決定 6）
+MAX_REFRESH_TOKEN_EXPIRES_SECONDS = 10 * 365 * 24 * 3600
+
 DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     # --- 認証 ---
     # ⚠ **本番（APP_ENV=production）ではこの値のまま起動できない**（ADR-0073 §4）。
@@ -14,7 +18,9 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "ACCESS_TOKEN_ISSUER": "fastapitemplate",
     "ACCESS_TOKEN_AUDIENCE": "fastapitemplate",
     "ACCESS_TOKEN_EXPIRES_SECONDS": 300,
-    "REFRESH_TOKEN_EXPIRES_SECONDS": 14 * 24 * 3600,
+    "REFRESH_TOKEN_EXPIRES_SECONDS": DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS,
+    # 更新のたびに寿命を今から数え直すか。偽ならログインから数える（ADR-0101）
+    "REFRESH_TOKEN_SLIDING_ENABLED": True,
     "SESSION_COOKIE_SECURE": False,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS": 3600,
     # パスキーの追加・削除とメールの変更は、サインインからこの秒数以内に限る（ADR-0076 §10）
