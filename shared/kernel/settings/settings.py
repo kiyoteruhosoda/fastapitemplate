@@ -274,7 +274,7 @@ class ApplicationSettings:
 
     @property
     def refresh_token_expires_seconds(self) -> int:
-        """⚠ 使えない値（0 以下・長すぎ）は既定へ戻す。環境変数と保存済みの値は保存時の検査を通っていない（ADR-0101）。"""
+        """⚠ 使えない値（0 以下・長すぎ）は既定へ戻す。環境変数は保存時の検査を通らない（ADR-0101）。"""
         value = self.get_int("REFRESH_TOKEN_EXPIRES_SECONDS", DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS)
         return value if 0 < value <= MAX_REFRESH_TOKEN_EXPIRES_SECONDS else DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS
 

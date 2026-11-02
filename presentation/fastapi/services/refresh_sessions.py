@@ -51,6 +51,15 @@ class RefreshLifetime:
     max_age: int
 
 
+@dataclass(frozen=True)
+class IssuedRefreshToken:
+    """控えへ記録する 1 本。"""
+
+    session_id: str
+    jti: str
+    lifetime: RefreshLifetime
+
+
 def new_identifier() -> str:
     return secrets.token_hex(16)
 
@@ -93,22 +102,22 @@ def lifetime_for(session: Session, continued_session_id: str | None) -> RefreshL
     )
 
 
-def begin(session: Session, *, session_id: str, user_id: int, jti: str, expires_at: datetime) -> None:
+def begin(session: Session, *, issued: IssuedRefreshToken, user_id: int) -> None:
     """ログインの始まりに 1 行置く。期限の切れた行はここで掃除する（定期実行を持たない）。"""
     session.execute(delete(RefreshSession).where(RefreshSession.expires_at < utcnow()))
-    session.add(RefreshSession(id=session_id, user_id=user_id, current_jti=jti, expires_at=expires_at))
+    session.add(
+        RefreshSession(
+            id=issued.session_id,
+            user_id=user_id,
+            current_jti=issued.jti,
+            expires_at=issued.lifetime.expires_at,
+        )
+    )
     session.flush()
 
 
-def rotate(
-    session: Session,
-    *,
-    session_id: str,
-    new_jti: str,
-    expected_jti: str | None = None,
-    extend_to: datetime | None = None,
-) -> bool:
-    """今の 1 本を ``new_jti`` へ振り替える。振り替えられなかったら偽。
+def rotate(session: Session, *, issued: IssuedRefreshToken, expected_jti: str | None = None) -> bool:
+    """今の 1 本を ``issued`` へ振り替える。振り替えられなかったら偽。
 
     ⚠ **読んでから書かない。** 同時に来た更新のうち勝つのは 1 本だけで、それを決めるのはこの
     ``UPDATE`` の条件である。負けた側は Cookie を載せない（負けた側が後から載せると、捨てられた
@@ -119,9 +128,9 @@ def rotate(
 
     ``expected_jti`` が ``None`` なのはロールの切り替え（更新の Cookie が届かない口で、どの 1 本かを問わない）。
 
-    ``extend_to`` が ``None`` なら ``expires_at`` に触らない（延長なし。ADR-0101）。
+    延長なしなら ``expires_at`` に触らない（ADR-0101）。
     """
-    conditions = [RefreshSession.id == session_id]
+    conditions = [RefreshSession.id == issued.session_id]
     if expected_jti is not None:
         settled = utcnow() - timedelta(seconds=REUSE_GRACE_SECONDS)
         conditions.append(RefreshSession.current_jti == expected_jti)
@@ -130,11 +139,11 @@ def rotate(
     #   並べるので、current_jti が先だと previous_jti に新しい値が入り、直前の 1 本が使い回しに見える。
     assignments: list[tuple[Any, Any]] = [
         (RefreshSession.previous_jti, RefreshSession.current_jti),
-        (RefreshSession.current_jti, new_jti),
+        (RefreshSession.current_jti, issued.jti),
         (RefreshSession.rotated_at, utcnow()),
     ]
-    if extend_to is not None:
-        assignments.append((RefreshSession.expires_at, extend_to))
+    if issued.lifetime.extends:
+        assignments.append((RefreshSession.expires_at, issued.lifetime.expires_at))
     result = cast(
         "CursorResult[Any]",
         session.execute(
@@ -151,6 +160,7 @@ def end(session: Session, session_id: str) -> None:
 
 __all__ = [
     "REUSE_GRACE_SECONDS",
+    "IssuedRefreshToken",
     "RefreshLifetime",
     "RefreshStanding",
     "begin",
