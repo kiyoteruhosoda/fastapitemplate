@@ -38,6 +38,7 @@ http / https だけ、人のアクセストークンの `aud` は常に `{issuer
    `ANDROID_APP_CERT_FINGERPRINTS`）。管理画面（DB の設定）からは変えられない。
 6. ⚠ **どれも空なら何もしない。** assetlinks は 404、assay のトークンは 1 本も受けない
    （`AppOrWebPrincipalDep` を付けた口も Web のトークンだけになる）。
+7. 端末の鍵に結び付けたトークン（`cnf.jkt`）は `Authorization: DPoP` と鍵の証明でだけ受ける（ADR-0103）。
 
 ### §2 戻り先の案内ページは、認可コードが付いていれば「タップで開き直す」ボタンを出す
 
