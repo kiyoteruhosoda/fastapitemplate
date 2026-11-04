@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from bounded_contexts.identity_federation.application.dto.sso_dto import (
+    ContinuedSessionDto,
     SsoAuthorizationDto,
 )
 from bounded_contexts.identity_federation.domain.services.login_secrets import (
@@ -31,6 +32,9 @@ from bounded_contexts.identity_federation.domain.value_objects.login_transaction
 )
 from bounded_contexts.identity_federation.domain.value_objects.redirect_target import (
     RedirectTarget,
+)
+from bounded_contexts.identity_federation.domain.value_objects.transaction_purpose import (
+    TransactionPurpose,
 )
 
 
@@ -54,6 +58,28 @@ class StartSsoLogin:
             issuer=provider.issuer,
             redirect_to=RedirectTarget.parse(redirect_to).path,
             silent=silent,
+        )
+        return authorization_for(provider, self.gateway, transaction, self.acr_values)
+
+    def renew(self, continued: ContinuedSessionDto | None) -> SsoAuthorizationDto:
+        """切れたログインを画面を出さずに続ける往復（見えない枠の中。ADR-0104）。
+
+        常に ``prompt=none``。``continued`` は手元に残っていた期限切れのトークンから読んだもので、
+        戻ってきた人が同じなら、ロール・サインインした時刻を引き継ぐ。読めなければ ``None``
+        （そのときは新しいログインとして入る）。
+        """
+        provider = require_usable(self.provider)
+        transaction = LoginTransaction(
+            state=new_secret(),
+            nonce=new_secret(),
+            code_verifier=new_code_verifier(),
+            issuer=provider.issuer,
+            purpose=TransactionPurpose.RENEW,
+            silent=True,
+            user_id=continued.user_id if continued is not None else None,
+            active_role=continued.active_role if continued is not None else None,
+            authenticated_at=continued.authenticated_at if continued is not None else None,
+            signed_in_with_passkey=continued.signed_in_with_passkey if continued is not None else False,
         )
         return authorization_for(provider, self.gateway, transaction, self.acr_values)
 

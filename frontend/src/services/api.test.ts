@@ -3,6 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError, api, errorMessageKey } from './api'
 import { currentOutage, reportOutage, resetOutageForTests } from './maintenance'
+import { subscribeSessionEnded } from './sessionEnded'
+
+const { renewInFrame } = vi.hoisted(() => ({ renewInFrame: vi.fn() }))
+vi.mock('./silentRenewal', () => ({
+  renewInFrame,
+  oneAtATime: <T>(task: () => Promise<T>) => task(),
+}))
 
 describe('errorMessageKey', () => {
   it('ApiError のコードを i18n キーへ変換する', () => {
@@ -63,8 +70,26 @@ describe('リクエストの組み立て', () => {
   })
 })
 
-/** 前段（edge）が閉じていると答えた 503（ADR-0080 §10）。 */
-describe('トークンの更新', () => {
+/**
+ * 401 のあと 1 回だけログインを続ける（ADR-0104）。パスワード・パスキーのログインは更新の口、
+ * SSO のログインは見えない枠で IdP へ問い合わせる。
+ */
+describe('ログインを続ける', () => {
+  const expired = { detail: { error: 'invalid_token', reason: 'token_expired' } }
+
+  function json(status: number, body: unknown = {}): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  beforeEach(() => {
+    renewInFrame.mockReset()
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -74,10 +99,9 @@ describe('トークンの更新', () => {
     const fetchMock = vi.fn((path: string) => {
       if (path === '/api/auth/refresh') {
         refreshed = true
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
+        return Promise.resolve(json(200))
       }
-      const status = refreshed ? 200 : 401
-      return Promise.resolve({ ok: status === 200, status, json: () => Promise.resolve({}) })
+      return Promise.resolve(refreshed ? json(200) : json(401, expired))
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -85,6 +109,64 @@ describe('トークンの更新', () => {
 
     const refreshes = fetchMock.mock.calls.filter(([path]) => path === '/api/auth/refresh')
     expect(refreshes).toHaveLength(1)
+    expect(renewInFrame).not.toHaveBeenCalled()
+  })
+
+  it('更新の札が無い（SSO のログイン）なら、見えない枠で IdP に問い合わせて続ける', async () => {
+    let renewed = false
+    renewInFrame.mockImplementation(() => {
+      renewed = true
+      return Promise.resolve('renewed')
+    })
+    const fetchMock = vi.fn((path: string) => {
+      if (path === '/api/auth/refresh')
+        return Promise.resolve(json(401, { detail: { error: 'invalid_token' } }))
+      return Promise.resolve(renewed ? json(200, { ok: 1 }) : json(401, expired))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.get('/api/items')).resolves.toEqual({ ok: 1 })
+    expect(renewInFrame).toHaveBeenCalledTimes(1)
+  })
+
+  it('IdP に断られたら、ログインが終わったと知らせて投げる', async () => {
+    renewInFrame.mockResolvedValue('declined')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(json(401, expired))),
+    )
+    const ended = vi.fn()
+    const stop = subscribeSessionEnded(ended)
+
+    await expect(api.get('/api/items')).rejects.toMatchObject({ status: 401 })
+    expect(ended).toHaveBeenCalledTimes(1)
+    // このタブではログイン画面でもう試さない（ADR-0077 §10）
+    expect(window.sessionStorage.getItem('ssoSilentTried')).toBe('1')
+    stop()
+  })
+
+  it('サインアウトした後は IdP に問い合わせない', async () => {
+    window.localStorage.setItem('ssoSignedOut', '1')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(json(401, expired))),
+    )
+
+    await expect(api.get('/api/items')).rejects.toMatchObject({ status: 401 })
+    expect(renewInFrame).not.toHaveBeenCalled()
+  })
+
+  it('入口の 401（パスワード違い）では続けない', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(json(401, { detail: { error: 'invalid_credentials' } })),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.post('/api/auth/login', {})).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(renewInFrame).not.toHaveBeenCalled()
   })
 })
 

@@ -1,6 +1,7 @@
 """ログインが成立したときに載せるもの（ADR-0076 §4）。
 
 トークンを発行する経路は 3 本ある（パスワード / パスキー / SSO の券の引き換え）。
+**SSO で入ったログインにはリフレッシュトークンを出さない**（アクセストークンだけ。ADR-0104）。
 **載せ方をここ 1 か所に集める** ——1 本でも Cookie の付け方がずれると、その入口
 だけ CSRF が効かない・更新できない、といった差が出る。
 
@@ -18,6 +19,7 @@ from fastapi import HTTPException, Response, status
 from sqlalchemy.orm import Session, object_session
 
 from presentation.fastapi.dependencies.auth import (
+    clear_refresh_cookies,
     set_access_token_cookie,
     set_logout_token_cookie,
     set_refresh_token_cookie,
@@ -44,9 +46,21 @@ def establish_session(
     入った」で、そのまま使ってよいのはパスワード・パスキーの入口だけ（SSO は IdP の
     セッションを渡す）。
     """
-    from presentation.fastapi.services.token_service import TokenService
+    from presentation.fastapi.services.token_service import RENEWAL_CARRY_SECONDS, TokenService
 
     ensure_tenant_admits(user)
+    if carry.federated_login is not None:
+        # SSO で入ったログインはリフレッシュトークンを持たない（ADR-0104）。切れたら画面が IdP に問い合わせる
+        # Cookie はトークンより長く残す。切れた後に続ける往復が、ロールとサインインした時刻を読む
+        set_access_token_cookie(
+            response,
+            TokenService.create_access_token(user, carry=carry),
+            max_age=RENEWAL_CARRY_SECONDS,
+        )
+        # この仕組みより前に出した更新の札が手元に残っていれば落とす（更新の口も、もう受けない）
+        clear_refresh_cookies(response)
+        _set_csrf_cookie(response)
+        return SessionResponse(expires_in=settings.access_token_expires_seconds)
     session = object_session(user)
     if session is None:  # pragma: no cover - 入口は全部 DB から読んだ利用者を渡す
         raise RuntimeError("the user must belong to a session")

@@ -36,6 +36,13 @@ npm run test         # Vitest
 運ばれ、JavaScript からは見えない。そのため:
 
 - ログイン済みかどうかは **`GET /api/auth/me` の成否**で判断する（手元の値を見ない）。
+- **SSO で入ったログインに refresh は無い**（ADR-0104）。401（`authentication_required`・`invalid_token`）が
+  返ったら、`src/services/api.ts` がまず `POST /api/auth/refresh`（パスワード・パスキーのログイン）、通らなければ
+  `src/services/silentRenewal.ts` が**見えない枠**で `GET /api/auth/sso/renew` を開いて IdP へ `prompt=none` で
+  問い合わせ、続けられたら同じ要求をやり直す。タブをまたいで 1 本ずつ（Web Locks）。サインアウトした後は問い合わせない。
+- 続けられなければ「ログインが終わった」と知らせ（`src/services/sessionEnded.ts`）、画面はログイン画面へ移る
+  （行き先は `redirect_to`）。**書きかけは `useSessionDraft`（sessionStorage）に写しておく**——メモとアイテムの
+  入力の窓はこれで持つので、戻ってくると開いたまま残っている。新しい入力の窓を作るときも `useState` ではなくこれで持つ。
 - 更新系（POST / PUT / PATCH / DELETE）には **CSRF の二重送信トークン**
   （`csrf_token` Cookie の値を `X-CSRF-Token` ヘッダーへ）を載せる。
   `src/services/api.ts` が毎回 Cookie から読み直す ——セッションを張り直すたびに

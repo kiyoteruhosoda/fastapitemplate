@@ -12,6 +12,7 @@ IdP へリダイレクトで離れて戻ってくる**その間だけ**必要に
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from hmac import compare_digest
 
 from bounded_contexts.identity_federation.domain.value_objects.transaction_purpose import (
@@ -27,7 +28,8 @@ class LoginTransaction:
     redirect_to: str = "/"
     #: この往復が何のために始まったか（ADR-0077 §5）。
     purpose: TransactionPurpose = TransactionPurpose.LOGIN
-    #: 連携の往復を始めた利用者。ログインの往復では ``None``。
+    #: 連携の往復を始めた利用者。続ける往復では続けるログインの利用者（分からなければ ``None``）。
+    #: ログインの往復では ``None``。
     #:
     #: ⚠ **戻ってきたときのセッションと突き合わせるためにある。** これが無いと、
     #:   往復の途中で別の利用者に入れ替わったブラウザが、**その人の口座へ**
@@ -43,6 +45,14 @@ class LoginTransaction:
     #: ⚠ **戻りで「入っていない」と言われたときの扱いを決めるためにある。** 試しただけなので
     #:   失敗ではなく、エラーを出さずにログイン画面へ戻す。
     silent: bool = False
+    #: 続けるログインのアクティブロール（続ける往復だけ。ADR-0104）。戻ったときに、まだ持っていれば引き継ぐ
+    active_role: str | None = None
+    #: 続けるログインで本人が最後に実際にサインインした時刻（続ける往復だけ。ADR-0076 §10・ADR-0104）。
+    #:
+    #: ⚠ **続けるのは入り直しではない。** 引き継がないと、5 分ごとに「入り直したばかり」になる。
+    authenticated_at: datetime | None = None
+    #: 続けるログインがパスキーで入ったものか（続ける往復だけ。ADR-0093）
+    signed_in_with_passkey: bool = False
 
     def is_for(self, issuer: str) -> bool:
         """この往復が、その発行者へ送り出したものか。"""

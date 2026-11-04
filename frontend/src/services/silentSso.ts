@@ -65,6 +65,15 @@ export function markSilentSsoTried(): boolean {
   }
 }
 
+/** サインアウトした印があるか（切れたログインを続ける問い合わせもしない。ADR-0104）。読めなければ真。 */
+export function signedOutHere(): boolean {
+  try {
+    return window.localStorage.getItem(SIGNED_OUT_KEY) !== null
+  } catch {
+    return true
+  }
+}
+
 /** サインアウトした。次にログイン画面を開いても試さない。 */
 export function markSignedOut(): void {
   try {

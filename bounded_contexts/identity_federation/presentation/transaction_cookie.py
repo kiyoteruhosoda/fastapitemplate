@@ -16,8 +16,8 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Any, TypedDict
 
 import jwt
 from fastapi import Response
@@ -47,6 +47,9 @@ def issue(response: Response, transaction: LoginTransaction, *, path: str) -> No
         "user_id": transaction.user_id,
         "issuer": transaction.issuer,
         "silent": transaction.silent,
+        "active_role": transaction.active_role,
+        "auth_time": _epoch_of(transaction.authenticated_at),
+        "passkey": transaction.signed_in_with_passkey,
         "exp": utcnow() + timedelta(seconds=ttl),
     }
     response.set_cookie(
@@ -88,6 +91,27 @@ def read(raw: str | None) -> LoginTransaction | None:
         issuer=issuer if isinstance(issuer, str) else "",
         # 試した往復（ADR-0077 §9）より前の Cookie には無い。ふつうの往復として読む
         silent=claims.get("silent") is True,
+        **_continued_of(claims),
+    )
+
+
+def _epoch_of(moment: datetime | None) -> int | None:
+    return int(moment.timestamp()) if moment is not None else None
+
+
+class _Continued(TypedDict):
+    active_role: str | None
+    authenticated_at: datetime | None
+    signed_in_with_passkey: bool
+
+
+def _continued_of(claims: dict[str, Any]) -> _Continued:
+    """続ける往復が引き継ぐもの（ADR-0104）。ほかの往復と、この仕組みより前の Cookie には無い。"""
+    role, auth_time = claims.get("active_role"), claims.get("auth_time")
+    return _Continued(
+        active_role=role if isinstance(role, str) else None,
+        authenticated_at=datetime.fromtimestamp(auth_time, UTC) if isinstance(auth_time, int) else None,
+        signed_in_with_passkey=claims.get("passkey") is True,
     )
 
 

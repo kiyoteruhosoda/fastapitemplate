@@ -293,6 +293,7 @@ class BackchannelLogout:
 
     記録を残す期間は**リフレッシュトークンの寿命**を最低限にする。これを過ぎれば
     停止より前に発行されたトークンは自力で期限切れになる（古いログインが残っている間は ADR-0102）。
+    SSO で入ったログインは更新の札を持たないので（ADR-0104）、**アクセストークンの寿命**より短くはしない。
     """
 
     db: Session
@@ -303,7 +304,7 @@ class BackchannelLogout:
             provider=provider_issuing(self.db, issuer),
             gateway=self.gateway,
             revocations=SqlSessionRevocationRepository(self.db),
-            keep_for_seconds=settings.refresh_token_expires_seconds,
+            keep_for_seconds=max(settings.refresh_token_expires_seconds, settings.access_token_expires_seconds),
         )
 
 

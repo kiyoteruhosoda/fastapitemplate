@@ -134,8 +134,14 @@ def _post_logout(client: TestClient, logout_token: str) -> int:
         return idp.post(_LOGOUT, data={"logout_token": signed}).status_code
 
 
-def _refresh(client: TestClient) -> int:
-    response = client.post("/api/auth/refresh", headers={CSRF_HEADER: client.cookies[CSRF_COOKIE]})
+def _reissue(client: TestClient) -> int:
+    """出し直しの口を通るか。SSO で入ったログインは更新の札を持たないので（ADR-0104）、止まったかは
+    トークンを出し直す口（ロールの切り替え）で見る。IdP への問い合わせ（続ける往復）は IdP 側が断る。"""
+    response = client.post(
+        "/api/auth/switch-role",
+        json={"role": None},
+        headers={CSRF_HEADER: client.cookies[CSRF_COOKIE]},
+    )
     return response.status_code
 
 
@@ -149,7 +155,7 @@ def test_a_stop_from_the_idp_ends_the_session_at_the_next_refresh(sso_client: Te
     assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
     assert sso_client.get("/api/auth/me").status_code == 200
     # 終わるのは更新のとき。ここから先は新しいアクセストークンが出ない。
-    assert _refresh(sso_client) == 401
+    assert _reissue(sso_client) == 401
 
 
 def test_the_access_token_outlives_the_stop_only_until_it_expires(sso_client: TestClient) -> None:
@@ -181,7 +187,7 @@ def test_a_stop_outlives_the_period_when_the_period_was_shortened(
     monkeypatch.setattr(sql_session_revocation_repository, "utcnow", lambda: later)
     assert _post_logout(sso_client, "another-session|delivery-2") == 200
 
-    assert _refresh(sso_client) == 401
+    assert _reissue(sso_client) == 401
 
 
 def test_a_stopped_session_cannot_be_refreshed(sso_client: TestClient) -> None:
@@ -192,19 +198,19 @@ def test_a_stopped_session_cannot_be_refreshed(sso_client: TestClient) -> None:
     """
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    assert _refresh(sso_client) == 401
+    assert _reissue(sso_client) == 401
 
 
 def test_a_stop_for_another_session_leaves_this_one_alone(sso_client: TestClient) -> None:
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-2|delivery-1") == 200
-    assert _refresh(sso_client) == 200
+    assert _reissue(sso_client) == 200
 
 
 def test_a_stop_without_a_sid_ends_every_session_of_that_user(sso_client: TestClient) -> None:
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "|delivery-1") == 200
-    assert _refresh(sso_client) == 401
+    assert _reissue(sso_client) == 401
 
 
 def test_signing_in_again_after_a_stop_works(sso_client: TestClient, gateway: _StubGateway) -> None:
@@ -230,7 +236,7 @@ def test_switching_roles_keeps_the_session_stoppable(sso_client: TestClient) -> 
     _sign_in_with_sso(sso_client)
     assert _switch_role(sso_client) == 200
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    assert _refresh(sso_client) == 401
+    assert _reissue(sso_client) == 401
 
 
 def test_a_stopped_session_cannot_mint_new_tokens_by_switching_roles(sso_client: TestClient) -> None:
@@ -276,7 +282,7 @@ def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient,
     gateway.sid = "session-1"
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    assert _refresh(sso_client) == 200
+    assert _reissue(sso_client) == 200
 
 
 def test_a_local_login_is_not_touched(sso_client: TestClient) -> None:
