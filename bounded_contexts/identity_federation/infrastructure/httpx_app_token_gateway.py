@@ -52,6 +52,25 @@ class HttpxAppTokenGateway:
             raise AppAccessTokenRejectedError from error
         return claims
 
+    def verify_id_token(self, issuer: str, id_token: str, client_ids: frozenset[str]) -> Mapping[str, Any]:
+        metadata = self._metadata.metadata(issuer)
+        try:
+            # ⚠ 鍵の取得も try の中（壊れた入力が 500 に化けないように）
+            key = self._metadata.signing_key(metadata.jwks_uri, id_token)
+            claims: dict[str, Any] = jwt.decode(
+                id_token,
+                key,
+                algorithms=_ALGORITHMS,
+                issuer=metadata.issuer,
+                # 宛先はアプリの client_id（ID トークンの aud）。受け取ってよいアプリのものだけ
+                audience=sorted(client_ids),
+                options={"require": ["exp", "iat", "iss", "aud", "sub"]},
+            )
+        except jwt.InvalidTokenError as error:
+            logger.info("app_id_token_rejected")
+            raise AppAccessTokenRejectedError from error
+        return claims
+
     def userinfo(self, issuer: str, token: str) -> Mapping[str, Any]:
         metadata = self._metadata.metadata(issuer)
         if not metadata.userinfo_endpoint:

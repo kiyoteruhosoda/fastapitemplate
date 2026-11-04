@@ -15,6 +15,14 @@ class AppTokenGateway(Protocol):
         """
         ...
 
+    def verify_id_token(self, issuer: str, id_token: str, client_ids: frozenset[str]) -> Mapping[str, Any]:
+        """アプリが送った ID トークンの署名・発行者・宛先（``client_ids`` のどれか）・期限を確かめる（ADR-0103）。
+
+        結び付けたトークン（``cnf.jkt``）ではこちらから userinfo を引けないので、初めて来た人の
+        プロフィールはこちらから読む。合わなければ ``AppAccessTokenRejectedError``。
+        """
+        ...
+
     def userinfo(self, issuer: str, token: str) -> Mapping[str, Any]:
         """そのトークンで userinfo を引く。``sub`` が食い違う応答は空として返す。"""
         ...

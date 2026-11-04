@@ -10,16 +10,19 @@
 1. このアプリが発行したトークン（Web の Cookie / ヘッダー）ならそのまま通す
 2. ``Authorization: Bearer`` で来た assay のアクセストークンなら、受け取れるか確かめて利用者へ落とす
    ——権限は**毎回 DB から**引く（assay のトークンには載っていない）
-3. どちらでもなければ、1 と同じ 401
+3. ``Authorization: DPoP`` で来たら、``DPoP`` ヘッダーの証明と一緒に確かめる（ADR-0103）。
+   ``cnf.jkt`` のある（端末の鍵に結び付けた）トークンは、この形でしか通らない
+4. どちらでもなければ、1 と同じ 401
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Annotated
 
 import jwt
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -29,7 +32,12 @@ from bounded_contexts.identity_federation.application.use_cases.authenticate_app
     AuthenticateAppAccessToken,
 )
 from bounded_contexts.identity_federation.domain.services.app_token_gateway import AppTokenGateway
+from bounded_contexts.identity_federation.domain.value_objects.presented_app_token import PresentedAppToken
 from bounded_contexts.identity_federation.infrastructure.httpx_app_token_gateway import HttpxAppTokenGateway
+from bounded_contexts.identity_federation.infrastructure.pyjwt_dpop_proof_verifier import PyJwtDpopProofVerifier
+from bounded_contexts.identity_federation.infrastructure.sql_dpop_proof_replay_repository import (
+    SqlDpopProofReplayRepository,
+)
 from bounded_contexts.identity_federation.infrastructure.sql_federated_identity_repository import (
     SqlFederatedIdentityRepository,
 )
@@ -58,6 +66,9 @@ from shared.kernel.settings.settings import settings
 logger = logging.getLogger(__name__)
 
 _app_token_gateway = HttpxAppTokenGateway()
+_dpop_proof_verifier = PyJwtDpopProofVerifier()
+#: ``Authorization: DPoP <token>``（RFC 9449 §7.1）。``HTTPBearer`` は ``Bearer`` しか読まないので自分で読む。
+_DPOP_SCHEME = "dpop "
 
 
 def app_token_gateway() -> AppTokenGateway:
@@ -83,6 +94,8 @@ def authenticate_app_access_token(db: Session, gateway: AppTokenGateway, token: 
         revocations=SqlSessionRevocationRepository(db),
         claims=claims_mapping(),
         accounts=resolve_federated_account(db, issuer),
+        dpop_proofs=_dpop_proof_verifier,
+        dpop_replays=SqlDpopProofReplayRepository(db),
     )
 
 
@@ -101,8 +114,10 @@ def _is_our_token(token: str) -> bool:
     return principal is not None
 
 
-def _principal_of_app_token(db: Session, gateway: AppTokenGateway, bearer: str) -> AuthenticatedPrincipal:
-    user = db.get(User, authenticate_app_access_token(db, gateway, bearer).execute(bearer))
+def _principal_of_app_token(
+    db: Session, gateway: AppTokenGateway, presented: PresentedAppToken
+) -> AuthenticatedPrincipal:
+    user = db.get(User, authenticate_app_access_token(db, gateway, presented.token).execute(presented))
     if user is None or not user.is_active or not tenant_admits(db, user):
         logger.info("app_access_token_user_inactive")
         raise HTTPException(
@@ -119,15 +134,75 @@ def _principal_of_app_token(db: Session, gateway: AppTokenGateway, bearer: str) 
     )
 
 
+def _dpop_token(authorization: str | None) -> str | None:
+    """``Authorization: DPoP <token>`` のトークン。``DPoP`` の方式でなければ ``None``。"""
+    if authorization is None or not authorization.lower().startswith(_DPOP_SCHEME):
+        return None
+    return authorization[len(_DPOP_SCHEME) :].strip() or None
+
+
+def _endpoint_uri(request: Request) -> str:
+    """このサーバーが外へ名乗る、この口の URL（証明の ``htu`` と比べる。ADR-0103）。
+
+    ⚠ ``APP_BASE_URL`` から組み立てる。前段の proxy（cloudflared・nginx）の後ろでは、要求の
+    ``Host``・スキームはアプリが署名した URL と食い違う。未設定（手元の開発）のときだけ要求から作る。
+    """
+    base = settings.app_base_url.rstrip("/") or str(request.base_url).rstrip("/")
+    return f"{base}{request.url.path}"
+
+
+@dataclass(frozen=True)
+class _AppRequest:
+    """アプリ向けの口に来た要求の、認証に関わる部分（ヘッダーと宛先）。"""
+
+    credentials: HTTPAuthorizationCredentials | None
+    #: ``Authorization: DPoP <token>`` のトークン（``Bearer`` なら ``None``）。
+    dpop_token: str | None
+    proof: str | None
+    id_token: str | None
+    method: str
+    uri: str
+
+    @property
+    def app_token(self) -> str | None:
+        credentials = self.credentials
+        bearer = credentials.credentials if credentials and credentials.scheme.lower() == "bearer" else None
+        return self.dpop_token or bearer
+
+    def presented(self, token: str) -> PresentedAppToken:
+        return PresentedAppToken(
+            token=token,
+            dpop=self.dpop_token is not None,
+            proof=self.proof,
+            method=self.method,
+            uri=self.uri,
+            id_token=self.id_token,
+        )
+
+
+def _app_request(request: Request, credentials: BearerDep) -> _AppRequest:
+    """``Authorization``（``Bearer`` / ``DPoP``）・``DPoP``・``X-ID-Token`` と宛先を読む（ADR-0103）。"""
+    headers = request.headers
+    return _AppRequest(
+        credentials=credentials,
+        dpop_token=_dpop_token(headers.get("authorization")),
+        proof=headers.get("dpop"),
+        id_token=headers.get("x-id-token"),
+        method=request.method.upper(),
+        uri=_endpoint_uri(request),
+    )
+
+
 async def get_app_or_web_principal(
-    credentials: BearerDep,
+    app_request: Annotated[_AppRequest, Depends(_app_request)],
     gateway: AppTokenGatewayDep,
     db: DbDep,
     access_token_cookie: Annotated[str | None, Cookie(alias=ACCESS_TOKEN_COOKIE)] = None,
 ) -> AuthenticatedPrincipal:
-    bearer = credentials.credentials if credentials and credentials.scheme.lower() == "bearer" else None
-    if bearer is None or _is_our_token(bearer) or not settings.app_client_ids:
-        principal = await get_operation_principal(credentials, access_token_cookie)
+    app_token = app_request.app_token
+    is_ours = app_request.dpop_token is None and app_token is not None and _is_our_token(app_token)
+    if app_token is None or is_ours or not settings.app_client_ids:
+        principal = await get_operation_principal(app_request.credentials, access_token_cookie)
         if principal.is_machine:
             # scope で守られていない口なので、機械のトークンはここでも断る（ADR-0087 決定 4）
             refuse_machine(principal, "app_or_web")
@@ -135,7 +210,7 @@ async def get_app_or_web_principal(
         return principal
     # ⚠ **DB と HTTP はスレッドへ逃がし、ログの文脈はここで置く。** スレッドの中で置いた ``ContextVar`` は
     #   ミドルウェアへ戻らない（ADR-0100 決定 3）。
-    principal = await run_in_threadpool(_principal_of_app_token, db, gateway, bearer)
+    principal = await run_in_threadpool(_principal_of_app_token, db, gateway, app_request.presented(app_token))
     user_id_hash_var.set(principal.id_hash)
     actor_user_id_var.set(principal.user_id)
     return principal
