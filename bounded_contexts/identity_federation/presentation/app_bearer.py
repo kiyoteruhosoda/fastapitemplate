@@ -18,10 +18,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Annotated
 
 import jwt
-from fastapi import Cookie, Depends, Header, HTTPException, Request, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -150,37 +151,66 @@ def _endpoint_uri(request: Request) -> str:
     return f"{base}{request.url.path}"
 
 
+@dataclass(frozen=True)
+class _AppRequest:
+    """アプリ向けの口に来た要求の、認証に関わる部分（ヘッダーと宛先）。"""
+
+    credentials: HTTPAuthorizationCredentials | None
+    #: ``Authorization: DPoP <token>`` のトークン（``Bearer`` なら ``None``）。
+    dpop_token: str | None
+    proof: str | None
+    id_token: str | None
+    method: str
+    uri: str
+
+    @property
+    def app_token(self) -> str | None:
+        credentials = self.credentials
+        bearer = credentials.credentials if credentials and credentials.scheme.lower() == "bearer" else None
+        return self.dpop_token or bearer
+
+    def presented(self, token: str) -> PresentedAppToken:
+        return PresentedAppToken(
+            token=token,
+            dpop=self.dpop_token is not None,
+            proof=self.proof,
+            method=self.method,
+            uri=self.uri,
+            id_token=self.id_token,
+        )
+
+
+def _app_request(request: Request, credentials: BearerDep) -> _AppRequest:
+    """``Authorization``（``Bearer`` / ``DPoP``）・``DPoP``・``X-ID-Token`` と宛先を読む（ADR-0103）。"""
+    headers = request.headers
+    return _AppRequest(
+        credentials=credentials,
+        dpop_token=_dpop_token(headers.get("authorization")),
+        proof=headers.get("dpop"),
+        id_token=headers.get("x-id-token"),
+        method=request.method.upper(),
+        uri=_endpoint_uri(request),
+    )
+
+
 async def get_app_or_web_principal(
-    request: Request,
-    credentials: BearerDep,
+    app_request: Annotated[_AppRequest, Depends(_app_request)],
     gateway: AppTokenGatewayDep,
     db: DbDep,
     access_token_cookie: Annotated[str | None, Cookie(alias=ACCESS_TOKEN_COOKIE)] = None,
-    authorization: Annotated[str | None, Header()] = None,
-    dpop: Annotated[str | None, Header(alias="DPoP")] = None,
-    id_token: Annotated[str | None, Header(alias="X-ID-Token")] = None,
 ) -> AuthenticatedPrincipal:
-    dpop_token = _dpop_token(authorization)
-    bearer = credentials.credentials if credentials and credentials.scheme.lower() == "bearer" else None
-    app_token = dpop_token or bearer
-    if app_token is None or (dpop_token is None and _is_our_token(app_token)) or not settings.app_client_ids:
-        principal = await get_operation_principal(credentials, access_token_cookie)
+    app_token = app_request.app_token
+    is_ours = app_request.dpop_token is None and app_token is not None and _is_our_token(app_token)
+    if app_token is None or is_ours or not settings.app_client_ids:
+        principal = await get_operation_principal(app_request.credentials, access_token_cookie)
         if principal.is_machine:
             # scope で守られていない口なので、機械のトークンはここでも断る（ADR-0087 決定 4）
             refuse_machine(principal, "app_or_web")
         refuse_during_two_factor_setup(principal)
         return principal
-    presented = PresentedAppToken(
-        token=app_token,
-        dpop=dpop_token is not None,
-        proof=dpop,
-        method=request.method.upper(),
-        uri=_endpoint_uri(request),
-        id_token=id_token,
-    )
     # ⚠ **DB と HTTP はスレッドへ逃がし、ログの文脈はここで置く。** スレッドの中で置いた ``ContextVar`` は
     #   ミドルウェアへ戻らない（ADR-0100 決定 3）。
-    principal = await run_in_threadpool(_principal_of_app_token, db, gateway, presented)
+    principal = await run_in_threadpool(_principal_of_app_token, db, gateway, app_request.presented(app_token))
     user_id_hash_var.set(principal.id_hash)
     actor_user_id_var.set(principal.user_id)
     return principal
