@@ -148,6 +148,15 @@ class AppAccessTokenRejectedError(IdentityFederationError):
     code = "invalid_token"
 
 
+class DpopProofRejectedError(AppAccessTokenRejectedError):
+    """``cnf.jkt`` のあるトークンに、合う DPoP の証明が付いていない（ADR-0103）。
+
+    401 と ``WWW-Authenticate: DPoP error="invalid_dpop_proof"``。アプリは時計を直して 1 回だけ送り直す。
+    """
+
+    code = "invalid_dpop_proof"
+
+
 class MachineNotBoundToApplicationError(IdentityFederationError):
     """名乗ったサービスアカウントが、assay でどのアプリにも結び付いていない（管理 API の 403。ADR-0077 §7）。
 
@@ -193,6 +202,7 @@ class MachineActorNotFoundError(IdentityFederationError):
 
 
 __all__ = [
+    "DpopProofRejectedError",
     "IdentityFederationError",
     "IdentityProviderUnavailableError",
     "InvalidIdTokenError",

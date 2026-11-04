@@ -15,10 +15,13 @@ from fastapi.testclient import TestClient
 from bounded_contexts.identity_federation.domain.exceptions import AppAccessTokenRejectedError
 from bounded_contexts.identity_federation.presentation.app_bearer import app_token_gateway
 from tests.conftest import register_issuer
+from tests.dpop_device_key import DeviceKey
 
 _ISSUER = "https://idp.example.test/tenant"
 _APP = "exampleapp"
 _SUBJECT = "01a0-alice"
+_BASE_URL = "https://app.example.test"
+_ME = f"{_BASE_URL}/api/app/me"
 
 
 class _StubAppTokenGateway:
@@ -27,6 +30,7 @@ class _StubAppTokenGateway:
     def __init__(self) -> None:
         self.tokens: dict[str, dict[str, Any]] = {}
         self.userinfo_calls = 0
+        self.id_token_calls = 0
 
     def issue(self, name: str, **overrides: Any) -> str:
         """assay のアクセストークンと同じく JWT の形にする（発行者でテナントを選ぶため。ADR-0079 §4）。
@@ -43,6 +47,13 @@ class _StubAppTokenGateway:
         if token not in self.tokens:
             raise AppAccessTokenRejectedError
         return self.tokens[token]
+
+    def verify_id_token(self, issuer: str, id_token: str, client_ids: frozenset[str]) -> Mapping[str, Any]:
+        assert issuer == _ISSUER
+        self.id_token_calls += 1
+        if id_token != "id-token-of-alice" or _APP not in client_ids:
+            raise AppAccessTokenRejectedError
+        return {"sub": _SUBJECT, "email": "alice@example.com", "email_verified": True, "name": "alice"}
 
     def userinfo(self, issuer: str, token: str) -> Mapping[str, Any]:
         self.userinfo_calls += 1
@@ -66,6 +77,7 @@ def app_client(
     monkeypatch.setenv("OIDC_AUTO_PROVISION", "true")
     monkeypatch.setenv("OIDC_DEFAULT_ROLES", '["member"]')
     monkeypatch.setenv("APP_CLIENT_IDS", f'["{_APP}"]')
+    monkeypatch.setenv("APP_BASE_URL", _BASE_URL)
     app: FastAPI = create_app()
     app.dependency_overrides[app_token_gateway] = lambda: gateway
     with TestClient(app) as client:
@@ -168,3 +180,81 @@ def test_assetlinks_is_served_only_when_configured(app_client: TestClient, monke
         "package_name": "com.nolumia.exampleapp",
         "sha256_cert_fingerprints": ["AA:BB"],
     }
+
+
+# ---------------------------------------------------------------------------
+# 端末の鍵に結び付けたトークン（DPoP。ADR-0103）
+# ---------------------------------------------------------------------------
+
+
+def _dpop(token: str, proof: str | None, *, id_token: str | None = None) -> dict[str, str]:
+    headers = {"Authorization": f"DPoP {token}"}
+    if proof is not None:
+        headers["DPoP"] = proof
+    if id_token is not None:
+        headers["X-ID-Token"] = id_token
+    return headers
+
+
+def test_a_bound_token_is_accepted_with_a_proof_of_its_key(
+    app_client: TestClient, gateway: _StubAppTokenGateway
+) -> None:
+    device = DeviceKey()
+    token = gateway.issue("t1", cnf={"jkt": device.thumbprint})
+
+    first = app_client.get(
+        "/api/app/me", headers=_dpop(token, device.proof("GET", _ME, token), id_token="id-token-of-alice")
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["email"] == "alice@example.com"
+    # 初めて来た人のプロフィールは ID トークンから（結び付けたトークンでは userinfo を引けない）
+    assert gateway.userinfo_calls == 0
+    assert gateway.id_token_calls == 1
+
+    assert app_client.get("/api/app/me", headers=_dpop(token, device.proof("GET", _ME, token))).status_code == 200
+
+
+def test_a_bound_token_alone_is_useless(app_client: TestClient, gateway: _StubAppTokenGateway) -> None:
+    """トークンだけを別の端末へ写しても使えない（AC1）。"""
+    device, thief = DeviceKey(), DeviceKey()
+    token = gateway.issue("t1", cnf={"jkt": device.thumbprint})
+    first = _dpop(token, device.proof("GET", _ME, token), id_token="id-token-of-alice")
+    assert app_client.get("/api/app/me", headers=first).status_code == 200
+
+    # Bearer として出す
+    assert app_client.get("/api/app/me", headers=_bearer(token)).status_code == 401
+    # DPoP で出しても証明が無い
+    missing = app_client.get("/api/app/me", headers=_dpop(token, None))
+    assert missing.status_code == 401
+    assert missing.json()["detail"]["error"] == "invalid_dpop_proof"
+    assert missing.headers["WWW-Authenticate"].startswith("DPoP ")
+    # 別の鍵で証明を作る
+    stolen = app_client.get("/api/app/me", headers=_dpop(token, thief.proof("GET", _ME, token)))
+    assert stolen.status_code == 401
+    assert stolen.json()["detail"]["error"] == "invalid_dpop_proof"
+
+
+def test_a_proof_is_used_only_once_and_only_for_its_request(
+    app_client: TestClient, gateway: _StubAppTokenGateway
+) -> None:
+    device = DeviceKey()
+    token = gateway.issue("t1", cnf={"jkt": device.thumbprint})
+    proof = device.proof("GET", _ME, token)
+    assert app_client.get("/api/app/me", headers=_dpop(token, proof, id_token="id-token-of-alice")).status_code == 200
+
+    assert app_client.get("/api/app/me", headers=_dpop(token, proof)).status_code == 401
+    # 別の口・別のメソッド宛ての証明
+    other_path = device.proof("GET", f"{_BASE_URL}/api/notifications", token)
+    assert app_client.get("/api/app/me", headers=_dpop(token, other_path)).status_code == 401
+    other_method = device.proof("POST", _ME, token)
+    assert app_client.get("/api/app/me", headers=_dpop(token, other_method)).status_code == 401
+
+
+def test_an_unbound_token_is_not_taken_with_the_dpop_scheme(
+    app_client: TestClient, gateway: _StubAppTokenGateway
+) -> None:
+    device = DeviceKey()
+    token = gateway.issue("t1")
+    assert app_client.get("/api/app/me", headers=_dpop(token, device.proof("GET", _ME, token))).status_code == 401
+    # 今までのアプリ（Bearer）はそのまま（AC3）
+    assert app_client.get("/api/app/me", headers=_bearer(token)).status_code == 200

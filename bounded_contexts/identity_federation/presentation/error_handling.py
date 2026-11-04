@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from bounded_contexts.identity_federation.domain.exceptions import (
+    DpopProofRejectedError,
     IdentityFederationError,
     IdentityProviderUnavailableError,
     InvalidLogoutTokenError,
@@ -40,6 +41,12 @@ _STATUS_BY_ERROR: dict[type[IdentityFederationError], int] = {
 }
 
 
+#: 401 に添える ``WWW-Authenticate``。DPoP の証明の誤りは、アプリが時計を直して作り直す合図（RFC 9449 §7.1・ADR-0103）。
+_CHALLENGES: dict[type[IdentityFederationError], dict[str, str]] = {
+    DpopProofRejectedError: {"WWW-Authenticate": 'DPoP error="invalid_dpop_proof", algs="ES256"'},
+}
+
+
 def status_for(error: IdentityFederationError) -> int:
     """既定は 401。SSO の失敗はどれもログインが通らなかったことを意味する。"""
     return _STATUS_BY_ERROR.get(type(error), status.HTTP_401_UNAUTHORIZED)
@@ -50,7 +57,8 @@ def register_identity_federation_error_handler(app: FastAPI) -> None:
     async def _handle(request: Request, error: IdentityFederationError) -> JSONResponse:
         status_code = status_for(error)
         log_failed_request(request, status_code, error.code)
-        return JSONResponse(status_code=status_code, content={"detail": {"error": error.code}})
+        headers = _CHALLENGES.get(type(error))
+        return JSONResponse(status_code=status_code, content={"detail": {"error": error.code}}, headers=headers)
 
 
 __all__ = ["register_identity_federation_error_handler", "status_for"]

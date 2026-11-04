@@ -37,4 +37,5 @@
 | [ADR-0100](ADR-0100-database-routes-are-sync.md) | イベントループを止めない | DB を使う口と依存関数は `def`。ログの文脈を置く依存関数は `async def` のまま、DB はスレッドへ逃がす |
 | [ADR-0101](ADR-0101-refresh-token-sliding-setting.md) | リフレッシュトークンの延長 | 更新で寿命を延ばすかを設定で選ぶ（既定は延ばす）。延ばさなくても振り替えは続ける |
 | [ADR-0102](ADR-0102-keep-revocations-until-logins-end.md) | 止めた記録を残す長さ | IdP で止めた記録は、今あるログインのうち最後に終わるものより先に消さない |
+| [ADR-0103](ADR-0103-app-tokens-bound-by-dpop.md) | アプリのトークンの DPoP | `cnf.jkt` のあるトークンは `Authorization: DPoP` と鍵の証明でだけ受ける。`jti` は鍵ごとに 1 回。初回のプロフィールは ID トークンから |
 | [ADR-0104](ADR-0104-sso-sessions-renew-through-the-idp.md) | SSO のログインを続ける | SSO で入ったログインはリフレッシュトークンを持たない。切れたら見えない枠で IdP へ prompt=none で問い合わせる |

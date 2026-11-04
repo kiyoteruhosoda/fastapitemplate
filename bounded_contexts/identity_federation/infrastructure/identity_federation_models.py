@@ -93,3 +93,18 @@ __all__ = [
     "FederatedSessionRevocationRecord",
     "SsoLoginTicketRecord",
 ]
+
+
+class DpopProofReplayRecord(Base):
+    """受けた DPoP の証明（鍵ごとの ``jti``）を 1 回だけにする記録（ADR-0103）。
+
+    主キーは ``sha256(jkt ":" jti)`` の 16 進。受ける幅（``iat`` の 120 秒前まで）を過ぎた行は、
+    同じ証明が時刻で断られるので消してよい。挿すたびに期限切れを掃除する。
+    """
+
+    __tablename__ = "dpop_proof_jtis"
+    # 鍵の指紋と jti だけで、誰のものかは持たない
+    __table_args__ = declared(Tenancy.GLOBAL)
+
+    replay_key: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    expires_at = mapped_column(sa.DateTime(), nullable=False, index=True)

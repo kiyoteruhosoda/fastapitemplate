@@ -291,6 +291,11 @@ erDiagram
         datetime last_login_at
     }
 
+    dpop_proof_jtis {
+        varchar(64) replay_key PK "sha256(jkt:jti)"
+        datetime expires_at
+    }
+
     federated_session_revocations {
         varchar(64) jti PK
         varchar(255) issuer
@@ -348,7 +353,7 @@ erDiagram
 |---|---|---|
 | テナントの表（`TENANT`） | テナントの中身。`tenant_id` を持ち、読み書きは主体のテナントで絞る | `items` / `notes` / `content_settings` / `user_groups` / `notifications` / `audit_log` / `role_tenants` |
 | 利用者に付く表（`PERSONAL`） | `user_id` で利用者に従う。テナントは利用者を通して決まる | `users` / `user_tenants` / `user_roles` / `user_group_members` / `user_session_boundaries` / `refresh_sessions` / `password_reset_tokens` / `totp_secrets` / `passkey_credentials` / `webauthn_challenges` / `federated_identities` / `sso_login_tickets` / `notification_deliveries` / `web_push_subscriptions` / `app_device_tokens` |
-| 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` |
+| 全体の表（`GLOBAL`） | アプリ全体のもの | `tenants` / `roles` / `permissions` / `role_permissions` / `system_settings` / `log` / `login_attempts` / `federated_session_revocations` / `dpop_proof_jtis` |
 
 | テーブル | 役割 | モデル |
 |---|---|---|
@@ -402,6 +407,7 @@ JWT のクレームでありテーブルには持たない（セッションご�
 |---|---|
 | `federated_identities` | 外部 IdP のアカウントと利用者の結び付き。鍵は `(issuer, subject)`。**メールアドレスは鍵にしない**（変わり得るため）。利用者側に一意制約は置かない（1 人が複数の IdP アカウントを持てる） |
 | `sso_login_tickets` | コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**（漏れた控えからそのままログインできないようにする）。期限切れは券の発行時に掃除するので定期ジョブは持たない。`issuer` / `subject` / `session_id` / `session_started_at` は、券と一緒に運ぶ**どの IdP セッションから始まったログインか**（ADR-0077 §3） |
+| `dpop_proof_jtis` | 受けた DPoP の証明を鍵ごとに 1 回だけにする記録（ADR-0103）。主キーは `sha256(jkt ":" jti)` の 16 進で、重複なら挿さない INSERT 1 回で使い回しを見分ける。`expires_at` は証明の `iat` ＋ 120 秒（それを過ぎれば時刻で断られる）。期限切れは記録するたびに掃除するので定期ジョブは持たない |
 | `federated_session_revocations` | IdP から届いた「このセッションを止めろ」の記録（ADR-0077 §3）。主キーは `jti` で、**再送はそのまま行の重複として弾かれる**。`session_id` が NULL の行はその利用者のすべてのセッションに効く。`expires_at` は今の期間と `refresh_sessions` の最も遅い `expires_at` の遅いほう（ADR-0102）。期限切れは通知を受けるたびに掃除するので定期ジョブは持たない |
 
 ⚠ **認可要求の往復状態（`state` / `nonce` / `code_verifier`）の表は無い。** 署名付き
