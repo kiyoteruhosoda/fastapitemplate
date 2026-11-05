@@ -39,3 +39,4 @@
 | [ADR-0102](ADR-0102-keep-revocations-until-logins-end.md) | 止めた記録を残す長さ | IdP で止めた記録は、今あるログインのうち最後に終わるものより先に消さない |
 | [ADR-0103](ADR-0103-app-tokens-bound-by-dpop.md) | アプリのトークンの DPoP | `cnf.jkt` のあるトークンは `Authorization: DPoP` と鍵の証明でだけ受ける。`jti` は鍵ごとに 1 回。初回のプロフィールは ID トークンから |
 | [ADR-0104](ADR-0104-sso-sessions-renew-through-the-idp.md) | SSO のログインを続ける | SSO で入ったログインはリフレッシュトークンを持たない。切れたら見えない枠で IdP へ prompt=none で問い合わせる |
+| [ADR-0105](ADR-0105-local-times-carry-their-zone.md) | 画面の時刻と時間帯 | 閲覧者の時間帯に直した時刻の後ろに `UTC+9` の形で時間帯を付ける。時刻を文字にするのは `services/localTime.ts` だけ（ほかは ESLint が止める） |

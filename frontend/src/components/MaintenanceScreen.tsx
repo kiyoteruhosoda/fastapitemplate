@@ -12,6 +12,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 
 import { useI18n } from '../i18n'
+import { formatMediumWithLocalZone } from '../services/localTime'
 import { currentOutage, subscribeOutage, type Outage } from '../services/maintenance'
 import { ActionButton } from './ActionButton'
 
@@ -20,12 +21,12 @@ export const RECHECK_INTERVAL_MS = 60 * 1000
 
 type Check = () => Promise<unknown>
 
-/** 戻りの見込みを閲覧者の時間帯で。読めない値なら出さない。 */
+/** 戻りの見込みを閲覧者の時間帯で（時間帯も添える）。読めない値なら出さない。 */
 function formatUntil(until: string | null, locale: string): string | null {
   if (!until) return null
   const at = new Date(until)
   if (Number.isNaN(at.getTime())) return null
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
+  return formatMediumWithLocalZone(at, locale)
 }
 
 function useRecheck(check: Check): [boolean, () => void] {

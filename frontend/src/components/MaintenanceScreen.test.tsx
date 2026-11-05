@@ -7,6 +7,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { I18nProvider } from '../i18n'
+import { localZoneLabel } from '../services/localTime'
 import {
   reportOutage,
   reportReopened,
@@ -38,11 +39,13 @@ function renderScreen(outage: Outage, check = vi.fn(() => Promise.resolve())) {
   return check
 }
 
-/** 閲覧者の時間帯での戻りの見込み（画面と同じ書き方）。 */
+/** 閲覧者の時間帯での戻りの見込み（画面と同じ書き方・時間帯つき）。 */
 function localUntil(): string {
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(UNTIL),
+  const at = new Date(UNTIL)
+  const shown = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(
+    at,
   )
+  return `${shown} ${localZoneLabel(at)}`
 }
 
 describe('MaintenanceScreen', () => {

@@ -12,6 +12,7 @@ import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
+import { formatWithLocalZone } from '../services/localTime'
 import {
   notificationsApi,
   type AudienceKind,
@@ -237,7 +238,7 @@ export function NotificationsAdminPage() {
               <tbody>
                 {sent.map((item) => (
                   <tr key={item.notification.id}>
-                    <td>{new Date(item.notification.sent_at).toLocaleString(locale)}</td>
+                    <td>{formatWithLocalZone(item.notification.sent_at, locale)}</td>
                     <td>{item.notification.title}</td>
                     <td>
                       {item.notification.channels
