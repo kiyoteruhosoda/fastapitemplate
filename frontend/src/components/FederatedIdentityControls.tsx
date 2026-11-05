@@ -12,6 +12,7 @@ import { useSearchParams } from 'react-router-dom'
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
+import { formatWithLocalZone } from '../services/localTime'
 import { ActionButton } from './ActionButton'
 import { useToast } from './ToastNotification'
 
@@ -98,7 +99,7 @@ export function FederatedIdentityControls() {
         <>
           <p>
             {t('security.linkedTo', { provider: link.display_name })}
-            {link.linked_at ? ` (${new Date(link.linked_at).toLocaleString(locale)})` : ''}
+            {link.linked_at ? ` (${formatWithLocalZone(link.linked_at, locale)})` : ''}
           </p>
           {link.can_unlink ? (
             <ActionButton type="button" pending={removing} onClick={removeLink}>

@@ -9,6 +9,7 @@ import { usePendingAction } from '../hooks/usePendingAction'
 import { useReauthentication } from '../hooks/useReauthentication'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
+import { formatWithLocalZone } from '../services/localTime'
 import {
   createPasskey,
   isPasskeyCancellation,
@@ -38,8 +39,7 @@ function PasskeyTable({
   removingId: number | null
 }) {
   const { t, locale } = useI18n()
-  const formatDate = (value: string | null) =>
-    value ? new Date(value).toLocaleString(locale) : '—'
+  const formatDate = (value: string | null) => (value ? formatWithLocalZone(value, locale) : '—')
 
   return (
     <div className="table-scroll">

@@ -1,3 +1,9 @@
+## 2026-11-05（画面の時刻に時間帯を付け、時刻を文字にする所を 1 か所にした。ADR-0105）
+
+- ベルのお知らせ・お知らせの送った記録・パスキーの登録日時と最終使用日時・SSO の連携日時・メンテナンス画面の戻りの見込みの後ろに、閲覧者の時間帯を `UTC+9`（分があれば `UTC+5:30`、ずれが無ければ `UTC`）で付ける。コピーした時刻がどの時計の時刻か分からなかったため（派生アプリ notice で取り違えかけた）。
+- 時刻を文字にするのは `frontend/src/services/localTime.ts` だけ。ほかで `toLocaleString`・`toLocaleTimeString`・`Intl.DateTimeFormat` を書くと ESLint が止める。
+- 派生アプリは、この更新を取り込むと自前の画面の時刻が lint で落ちる。`formatWithLocalZone`（既定の書式）・`formatMediumWithLocalZone`（日付を長めに）・`withLocalZone`（自前の書式に時間帯だけ添える）へ置き換える。
+
 ## 2026-11-04（SSO で入ったログインのリフレッシュトークンをやめ、切れたら画面を出さずに IdP へ問い合わせる。ADR-0104・task #888）
 
 - SSO で入ったログインには、リフレッシュトークンとログアウトの札の Cookie を出さない。アクセストークン（既定 5 分）が切れたら、画面が見えない枠で `/api/auth/sso/renew` を開き、IdP へ `prompt=none` で問い合わせて続ける。IdP のログイン状態が無ければログイン画面へ送る（書きかけは sessionStorage に残る）。

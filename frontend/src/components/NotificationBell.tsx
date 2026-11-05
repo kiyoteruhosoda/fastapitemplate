@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useOpenNotificationLink } from '../hooks/useOpenNotificationLink'
 import { useI18n } from '../i18n'
 import { errorMessageKey } from '../services/api'
+import { formatWithLocalZone } from '../services/localTime'
 import { bellItems, type InboxItem } from '../services/notifications'
 import { useInbox } from '../store/InboxContext'
 import { useToast } from './ToastNotification'
@@ -140,7 +141,7 @@ export function NotificationBell() {
                     </span>
                     {item.body && <span className="notification-item-body">{item.body}</span>}
                     <time className="notification-item-time" dateTime={item.sent_at}>
-                      {new Date(item.sent_at).toLocaleString(locale)}
+                      {formatWithLocalZone(item.sent_at, locale)}
                     </time>
                   </button>
                 </li>
