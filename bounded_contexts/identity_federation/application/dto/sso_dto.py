@@ -38,6 +38,16 @@ class SsoAuthorizationDto:
 
 
 @dataclass(frozen=True)
+class ContinuedSessionDto:
+    """画面を出さずに続けるログイン（ADR-0104）。戻ってきたとき、同じ人ならこれを引き継ぐ。"""
+
+    user_id: int
+    active_role: str | None
+    authenticated_at: datetime
+    signed_in_with_passkey: bool = False
+
+
+@dataclass(frozen=True)
 class ResolvedAccountDto:
     """IdP の名乗りを、このアプリの利用者へ落とした結果。
 

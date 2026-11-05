@@ -49,6 +49,9 @@ _PUBLIC_ROUTES = {
     ("GET", "/api/auth/sso/logout"),
     ("GET", "/api/auth/sso/signed-out"),
     ("POST", "/api/auth/sso/backchannel-logout"),
+    # 切れたログインを続ける往復（ADR-0104）。始まりは誰でも開けるが IdP の prompt=none が決め、結果の頁は何も返さない
+    ("GET", "/api/auth/sso/renew"),
+    ("GET", "/api/auth/sso/renewed"),
     # 機械のトークンを換える口。assay のトークンと許可簿で確かめる（ADR-0087）
     ("POST", "/api/machine/token"),
 }

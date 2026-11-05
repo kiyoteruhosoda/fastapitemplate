@@ -7,6 +7,7 @@ import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
 import { useToast } from '../components/ToastNotification'
 import { usePendingAction } from '../hooks/usePendingAction'
+import { useSessionDraft } from '../hooks/useSessionDraft'
 import { usePendingRows } from '../hooks/usePendingRows'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
@@ -40,7 +41,8 @@ export function ItemsPage() {
   const { notify } = useToast()
   const [items, setItems] = useState<ItemPage>({ entries: [], total: 0 })
   const [page, setPage] = useState(0)
-  const [draft, setDraft] = useState<Draft | null>(null)
+  // 書きかけはログインの往復をまたいで残す（ADR-0104）
+  const [draft, setDraft] = useSessionDraft<Draft>('items')
   const { pendingActionOf, runForRow } = usePendingRows<'removal'>()
 
   const canWrite = hasScope('item:write')

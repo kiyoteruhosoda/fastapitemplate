@@ -41,16 +41,17 @@ LOGOUT_TOKEN_COOKIE = "logout_token"
 LOGOUT_COOKIE_PATH = "/api/auth/logout"
 
 
-def set_access_token_cookie(response: Response, token: str) -> None:
+def set_access_token_cookie(response: Response, token: str, *, max_age: int | None = None) -> None:
     """アクセストークンを Cookie へ載せる。
 
     トークンを発行する経路（パスワード・リフレッシュ・パスキー）が複数あるため、
-    属性の付け方をここ 1 か所に集約する。
+    属性の付け方をここ 1 か所に集約する。``max_age`` の既定はトークンの寿命
+    （SSO で入ったログインだけ長く残す。ADR-0104）。
     """
     response.set_cookie(
         ACCESS_TOKEN_COOKIE,
         token,
-        max_age=settings.access_token_expires_seconds,
+        max_age=settings.access_token_expires_seconds if max_age is None else max_age,
         httponly=True,
         secure=settings.session_cookie_secure,
         samesite="lax",
@@ -89,6 +90,11 @@ def set_logout_token_cookie(response: Response, token: str, *, max_age: int) -> 
 
 def clear_access_token_cookie(response: Response) -> None:
     response.delete_cookie(ACCESS_TOKEN_COOKIE)
+    clear_refresh_cookies(response)
+
+
+def clear_refresh_cookies(response: Response) -> None:
+    """更新の札とログアウトの札を落とす（SSO で入ったログインは持たない。ADR-0104）。"""
     response.delete_cookie(REFRESH_TOKEN_COOKIE, path=REFRESH_COOKIE_PATH)
     response.delete_cookie(LOGOUT_TOKEN_COOKIE, path=LOGOUT_COOKIE_PATH)
 
@@ -468,6 +474,7 @@ __all__ = [
     "TWO_FACTOR_SETUP_REQUIRED",
     "CurrentSession",
     "clear_access_token_cookie",
+    "clear_refresh_cookies",
     "ensure_recent_sign_in",
     "get_current_principal",
     "get_current_session",

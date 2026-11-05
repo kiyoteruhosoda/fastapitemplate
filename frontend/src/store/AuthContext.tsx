@@ -1,8 +1,10 @@
 /** 認証状態（ログイン中ユーザーと scope）。認可判定は hasScope で行う。 */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
+import { clearSessionDrafts } from '../hooks/useSessionDraft'
 import { ApiError, api } from '../services/api'
 import { currentOutage, subscribeOutage } from '../services/maintenance'
+import { subscribeSessionEnded } from '../services/sessionEnded'
 import { exchangeSsoTicket, startSsoLogout } from '../services/sso'
 import { clearSilentSsoMarks, markSignedOut } from '../services/silentSso'
 import { rememberTenant, rememberedTenant } from '../services/tenantEntrance'
@@ -109,6 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [unreachable, refreshMe])
 
+  // ログインを続けられなかった（ADR-0104）。画面はログイン画面へ移る（行き先と書きかけは残る）
+  useEffect(
+    () =>
+      subscribeSessionEnded(() => {
+        setUser(null)
+      }),
+    [],
+  )
+
   // 前段が開いたら、すぐに聞き直す（閉じている間に開いた画面は、まだ誰かを知らない）
   useEffect(
     () =>
@@ -189,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     // IdP の SSO は既定で残るので、ログイン画面を開いてもボタンを押さずに入り直さない（ADR-0077 §9）
     markSignedOut()
+    clearSessionDrafts()
     // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
     await api.post('/api/auth/logout').catch(() => undefined)
     if (toIdp) startSsoLogout(rememberedTenant())

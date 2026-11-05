@@ -1,4 +1,4 @@
-"""JWT の発行・検証（access / refresh の2トークン）。
+"""JWT の発行・検証（access / refresh の2トークン。SSO で入ったログインは access だけ。ADR-0104）。
 
 - scope クレームはユーザーの保有権限の範囲内。未指定・空 = 権限なし。
 - ``active_role`` クレームは「いまどのロールで操作しているか」（ADR-0078 §1）。
@@ -20,6 +20,7 @@ from typing import Any
 import jwt
 from sqlalchemy.orm import Session
 
+from bounded_contexts.identity_federation.application.dto.sso_dto import ContinuedSessionDto
 from bounded_contexts.identity_federation.application.use_cases.check_session_revocation import (
     CheckSessionRevocation,
 )
@@ -74,6 +75,10 @@ CLAIM_REFRESH_SESSION = "rsid"
 # 更新のたびに決め直す）。ADR-0093
 CLAIM_SIGNED_IN_WITH_PASSKEY = "passkey"
 CLAIM_TWO_FACTOR_SETUP = "two_factor_setup"
+#: SSO で入ったログインのアクセストークンの Cookie を残す長さ（ADR-0104）。トークン自体は 5 分で切れる。
+#: 切れた後も Cookie を残すのは、画面を出さずに続ける往復でロールとサインインした時刻を引き継ぐため
+#: （:func:`continuation_of`）。IdP のログイン状態の最も長いもの（30 日）に揃える
+RENEWAL_CARRY_SECONDS = 30 * 24 * 3600
 #: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
 SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -122,6 +127,15 @@ class RefreshedSession:
 
 class TokenService:
     @staticmethod
+    def create_access_token(user: User, *, carry: SessionCarryOver) -> str:
+        """アクセストークンだけを発行する（SSO で入ったログイン。ADR-0104）。
+
+        リフレッシュトークンも控え（``rsid``）も作らない。切れたら画面が IdP へ画面を出さずに
+        問い合わせ、IdP のログイン状態が生きていれば入り直す。
+        """
+        return _access_token(user, carry, _base_claims(user, carry, None, utcnow_aware()))
+
+    @staticmethod
     def create_token_pair(
         user: User,
         *,
@@ -129,16 +143,12 @@ class TokenService:
         carry: SessionCarryOver = FRESH_SIGN_IN,
         refresh_expires_at: datetime | None = None,
     ) -> dict[str, object]:
-        """access / refresh トークンを発行する。
+        """access / refresh トークンを発行する（パスワード・パスキーで入ったログイン）。
 
         ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
-        ``federated_login`` は SSO で始まったセッションのときだけ渡す（ADR-0077 §3）。
         二要素の登録待ちのログインには権限を載せない（ADR-0093）。
         ``refresh_expires_at`` は控えと揃える終わりの時刻（UTC naive。ADR-0101）。
         """
-        granted = user.permission_codes_of(carry.active_role)
-        setup_required = needs_two_factor_setup(user, carry)
-        effective = [] if setup_required else sorted(granted if scopes is None else granted & set(scopes))
         now = utcnow_aware()
         refresh_session_id = carry.refresh_session_id or refresh_sessions.new_identifier()
         refresh_jti = refresh_sessions.new_identifier()
@@ -147,34 +157,7 @@ class TokenService:
             if refresh_expires_at is not None
             else now + timedelta(seconds=settings.refresh_token_expires_seconds)
         )
-        base_claims = {
-            "sub": str(user.id),
-            "iss": settings.access_token_issuer,
-            "aud": settings.access_token_audience,
-            "iat": now,
-            # ``None`` は「いまサインインした」（パスワード・パスキー・SSO の入口）
-            CLAIM_AUTHENTICATED_AT: int((carry.authenticated_at or now).timestamp()),
-            CLAIM_ACTIVE_ROLE: carry.active_role,
-            CLAIM_TENANT: user.tenant_id,
-            CLAIM_REFRESH_SESSION: refresh_session_id,
-            CLAIM_SIGNED_IN_WITH_PASSKEY: carry.signed_in_with_passkey,
-            **_federation_claims(carry.federated_login),
-        }
-        access = jwt.encode(
-            {
-                **base_claims,
-                "type": TYPE_ACCESS,
-                "scope": effective,
-                "email": user.email,
-                # ⚠ **検証が DB を引かないので、principal の材料はここに全部載せる**
-                #   （ADR-0076 §5）。載せ忘れた項目は、その経路でだけ空になる。
-                "username": user.username,
-                CLAIM_TWO_FACTOR_SETUP: setup_required,
-                "exp": now + timedelta(seconds=settings.access_token_expires_seconds),
-            },
-            settings.jwt_secret_key,
-            algorithm=_ALGORITHM,
-        )
+        base_claims = _base_claims(user, carry, refresh_session_id, now)
         refresh = jwt.encode(
             {
                 **base_claims,
@@ -186,7 +169,7 @@ class TokenService:
             algorithm=_ALGORITHM,
         )
         return {
-            "access_token": access,
+            "access_token": _access_token(user, carry, base_claims, scopes),
             "refresh_token": refresh,
             "logout_token": _logout_token(user, refresh_session_id, now, expires_at),
             "refresh_session_id": refresh_session_id,
@@ -344,6 +327,92 @@ def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
     if not tenant_admits(session, user):
         return None
     return user
+
+
+def continuation_of(token: str) -> ContinuedSessionDto | None:
+    """期限の切れた SSO のアクセストークンから、続ける往復が引き継ぐものを読む（ADR-0104）。
+
+    ⚠ **これは認証ではない。** 読んだ値は、IdP から**同じ人**が戻ってきたときにだけ使う
+    （ロールとサインインした時刻を引き継ぐため）。署名と発行者・宛先は確かめ、期限は
+    :data:`RENEWAL_CARRY_SECONDS` まで見逃す。SSO で入ったログインのものでなければ読まない。
+    """
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[_ALGORITHM],
+            audience=settings.access_token_audience,
+            issuer=settings.access_token_issuer,
+            leeway=timedelta(seconds=RENEWAL_CARRY_SECONDS),
+        )
+    except jwt.InvalidTokenError:
+        return None
+    if claims.get("type") != TYPE_ACCESS or _federated_login_of(claims) is None:
+        return None
+    try:
+        user_id = int(claims.get("sub", ""))
+    except ValueError:
+        return None
+    return ContinuedSessionDto(
+        user_id=user_id,
+        active_role=_active_role_of(claims),
+        authenticated_at=_authenticated_at_of(claims),
+        signed_in_with_passkey=claims.get(CLAIM_SIGNED_IN_WITH_PASSKEY) is True,
+    )
+
+
+def _base_claims(
+    user: User,
+    carry: SessionCarryOver,
+    refresh_session_id: str | None,
+    now: datetime,
+) -> dict[str, object]:
+    """access / refresh に共通のクレーム。``refresh_session_id`` が ``None`` なら控えを載せない（ADR-0104）。"""
+    claims: dict[str, object] = {
+        "sub": str(user.id),
+        "iss": settings.access_token_issuer,
+        "aud": settings.access_token_audience,
+        "iat": now,
+        # ``None`` は「いまサインインした」（パスワード・パスキー・SSO の入口）
+        CLAIM_AUTHENTICATED_AT: int((carry.authenticated_at or now).timestamp()),
+        CLAIM_ACTIVE_ROLE: carry.active_role,
+        CLAIM_TENANT: user.tenant_id,
+        CLAIM_SIGNED_IN_WITH_PASSKEY: carry.signed_in_with_passkey,
+        **_federation_claims(carry.federated_login),
+    }
+    if refresh_session_id is not None:
+        claims[CLAIM_REFRESH_SESSION] = refresh_session_id
+    return claims
+
+
+def _access_token(
+    user: User,
+    carry: SessionCarryOver,
+    base_claims: dict[str, object],
+    scopes: list[str] | None = None,
+) -> str:
+    """``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。二要素の登録待ちには権限を載せない。"""
+    granted = user.permission_codes_of(carry.active_role)
+    setup_required = needs_two_factor_setup(user, carry)
+    effective = [] if setup_required else sorted(granted if scopes is None else granted & set(scopes))
+    issued_at = base_claims["iat"]
+    if not isinstance(issued_at, datetime):  # pragma: no cover - _base_claims が必ず datetime を入れる
+        raise TypeError("iat must be a datetime")
+    return jwt.encode(
+        {
+            **base_claims,
+            "type": TYPE_ACCESS,
+            "scope": effective,
+            "email": user.email,
+            # ⚠ **検証が DB を引かないので、principal の材料はここに全部載せる**
+            #   （ADR-0076 §5）。載せ忘れた項目は、その経路でだけ空になる。
+            "username": user.username,
+            CLAIM_TWO_FACTOR_SETUP: setup_required,
+            "exp": issued_at + timedelta(seconds=settings.access_token_expires_seconds),
+        },
+        settings.jwt_secret_key,
+        algorithm=_ALGORITHM,
+    )
 
 
 def _logout_token(user: User, refresh_session_id: str, issued_at: datetime, expires_at: datetime) -> str:

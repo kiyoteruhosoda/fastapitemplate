@@ -1,3 +1,10 @@
+## 2026-11-04（SSO で入ったログインのリフレッシュトークンをやめ、切れたら画面を出さずに IdP へ問い合わせる。ADR-0104・task #888）
+
+- SSO で入ったログインには、リフレッシュトークンとログアウトの札の Cookie を出さない。アクセストークン（既定 5 分）が切れたら、画面が見えない枠で `/api/auth/sso/renew` を開き、IdP へ `prompt=none` で問い合わせて続ける。IdP のログイン状態が無ければログイン画面へ送る（書きかけは sessionStorage に残る）。
+- 前に出した SSO のリフレッシュトークンは更新の口で断り、札を落とす。配った直後、SSO で入っていた人は 5 分以内に IdP へ 1 回問い合わせる（IdP で入っていれば画面は変わらない）。
+- 画面の CSP に `frame-src 'self' https://*.<発行者の親ドメイン>` を足した。
+- パスワード・パスキーで入ったログインは変わらない。
+- 派生アプリには取り込んでいない（task #889）。IdP（assay）が `prompt=none` の往復を枠の中で通すこと（idp 側の task #888）が前提。
 ## 2026-11-04（端末の鍵に結び付けたアプリのトークンを DPoP の証明と一緒にだけ受ける。ADR-0103・task #893）
 
 - アプリ向けの口（`AppOrWebPrincipalDep`）は、`cnf.jkt` のある assay のトークンを `Authorization: DPoP` と鍵の証明でだけ受ける。証明の `jti` は鍵ごとに 1 回（新しい表 `dpop_proof_jtis`）。合わなければ 401 と `WWW-Authenticate: DPoP error="invalid_dpop_proof"`。

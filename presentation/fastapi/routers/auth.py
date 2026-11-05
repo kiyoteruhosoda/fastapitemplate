@@ -17,6 +17,7 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -41,6 +42,7 @@ from presentation.fastapi.dependencies.auth import (
     REFRESH_TOKEN_COOKIE,
     CurrentSession,
     clear_access_token_cookie,
+    clear_refresh_cookies,
     ensure_recent_sign_in,
     get_current_principal,
     get_current_session,
@@ -111,8 +113,10 @@ def refresh(
     db: DbDep,
     audit: AuditRecorderDep,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_TOKEN_COOKIE)] = None,
-) -> SessionResponse:
+) -> SessionResponse | JSONResponse:
     """トークンを更新する。アクティブロール（ADR-0078 §1）は引き継ぐ。
+
+    SSO で入ったログインの札は受けない（ADR-0104）。
 
     一度使ったトークンが戻ってきたら、そのログインだけを終わらせる（ADR-0091）。
 
@@ -136,8 +140,23 @@ def refresh(
             target=AuditTarget.of(AuditTargetType.USER, refreshed.user.id),
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
+    if refreshed.federated_login is not None:
+        # SSO で入ったログインは更新しない（ADR-0104）。この仕組みより前に出した札が残っていても通さない
+        # ——盗まれた Cookie から使い続けられるのを塞ぐのが目的なので、ここで止めないと 14 日残る
+        return _refuse_federated_refresh(db, refreshed.refresh_session_id)
     # 更新は入り直しではない。最後に実際にサインインした時刻も引き継ぐ（ADR-0076 §10）
     return establish_session(response, refreshed.user, refreshed.carry)
+
+
+def _refuse_federated_refresh(db: Session, refresh_session_id: str) -> JSONResponse:
+    """SSO で入ったログインの更新の札を断り、控えと札を消す。画面は IdP へ問い合わせ直す。
+
+    例外ではなく応答を返す。札を落とす ``Set-Cookie`` を 401 に載せるため。
+    """
+    refresh_sessions.end(db, refresh_session_id)
+    response = JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": {"error": "invalid_token"}})
+    clear_refresh_cookies(response)
+    return response
 
 
 @router.post("/logout", response_model=StatusResponse)
