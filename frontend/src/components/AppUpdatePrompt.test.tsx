@@ -20,13 +20,13 @@ function renderPrompt() {
     watcher.notify = onUpdateReady
   }
 
-  render(
+  const view = render(
     <I18nProvider settings={SETTINGS}>
       <AppUpdatePrompt watch={watch} />
     </I18nProvider>,
   )
 
-  return watcher
+  return { watcher, view }
 }
 
 describe('AppUpdatePrompt', () => {
@@ -37,7 +37,7 @@ describe('AppUpdatePrompt', () => {
   })
 
   it('待機したら知らせを出し、押されたときだけ入れ替える', () => {
-    const watcher = renderPrompt()
+    const { watcher } = renderPrompt()
     const apply = vi.fn()
 
     act(() => {
@@ -50,5 +50,22 @@ describe('AppUpdatePrompt', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
 
     expect(apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('出ている間だけ、ヘッダーを下げる高さを渡す', () => {
+    const { watcher, view } = renderPrompt()
+    const root = document.documentElement
+
+    expect(root.style.getPropertyValue('--update-bar-height')).toBe('')
+
+    act(() => {
+      watcher.notify?.(vi.fn())
+    })
+
+    expect(root.style.getPropertyValue('--update-bar-height')).toMatch(/^\d+px$/)
+
+    view.unmount()
+
+    expect(root.style.getPropertyValue('--update-bar-height')).toBe('')
   })
 })

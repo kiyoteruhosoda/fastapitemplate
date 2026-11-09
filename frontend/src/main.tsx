@@ -29,11 +29,12 @@ function render(settings: UiSettings) {
         <ThemeProvider settings={settings}>
           <AuthProvider>
             <ToastProvider>
+              {/* 新しい版の知らせはどの画面でもいちばん上に出す（ADR-0106）。
+                  帯がヘッダーの上に来るよう、画面より前に置く。 */}
+              <AppUpdatePrompt watch={watchForUpdate} />
               <BrowserRouter>
                 <App />
               </BrowserRouter>
-              {/* 新しい版の知らせは画面に関わらず出す（ADR-0080 §7）。 */}
-              <AppUpdatePrompt watch={watchForUpdate} />
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
