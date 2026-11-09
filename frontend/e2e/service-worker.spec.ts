@@ -48,6 +48,9 @@ test('sw.js が変わると新しい版の知らせが出て、押すと入れ�
     })
     const notice = page.getByText('新しい版があります。')
     await expect(notice).toBeVisible()
+    // 画面の下ではなく、いちばん上の帯に出る（ADR-0106）。
+    const bar = await notice.locator('xpath=..').boundingBox()
+    expect(bar?.y).toBe(0)
 
     const reloaded = page.waitForEvent('load')
     await page.getByRole('button', { name: '再読み込み' }).click()

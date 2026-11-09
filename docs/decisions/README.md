@@ -40,3 +40,4 @@
 | [ADR-0103](ADR-0103-app-tokens-bound-by-dpop.md) | アプリのトークンの DPoP | `cnf.jkt` のあるトークンは `Authorization: DPoP` と鍵の証明でだけ受ける。`jti` は鍵ごとに 1 回。初回のプロフィールは ID トークンから |
 | [ADR-0104](ADR-0104-sso-sessions-renew-through-the-idp.md) | SSO のログインを続ける | SSO で入ったログインはリフレッシュトークンを持たない。切れたら見えない枠で IdP へ prompt=none で問い合わせる |
 | [ADR-0105](ADR-0105-local-times-carry-their-zone.md) | 画面の時刻と時間帯 | 閲覧者の時間帯に直した時刻の後ろに `UTC+9` の形で時間帯を付ける。時刻を文字にするのは `services/localTime.ts` だけ（ほかは ESLint が止める） |
+| [ADR-0106](ADR-0106-update-notice-is-a-top-bar.md) | 新しい版の知らせの場所 | どの画面でもいちばん上の帯に出し、下へ送っても残す。ヘッダーは帯の真下に貼り付く（`--update-bar-height`） |
