@@ -7,7 +7,7 @@
  * - サインインの手段（パスワード・二要素認証・パスキー）は別画面
  *   （`/profile/security`）。ここからは入口だけを出す（ADR-0080 §4）。
  */
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { Link } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
@@ -28,7 +28,7 @@ export function ProfilePage() {
   const [email, setEmail] = useState(user?.email ?? '')
   const [username, setUsername] = useState(user?.username ?? '')
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     try {
       await api.put('/api/auth/me', { email, username })

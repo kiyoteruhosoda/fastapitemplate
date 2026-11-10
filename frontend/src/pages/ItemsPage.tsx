@@ -1,7 +1,7 @@
 /**
  * アイテム（`bounded_contexts/example`）の画面側の見本。一覧のページ送り（ADR-0095）・追加・編集・削除。
  */
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -56,7 +56,7 @@ export function ItemsPage() {
     void reload()
   }, [reload])
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     if (!draft) return
     try {

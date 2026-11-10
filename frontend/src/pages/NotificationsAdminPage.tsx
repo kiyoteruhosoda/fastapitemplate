@@ -5,7 +5,7 @@
  * 出す場所（ベル・画面上部・端末への通知）は複数選べる。宛先は全員・グループ・個人の
  * どれか 1 つ。**送った時点の顔ぶれに配る**ので、あとからグループに入った人には届かない。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { useToast } from '../components/ToastNotification'
@@ -73,7 +73,7 @@ export function NotificationsAdminPage() {
     return t('notifications.audience.all')
   }
 
-  const [send, sending] = usePendingAction(async (e: FormEvent) => {
+  const [send, sending] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     try {
       const result = await notificationsApi.send({

@@ -8,7 +8,7 @@
  * 実行者・対象は内部 ID で表示する。監査ログにメールアドレス等の PII を保存しない
  * ため（ADR-0075 §1）。ID から利用者を辿るときはユーザー管理画面を見る。
  */
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FilterPanel } from '../components/FilterPanel'
@@ -84,7 +84,7 @@ export function AuditLogsPage() {
     setForm((current) => ({ ...current, [key]: value }))
   }, [])
 
-  const search = (e: FormEvent) => {
+  const search = (e: SubmitEvent) => {
     e.preventDefault()
     setTrigger('search')
     setPage(0)

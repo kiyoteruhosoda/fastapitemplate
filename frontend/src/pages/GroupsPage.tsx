@@ -4,7 +4,7 @@
  * グループは「誰と誰か」を束ねるだけで、権限は持たない（権限はロール）。
  * お知らせの宛先に使う。所属は編集ダイアログで、有効な利用者から選ぶ。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -70,7 +70,7 @@ export function GroupsPage() {
     )
   }
 
-  const [save, saving] = usePendingAction(async (e: FormEvent) => {
+  const [save, saving] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     if (draft === null) return
     const body = { name: draft.name, description: draft.description, member_ids: draft.memberIds }

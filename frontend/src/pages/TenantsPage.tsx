@@ -7,7 +7,7 @@
  * （システム管理者はパスワードを知らない）。SSO のテナントなら、その人が IdP で初めて
  * 入ったときに席を受け取る。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -129,7 +129,7 @@ export function TenantsPage() {
     }
   }
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     if (dialog === null) return
     try {

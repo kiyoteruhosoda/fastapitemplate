@@ -6,7 +6,7 @@
  * - 行ごとの「編集」「削除」は、scope に加えて **サーバーが返す `can_change`** で出す。どのメモが
  *   自分のものかはトークンに載っていないので、scope だけでは決められない（両方そろって通る）。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -67,7 +67,7 @@ export function NotesPage() {
       })
   }, [canWrite])
 
-  const [save, saving] = usePendingAction(async (e: FormEvent) => {
+  const [save, saving] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     if (draft === null) return
     const body = { title: draft.title, body: draft.body, shared_group_id: draft.sharedGroupId }
