@@ -18,15 +18,15 @@ jobs:
     runs-on: [self-hosted, nolumialab]
     # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
     timeout-minutes: 25
-    # ジョブごと Playwright 公式の像の中で走らせる（ブラウザと OS 側の依存、Node 24 入り）。
-    # 版と digest は photonest と揃えてある（台に同じ像が残っていれば引き直さずに済む）。
-    # ⚠ 像の版は `@playwright/test` の版と揃える（下の照合の段が見張る）。
-    # `--ipc=host` は Chromium が共有メモリ不足で落ちるのを避けるため（Playwright 公式の推奨）。
+    # Run the whole job inside the official Playwright image (browsers, OS deps and Node 24).
+    # ⚠ Keep the image version equal to `@playwright/test` (the version check step below enforces it).
+    # The digest is the multi-arch index digest of the tag on mcr.microsoft.com.
+    # `--ipc=host` keeps Chromium from crashing on a small /dev/shm (recommended by Playwright).
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      image: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d
       options: --ipc=host
     env:
-      PLAYWRIGHT_VERSION: "1.64.1"
+      PLAYWRIGHT_VERSION: "1.65.0"
       # uv が入れる Python も forge から（ci.yml と同じ）。
       UV_PYTHON_INSTALL_MIRROR: "https://git.nolumia.com/astral-sh/python-build-standalone/releases/download"
 
