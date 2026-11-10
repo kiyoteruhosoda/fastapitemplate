@@ -4,7 +4,7 @@
  * テナントの外の人はテナントに属さない。足すときにロール（運用者かサポート担当か）を選び、
  * 招待のメールが届いた本人がパスワードを決める。自分は外せず、最後の運用者も外せない（サーバーが断る）。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -45,7 +45,7 @@ export function SystemAdministratorsPage() {
     void reload()
   }, [])
 
-  const [add, saving] = usePendingAction(async (e: FormEvent) => {
+  const [add, saving] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     try {
       const designation = await api.post<{ invitation_sent: boolean }>(

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type SubmitEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
@@ -86,7 +86,7 @@ export function LoginPage() {
   // （labelable な要素を 2 つ入れると対応付けが曖昧になる）。
   const passwordId = useId()
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     setError(null)
     setNotice(null)

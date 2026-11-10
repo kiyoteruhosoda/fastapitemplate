@@ -3,7 +3,7 @@
  *
  * 見出しと区画の枠は呼び出し側（ProfilePage）が持ち、ここは中身だけを描く。
  */
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useState, type SubmitEvent } from 'react'
 
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
@@ -21,7 +21,7 @@ export function PasswordChangeForm() {
   const currentId = useId()
   const nextId = useId()
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     try {
       await api.post('/api/auth/change-password', {

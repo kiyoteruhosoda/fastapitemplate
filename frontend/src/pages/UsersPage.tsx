@@ -8,7 +8,7 @@
  * 更新は 1 行ずつ直列に行う。ロールの更新はリスト全体の置き換えなので、同じ行へ
  * 続けてチェックを入れると、2 つ目が古い `roles` から差分を作って 1 つ目を打ち消す。
  */
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -103,7 +103,7 @@ export function UsersPage() {
     )
   }
 
-  const [create, creating] = usePendingAction(async (e: FormEvent) => {
+  const [create, creating] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     try {
       await api.post('/api/admin/users', { email, username, password, roles: selectedRoles })

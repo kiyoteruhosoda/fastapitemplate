@@ -8,7 +8,7 @@
  * 絞り込みの選択肢（ログレベル）はバックエンドから取得する。列挙を画面へ写して
  * 二重管理しないため。
  */
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FilterPanel } from '../components/FilterPanel'
@@ -83,7 +83,7 @@ export function SystemLogsPage() {
     setForm((current) => ({ ...current, [key]: value }))
   }, [])
 
-  const search = (e: FormEvent) => {
+  const search = (e: SubmitEvent) => {
     e.preventDefault()
     setTrigger('search')
     setPage(0)

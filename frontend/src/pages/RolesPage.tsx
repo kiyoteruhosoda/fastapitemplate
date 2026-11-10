@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
 import { FormDialog } from '../components/FormDialog'
@@ -45,7 +45,7 @@ export function RolesPage() {
       })
   }, [])
 
-  const [create, creating] = usePendingAction(async (e: FormEvent) => {
+  const [create, creating] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     if (!name.trim()) return
     try {

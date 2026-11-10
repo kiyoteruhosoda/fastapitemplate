@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useState, type SubmitEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
@@ -17,7 +17,7 @@ export function ResetPasswordPage() {
   // 表示切り替えボタンを持つ欄は `<label>` で囲まず `for` で結ぶ（LoginPage 参照）。
   const passwordId = useId()
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     setError(null)
     try {

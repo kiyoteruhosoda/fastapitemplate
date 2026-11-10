@@ -68,7 +68,7 @@ export function Sidebar({
   open: boolean
   onClose: () => void
   /** 開いているあいだ Tab をこの中に閉じ込めるために AppLayout が使う。 */
-  navRef: RefObject<HTMLElement>
+  navRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useI18n()
   const { hasScope } = useAuth()

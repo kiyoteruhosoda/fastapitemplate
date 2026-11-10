@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type SubmitEvent } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { ActionButton } from '../components/ActionButton'
@@ -14,7 +14,7 @@ export function ForgotPasswordPage() {
   // 入口と同じテナントで探す（ADR-0079 §4）
   const { tenant } = useParams<{ tenant?: string }>()
 
-  const [submit, submitting] = usePendingAction(async (e: FormEvent) => {
+  const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
     e.preventDefault()
     await api.post('/api/auth/forgot-password', { email, tenant: tenant ?? null })
     setSent(true)

@@ -15,7 +15,7 @@ export function Header({
   navOpen: boolean
   onToggleNav: () => void
   /** ドロワーを閉じたときにフォーカスを戻す先（AppLayout が保持する）。 */
-  toggleRef: RefObject<HTMLButtonElement>
+  toggleRef: RefObject<HTMLButtonElement | null>
 }) {
   const { t } = useI18n()
   const { user, logout } = useAuth()

@@ -7,7 +7,7 @@
  *
  * 見出しと区画の枠は呼び出し側（ProfilePage）が持ち、ここは中身だけを描く。
  */
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
 import { usePendingAction } from '../hooks/usePendingAction'
 import { useI18n } from '../i18n'
@@ -96,7 +96,7 @@ export function TwoFactorControls({ onEnabled }: { onEnabled?: () => Promise<voi
    * 画面には一度に片方しか出ないので、実行中かどうかも 1 つで足りる。
    */
   const [submitCode, submitting] = usePendingAction(
-    async (e: FormEvent, path: string, successKey: string) => {
+    async (e: SubmitEvent, path: string, successKey: string) => {
       e.preventDefault()
       setError(null)
       try {
@@ -112,7 +112,7 @@ export function TwoFactorControls({ onEnabled }: { onEnabled?: () => Promise<voi
     },
   )
 
-  const onSubmit = (path: string, successKey: string) => (e: FormEvent) => {
+  const onSubmit = (path: string, successKey: string) => (e: SubmitEvent) => {
     submitCode(e, path, successKey)
   }
 
