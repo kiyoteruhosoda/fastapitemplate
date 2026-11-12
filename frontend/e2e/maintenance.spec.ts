@@ -45,7 +45,7 @@ async function signInUnderServiceWorker(page: Page): Promise<void> {
     .toBe(true)
 }
 
-test('when closed, the maintenance screen shows even after reload; when reopened, the original screen returns', async ({ page }) => {
+test('closed: maintenance screen survives reload; reopened: screen returns', async ({ page }) => {
   await signInUnderServiceWorker(page)
   const dashboard = page.getByRole('heading', { name: '管理ダッシュボード' })
   await expect(dashboard).toBeVisible()

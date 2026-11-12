@@ -24,7 +24,7 @@ async function openControlledPage(page: Page): Promise<void> {
     .toBe(true)
 }
 
-test('under the Service Worker, a missing API stays 404 instead of becoming the SPA screen', async ({ page }) => {
+test('under the Service Worker, a missing API stays 404 instead of the SPA', async ({ page }) => {
   await openControlledPage(page)
 
   const response = await page.goto('/api/e2e-no-such-endpoint')
@@ -34,7 +34,7 @@ test('under the Service Worker, a missing API stays 404 instead of becoming the 
   expect(await response?.headerValue('content-type')).toContain('application/json')
 })
 
-test('when sw.js changes, a new-version notice appears and pressing it swaps the version', async ({ page }) => {
+test('when sw.js changes, a new-version notice appears and swaps the version', async ({ page }) => {
   await openControlledPage(page)
 
   // Simulate deploying a new version (a single differing byte makes it a different version).

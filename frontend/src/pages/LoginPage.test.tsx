@@ -161,7 +161,7 @@ describe('LoginPage', () => {
     ['/login?redirect_to=%2Fitems%3Fq%3Da', '/items?q=a'],
     ['/login', '/'],
     ['/login?redirect_to=https%3A%2F%2Fevil.example%2F', '/'],
-  ])('passes the page being opened to the SSO entry (%s -> %s. ADR-0077 §8)', async (entry, expected) => {
+  ])('passes the opened page to the SSO entry (%s -> %s. ADR-0077 §8)', async (entry, expected) => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
