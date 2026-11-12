@@ -1,7 +1,7 @@
-"""ID 連携コンテキストの SQLAlchemy モデル。
+"""SQLAlchemy models of the identity federation context.
 
-``migrations/env.py`` と ``tests/conftest.py`` がこのモジュールを import して
-メタデータへ登録する（コンテキスト固有モデルの扱い。CLAUDE.md「DDL 管理」）。
+``migrations/env.py`` and ``tests/conftest.py`` import this module to register it in the
+metadata (handling of context-specific models. CLAUDE.md "DDL management").
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ from shared.kernel.database.db import Base
 
 
 class FederatedIdentityRecord(Base):
-    """外部 IdP のアカウントと利用者の結び付き。
+    """Binding between an external IdP account and a user.
 
-    鍵は ``(issuer, subject)``。利用者側には一意制約を置かない（1 人が複数の
-    IdP アカウントを持てる）。
+    Keyed by ``(issuer, subject)``. No uniqueness constraint on the user side (one person can
+    have multiple IdP accounts).
     """
 
     __tablename__ = "federated_identities"
@@ -37,11 +37,11 @@ class FederatedIdentityRecord(Base):
 
 
 class SsoLoginTicketRecord(Base):
-    """コールバックが発行する 1 回限りの引き換え券（ハッシュのみ保存）。
+    """Single-use redemption ticket issued by the callback (only the hash is stored).
 
-    IdP 側のセッション（``issuer`` / ``subject`` / ``session_id``）も一緒に運ぶ。
-    停止の伝播はこの 3 つ組を宛名にして届くので、**券を発行する時点で控えておかないと
-    後から結び付けられない**（ADR-0077 §3）。
+    It also carries the IdP-side session (``issuer`` / ``subject`` / ``session_id``).
+    Logout propagation arrives addressed by this triple, so **unless it is recorded when the
+    ticket is issued, it can't be matched later** (ADR-0077 §3).
     """
 
     __tablename__ = "sso_login_tickets"
@@ -57,26 +57,26 @@ class SsoLoginTicketRecord(Base):
     redirect_to: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     issuer: Mapped[str] = mapped_column(sa.String(255), nullable=False, default="")
     subject: Mapped[str] = mapped_column(sa.String(255), nullable=False, default="")
-    #: ID トークンの ``sid``。出さない IdP があるので NULL 可。
+    #: The ID token's ``sid``. Nullable because some IdPs don't provide it.
     session_id: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
-    #: セッションが始まった時刻。停止の記録はこの時刻と突き合わせる（ADR-0077 §3）。
+    #: When the session started. Logout records are compared against this time (ADR-0077 §3).
     session_started_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
     expires_at = mapped_column(sa.DateTime(), nullable=False, index=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
 class FederatedSessionRevocationRecord(Base):
-    """IdP から届いた「このセッションを止めろ」の記録（ADR-0077 §3）。
+    """Record of "stop this session" received from the IdP (ADR-0077 §3).
 
-    主キーが ``jti`` なのは、再送を**行の重複としてそのまま弾く**ため
-    （ADR-0078 §3 の送り手は再送でも同じ ``jti`` を使う）。
-    ``session_id`` が NULL の行は、その利用者のすべてのセッションに効く。
+    The primary key is ``jti`` so that resends are **rejected as duplicate rows as is**
+    (the sender in ADR-0078 §3 uses the same ``jti`` when resending).
+    Rows with NULL ``session_id`` apply to all sessions of that user.
     """
 
     __tablename__ = "federated_session_revocations"
     __table_args__ = (
         sa.Index("ix_federated_session_revocations_subject", "issuer", "subject"),
-        # 宛名は発行者と subject。発行者がテナントを表すので、テナントの列は持たない
+        # Addressed by issuer and subject. The issuer represents the tenant, so there is no tenant column
         declared(Tenancy.GLOBAL),
     )
 
@@ -96,14 +96,14 @@ __all__ = [
 
 
 class DpopProofReplayRecord(Base):
-    """受けた DPoP の証明（鍵ごとの ``jti``）を 1 回だけにする記録（ADR-0103）。
+    """Record making each received DPoP proof (``jti`` per key) single-use (ADR-0103).
 
-    主キーは ``sha256(jkt ":" jti)`` の 16 進。受ける幅（``iat`` の 120 秒前まで）を過ぎた行は、
-    同じ証明が時刻で断られるので消してよい。挿すたびに期限切れを掃除する。
+    The primary key is hex of ``sha256(jkt ":" jti)``. Rows past the accepted window (up to 120 s before ``iat``)
+    can be deleted, since the same proof is then refused by time. Expired rows are cleaned on each insert.
     """
 
     __tablename__ = "dpop_proof_jtis"
-    # 鍵の指紋と jti だけで、誰のものかは持たない
+    # Only the key thumbprint and jti; whose it is isn't stored
     __table_args__ = declared(Tenancy.GLOBAL)
 
     replay_key: Mapped[str] = mapped_column(sa.String(64), primary_key=True)

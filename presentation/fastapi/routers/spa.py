@@ -1,24 +1,24 @@
-"""SPA（frontend/dist）の配信。
+"""Serving the SPA (frontend/dist).
 
-ビルド済みフロントエンドが存在する場合のみマウントされる。API・docs 以外の
-パスは ``index.html`` へフォールバックする（React Router の履歴モード対応）。
+Mounted only when a built frontend exists. Paths other than the API and docs fall back to
+``index.html`` (for React Router's history mode).
 
-⚠ **``/api/`` 配下は受け皿へ落とさない**（ADR-0073 §3）。このルーターは catch-all なので、
-何も書かないと**存在しない API のパスが 200 で index.html を返す**。しかも
-`frontend/dist` があるときだけそうなるので、**本番でだけ起きて手元とテストでは
-再現しない**。打ち間違えた API は、dist の有無にかかわらず 404 を返す。
+⚠ **Paths under ``/api/`` never fall through to the catch-all** (ADR-0073 §3). This router is a
+catch-all, so without care **a nonexistent API path returns index.html with 200**. And since that
+only happens when `frontend/dist` exists, **it occurs only in production and cannot be
+reproduced locally or in tests**. A mistyped API path returns 404 whether or not dist exists.
 
-配信するファイルは 2 種類あり、キャッシュの扱いを分ける。
+Two kinds of files are served, with different caching.
 
-- ``assets/`` 配下: Vite が内容ハッシュ付きの名前で書き出す。中身が変われば
-  URL も変わるので、期限を切らずに持たせてよい。
-- それ以外（``index.html``・``sw.js``・``manifest.webmanifest``・アイコン）:
-  名前が変わらないまま中身が変わる。``no-cache``（＝毎回問い合わせる）を付けないと
-  端末が古い版を持ち続け、デプロイしても画面もアイコンも変わらない。
+- Under ``assets/``: Vite writes them with content-hashed names. When content changes the URL
+  changes too, so they can be cached without expiry.
+- Everything else (``index.html``, ``sw.js``, ``manifest.webmanifest``, icons): content changes
+  under the same name. Without ``no-cache`` (= revalidate every time), devices keep the old
+  version and neither the UI nor icons change after a deploy.
 
-``no-cache`` は「毎回問い合わせる」であって「毎回落とす」ではない。``ETag`` が
-一致すれば本文を省いて 304 を返す（``FileResponse`` は ``ETag`` を付けるが
-条件付きリクエストは見ないため、ここで判定する）。
+``no-cache`` means "revalidate every time", not "download every time". If the ``ETag`` matches,
+304 is returned without a body (``FileResponse`` sets ``ETag`` but ignores conditional requests,
+so this is decided here).
 """
 
 from __future__ import annotations
@@ -32,15 +32,15 @@ DIST_DIR = Path(__file__).resolve().parents[3] / "frontend" / "dist"
 
 INDEX_HTML = "index.html"
 
-#: 受け皿へ落とさない経路。ここに当たったら 404 にする。
-#: **応答の形は dist が無いときと同じ**（FastAPI 既定の 404）にしてある——
-#: 呼ぶ側から見て、フロントエンドが焼かれているかどうかで挙動が変わらないように。
+#: Paths that never fall through to the catch-all. A match returns 404.
+#: **The response has the same shape as without dist** (FastAPI's default 404), so callers
+#: see the same behaviour whether or not the frontend is baked in.
 API_PREFIX = "api/"
 HASHED_ASSETS_PREFIX = "assets/"
 CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
 CACHE_REVALIDATE = "no-cache"
 
-# 304 でも返す必要のあるヘッダー（RFC 9110 §15.4.5）。
+# Headers that must be sent even with 304 (RFC 9110 §15.4.5).
 _NOT_MODIFIED_HEADERS = ("etag", "cache-control", "last-modified", "vary")
 
 router = APIRouter(include_in_schema=False)
@@ -57,7 +57,7 @@ def _cache_control(relative_path: str) -> str:
 
 
 def _matches_etag(request: Request, etag: str | None) -> bool:
-    """``If-None-Match`` に手持ちの ``ETag`` が含まれているか。"""
+    """Whether ``If-None-Match`` contains our ``ETag``."""
     if etag is None:
         return False
     header = request.headers.get("if-none-match")
@@ -74,8 +74,8 @@ def _not_modified(response: FileResponse) -> Response:
 
 
 def _serve(file_path: Path, relative_path: str, request: Request) -> Response:
-    # stat_result を渡すと ETag / Last-Modified が生成時に決まる（省くと本文送信の
-    # 直前まで決まらず、ここで条件付きリクエストを判定できない）。
+    # Passing stat_result fixes ETag / Last-Modified at construction (otherwise they are not
+    # set until just before the body is sent, and conditional requests can't be decided here).
     response = FileResponse(
         file_path,
         headers={"cache-control": _cache_control(relative_path)},
@@ -94,10 +94,10 @@ async def index(request: Request) -> Response:
 @router.get("/{path:path}")
 async def spa_fallback(path: str, request: Request) -> Response:
     candidate = (DIST_DIR / path).resolve()
-    # パストラバーサルを防ぎつつ、実在する静的ファイルはそのまま返す
+    # Return existing static files as is while preventing path traversal
     if candidate.is_file() and candidate.is_relative_to(DIST_DIR):
         return _serve(candidate, path, request)
     if path.startswith(API_PREFIX):
-        # 存在しない API。**index.html を返さない**（呼んだ側は JSON を待っている）。
+        # Nonexistent API. **Never return index.html** (the caller expects JSON).
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return _serve(DIST_DIR / INDEX_HTML, INDEX_HTML, request)

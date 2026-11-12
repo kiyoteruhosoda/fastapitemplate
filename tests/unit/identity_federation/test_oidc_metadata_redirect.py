@@ -1,4 +1,4 @@
-"""OIDC の discovery と JWKS は転送を追わない（ADR-0090）。"""
+"""OIDC discovery and JWKS do not follow redirects (ADR-0090)."""
 
 from __future__ import annotations
 

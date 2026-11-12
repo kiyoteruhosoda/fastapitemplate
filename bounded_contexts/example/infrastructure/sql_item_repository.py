@@ -1,8 +1,8 @@
-"""``IItemRepository`` の SQLAlchemy 実装。
+"""SQLAlchemy implementation of ``IItemRepository``.
 
-テナントの中身の見本（ADR-0079 §1 決定 5）。**テナントはコンストラクタで受け取り**、
-読み書きのすべてをそのテナントで絞る。メソッドの引数にはしない ——呼び側が渡し忘れる
-余地を作らないため。
+Sample of tenant content (ADR-0079 §1 decision 5). **The tenant is taken in the constructor**
+and every read and write is filtered by it. It is not a method argument, so callers have
+no chance to forget to pass it.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class SqlItemRepository(IItemRepository):
         self._tenant_id = tenant_id
 
     def save(self, name: str) -> Item:
-        validated_name = ItemName(name)  # ドメイン不変条件を DB 書き込み前に強制する
+        validated_name = ItemName(name)  # enforce the domain invariant before writing to the DB
         row = ItemModel(tenant_id=self._tenant_id, name=validated_name.value)
         self._session.add(row)
         self._session.flush()

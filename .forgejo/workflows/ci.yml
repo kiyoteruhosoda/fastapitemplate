@@ -1,64 +1,65 @@
 name: CI
 
-# トリガーは push（main のみ）と pull_request の 2 つ。push を全ブランチ対象にすると、
-# PR のあるブランチでは同じコミットが push 側と pull_request 側で 2 回検証され、
-# CI 時間が丸ごと二重になる（ADR-0072 §3）。
-# ※ `branches` を指定しているのでタグ push はこのワークフローに一致しない（`v*` は release.yml）。
+# Two triggers: push (main only) and pull_request. If push covered all branches, a branch with a
+# PR would verify the same commit twice (push and pull_request), doubling CI time (ADR-0072 §3).
+# Note: since `branches` is set, tag pushes don't match this workflow (`v*` is release.yml).
 on:
   push:
     branches: [main]
   pull_request:
 
-# 同じ枝（PR）へ続けて push したら、古い実行は取り消して最新の commit だけを検査する。
-# ⚠ **main も取り消す**（2026-09-28 の決定）。間の commit には合否が残らない代わりに、
-#   main への push が続いた日に古い検査がランナーの列を塞がない。副作用のある workflow には当てない。
+# On consecutive pushes to the same branch (PR), cancel older runs and check only the latest commit.
+# ⚠ **main is cancelled too** (decided 2026-09-28). Intermediate commits get no result, but in exchange
+#   stale checks don't clog the runner queue on days with many pushes to main. Not applied to
+#   workflows with side effects.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# 品質ゲート（CLAUDE.md「テスト」／docs/OPERATIONS.md 参照）
+# Quality gates (see CLAUDE.md "Tests" / docs/OPERATIONS.md)
 #   Backend : Ruff Format → Ruff Check → MyPy → PyTest
 #   Frontend: Prettier → ESLint → TypeScript → Vitest
-# いずれかが落ちたらマージできない。各ステップは前段が落ちても実行し、
-# 1 回の実行でまとめて指摘が出るようにする（`if: always()`）。
+# If any fails, the PR can't be merged. Each step runs even if an earlier one failed, so a
+# single run reports all findings at once (`if: always()`).
 jobs:
   backend:
     name: Backend (Python)
-    # ⚠ **自前の台で回す**（forge へ移したとき変えた）。
+    # ⚠ **Runs on our self-hosted runner** (changed when moving to forge).
     runs-on: [self-hosted, nolumialab]
-    # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
+    # ⚠ The default is 6 hours. Hung jobs eat up the quota and runners, so set a limit.
     timeout-minutes: 25
     env:
-      # uv が入れる Python も forge から（既定は GitHub の python-build-standalone）。
-      # 版を上げて落ちたら、その tag のファイルを astral-sh/python-build-standalone のリリースに足す。
+      # Python installed by uv also comes from forge (default is GitHub's python-build-standalone).
+      # If a version bump fails, add that tag's files to the astral-sh/python-build-standalone release.
       UV_PYTHON_INSTALL_MIRROR: "https://git.nolumia.com/astral-sh/python-build-standalone/releases/download"
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Python の版が本番のイメージと揃っているか
-        # ⚠ **試験の Python は `.python-version` の版**（uv が読む）。本番のイメージ（Dockerfile の
-        #   `FROM python:X.Y`）とずれたら落とす。Renovate は両方を 1 本の PR で上げる（task #461）。
-        #   CI だけ 3.12 のまま、本番だけ 3.14 に上がっていた。
+      - name: Check Python version matches the production image
+        # ⚠ **Tests use the `.python-version` version** (read by uv). Fail if it drifts from the
+        #   production image (`FROM python:X.Y` in the Dockerfile). Renovate bumps both in one PR
+        #   (task #461). CI had stayed on 3.12 while production moved to 3.14.
         run: |
           want="$(tr -d '[:space:]' < .python-version)"
           got="$(git ls-files 'Dockerfile' '*/Dockerfile' | xargs grep -hoE '^FROM +python:[0-9]+\.[0-9]+' | sed -E 's/^FROM +python://' | sort -u)"
           echo ".python-version: ${want} / Dockerfile: ${got//$'\n'/ }"
           if [ -z "$got" ] || [ "$got" != "$want" ]; then
-            echo "::error::.python-version（${want}）と Dockerfile の FROM python（${got//$'\n'/ }）が揃っていない"
+            echo "::error::.python-version (${want}) and Dockerfile FROM python (${got//$'\n'/ }) do not match"
             exit 1
           fi
 
       - name: Set up uv
-        # ⚠ ここだけ完全な版で固定する。setup-uv は v8 以降、
-        #   サプライチェーン対策として `@v10` のような動く major タグの発行をやめた
-        #   （タグを差し替えられる攻撃を避けるため）。上げるときは版を書き換える。
-        # ⚠ **鏡に無いので自前の鏡を完全な URL で指す**（forge へ移したため）。
+        # ⚠ Pinned to an exact version here only. Since v8, setup-uv stopped publishing moving
+        #   major tags like `@v10` as a supply-chain measure (to avoid tag-replacement attacks).
+        #   Edit the version to upgrade.
+        # ⚠ **Not on the mirror, so point at our own mirror by full URL** (since moving to forge).
         uses: https://git.nolumia.com/astral-sh/setup-uv@v10.0.1
         with:
-          # 版は書かない: manifest-file の一覧（forge の写し・毎週取り込み）の最新を使う。manifest-file があれば GitHub の API へは行かない（2026-10-27）。
-          # ⚠ **本体は forge から取る**（GitHub に依存しない）。置き場は astral-sh/uv の
-          #   リリース、その一覧が uv.ndjson。一覧は host/astral-mirror が毎週取り込む。
+          # No version pinned: use the latest in the manifest-file list (forge mirror, imported weekly).
+          # With manifest-file set, the GitHub API is never called (2026-10-27).
+          # ⚠ **The binary comes from forge** (no GitHub dependency). It lives in the astral-sh/uv
+          #   releases, listed in uv.ndjson. host/astral-mirror imports the list weekly.
           manifest-file: "https://git.nolumia.com/astral-sh/uv/raw/branch/main/uv.ndjson"
           download-from-astral-mirror: false
           enable-cache: true
@@ -66,24 +67,24 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Ruff Format (コード整形)
+      - name: Ruff Format (formatting)
         run: uv run ruff format --check .
 
-      - name: Ruff Check (静的解析)
+      - name: Ruff Check (static analysis)
         if: always()
         run: uv run ruff check .
 
-      - name: MyPy (型チェック)
+      - name: MyPy (type check)
         if: always()
         run: uv run mypy
 
-      - name: PyTest (テスト)
+      - name: PyTest (tests)
         if: always()
         run: uv run pytest -v --tb=short
 
   frontend:
     name: Frontend
-    # ⚠ **自前の台で回す**（forge へ移したとき変えた）。
+    # ⚠ **Runs on our self-hosted runner** (changed when moving to forge).
     runs-on: [self-hosted, nolumialab]
     timeout-minutes: 25
     defaults:
@@ -93,8 +94,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # ⚠ **node-version は書かない**。書くと setup-node は鏡を指しても先に api.github.com の
-      #   一覧を引く（GitHub に依存する）。台の像（node:24-bookworm）の Node 24 をそのまま使う。
+      # ⚠ **Do not set node-version.** If set, setup-node fetches the list from api.github.com
+      #   first even when pointed at a mirror (a GitHub dependency). Use Node 24 from the runner
+      #   image (node:24-bookworm) as is.
       - uses: actions/setup-node@v6
         with:
           cache: npm
@@ -103,18 +105,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prettier (コード整形)
+      - name: Prettier (formatting)
         run: npm run format:check
 
-      - name: ESLint (静的解析)
+      - name: ESLint (static analysis)
         if: always()
         run: npm run lint
 
-      - name: TypeScript (型チェック)
+      - name: TypeScript (type check)
         if: always()
         run: npm run type-check
 
-      - name: Vitest (テスト)
+      - name: Vitest (tests)
         if: always()
         run: npm run test
 

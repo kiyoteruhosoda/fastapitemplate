@@ -1,5 +1,5 @@
 # ===== frontend build stage =====
-# Node / node_modules はビルドにしか使わないため、最終イメージには含めない。
+# Node / node_modules are only needed for the build, so they are left out of the final image.
 FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS frontend-builder
 
 WORKDIR /app/frontend
@@ -22,13 +22,13 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# uv（依存管理）。依存レイヤーを分けてキャッシュを効かせる。
-# ⚠ 版を固定する。`:latest` だと同じコミットからでも解決器の版が変わりうる。
-#   CI（setup-uv の version）と同じ版に揃える。
-# ⚠ **ghcr.io の像から COPY しない。** 像のビルドが GitHub に頼らないよう、
-#   PyPI の wheel から入れる（task #172）。
-# uv は依存を入れるときにしか使わないので、/tmp に入れて同じ RUN の中で消す
-# （最終イメージに残さない）。
+# uv (dependency management). Dependencies get their own layer so the cache works.
+# ⚠ Pin the version. With `:latest` the resolver version can change even for the same commit.
+#   Keep it at the same version as CI (setup-uv's version).
+# ⚠ **Do not COPY from the ghcr.io image.** Install from the PyPI wheel so the image build
+#   doesn't depend on GitHub (task #172).
+# uv is only needed to install dependencies, so put it in /tmp and delete it in the same RUN
+# (it is not left in the final image).
 # renovate: datasource=pypi depName=uv
 ARG UV_VERSION=0.12.5
 
@@ -43,21 +43,21 @@ COPY . /app
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 ENV PATH="/app/.venv/bin:$PATH"
 
-# バージョン情報（shared/kernel/version.json）は **ビルドの前に生成してコンテキストへ入れる**。
-# build の「版を刻む」段が scripts/generate_version.sh を実行し、その出力がここへ
-# COPY されてくる（ADR-0073 §1）。この RUN は「無かったときに dev として印を付ける」だけで、
-# 既にある内容は書き換えない。イメージには .git が入らないので、ここで git は引けない。
-# ⚠ **ビルド情報を受け取る ARG を足さない。** 渡す側ごとに名前がずれて壊れた実績がある
-#   （CLAUDE.md「ビルドとデプロイ」）。
+# Version info (shared/kernel/version.json) is **generated before the build and put in the
+# context**. The "stamp the version" stage of build runs scripts/generate_version.sh and its
+# output is COPYed in here (ADR-0073 §1). This RUN only "marks it as dev if missing" and never
+# rewrites existing content. The image has no .git, so git can't be queried here.
+# ⚠ **Do not add ARGs that receive build info.** Names drifted per caller and broke things
+#   before (CLAUDE.md "Build and deploy").
 RUN bash scripts/generate_version.sh
 
 RUN chmod +x /app/scripts/entrypoint.sh
-# 実行ユーザーの UID。置き場の所有者と揃える必要があるため、値を変えるときは
-# deploy/k8s/10-storage.yaml の chown と 40-app.yaml の fsGroup も揃える。
+# UID of the runtime user. It must match the owner of the storage, so when changing it also
+# update the chown in deploy/k8s/10-storage.yaml and fsGroup in 40-app.yaml.
 ARG APP_UID=5678
 RUN adduser -u "$APP_UID" --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser
 
-# エントリポイントはイメージに焼き込む。compose は command でモードのみ指定する。
+# The entrypoint is baked into the image. compose only selects the mode via command.
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
 CMD ["web"]

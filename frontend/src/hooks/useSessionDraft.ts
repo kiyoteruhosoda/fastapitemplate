@@ -1,13 +1,14 @@
 /**
- * 書きかけをタブの中（sessionStorage）に残す（ADR-0104）。
+ * Keeps drafts within the tab (sessionStorage) (ADR-0104).
  *
- * SSO で入ったログインが続けられないと、画面はログイン画面へ移り、IdP と全画面で往復してから
- * 元の画面へ戻る。React の状態は往復で消えるので、**書きかけは書くたびにここへ写しておく。**
- * 戻ってきたときに同じ鍵で読み直せば、閉じていた入力の窓もそのまま開く。
+ * When an SSO sign-in can't be continued, the app moves to the sign-in screen, does a full-page
+ * round trip to the IdP, then returns to the original screen. React state is lost in the round
+ * trip, so **drafts are copied here on every change.** Reading them back with the same key on
+ * return also reopens the input dialog that was open.
  *
- * - 値が `null` になったら（保存した・閉じた）消す
- * - サインアウトしたら全部消す（{@link clearSessionDrafts}。同じタブで別の人が入ることがある）
- * - 読めない・書けないブラウザでは、ふつうの状態としてだけ振る舞う
+ * - Removed when the value becomes `null` (saved or closed)
+ * - All cleared on sign-out ({@link clearSessionDrafts}; another person may sign in on the same tab)
+ * - In browsers where storage can't be read or written, behaves as plain state only
  */
 import { useCallback, useState } from 'react'
 
@@ -27,7 +28,7 @@ function write(key: string, value: unknown): void {
     if (value === null) window.sessionStorage.removeItem(PREFIX + key)
     else window.sessionStorage.setItem(PREFIX + key, JSON.stringify(value))
   } catch {
-    // 残せなくても書きかけは画面に残っている
+    // Even if it can't be stored, the draft remains on screen
   }
 }
 
@@ -47,13 +48,13 @@ export function useSessionDraft<T>(key: string, initial: T | null = null) {
   return [value, update] as const
 }
 
-/** 書きかけを全部消す（サインアウトしたとき）。 */
+/** Clear all drafts (on sign-out). */
 export function clearSessionDrafts(): void {
   try {
     for (const key of Object.keys(window.sessionStorage)) {
       if (key.startsWith(PREFIX)) window.sessionStorage.removeItem(key)
     }
   } catch {
-    // 消せなくても、次に保存すれば上書きされる
+    // Even if it can't be removed, the next save overwrites it
   }
 }

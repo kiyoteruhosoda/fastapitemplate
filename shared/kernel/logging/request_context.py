@@ -1,13 +1,15 @@
-"""リクエストコンテキスト（``requestId``・接続元・操作主体）の伝播。
+"""Propagation of the request context (``requestId``, client address, acting principal).
 
-ミドルウェアと認証依存関数が設定した値を ``contextvars`` で保持する。読み手は 2 つ。
+Values set by the middleware and the authentication dependencies are kept in ``contextvars``.
+There are two readers.
 
-- アプリログ: 全レコードへ自動付与する（``logging_config.RequestContextFilter``）。
-- 監査ログ: リクエスト文脈として記録する（audit コンテキストの Presentation 層が
-  ここから ``AuditRequestContext`` を組み立てる）。
+- Application logs: attached to every record automatically (``logging_config.RequestContextFilter``).
+- Audit logs: recorded as the request context (the audit context's Presentation layer builds
+  ``AuditRequestContext`` from here).
 
-引数で引き回さないのは、ログと監査がどちらも横断的関心事で、途中の全関数へ
-リクエスト情報を通すと本来の責務が埋もれるため。
+They are not passed around as arguments because logging and auditing are both cross-cutting
+concerns, and threading request information through every function in between would bury their
+actual responsibilities.
 """
 
 from __future__ import annotations
@@ -16,7 +18,8 @@ from contextvars import ContextVar
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 user_id_hash_var: ContextVar[str | None] = ContextVar("user_id_hash", default=None)
-# 監査ログの「誰が」。認証依存関数が検証後に設定する（未認証のリクエストでは None）。
+# The "who" of audit logs. Set by the authentication dependency after verification (None for
+# unauthenticated requests).
 actor_user_id_var: ContextVar[int | None] = ContextVar("actor_user_id", default=None)
 ip_address_var: ContextVar[str | None] = ContextVar("ip_address", default=None)
 user_agent_var: ContextVar[str | None] = ContextVar("user_agent", default=None)

@@ -1,7 +1,7 @@
-"""本番では既定の署名鍵で起動しない（ADR-0073 §4）。
+"""Production does not start with the default signing key (ADR-0073 §4).
 
-既定値は公開リポジトリに載っている。アクセストークンの検証は DB を引かない
-（ADR-0076 §5）ので、その鍵で作ったトークンは書いた権限のまま通る。
+The default value is in the public repository. Access-token verification does not query the DB
+(ADR-0076 §5), so a token made with that key passes with whatever permissions it claims.
 """
 
 from __future__ import annotations
@@ -46,11 +46,11 @@ def test_other_environments_only_warn(environment: str, caplog: pytest.LogCaptur
 
 
 def test_the_app_factory_refuses_the_default_key_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
-    """鍵を渡し忘れて本番に出すと、アプリが組み上がらない（＝起動しない）。"""
+    """Shipping to production without the key means the app is not assembled (= does not start)."""
     from presentation.fastapi.app import create_app
     from shared.kernel.settings.settings import settings
 
     monkeypatch.setenv("APP_ENV", PRODUCTION)
-    assert secret_problem(settings.jwt_secret_key) is not None, "試験の鍵が既定値でなくなったら、この試験を直す"
+    assert secret_problem(settings.jwt_secret_key) is not None, "Fix this test if the test key stops being the default"
     with pytest.raises(InsecureSecretError):
         create_app()

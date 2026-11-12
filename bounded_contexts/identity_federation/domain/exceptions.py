@@ -1,203 +1,204 @@
-"""ID 連携コンテキストのドメイン例外。
+"""Domain exceptions of the identity federation context.
 
-``code`` がそのまま API のエラーコード（表示文言はフロントエンド）になる。
-ブラウザの往復の途中で起きた失敗は、ログイン画面へ ``?sso_error=<code>`` として
-返る（ADR-0077 §1）。
+``code`` is used as is as the API error code (display wording is the frontend's job).
+Failures in the middle of a browser round trip return to the login screen as
+``?sso_error=<code>`` (ADR-0077 §1).
 """
 
 from __future__ import annotations
 
 
 class IdentityFederationError(Exception):
-    """このコンテキストの基底例外。"""
+    """Base exception of this context."""
 
     code = "sso_error"
 
 
 class SsoNotConfiguredError(IdentityFederationError):
-    """SSO が無効、または接続先（issuer / client）が埋まっていない。"""
+    """SSO is disabled, or the connection (issuer / client) is not filled in."""
 
     code = "sso_not_configured"
 
 
 class SsoLoginTransactionInvalidError(IdentityFederationError):
-    """往復状態が復元できない（Cookie が無い・期限切れ・``state`` の不一致）。
+    """The round-trip state can't be restored (no cookie, expired, ``state`` mismatch).
 
-    **Cookie を落とすブラウザではここで必ず止まる。** 自サイトの Cookie なので
-    サードパーティ Cookie の制限とは別だが、Cookie を一切拒否する設定では
-    正規のログインも通らない（ADR-0077 §1）。
+    **Browsers that drop cookies always stop here.** It's a first-party cookie, so it's separate
+    from third-party cookie restrictions, but with all cookies refused even legitimate logins
+    fail (ADR-0077 §1).
     """
 
     code = "sso_state_invalid"
 
 
 class SsoTicketNotFoundError(IdentityFederationError):
-    """引き換え券が見つからない（期限切れ・使用済み）。"""
+    """Redemption ticket not found (expired or already used)."""
 
     code = "sso_ticket_invalid"
 
 
 class IdentityProviderUnavailableError(IdentityFederationError):
-    """IdP と話せない（discovery・トークン交換の通信／応答の失敗）。"""
+    """Can't talk to the IdP (communication / response failure in discovery or token exchange)."""
 
     code = "sso_provider_unavailable"
 
 
 class InvalidIdTokenError(IdentityFederationError):
-    """ID トークンの検証に失敗した（署名・発行者・対象者・nonce）。"""
+    """ID token verification failed (signature, issuer, audience, nonce)."""
 
     code = "sso_invalid_id_token"
 
 
 class InvalidLogoutTokenError(IdentityFederationError):
-    """``logout_token`` の検証に失敗した（署名・発行者・対象者・期限・形）。
+    """``logout_token`` verification failed (signature, issuer, audience, expiry, shape).
 
-    **理由は外へ出さない。** この口は未認証で叩けるので、細かく答えると
-    「どこまで通ったか」を総当たりの手掛かりにできる。
+    **The reason is not exposed.** This endpoint can be hit unauthenticated, so detailed answers
+    would give brute force a clue about "how far it got".
     """
 
     code = "sso_invalid_logout_token"
 
 
 class SsoAcrNotSatisfiedError(IdentityFederationError):
-    """要求した認証の強度（``acr_values``）が満たされていない（ADR-0076 §3 決定 1）。
+    """The requested authentication strength (``acr_values``) is not met (ADR-0076 §3 decision 1).
 
-    ``acr`` が返ってこない場合もこれになる。要求したのに保証が得られていない以上、
-    通してはいけない。
+    This also applies when no ``acr`` comes back. It was requested but not assured, so it must
+    not pass.
     """
 
     code = "sso_acr_not_satisfied"
 
 
 class SsoEmailMissingError(IdentityFederationError):
-    """メールアドレスのクレームが無い（アカウントを結び付けられない）。"""
+    """No email claim (the account can't be bound)."""
 
     code = "sso_email_missing"
 
 
 class SsoEmailNotAllowedError(IdentityFederationError):
-    """許可されていないメールドメイン。"""
+    """Email domain not allowed."""
 
     code = "sso_email_not_allowed"
 
 
 class SsoAccountNotLinkedError(IdentityFederationError):
-    """対応するアカウントが無く、自動作成も許可されていない。"""
+    """No matching account, and automatic creation is not allowed."""
 
     code = "sso_account_not_linked"
 
 
 class SsoIdentityTakenError(IdentityFederationError):
-    """その IdP アカウントは**別の利用者**に結び付いている（ADR-0077 §5）。
+    """That IdP account is bound to **a different user** (ADR-0077 §5).
 
-    ⚠ **横取りになるので断る。** 付け替えを許すと、IdP 側で 1 つの口座を共有して
-    いる相手が、後からこのアプリの別人の入り口を奪える。
+    ⚠ **Refused because it would be a takeover.** Allowing rebinding would let someone sharing one
+    account on the IdP side later steal the way in of another person in this app.
     """
 
     code = "sso_identity_taken"
 
 
 class SsoAlreadyLinkedError(IdentityFederationError):
-    """この利用者には、その IdP の結び付きが**既にある**（ADR-0077 §5）。
+    """This user **already has** a binding to that IdP (ADR-0077 §5).
 
-    別の ``subject`` へ差し替えたいなら、いったん解除してから結び直す。黙って
-    上書きすると、前の結び付きで入っていた経路が予告なく消える。
+    To switch to a different ``subject``, unlink first and then link again. Silently overwriting
+    would make the path that signed in via the previous binding vanish without notice.
     """
 
     code = "sso_already_linked"
 
 
 class SsoIdentityNotLinkedError(IdentityFederationError):
-    """解除しようとしたが、その IdP との結び付きが無い。"""
+    """Tried to unlink, but there is no binding to that IdP."""
 
     code = "sso_identity_not_linked"
 
 
 class SsoLastEntranceError(IdentityFederationError):
-    """解除すると、この利用者が**どこからも入れなくなる**（ADR-0077 §5）。
+    """Unlinking would leave this user **with no way in at all** (ADR-0077 §5).
 
-    ⚠ **締め出しを作らない。** ローカルのパスワードもパスキーも無い利用者から
-    IdP を外すと、残るのは管理者による復旧だけになる。
+    ⚠ **Don't create lockouts.** Removing the IdP from a user with neither a local password nor
+    a passkey leaves only recovery by an administrator.
     """
 
     code = "sso_last_entrance"
 
 
 class SsoLinkSessionMismatchError(IdentityFederationError):
-    """連携の往復を始めた利用者と、戻ってきたときのセッションが違う。
+    """The user who started the linking round trip differs from the session on return.
 
-    往復の途中でサインアウトした・別の利用者で入り直した場合に起きる。
-    **どちらの口座へ結び付けるべきか決められない**ので、やり直してもらう。
+    Happens when the user signed out mid-round-trip or signed in again as someone else.
+    **We can't decide which account to bind to**, so they are asked to retry.
     """
 
     code = "sso_link_session_mismatch"
 
 
 class SsoAccountInactiveError(IdentityFederationError):
-    """アカウントが無効化されている。"""
+    """The account is disabled."""
 
     code = "sso_account_inactive"
 
 
 class AppAccessTokenRejectedError(IdentityFederationError):
-    """アプリから来た assay のアクセストークンを受け取らない（ADR-0081 §1）。
+    """Don't accept an assay access token coming from an app (ADR-0081 §1).
 
-    理由（署名・宛先・クライアント・停止）は応答で区別しない。401 になる。
+    The reason (signature, audience, client, suspension) is not distinguished in the response. It becomes 401.
     """
 
     code = "invalid_token"
 
 
 class DpopProofRejectedError(AppAccessTokenRejectedError):
-    """``cnf.jkt`` のあるトークンに、合う DPoP の証明が付いていない（ADR-0103）。
+    """A token with ``cnf.jkt`` lacks a matching DPoP proof (ADR-0103).
 
-    401 と ``WWW-Authenticate: DPoP error="invalid_dpop_proof"``。アプリは時計を直して 1 回だけ送り直す。
+    401 with ``WWW-Authenticate: DPoP error="invalid_dpop_proof"``. The app fixes its clock and retries once.
     """
 
     code = "invalid_dpop_proof"
 
 
 class MachineNotBoundToApplicationError(IdentityFederationError):
-    """名乗ったサービスアカウントが、assay でどのアプリにも結び付いていない（管理 API の 403。ADR-0077 §7）。
+    """The claimed service account isn't bound to any app in assay (403 from the admin API. ADR-0077 §7).
 
-    ⚠ **障害ではなく「まだ準備されていない」。** どのアプリの名簿を返すかは assay が
-    呼び出し元のサービスアカウントから決めるので、結び付けるまで毎回この形で返る。
+    ⚠ **Not a fault but "not set up yet".** assay decides whose roster to return from the
+    caller's service account, so it keeps returning this until bound.
     """
 
     code = "machine_not_bound_to_application"
 
 
 class MachineEntranceClosedError(IdentityFederationError):
-    """機械の口が開いていない（宛名 ``MACHINE_AUDIENCE`` か許可簿 ``MACHINE_CLIENTS`` が空。ADR-0082 §2 決定 4）。"""
+    """The machine endpoint is not open (audience ``MACHINE_AUDIENCE`` or allowlist ``MACHINE_CLIENTS``
+    is empty. ADR-0082 §2 decision 4)."""
 
     code = "machine_entrance_closed"
 
 
 class InvalidMachineTokenError(IdentityFederationError):
-    """機械のトークンとして受け取れない（署名・発行者・期限・宛名・主体のどれか）。"""
+    """Can't accept as a machine token (signature, issuer, expiry, audience or subject)."""
 
     code = "machine_token_invalid"
 
 
 class MachineClientNotRegisteredError(IdentityFederationError):
-    """名乗った ``client_id`` が許可簿に無い。"""
+    """The claimed ``client_id`` is not in the allowlist."""
 
     code = "machine_client_not_registered"
 
     def __init__(self, client_id: str) -> None:
         super().__init__(self.code)
-        #: 名乗った機械（監査の対象に残す。公開の識別子）
+        #: The claimed machine (kept as the audit target. A public identifier)
         self.client_id = client_id
 
 
 class MachineActorNotFoundError(IdentityFederationError):
-    """許可簿の ``acts_as`` に当たる有効な利用者が、トークンの発行者のテナントに居ない。"""
+    """No active user matching the allowlist's ``acts_as`` exists in the token issuer's tenant."""
 
     code = "machine_actor_not_found"
 
     def __init__(self, client_id: str) -> None:
         super().__init__(self.code)
-        #: 名乗った機械（監査の対象に残す。公開の識別子）
+        #: The claimed machine (kept as the audit target. A public identifier)
         self.client_id = client_id
 
 

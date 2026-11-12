@@ -1,14 +1,14 @@
 name: Image
 
-# Dockerfile まわりを触った PR / main への push だけで動く。
-# 本番のビルドは deploy-repo の build が行い、成果物はレジストリのイメージ（ADR-0073 §1）。
-# ここで焼くイメージは **push しない**。目的は「デプロイの経路へ着く前に壊れているかを
-# 知る」こと。
+# Runs only for PRs / pushes to main that touch Dockerfile-related files.
+# The production build is done by deploy-repo's build; the artifact is the registry image
+# (ADR-0073 §1). The image baked here is **not pushed**. The goal is to "find out whether it is
+# broken before it reaches the deploy path".
 on:
   push:
     branches: [main]
-    # ⚠ GitHub Actions の YAML は アンカー/エイリアス（&x / *x）を解釈しない。
-    #   同じ一覧を pull_request 側にも書く必要がある。片方だけ足すと動かない。
+    # ⚠ GitHub Actions YAML does not interpret anchors/aliases (&x / *x).
+    #   The same list must also be written under pull_request. Adding to only one side breaks it.
     paths:
       - "Dockerfile"
       - ".dockerignore"
@@ -29,9 +29,10 @@ on:
       - "frontend/package-lock.json"
       - ".forgejo/workflows/image.yml"
 
-# 同じ枝（PR）へ続けて push したら、古い実行は取り消して最新の commit だけを検査する。
-# ⚠ **main も取り消す**（2026-09-28 の決定）。間の commit には合否が残らない代わりに、
-#   main への push が続いた日に古い検査がランナーの列を塞がない。副作用のある workflow には当てない。
+# On consecutive pushes to the same branch (PR), cancel older runs and check only the latest commit.
+# ⚠ **main is cancelled too** (decided 2026-09-28). Intermediate commits get no result, but in exchange
+#   stale checks don't clog the runner queue on days with many pushes to main. Not applied to
+#   workflows with side effects.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -39,48 +40,50 @@ concurrency:
 jobs:
   build:
     name: Docker build
-    # ⚠ **docker を使うので専用の台へ**（ジョブのイメージに docker が入っている）。
-    #   ⚠ ここへ来たジョブは**ホスト root 相当**になる。
+    # ⚠ **Uses docker, so it runs on the dedicated runner** (the job image includes docker).
+    #   ⚠ A job that lands here is **effectively host root**.
     runs-on: [nolumialab-docker]
-    # ⚠ **Renovate の PR では走らせない**（task #603）。この台はジョブに docker.sock を
-    #   渡す ——版上げの PR は人が見る前に CI が走るので、依存に悪意の版が混ざると
-    #   その場でホスト root を取られる。飛ばしたジョブは緑に数えられる。
+    # ⚠ **Do not run on Renovate PRs** (task #603). This runner hands docker.sock to the job —
+    #   CI runs on version-bump PRs before a human looks at them, so a malicious version in a
+    #   dependency would take host root on the spot. A skipped job counts as green.
     if: github.event.pull_request.user.login != 'renovate'
-    # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
+    # ⚠ The default is 6 hours. Hung jobs eat up the quota and runners, so set a limit.
     timeout-minutes: 20
-    # ⚠ **像の名前は実行ごとに分ける。** ホストの docker は 1 つなので、同じ名前だと同時に走ったジョブ
-    #   （雛形から作った別のリポジトリ・同じリポジトリの PR と main）が像を上書きし合い、別の像で試験が走る
-    #   （2026-10-25、imggen の煙試験が fastapitemplate の像の中で走って落ちた）。
+    # ⚠ **Use a distinct image name per run.** The host has a single docker, so with a shared name
+    #   concurrent jobs (other repos created from the template, or a PR and main of the same repo)
+    #   overwrite each other's image and tests run in the wrong image
+    #   (2026-10-25: imggen's smoke test ran inside the fastapitemplate image and failed).
     env:
       CI_IMAGE: ci/${{ github.repository }}:${{ github.run_id }}-build
     steps:
       - uses: actions/checkout@v6
 
-      # build の「版を刻む」段と同じ手順。ここを省くとイメージが版を名乗れない。
-      - name: バージョン情報を生成
+      # Same procedure as the "stamp the version" stage of build. Skip it and the image cannot
+      # report its version.
+      - name: Generate version info
         run: bash scripts/generate_version.sh
         env:
           BRANCH_OVERRIDE: ${{ github.head_ref || github.ref_name }}
 
-      # ⚠ **buildx の別ドライバを立てない**（`blobshare` の 3cc9765 と同じ判断）。
-      #   forge では `cache-to: type=gha` が届かない ——act_runner のキャッシュ置き場は
-      #   ランナーのコンテナの IP で待っており、ホストのデーモンが作る buildkit の
-      #   コンテナからは経路が無い。自前のランナーはデーモンが居座るので、素の
-      #   `docker build` のほうが layer が再利用される。
-      - name: Build（push はしない）
+      # ⚠ **Do not start a separate buildx driver** (same call as `blobshare` 3cc9765).
+      #   On forge `cache-to: type=gha` is unreachable — act_runner's cache server listens on
+      #   the runner container's IP, and there is no route from the buildkit container that the
+      #   host daemon creates. Our self-hosted runner keeps a long-lived daemon, so a plain
+      #   `docker build` reuses layers better.
+      - name: Build (no push)
         run: docker build -t "$CI_IMAGE" .
-          # ⚠ forge では act_runner のキャッシュがジョブから届かないので使わない。
+          # ⚠ Not used: on forge the act_runner cache is unreachable from jobs.
 
-      # 版の刻印が効いていることの回帰テスト。ここが dev に戻ると、ビルドは緑のまま
-      # 「どのコミットが動いているか答えられない」イメージが出続ける。
-      - name: version.json が dev になっていないことを確認
+      # Regression test that the version stamp works. If this falls back to dev, builds stay
+      # green while shipping images that "can't tell which commit is running".
+      - name: Check version.json is not dev
         run: |
           set -eu
           json=$(docker run --rm --entrypoint cat "$CI_IMAGE" /app/shared/kernel/version.json)
           echo "$json"
           echo "$json" | grep -q "\"commit_hash\": \"$(git rev-parse --short HEAD)\""
 
-      # 実行ごとの名前なので、残すと溜まる
-      - name: 試験に使った像を消す
+      # Names are per run, so leftovers pile up
+      - name: Remove the image used for testing
         if: always()
         run: docker image rm -f "$CI_IMAGE" >/dev/null 2>&1 || true

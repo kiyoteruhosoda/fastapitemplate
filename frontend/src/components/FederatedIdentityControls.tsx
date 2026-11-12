@@ -1,10 +1,11 @@
 /**
- * IdP（SSO）との連携。セキュリティ画面の「連携」区画に出す（ADR-0077 §5）。
+ * Linking with the IdP (SSO). Shown in the "Linked accounts" section of the security page
+ * (ADR-0077 §5).
  *
- * 連携を始めると IdP へ画面ごと遷移し、戻ってきたときはこの画面に
- * `?sso_link=linked` か `?sso_link_error=<コード>` が付いている。
+ * Starting a link navigates the whole page to the IdP; on return this page has
+ * `?sso_link=linked` or `?sso_link_error=<code>`.
  *
- * 見出しと区画の枠は呼び出し側（SecurityPage）が持ち、ここは中身だけを描く。
+ * The heading and section frame belong to the caller (SecurityPage); this renders only the content.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -24,7 +25,7 @@ interface FederatedLink {
   can_unlink: boolean
 }
 
-/** 連携の戻りに付くエラーコード -> 文言のキー。 */
+/** Error code on the link return -> message key. */
 const LINK_ERRORS: Record<string, string> = {
   sso_identity_taken: 'security.linkTaken',
   sso_already_linked: 'security.linkAlreadyLinked',
@@ -53,8 +54,8 @@ export function FederatedIdentityControls() {
     void reload()
   }, [reload])
 
-  // IdP から戻ってきた直後の 1 回だけ、結果を伝えてクエリを片付ける。
-  // 残したままにすると、画面を再読み込みするたびに同じ報せが出る。
+  // Only once, right after returning from the IdP: report the result and clean up the query.
+  // If left in place, every reload would show the same message again.
   useEffect(() => {
     const linked = params.get('sso_link')
     const failed = params.get('sso_link_error')
@@ -70,8 +71,8 @@ export function FederatedIdentityControls() {
     setError(null)
     try {
       const started = await api.post<{ authorization_url: string }>('/api/auth/sso/link/start')
-      // ⚠ サーバーは 303 を返さない。往復状態の Cookie を受け取ってから、
-      //   画面が自分で IdP へ遷移する（認証切れを 401 で受けられるようにするため）。
+      // Note: the server does not return 303. After receiving the round-trip state cookie,
+      //   the page navigates to the IdP itself (so an expired session can be received as 401).
       window.location.assign(started.authorization_url)
     } catch (err) {
       setError(errorMessageKey(err))
@@ -106,7 +107,7 @@ export function FederatedIdentityControls() {
               {t('security.unlink')}
             </ActionButton>
           ) : (
-            // ⚠ 外すと入れなくなる。押せないボタンではなく理由を出す。
+            // Note: unlinking would lock the user out. Show the reason instead of a disabled button.
             <p className="hint">{t('security.lastEntrance')}</p>
           )}
         </>

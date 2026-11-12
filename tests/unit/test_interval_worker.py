@@ -1,7 +1,7 @@
-"""定期実行スレッド（失敗しても止まらないこと・テスト中は動かないこと）。
+"""Interval worker thread (keeps running after failures, does not run during tests).
 
-スレッド名はテストごとに変える。停止を要求したスレッドが実際に消えるまでには
-わずかな間があり、名前を共有すると前のテストの残りを数えてしまうため。
+Each test uses its own thread name. A thread asked to stop takes a moment to actually go away,
+and sharing a name would count the previous test's leftover.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from shared.kernel.scheduling import (
 
 @pytest.fixture(autouse=True)
 def _stop_workers() -> Iterator[None]:
-    """テストが起こしたスレッドを残さない。"""
+    """Leave no threads started by the test."""
     yield
     stop_interval_workers()
 
@@ -38,28 +38,28 @@ def test_run_once_calls_the_job() -> None:
 
 
 def test_a_failing_job_does_not_escape() -> None:
-    """1 回の失敗でスレッドを死なせないこと（死ぬと以降が黙って止まる）。"""
+    """One failure does not kill the thread (if it died, everything after would silently stop)."""
 
     def failing() -> None:
-        raise RuntimeError("DB が一時的に落ちている")
+        raise RuntimeError("DB is temporarily down")
 
     IntervalWorker("worker-failing", failing, 60.0).run_once()
 
 
 def test_the_thread_runs_the_job_right_after_starting() -> None:
-    """間隔を待たずに 1 回走ること（起動し直せばすぐ実行できる）。"""
+    """Runs once without waiting for the interval (a restart runs it right away)."""
     ran = threading.Event()
     worker = IntervalWorker("worker-immediate", ran.set, 60.0)
 
     worker.start()
     try:
-        assert ran.wait(timeout=5.0), "起動直後の 1 回が走っていない"
+        assert ran.wait(timeout=5.0), "The run right after start did not happen"
     finally:
         worker.stop()
 
 
 def test_starting_twice_keeps_a_single_thread() -> None:
-    """二重に開始しても 1 本だけ動くこと（プロセス内で重複させない）。"""
+    """Starting twice still runs only one thread (no duplicates within a process)."""
     name = "worker-started-twice"
     worker = IntervalWorker(name, lambda: None, 60.0)
 
@@ -72,10 +72,10 @@ def test_starting_twice_keeps_a_single_thread() -> None:
 
 
 def test_no_worker_starts_while_testing() -> None:
-    """``TESTING`` のときは登録も起動もしないこと。
+    """Under ``TESTING`` nothing is registered or started.
 
-    テストが知らないうちに DB を触るスレッドが走ると、後始末したエンジンへ
-    書きに行って別のテストが落ちる。
+    A thread touching the DB without the test knowing writes to an engine that was already
+    disposed, and another test fails.
     """
     name = "worker-under-testing"
 

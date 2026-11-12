@@ -1,8 +1,9 @@
-"""マスタデータの投入（ADR-0078 §3）。
+"""Seeding master data (ADR-0078 §3).
 
-見張りたいのは 1 点。**運用の途中で消した既定の管理者が、権限を足す再投入で
-復活しないこと。** 復活すると、公開されている既定のパスワードを持つ管理者が
-黙って生えたまま動き続ける（派生アプリ blobshare の本番で 2026-09-02 に起きた）。
+One thing is watched: **a default administrator deleted during operation does not come back on a
+re-seed that adds permissions.** If it did, an administrator with the publicly known default
+password would silently reappear and keep running (happened in production of the derived app
+blobshare on 2026-09-02).
 """
 
 from __future__ import annotations
@@ -24,10 +25,10 @@ def _admin(session: Session) -> User | None:
 
 
 def test_reseeding_does_not_resurrect_a_deleted_admin(engine: sa.Engine) -> None:
-    """**ここが要。** 権限を足すマイグレーションは ``seed_master_data`` だけを呼ぶ。"""
+    """**This is the key point.** Migrations that add permissions call only ``seed_master_data``."""
     session = _session(engine)
     admin = _admin(session)
-    assert admin is not None  # conftest が据えている
+    assert admin is not None  # seated by conftest
     admin.roles.clear()
     session.delete(admin)
     session.flush()
@@ -39,14 +40,14 @@ def test_reseeding_does_not_resurrect_a_deleted_admin(engine: sa.Engine) -> None
 
 
 def test_reseeding_still_adds_new_roles_and_permissions(engine: sa.Engine) -> None:
-    """管理者を作らなくなっても、ロールと権限の追加は効く。"""
+    """Even without creating the administrator, adding roles and permissions still works."""
     session = _session(engine)
     manager = session.scalar(sa.select(Role).where(Role.name == "manager"))
     assert manager is not None
     manager.permissions.clear()
-    # ⚠ 権限の行を消す前に、**どのロールからも外す**。外部キーを検査する設定
-    #    （派生アプリでは SQLite でも有効にしている）だと、参照が残ったままでは
-    #    消せない。
+    # ⚠ Before deleting the permission rows, **remove them from every role**. With foreign-key
+    #    checks on (derived apps enable them even on SQLite), they cannot be deleted while
+    #    references remain.
     for role in session.scalars(sa.select(Role)):
         role.permissions = [item for item in role.permissions if item.code != "audit:view"]
     session.flush()
@@ -63,7 +64,7 @@ def test_reseeding_still_adds_new_roles_and_permissions(engine: sa.Engine) -> No
 
 
 def test_the_default_admin_is_only_added_when_missing(engine: sa.Engine) -> None:
-    """据え直しは冪等。既に居るならパスワードを書き戻さない。"""
+    """Re-seating is idempotent. If the admin already exists, the password is not written back."""
     session = _session(engine)
     admin = _admin(session)
     assert admin is not None
@@ -79,7 +80,7 @@ def test_the_default_admin_is_only_added_when_missing(engine: sa.Engine) -> None
 
 
 def test_the_default_admin_can_be_put_back_for_recovery(engine: sa.Engine) -> None:
-    """鍵を失ったときの復旧（``scripts/seed_master_data.py``）は通る。"""
+    """Recovery after losing the key (``scripts/seed_master_data.py``) works."""
     session = _session(engine)
     admin = _admin(session)
     assert admin is not None
@@ -93,6 +94,6 @@ def test_the_default_admin_can_be_put_back_for_recovery(engine: sa.Engine) -> No
     assert restored is not None
     assert restored.is_active is True
     assert [role.name for role in restored.roles] == [master_data.DEFAULT_ADMIN_ROLE]
-    # 渡したパスワードで作る（既定のハッシュを使わない）。
+    # Created with the given password (not the default hash).
     assert restored.password_hash != master_data.DEFAULT_ADMIN_PASSWORD_HASH
     session.close()

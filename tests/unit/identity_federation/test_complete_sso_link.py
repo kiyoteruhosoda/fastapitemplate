@@ -1,7 +1,7 @@
-"""連携の完了 ——誰の口座へ結び付くかの判断（ADR-0077 §5）。
+"""Completing a link: deciding whose account it binds to (ADR-0077 §5).
 
-IdP との往復そのものは :mod:`tests.integration.api.test_sso_login` が見る。ここで
-確かめるのは**結び付けてよい相手かどうか**だけ。
+The IdP round trip itself is covered by :mod:`tests.integration.api.test_sso_login`. Only
+**whether the counterpart may be linked** is checked here.
 """
 
 from __future__ import annotations
@@ -138,40 +138,40 @@ def test_a_round_trip_without_state_is_refused() -> None:
 
 
 def test_a_round_trip_started_by_someone_else_is_refused() -> None:
-    """⚠ 往復の途中で入れ替わったブラウザで、別人の口座へ結び付けない。"""
+    """⚠ Do not link to someone else's account in a browser that was swapped mid round trip."""
     with pytest.raises(SsoLinkSessionMismatchError):
         _use_case(_Identities()).execute(callback=_callback(user_id=_SOMEONE_ELSE), user_id=_ME)
 
 
 def test_a_round_trip_without_an_owner_is_refused() -> None:
-    """ログインの往復（``user_id`` が無い）を連携として完了させない。"""
+    """A sign-in round trip (no ``user_id``) is not completed as a link."""
     with pytest.raises(SsoLinkSessionMismatchError):
         _use_case(_Identities()).execute(callback=_callback(user_id=None), user_id=_ME)
 
 
 def test_an_identity_that_belongs_to_another_user_is_refused() -> None:
-    """⚠ 横取りになる。IdP 側で口座を共有している相手に入り口を奪わせない。"""
+    """⚠ That would be a takeover. Do not let someone sharing the account on the IdP side steal the way in."""
     identities = _Identities([FederatedIdentity(_ISSUER, "idp-subject", _SOMEONE_ELSE)])
     with pytest.raises(SsoIdentityTakenError):
         _use_case(identities).execute(callback=_callback(), user_id=_ME)
 
 
 def test_linking_the_same_identity_again_is_not_an_error() -> None:
-    """同じ相手をもう一度押しても断らない（利用者から見れば結果は同じ）。"""
+    """Pressing again for the same counterpart is not refused (the result is the same for the user)."""
     identities = _Identities([FederatedIdentity(_ISSUER, "idp-subject", _ME)])
     _use_case(identities).execute(callback=_callback(), user_id=_ME)
     assert all(row.user_id == _ME for row in identities.rows)
 
 
 def test_a_second_account_at_the_same_provider_is_refused() -> None:
-    """既にある結び付きを黙って差し替えない（前の入り口が予告なく消える）。"""
+    """An existing link is not silently replaced (the previous way in would vanish without notice)."""
     identities = _Identities([FederatedIdentity(_ISSUER, "another-subject", _ME)])
     with pytest.raises(SsoAlreadyLinkedError):
         _use_case(identities).execute(callback=_callback(), user_id=_ME)
 
 
 def test_a_round_trip_sent_to_another_issuer_is_refused() -> None:
-    """往復を送り出した発行者と、受ける連携先が違えば断る（ADR-0079 §4）。"""
+    """Refused if the issuer that started the round trip differs from the receiving partner (ADR-0079 §4)."""
     transaction = LoginTransaction(
         state="s",
         nonce="n",

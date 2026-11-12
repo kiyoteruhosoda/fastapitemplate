@@ -1,8 +1,8 @@
-"""パスキー（WebAuthn 資格情報）。
+"""Passkey (WebAuthn credential).
 
-``sign_count`` は認証器が持つ署名カウンタ。認証のたびに単調増加するため、
-巻き戻りは資格情報の複製を疑う手がかりになる。検証そのものは WebAuthn の
-ライブラリが行い、ここでは検証済みの新しい値を受け取って進めるだけ。
+``sign_count`` is the signature counter held by the authenticator. It increases monotonically
+on every authentication, so a rollback hints that the credential was cloned. The verification
+itself is done by the WebAuthn library; this just takes the verified new value and advances.
 """
 
 from __future__ import annotations
@@ -25,16 +25,16 @@ class PasskeyCredential:
     backup_state: bool = False
     last_used_at: datetime | None = None
     created_at: datetime | None = None
-    # 永続化前は未採番のため None
+    # None before persistence, as no ID has been assigned yet
     id: int | None = None
 
     def with_usage(self, *, sign_count: int, used_at: datetime) -> PasskeyCredential:
-        """認証成功後の状態を返す。"""
+        """Return the state after a successful authentication."""
         return replace(self, sign_count=sign_count, last_used_at=used_at)
 
     @property
     def display_name(self) -> str:
-        """利用者が識別するための名前（未設定なら資格情報 ID の先頭）。"""
+        """Name the user identifies it by (the start of the credential ID if not set)."""
         return self.name or f"passkey-{self.credential_id[:8]}"
 
 

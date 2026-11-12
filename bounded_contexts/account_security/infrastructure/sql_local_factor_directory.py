@@ -1,4 +1,4 @@
-"""第二要素の棚卸しの SQLAlchemy 実装（ADR-0076 §7）。"""
+"""SQLAlchemy implementation of the second-factor inventory (ADR-0076 §7)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class SqlLocalFactorDirectory:
     session: Session
 
     def factors_by_user(self) -> dict[int, LocalFactors]:
-        """2 本のクエリで全員分を集める（利用者ごとに引かない）。"""
+        """Gather everyone with two queries (no per-user lookups)."""
         confirmed = set(
             self.session.scalars(
                 select(TotpSecretRecord.user_id).where(TotpSecretRecord.confirmed_at.is_not(None))

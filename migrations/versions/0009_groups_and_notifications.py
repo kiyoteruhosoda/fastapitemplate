@@ -1,10 +1,10 @@
 """groups and notifications
 
-グループ（利用者のまとまり）とお知らせの配信（ADR-0081 §3）で要るテーブルを足し、
-権限 ``group:manage`` / ``notification:send`` を投入する。定義の正本は
-``shared/infrastructure/models/group.py`` と
-``bounded_contexts/notification/infrastructure/notification_models.py``。
-権限の正本は ``shared/domain/auth/master_data.py``（ここへ直書きしない）。
+Add the tables needed for groups (collections of users) and sending announcements (ADR-0081 §3),
+and seed the permissions ``group:manage`` / ``notification:send``. The definitions live in
+``shared/infrastructure/models/group.py`` and
+``bounded_contexts/notification/infrastructure/notification_models.py``.
+The permissions live in ``shared/domain/auth/master_data.py`` (not hard-coded here).
 
 Revision ID: groups_and_notifications
 Revises: password_is_optional
@@ -25,14 +25,14 @@ branch_labels = None
 depends_on = None
 
 _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
-# DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる）
+# No DB-native ENUM (becomes a VARCHAR with a CHECK constraint)
 _AUDIENCE_KIND = sa.Enum("all", "group", "user", name="notification_audience_kind", native_enum=False)
 
 _PERMISSION_CODES = ("group:manage", "notification:send")
 
 
 def upgrade() -> None:
-    # ⚠ テーブル名を groups にしない（MySQL 8 / MariaDB の予約語）。
+    # ⚠ Do not name the table groups (a reserved word in MySQL 8 / MariaDB).
     op.create_table(
         "user_groups",
         sa.Column("id", _BIGINT, autoincrement=True, nullable=False),
@@ -51,7 +51,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
     )
 
-    # 宛先・送り手には外部キーを張らない（相手を消しても「誰に・誰が送ったか」を残す）。
+    # No foreign keys on recipients/senders (keep "to whom / by whom" even if they are deleted).
     op.create_table(
         "notifications",
         sa.Column("id", _BIGINT, autoincrement=True, nullable=False),
@@ -81,7 +81,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_notification_deliveries_user_id", "notification_deliveries", ["user_id"])
 
-    # ⚠ endpoint（数百文字）へ直接一意制約を張らない（MariaDB の索引長の上限を超える）。
+    # ⚠ No unique constraint directly on endpoint (hundreds of characters; exceeds MariaDB's index length limit).
     op.create_table(
         "web_push_subscriptions",
         sa.Column("id", _BIGINT, autoincrement=True, nullable=False),
@@ -97,7 +97,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_web_push_subscriptions_user_id", "web_push_subscriptions", ["user_id"])
 
-    # 権限の投入は seed_master_data の再実行で行う（冪等。0005 と同じ）。
+    # Permissions are seeded by re-running seed_master_data (idempotent; same as 0005).
     from shared.infrastructure.master_data_seeder import seed_master_data
 
     session = Session(bind=op.get_bind())

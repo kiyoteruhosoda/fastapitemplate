@@ -1,4 +1,4 @@
-"""テナントの台帳（``tenants``）を引く・据える（ADR-0079 §1）。"""
+"""Look up and set up the tenant registry (``tenants``) (ADR-0079 §1)."""
 
 from __future__ import annotations
 
@@ -8,20 +8,20 @@ from sqlalchemy.orm import Session
 from shared.domain.auth import master_data
 from shared.infrastructure.models import Tenant, User
 
-#: 既存の環境を移すときに作る「既定のテナント」の短い名前（ADR-0079 §1 決定 9）。
+#: Short name of the "default tenant" created when migrating an existing environment (ADR-0079 §1 decision 9).
 DEFAULT_TENANT_SLUG = "default"
 DEFAULT_TENANT_NAME = "Default"
 
 
 def tenant_of_issuer(session: Session, issuer: str) -> int | None:
-    """発行者に当たるテナント。登録が無ければ ``None``（そのトークンは受け付けない）。"""
+    """Tenant for the issuer. ``None`` if not registered (such tokens are not accepted)."""
     if not issuer:
         return None
     return session.scalar(sa.select(Tenant.id).where(Tenant.issuer == issuer))
 
 
 def tenant_of_slug(session: Session, slug: str) -> int | None:
-    """短い名前に当たるテナント。無ければ ``None``。"""
+    """Tenant for the short name. ``None`` if there is none."""
     return session.scalar(sa.select(Tenant.id).where(Tenant.slug == slug))
 
 
@@ -30,31 +30,32 @@ def tenant_named(session: Session, slug: str) -> Tenant | None:
 
 
 def tenant_issuing(session: Session, issuer: str) -> Tenant | None:
-    """発行者に当たるテナント（行ごと）。"""
+    """Tenant for the issuer (the whole row)."""
     if not issuer:
         return None
     return session.scalar(sa.select(Tenant).where(Tenant.issuer == issuer))
 
 
 def sole_tenant(session: Session) -> Tenant | None:
-    """テナントが 1 つだけならそれ。2 つ以上（または 0）なら ``None``。
+    """The tenant if there is exactly one. ``None`` if there are two or more (or zero).
 
-    テナントが 1 つだけの環境では、入口の URL にテナントを書かなくてよい（ADR-0079 §1 決定 8）。
+    In an environment with a single tenant, entry URLs need not name the tenant (ADR-0079 §1
+    decision 8).
     """
     tenants = session.scalars(sa.select(Tenant).limit(2)).all()
     return tenants[0] if len(tenants) == 1 else None
 
 
 def entrance_tenant(session: Session, slug: str | None) -> Tenant | None:
-    """入口で選ばれたテナント。名前が無ければ、テナントが 1 つだけのときのそれ。"""
+    """Tenant chosen at the entry. Without a name, the only tenant when there is exactly one."""
     return tenant_named(session, slug) if slug else sole_tenant(session)
 
 
 def ensure_default_tenant(session: Session, *, issuer: str, client_id: str) -> Tenant:
-    """既定のテナントが無ければ作る。
+    """Create the default tenant if it does not exist.
 
-    据え付け（投入スクリプト）と試験のためのもの。動いている環境の移行は
-    マイグレーション（``0015_tenants``）が同じことをする。
+    For setup (the seed script) and tests. In running environments the migration
+    (``0015_tenants``) does the same.
     """
     tenant = session.scalar(sa.select(Tenant).where(Tenant.slug == DEFAULT_TENANT_SLUG))
     if tenant is None:
@@ -70,10 +71,11 @@ def ensure_default_tenant(session: Session, *, issuer: str, client_id: str) -> T
 
 
 def seat_default_admin(session: Session, *, issuer: str, client_id: str) -> None:
-    """初期管理者（``owner``）を既定のテナントへ入れる。既にどこかに居れば触らない。
+    """Put the initial administrator (``owner``) into the default tenant. Leave them alone if they
+    already belong somewhere.
 
-    ``ensure_default_admin`` の後に呼ぶ（据え付けと復旧）。初期管理者はテナント管理者で、
-    テナントに属さないままでは何も管理できない（ADR-0079 §1）。
+    Call after ``ensure_default_admin`` (setup and recovery). The initial administrator is a tenant
+    admin and cannot manage anything while outside the tenants (ADR-0079 §1).
     """
     admin = session.scalar(sa.select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     if admin is None or admin.tenant_id is not None:

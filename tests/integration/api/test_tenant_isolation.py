@@ -1,7 +1,8 @@
-"""2 つのテナントが互いの人と中身を見られないこと（ADR-0079 §1 決定 5・6）。
+"""Two tenants cannot see each other's people or contents (ADR-0079 §1 decisions 5, 6).
 
-既定のテナント（初期管理者が ``owner``）と、もう 1 つのテナント（別の ``owner``）を作り、
-各コンテキストの API で「相手の行は一覧に出ず、ID を名指ししても 404」を確かめる。
+Creates the default tenant (initial administrator as ``owner``) and another tenant (a different
+``owner``), and checks through each context's API that "the other side's rows are not listed and
+naming their ID gives 404".
 """
 
 from __future__ import annotations
@@ -43,16 +44,16 @@ def _seed_other_tenant(engine: sa.Engine) -> None:
 
 @pytest.fixture
 def other(app: FastAPI, engine: sa.Engine) -> Iterator[tuple[TestClient, dict[str, str]]]:
-    """もう 1 つのテナントの管理者（別のブラウザ）。"""
+    """The administrator of the other tenant (a separate browser)."""
     _seed_other_tenant(engine)
     with TestClient(app) as c:
-        # テナントが 2 つになったので、そのテナントの入口から入る（ADR-0079 §4）
+        # There are now two tenants, so sign in through that tenant's entrance (ADR-0079 §4)
         yield c, sign_in(c, _OTHER_EMAIL, _OTHER_PASSWORD, tenant="other")
 
 
 @pytest.fixture
 def mine(client: TestClient, admin_headers: dict[str, str]) -> tuple[TestClient, dict[str, str]]:
-    """既定のテナントの管理者。"""
+    """The administrator of the default tenant."""
     return client, admin_headers
 
 
@@ -113,7 +114,7 @@ def test_groups_stay_in_their_tenant(mine: Side, other: Side) -> None:
     group_id = group.json()["id"]
 
     other_client, other_headers = other
-    # 同じ名前を、別のテナントでも作れる（相手の名前とぶつからない）
+    # The same name can be created in another tenant (no clash with the other side's names)
     assert other_client.post("/api/admin/groups", json={"name": "家族"}, headers=other_headers).status_code == 201
     assert [g["id"] for g in other_client.get("/api/admin/groups").json()] != [group_id]
     assert other_client.get("/api/admin/groups/users").json() == [
@@ -123,7 +124,7 @@ def test_groups_stay_in_their_tenant(mine: Side, other: Side) -> None:
     ]
     update = other_client.put(f"/api/admin/groups/{group_id}", json={"name": "x"}, headers=other_headers)
     assert update.status_code == 404
-    # 相手の利用者を自分のグループへ入れることもできない
+    # Nor can the other side's users be added to your own group
     stolen = other_client.post(
         "/api/admin/groups", json={"name": "盗む", "member_ids": [member_id]}, headers=other_headers
     )
@@ -144,14 +145,14 @@ def test_notifications_stay_in_their_tenant(mine: Side, other: Side) -> None:
     assert other_client.get("/api/admin/notifications").json() == []
     options = other_client.get("/api/admin/notifications/audiences").json()
     assert {u["email"] for u in options["users"]} == {_OTHER_EMAIL}
-    # 相手の利用者を名指しして送ることはできない
+    # Cannot send to the other side's users by naming them
     aimed = other_client.post(
         "/api/admin/notifications",
         json={"title": "x", "channels": ["bell"], "audience": {"kind": "user", "target_id": member_id}},
         headers=other_headers,
     )
     assert aimed.status_code == 404
-    # 「全員」は自分のテナントの全員だけ
+    # "Everyone" means only everyone in your own tenant
     everyone = other_client.post(
         "/api/admin/notifications",
         json={"title": "theirs", "channels": ["bell"], "audience": {"kind": "all"}},
@@ -171,7 +172,7 @@ def test_audit_logs_stay_in_their_tenant(mine: Side, other: Side) -> None:
 
 
 def test_the_administrators_are_counted_per_tenant(mine: Side, other: Side, engine: sa.Engine) -> None:
-    """「管理の要」はテナントごとに数える。別のテナントの管理者は、自分のテナントの数に入らない。"""
+    """The "administration keystone" is counted per tenant. Another tenant's administrator does not count."""
     _create_member(mine, "erin")
     with Session(engine) as session:
         tenants = {t.slug: t.id for t in session.scalars(sa.select(Tenant))}
@@ -181,9 +182,10 @@ def test_the_administrators_are_counted_per_tenant(mine: Side, other: Side, engi
 
 
 def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestClient, engine: sa.Engine) -> None:
-    """テナントに属さない主体は、中身の口で 403（全部のテナントとして扱わない）。
+    """A principal outside any tenant gets 403 on content entrances (it is not treated as all tenants).
 
-    内側のロールを（誤って）付けても効かない（ADR-0079 §3）ので、権限の段階で断られる。
+    Inner roles do not take effect even if (mistakenly) assigned (ADR-0079 §3), so it is refused at the
+    permission stage.
     """
     with sessionmaker(bind=engine)() as session:
         loner = User(
@@ -201,11 +203,11 @@ def test_a_principal_outside_any_tenant_cannot_reach_the_content(client: TestCli
     assert client.get("/api/admin/users").status_code == 403
 
 
-# --- 外側と内側（ADR-0079 §1 決定 4） ---------------------------------------------
+# --- Outside and inside (ADR-0079 §1 decision 4) ---------------------------------------------
 
 
 def test_the_tenant_administrator_no_longer_reaches_the_whole_app(mine: Side) -> None:
-    """テナント管理者（owner）は全体の設定・再起動・アプリログに入れない。"""
+    """The tenant administrator (owner) cannot access system settings, restart or app logs."""
     client, _ = mine
     for path in ("/api/admin/config", "/api/admin/system/status", "/api/admin/logs"):
         assert client.get(path).status_code == 403, path
@@ -216,11 +218,11 @@ def test_the_tenant_administrator_no_longer_reaches_the_whole_app(mine: Side) ->
 def test_the_system_administrator_sees_no_content(
     client: TestClient, system_admin_headers: dict[str, str], other: Side
 ) -> None:
-    """システム管理者は中身も、テナントの人も見られない。"""
+    """The system administrator sees neither contents nor the tenant's people."""
     assert client.get("/api/admin/config").status_code == 200
     for path in ("/api/items", "/api/admin/users", "/api/admin/groups", "/api/admin/notifications"):
         assert client.get(path).status_code == 403, path
-    # 監査ログは全体の記録だけ（テナントの人の記録は出ない）
+    # Audit logs show only system-wide records (not those of the tenant's people)
     me = client.get("/api/auth/me").json()["user_id"]
     logins = client.get("/api/admin/audit-logs", params={"event_type": "login.succeeded"}).json()["entries"]
     assert {e["actor_user_id"] for e in logins} == {me}

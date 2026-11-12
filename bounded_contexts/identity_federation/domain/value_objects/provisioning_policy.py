@@ -1,12 +1,12 @@
-"""知らない相手を、このアプリの利用者として**作ってよいか**（ADR-0077 §1）。
+"""Whether an unknown party **may be created** as a user of this app (ADR-0077 §1).
 
-「受け入れてよいか」「寄せてよいか」は
+"May it be accepted" and "may it be merged" are held by
 :class:`~bounded_contexts.identity_federation.domain.value_objects.account_linking_policy.AccountLinkingPolicy`
-が持つ。ここは作成の可否だけを決める。
+This only decides whether creation is allowed.
 
-⚠ **既定は作らない。** IdP がテナント共用のとき、作る設定は「IdP に口座がある人は
-全員このアプリに入れる」を意味する。テンプレートは安全側へ倒し、開けたい派生が
-``OIDC_AUTO_PROVISION`` を開ける。
+⚠ **Default is not to create.** When the IdP is shared across tenants, enabling creation means
+"everyone with an account at the IdP can get into this app". The template leans safe; derived
+apps that want it open enable ``OIDC_AUTO_PROVISION``.
 """
 
 from __future__ import annotations

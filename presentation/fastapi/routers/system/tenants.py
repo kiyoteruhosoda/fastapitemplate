@@ -1,10 +1,13 @@
-"""テナントの外側の管理 API（一覧は ``tenant:view``、変えるのは ``tenant:manage``。ADR-0079 §1・§5・ADR-0084 §3）。
+"""Management API outside tenants (``tenant:view`` to list, ``tenant:manage`` to change;
+ADR-0079 §1, §5, ADR-0084 §3).
 
-システム管理者がテナントを登録・変更・停止・削除し、最初のテナント管理者を指名する。
+System administrators register, change, suspend and delete tenants and appoint the first tenant
+administrator.
 
-⚠ **テナントの中身には触れない。** 返すのはテナントの台帳と人数だけで、利用者の一覧も
-中身も返さない。テナント管理者の指名は「席を作って招待する」だけで、システム管理者は
-その人のパスワードを知らない（招待のメールで本人が決める。ADR-0079 §5）。
+⚠ **Never touches tenant contents.** Only the tenant registry and member counts are returned, never
+user lists or data. Appointing a tenant administrator only "creates a seat and invites"; the system
+administrator never knows that person's password (they set it via the invitation email;
+ADR-0079 §5).
 """
 
 from __future__ import annotations
@@ -45,7 +48,7 @@ router = APIRouter(
 )
 
 DbDep = Annotated[Session, Depends(get_db)]
-#: 一覧を見るだけならサポート担当にも許す。登録・変更・指名・削除は運用者だけ
+#: Support staff may view the list. Register, change, appoint and delete are operators only
 _MANAGES = [Depends(require_permission("tenant:manage"))]
 
 
@@ -72,9 +75,11 @@ def _tenant(db: Session, tenant_id: int) -> Tenant:
 
 
 def _checked_issuer(raw: str | None) -> str | None:
-    """テナントの発行者の形を確かめる（ADR-0090）。https で、``OIDC_ISSUER`` があれば同じホストだけ。
+    """Validate the shape of a tenant issuer (ADR-0090). Must be https, and on the same host as
+    ``OIDC_ISSUER`` if that is set.
 
-    名前は引かない。宅内では assay の公開名が私設のアドレスを返すので、引くと自分の IdP を断ってしまう。
+    The name is not resolved: at home assay's public name resolves to a private address, so
+    resolving it would reject our own IdP.
     """
     issuer = (raw or "").rstrip("/")
     if not issuer:
@@ -90,7 +95,7 @@ def _checked_issuer(raw: str | None) -> str | None:
 
 
 def _ensure_issuer_free(db: Session, issuer: str | None, *, except_id: int | None = None) -> None:
-    """発行者は 1 つのテナントにしか結べない（トークンからテナントが一意に決まるように）。"""
+    """An issuer can be bound to only one tenant (so a token determines the tenant uniquely)."""
     if not issuer:
         return
     holder = tenant_issuing(db, issuer)
@@ -99,18 +104,20 @@ def _ensure_issuer_free(db: Session, issuer: str | None, *, except_id: int | Non
 
 
 def _designate(db: Session, tenant: Tenant, person: DesignationRequest, audit: AuditRecorderDep) -> DesignationResponse:
-    """テナント管理者の席を作り、本人に招待を送る（ADR-0079 §5）。"""
+    """Create a tenant administrator seat and send the person an invitation (ADR-0079 §5)."""
     if account_with_email(db, person.email, tenant.id) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"error": "email_already_exists"})
     owner = db.scalars(sa.select(Role).where(Role.name == master_data.DEFAULT_ADMIN_ROLE)).one()
-    # ⚠ パスワードは持たせない（ADR-0076 §6）。入り口は招待で本人が決めるか、テナントの IdP で受け取る
+    # ⚠ No password is set (ADR-0076 §6). The person sets one via the invitation or claims the seat
+    # through the tenant's IdP
     user = User(email=person.email, username=person.username, password_hash=None, is_active=True)
     user.roles = [owner]
     user.join(tenant.id)
     db.add(user)
     db.flush()
     sent = PasswordResetService().invite(db, user, place=tenant.display_name)
-    # 対象は利用者なので、この記録はそのテナントの管理者にも見える（ADR-0079 §2 決定 5）
+    # The target is a user, so this record is also visible to that tenant's admins
+    # (ADR-0079 §2 decision 5)
     audit.execute(
         AuditEventType.TENANT_ADMIN_DESIGNATED,
         target=AuditTarget.of(AuditTargetType.USER, user.id),
@@ -146,7 +153,8 @@ def create_tenant(body: TenantCreateRequest, db: DbDep, audit: AuditRecorderDep)
 
 @router.put("/{tenant_id}", response_model=TenantResponse, dependencies=_MANAGES)
 def update_tenant(tenant_id: int, body: TenantUpdateRequest, db: DbDep, audit: AuditRecorderDep) -> TenantResponse:
-    """名前・連携先・状態（有効 / 停止）を変える。止めたテナントの人は入れなくなる。"""
+    """Change name, federation target and status (active / suspended). Members of a suspended
+    tenant can no longer sign in."""
     tenant = _tenant(db, tenant_id)
     if body.issuer is not None:
         issuer = _checked_issuer(body.issuer)
@@ -177,19 +185,20 @@ def update_tenant(tenant_id: int, body: TenantUpdateRequest, db: DbDep, audit: A
 def designate_administrator(
     tenant_id: int, body: DesignationRequest, db: DbDep, audit: AuditRecorderDep
 ) -> DesignationResponse:
-    """テナント管理者を指名する（最初の 1 人、または管理者が居なくなったときの立て直し）。
+    """Appoint a tenant administrator (the first one, or a recovery when none remain).
 
-    ⚠ **今いる利用者を管理者に上げることはしない**（テナントの中の人事はテナント管理者の仕事）。
-    新しい席を作って招待するだけ。
+    ⚠ **Existing users are never promoted to administrator** (staffing inside a tenant is the
+    tenant administrator's job). This only creates a new seat and invites.
     """
     return _designate(db, _tenant(db, tenant_id), body, audit)
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=_MANAGES)
 def delete_tenant(tenant_id: int, db: DbDep, audit: AuditRecorderDep) -> None:
-    """テナントを人と中身ごと消す（監査ログは残す）。**止めてからでないと消せない。**
+    """Delete a tenant along with its people and data (audit logs are kept). **It must be
+    suspended first.**
 
-    止める段を挟むのは、押し間違い 1 回で家族・組織のデータが消えないようにするため。
+    The suspend step exists so a single misclick cannot wipe a family's or organization's data.
     """
     tenant = _tenant(db, tenant_id)
     if tenant.is_active:

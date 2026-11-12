@@ -1,15 +1,15 @@
-"""保持期間を過ぎた行の削除実装（``log`` と ``audit_log`` の両方）。
+"""Deletion of rows past their retention period (both ``log`` and ``audit_log``).
 
-**リクエストのセッションとは別の短命コネクション**で書く。呼び出し元は常駐スレッド
-でリクエストの外にいるため、既存のセッションに相乗りする先が無い。
+Writes over **a short-lived connection separate from any request session**. The caller is a
+resident thread outside requests, so there is no existing session to ride on.
 
-**まとめて 1 回の DELETE にせず、主キーで小分けにする。** 溜まった行を初めて消す
-ときは数十万行が対象になり得る。1 文で消すと MariaDB では該当行を掴んだまま長い
-トランザクションになり、SQLite では DB 全体の書き込みロックをその間握り続ける。
-どちらもリクエストの処理を待たせるので、1 回あたりの単位を区切って間に合間を作る。
+**Deletes in small batches by primary key rather than one big DELETE.** The first cleanup of
+accumulated rows can target hundreds of thousands of rows. A single statement would hold those
+rows in one long transaction on MariaDB, and hold the whole-DB write lock for that time on SQLite.
+Both make requests wait, so each round is bounded with gaps in between.
 
-``DELETE ... LIMIT`` はバックエンド依存（Python 同梱の SQLite では使えない）なので、
-「消す ID を選ぶ → その ID を消す」の 2 段で行う。
+``DELETE ... LIMIT`` depends on the backend (not available in the SQLite bundled with Python), so
+it is done in two steps: "select the IDs to delete -> delete those IDs".
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ DEFAULT_CHUNK_SIZE = 1000
 
 
 class SqlExpiredLogRemover:
-    """*cutoff* より古い行を、主キーで小分けにしながら削除する。"""
+    """Delete rows older than *cutoff*, in small batches by primary key."""
 
     def __init__(self, chunk_size: int = DEFAULT_CHUNK_SIZE) -> None:
         self._chunk_size = chunk_size
@@ -52,18 +52,20 @@ def _delete_in_chunks(
     delete_by_ids: Callable[[Sequence[int]], sa.Delete],
     chunk_size: int,
 ) -> int:
-    """対象が尽きるまで *chunk_size* 件ずつ削除し、**実際に消えた**行数を返す。
+    """Delete *chunk_size* rows at a time until none are left, and return the number of rows
+    **actually deleted**.
 
-    1 塊ごとにトランザクションを閉じる。取得件数が *chunk_size* に満たなければ
-    それが最後の塊（次を問い合わせずに終える）。
+    The transaction is closed after each chunk. If fewer than *chunk_size* rows were selected,
+    that was the last chunk (finish without querying again).
 
-    数えるのは選んだ ID の数ではなく ``DELETE`` が消した行数。複数ワーカーが同時に
-    走ると同じ ID を選び得る（排他を持たない。ADR-0075 §3）。先に消した方が実際の
-    削除者で、後から来た方の ``DELETE`` は 0 行になる。選んだ数で数えると、両方が
-    同じ行を「消した」と報告して運用ログの件数が実態より膨らむ。
+    What is counted is the number of rows ``DELETE`` removed, not the number of IDs selected.
+    Several workers running at once may select the same IDs (no mutual exclusion; ADR-0075 §3).
+    Whoever deletes first is the actual deleter, and the later ``DELETE`` hits 0 rows. Counting
+    selections would have both report "deleted" the same rows, inflating the counts in the
+    operational log.
 
-    続けるかどうかは**選んだ件数**で判断する。消せた数で判断すると、他のワーカーに
-    先を越された塊で「もう対象が無い」と誤って打ち切ってしまう。
+    Whether to continue is decided by **the number selected**. Deciding by the number deleted
+    would wrongly stop with "nothing left" on a chunk another worker got to first.
     """
     limited = expired_ids.limit(chunk_size)
     deleted = 0

@@ -1,7 +1,7 @@
-"""SPA 配信（presentation/fastapi/routers/spa.py）のキャッシュの扱い。
+"""Caching behaviour of SPA delivery (presentation/fastapi/routers/spa.py).
 
-`frontend/dist` は Backend の CI ではビルドされないため、最小の dist を作って
-`spa.DIST_DIR` を差し替えて検証する。
+`frontend/dist` is not built in the backend CI, so a minimal dist is created and
+`spa.DIST_DIR` is replaced for the test.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def client(dist: Path) -> Iterator[TestClient]:
 
 @pytest.mark.parametrize("path", ["/", "/index.html", "/sw.js", "/favicon.svg", "/members"])
 def test_mutable_files_must_be_revalidated(client: TestClient, path: str) -> None:
-    """名前が変わらないまま中身が変わるものは、毎回サーバーへ問い合わせさせる。"""
+    """Files whose content changes under the same name are revalidated with the server every time."""
     response = client.get(path)
 
     assert response.status_code == 200
@@ -47,7 +47,7 @@ def test_mutable_files_must_be_revalidated(client: TestClient, path: str) -> Non
 
 
 def test_hashed_assets_are_cached_forever(client: TestClient) -> None:
-    """内容ハッシュ付きの成果物は URL が中身と 1 対 1 なので期限を切らない。"""
+    """Content-hashed assets map one-to-one from URL to content, so they never expire."""
     response = client.get("/assets/index-abc123.js")
 
     assert response.status_code == 200
@@ -55,7 +55,7 @@ def test_hashed_assets_are_cached_forever(client: TestClient) -> None:
 
 
 def test_unchanged_file_answers_304_without_a_body(client: TestClient) -> None:
-    """no-cache は「毎回問い合わせる」であって「毎回落とす」ではない。"""
+    """no-cache means "revalidate every time", not "download every time"."""
     first = client.get("/favicon.svg")
     etag = first.headers["etag"]
 
@@ -100,10 +100,10 @@ def test_path_traversal_falls_back_to_index_html(client: TestClient) -> None:
 
 
 def test_an_unknown_api_path_is_not_swallowed(client: TestClient) -> None:
-    """受け皿は `/api/` を飲み込まない（ADR-0073 §3）。
+    """The fallback does not swallow `/api/` (ADR-0073 §3).
 
-    飲み込むと、打ち間違えた API が **200 で index.html** を返す。しかも
-    `frontend/dist` がある本番でだけそうなるので、手元とテストでは再現しない。
+    If it did, a mistyped API would return **index.html with 200**. And since that only happens in
+    production where `frontend/dist` exists, it does not reproduce locally or in tests.
     """
     response = client.get("/api/nonexistent")
 
@@ -112,7 +112,7 @@ def test_an_unknown_api_path_is_not_swallowed(client: TestClient) -> None:
 
 
 def test_a_built_asset_under_api_is_still_served(client: TestClient, dist: Path) -> None:
-    """実在するファイルが優先。`/api/` を理由に、焼いた成果物まで拒まない。"""
+    """Existing files take priority. Built assets are not refused because of `/api/`."""
     (dist / "api").mkdir()
     (dist / "api" / "config.json").write_text('{"ok": true}')
 
@@ -123,10 +123,10 @@ def test_a_built_asset_under_api_is_still_served(client: TestClient, dist: Path)
 
 
 def test_the_whole_app_still_answers_404_for_an_unknown_api_path(dist: Path, engine: sa.Engine) -> None:
-    """本物のアプリに SPA を載せた状態でも、無い API は 404 のまま。
+    """Even with the SPA mounted on the real app, an unknown API stays 404.
 
-    ⚠ **ここが本番と手元の違いが出る所。** CI は `frontend/dist` を焼かないので、
-    受け皿の取りこぼしは普通のテストでは再現しない（`dist` を作って初めて出る）。
+    ⚠ **This is where production and local differ.** CI does not build `frontend/dist`, so a gap
+    in the fallback does not reproduce in ordinary tests (only once `dist` exists).
     """
     from presentation.fastapi.app import create_app
 

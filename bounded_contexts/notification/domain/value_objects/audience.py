@@ -7,7 +7,7 @@ from bounded_contexts.notification.domain.exceptions import NotificationValidati
 
 
 class AudienceKind(StrEnum):
-    """宛先の種類。値が DB と API に出る安定キーなので変えない。"""
+    """Audience kind. The values are stable keys stored in the DB and exposed in the API; don't change them."""
 
     ALL = "all"
     GROUP = "group"
@@ -16,7 +16,7 @@ class AudienceKind(StrEnum):
 
 @dataclass(frozen=True)
 class Audience:
-    """誰に送るか。``ALL`` は相手を持たず、``GROUP`` / ``USER`` は相手の ID を持つ。"""
+    """Whom to send to. ``ALL`` has no target; ``GROUP`` / ``USER`` carry the target's ID."""
 
     kind: AudienceKind
     target_id: int | None = None

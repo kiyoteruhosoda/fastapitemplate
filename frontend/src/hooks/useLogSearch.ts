@@ -1,9 +1,9 @@
 /**
- * ログ一覧（システムログ・監査ログ）の取得。
+ * Fetching the log lists (system logs and audit logs).
  *
- * 条件かページが変わるたびに取り直す。取得中は `searching` が真になり、検索ボタンに
- * 実行中の目印を出せる（ADR-0080 §5）。条件が変わらなければ取りに行かないので、押しても
- * 結果が変わらない検索でスピナーが出たままにはならない。
+ * Refetches whenever the filters or page change. While fetching, `searching` is true so the
+ * search button can show an in-progress indicator (ADR-0080 §5). Nothing is fetched when the
+ * filters are unchanged, so a search that wouldn't change the results never leaves a spinner.
  */
 import { useEffect, useState } from 'react'
 
@@ -19,7 +19,7 @@ export function useLogSearch<E>(
   const [searching, setSearching] = useState(true)
 
   useEffect(() => {
-    // 続けて条件が変わったとき、古い応答で新しい結果を上書きしない。
+    // When filters change in quick succession, don't overwrite new results with a stale response.
     let current = true
     setSearching(true)
     void api

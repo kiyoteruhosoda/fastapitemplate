@@ -1,7 +1,7 @@
-"""クレーム -> 利用者の写し（ADR-0077 §6 / idp の ADR-0049 G5・G7）。
+"""Claims -> user copy (ADR-0077 §6 / idp ADR-0049 G5, G7).
 
-⚠ **メールアドレスは鍵ではないので、無くても成立する。** 弾いていたのは鍵に
-していた名残で、無いと困るのは「初回に寄せるとき」と「利用者を作るとき」だけである。
+⚠ **The email address is not a key, so it works without one.** Rejecting it was a leftover from
+when it was the key; it is only needed "when merging on first sign-in" and "when creating a user".
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def test_an_email_is_read_and_lowercased() -> None:
 
 
 def test_a_token_without_an_email_still_names_a_user() -> None:
-    """⚠ **ここで弾かない**（ADR-0077 §6）。既に結び付いている相手は ``sub`` で入れる。"""
+    """⚠ **Do not reject here** (ADR-0077 §6). Someone already linked signs in by ``sub``."""
     user = ClaimsMapping().apply({"sub": "s", "name": "誰か"})
     assert user.email is None
     assert user.subject == "s"
@@ -33,7 +33,7 @@ def test_a_token_without_an_email_still_names_a_user() -> None:
 
 
 def test_without_an_email_or_a_name_the_subject_becomes_the_display_name() -> None:
-    """表示名が空の利用者を作るよりはよい（後から画面で直せる）。"""
+    """Better than creating a user with an empty display name (it can be fixed on screen later)."""
     assert ClaimsMapping().apply({"sub": "abc-123"}).username == "abc-123"
 
 
@@ -42,6 +42,6 @@ def test_the_email_domain_of_a_user_without_an_email_is_empty() -> None:
 
 
 def test_groups_are_not_read_at_all() -> None:
-    """⚠ **グループからロールは引かない**（G7）。assay は ``groups`` を発行しない。"""
+    """⚠ **Roles are not derived from groups** (G7). assay does not issue ``groups``."""
     user = ClaimsMapping().apply({"sub": "s", "email": "a@example.com", "groups": ["admins"]})
     assert not hasattr(user, "groups")

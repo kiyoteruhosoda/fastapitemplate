@@ -1,17 +1,17 @@
-"""notification コンテキスト — 管理者が書いたお知らせを利用者へ届ける（ADR-0081 §3）。
+"""notification context — delivers notifications written by admins to users (ADR-0081 §3).
 
-1 通のお知らせは「何を（題・本文・行き先）」「どこに出すか（チャネル）」
-「誰に（宛先）」の 3 つで決まる。
+A notification is defined by three things: "what" (title, body, link), "where it appears"
+(channel) and "to whom" (audience).
 
 ========== ======================================================================
-チャネル    出る場所
+Channel     Where it appears
 ========== ======================================================================
-``bell``    ヘッダーのベル（一覧に残る。既読にするまで数に出る）
-``banner``  画面の上部（閉じるか押すまで出続ける）
-``push``    端末への通知（Web Push。ブラウザ・PWA が閉じていても出る）
+``bell``    Bell in the header (stays in the list; counted until read)
+``banner``  Top of the screen (shown until dismissed or tapped)
+``push``    Device notification (Web Push; shown even when the browser/PWA is closed)
 ========== ======================================================================
 
-宛先は「全員」「グループ」「個人」のどれか。**送った時点の顔ぶれで配る**
-（``notification_deliveries`` に 1 人 1 行書く）。あとからグループに入った人には
-届かず、抜けた人の手元からも消えない。
+The audience is "everyone", "a group" or "an individual". **It is delivered to the members as of
+sending** (one row per person in ``notification_deliveries``). People who join the group later
+don't receive it, and it doesn't vanish from those who leave.
 """

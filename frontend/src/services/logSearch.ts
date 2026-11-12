@@ -1,26 +1,26 @@
 /**
- * ログ検索画面の共通処理（システムログ画面・監査ログ画面が共用）。
+ * Shared logic for log search screens (used by both the system log and audit log screens).
  *
- * 絞り込み条件のクエリ組み立て・ページ送りの計算・行の表示整形をまとめる。
- * 2 画面が同じ振る舞いをするべき箇所で、画面ごとに書くと片方だけずれる。
+ * Gathers filter query building, pagination math, and row display formatting.
+ * Both screens must behave the same here; writing it per screen lets one drift.
  */
 
-/** 1 ページの件数。バックエンドの上限（500）より小さい実用値。 */
+/** Rows per page. A practical value below the backend limit (500). */
 export const PAGE_SIZE = 50
 
-/** 検索フォームの値。キーはそのままクエリ名になる。 */
+/** Search form values. Keys become query names as is. */
 export type LogFilters = Record<string, string>
 
-/** 検索結果（``total`` は条件に一致した総件数で、ページの件数ではない）。 */
+/** Search result (``total`` is the total number of matches, not the count on the page). */
 export interface LogSearchResult<TEntry> {
   total: number
   entries: TEntry[]
 }
 
 /**
- * `?a=1&b=2` を組み立てる。空欄・空白のみの項目は落とす。
+ * Build `?a=1&b=2`. Empty or whitespace-only fields are dropped.
  *
- * `page` は 0 始まり。`offset` はここで算出するので、画面はページ番号だけを持つ。
+ * `page` is 0-based. `offset` is computed here, so the screen only holds the page number.
  */
 export function buildLogQuery(filters: LogFilters, page = 0, pageSize = PAGE_SIZE): string {
   const params = new URLSearchParams()
@@ -33,12 +33,12 @@ export function buildLogQuery(filters: LogFilters, page = 0, pageSize = PAGE_SIZ
   return `?${params.toString()}`
 }
 
-/** 表示中のページに次があるか（総件数から求める）。 */
+/** Whether the shown page has a next page (computed from the total). */
 export function hasNextPage(total: number, page: number, pageSize = PAGE_SIZE): boolean {
   return (page + 1) * pageSize < total
 }
 
-/** 「51〜100 / 328 件」の範囲部分。0 件のときは 0〜0 を返す。 */
+/** The range part of "51〜100 / 328 件". Returns 0〜0 when there are no rows. */
 export function pageRange(
   total: number,
   page: number,
@@ -51,20 +51,20 @@ export function pageRange(
 }
 
 /**
- * API が返す UTC の ISO 8601（`2026-07-30T13:10:33.602668`）を一覧向けに整える。
+ * Format the API's UTC ISO 8601 (`2026-07-30T13:10:33.602668`) for the list.
  *
- * `T` を空白にして秒までに切る。`T` のままだと表の狭い列で日付の途中
- * （`2026-07-` / `30T13:…`）で折り返され、マイクロ秒は一覧で読む値ではない。
- * ローカル時刻へは変換しない（画面は UTC で通す）。
+ * Replace `T` with a space and truncate to seconds. With `T`, narrow table columns wrap mid-date
+ * (`2026-07-` / `30T13:…`), and microseconds aren't a value anyone reads in a list.
+ * Not converted to local time (the screen stays in UTC).
  */
 export function formatUtcTimestamp(value: string): string {
   return value.replace('T', ' ').replace(/\.\d+/, '')
 }
 
-/** 値の無いセルの表示。空欄だと「列がずれた」ように見えるため記号で埋める。 */
+/** Display for empty cells. A blank looks like "the columns shifted", so fill with a symbol. */
 export const EMPTY_CELL = '—'
 
-/** `null` を [`EMPTY_CELL`] に置き換える。 */
+/** Replace `null` with [`EMPTY_CELL`]. */
 export function orEmpty(value: string | number | null): string {
   return value === null ? EMPTY_CELL : String(value)
 }

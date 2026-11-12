@@ -1,8 +1,8 @@
 /**
- * アプリへ戻る案内（S16。ADR-0081 §2）。
+ * Guidance to return to the app (S16. ADR-0081 §2).
  *
- * 認可コードが付いているときだけ、同じ URL をもう一度開くボタンを出す
- * （Custom Tab が自動の移動ではアプリを開かないため、利用者のタップで開き直す）。
+ * Only when an authorization code is present, a button that reopens the same URL is shown
+ * (the Custom Tab does not open the app on an automatic navigation, so the user's tap reopens it).
  */
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'

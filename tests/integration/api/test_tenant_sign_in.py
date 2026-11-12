@@ -1,9 +1,9 @@
-"""テナントごとの入口（ADR-0079 §1 決定 8・ADR-0079 §4）。
+"""Per-tenant entrances (ADR-0079 §1 decision 8, ADR-0079 §4).
 
-- パスワード: ``/t/<slug>/login`` はそのテナントの中で探す。名前の無い入口は、テナントに
-  属さない人と、テナントが 1 つだけのときのそのテナント
-- メールアドレスの一意はテナントの中だけ（別のテナントに同じ人が居てよい）
-- SSO: 送り出す先も戻りを受ける先も、入口で選んだテナントの発行者とクライアント
+- Password: ``/t/<slug>/login`` searches within that tenant. The unnamed entrance serves people
+    outside any tenant, and that tenant when there is only one
+- Email addresses are unique only within a tenant (the same person may exist in another tenant)
+- SSO: both the redirect target and the return receiver are the issuer and client of the tenant chosen at the entrance
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def test_the_same_email_can_live_in_two_tenants(
         headers=admin_headers,
     )
     assert created.status_code == 201, created.text
-    # 同じテナントの中ではぶつかる
+    # Within the same tenant they clash
     again = client.post(
         "/api/admin/users",
         json={"email": _SHARED_EMAIL, "username": "twice", "password": _PASSWORD, "roles": ["member"]},
@@ -105,17 +105,17 @@ def test_the_entrance_decides_which_tenant_to_sign_in_to(
 def test_the_plain_entrance_serves_only_outsiders_once_there_are_two_tenants(
     client: TestClient, engine: sa.Engine, system_admin_headers: dict[str, str]
 ) -> None:
-    """テナントが 2 つ以上なら、名前の無い入口で入れるのはテナントに属さない人だけ。"""
+    """With two or more tenants, only people outside any tenant can sign in at the unnamed entrance."""
     _add_member(engine, _add_tenant(engine, "acme"), "acme-person")
     assert _login(client, None) == 401
     unknown = {"email": master_data.DEFAULT_ADMIN_EMAIL, "password": "x", "tenant": "nowhere"}
     assert client.post("/api/auth/login", json=unknown).status_code == 401
-    # システム管理者は名前の無い入口で入れる（フィクスチャがそこで入っている）
+    # The system administrator can sign in at the unnamed entrance (the fixture signs in there)
     assert system_admin_headers
 
 
 def test_the_plain_entrance_still_works_with_a_single_tenant(client: TestClient) -> None:
-    """テナントが 1 つだけなら、入口は今までどおり（ADR-0079 §1 決定 8）。"""
+    """With only one tenant, the entrance works as before (ADR-0079 §1 decision 8)."""
     sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
 
 
@@ -124,7 +124,7 @@ def test_the_plain_entrance_still_works_with_a_single_tenant(client: TestClient)
 
 @dataclass
 class _StubGateway:
-    """送り出し先と、戻りを受けた連携先を控える IdP。"""
+    """An IdP that records the redirect target and the partner that received the return."""
 
     exchanged_with: list[str]
 
@@ -158,7 +158,7 @@ def sso_client(engine: sa.Engine, monkeypatch: pytest.MonkeyPatch) -> Iterator[t
 def test_the_sso_button_belongs_to_the_chosen_tenant(sso_client: tuple[TestClient, _StubGateway]) -> None:
     client, _ = sso_client
     assert client.get("/api/auth/sso/provider", params={"tenant": "acme"}).json()["enabled"] is True
-    # SSO を持たないテナント・テナントを選ばない入口（2 つ以上ある）では出さない
+    # Not shown for tenants without SSO or at the tenant-agnostic entrance (when there are two or more)
     assert client.get("/api/auth/sso/provider", params={"tenant": "local-only"}).json()["enabled"] is False
     assert client.get("/api/auth/sso/provider").json()["enabled"] is False
 
@@ -173,7 +173,7 @@ def test_a_round_trip_stays_with_the_tenant_it_started_in(
     assert "client_id=acme-rp" in location
     state = location.split("state=")[1].split("&")[0]
 
-    # 戻りの URL でテナントを書き換えても、受けるのは送り出したテナント
+    # Even if the tenant is rewritten in the return URL, the receiver is the tenant that started it
     done = client.get(
         "/api/auth/sso/callback", params={"code": "c", "state": state, "tenant": "default"}, follow_redirects=False
     )
@@ -195,9 +195,9 @@ def test_a_failed_round_trip_returns_to_the_tenants_entrance(sso_client: tuple[T
 def test_a_declined_silent_attempt_returns_to_the_tenants_entrance(
     sso_client: tuple[TestClient, _StubGateway],
 ) -> None:
-    """ボタンを押さずに入る試し（ADR-0077 §9）も、断られたら始めたテナントの入口へエラー無しで戻す。
+    """A declined no-button sign-in attempt (ADR-0077 §9) also returns, error-free, to the starting tenant's entrance.
 
-    共通の入口へ戻すと、テナントが 2 つ以上ある環境ではそのテナントの IdP の入口が出ない。
+    Returning to the common entrance would hide that tenant's IdP entrance when there are two or more tenants.
     """
     client, _ = sso_client
     started = client.get(

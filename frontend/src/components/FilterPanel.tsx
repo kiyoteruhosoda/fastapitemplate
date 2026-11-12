@@ -1,13 +1,14 @@
 /**
- * ログ検索の絞り込みを畳める形にする（ADR-0080 §6）。
+ * Makes the log search filters collapsible (ADR-0080 §6).
  *
- * 絞り込みは項目が 6〜8 個あり、狭い画面では 1 列に積むと画面 1 枚分を超える。
- * ログ画面が見せたいのは結果の一覧なので、狭い画面では既定で畳み、「絞り込み」で開く。
+ * The filters have 6-8 fields; stacked in one column on a narrow screen they exceed a whole
+ * screen. Log pages are about the result list, so on narrow screens the filters are collapsed
+ * by default and opened with "Filter".
  *
- * **広い画面では畳まない。** 開閉ボタンは `index.css` で消し、中身は常に見えている
- * （閉じるための操作が無いのに `aria-expanded` を出さないよう、ボタンごと
- * `display: none` にして支援技術からも外す）。開いているかどうかだけを状態として
- * 持ち、幅の解釈は CSS に閉じる（ADR-0080 §2）。
+ * **Not collapsed on wide screens.** The toggle button is removed in `index.css` and the
+ * content is always visible (the whole button gets `display: none` so assistive technology
+ * does not see an `aria-expanded` with no way to close). Only open/closed is held as state;
+ * width handling stays in CSS (ADR-0080 §2).
  */
 import { useId, useState, type ReactNode } from 'react'
 

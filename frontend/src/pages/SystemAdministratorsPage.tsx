@@ -1,8 +1,10 @@
 /**
- * テナントの外の人（運用者・サポート担当）の付け外し（ADR-0079 §1・§5・ADR-0084 §4。要 `system:manage`）。
+ * Adding / removing people outside tenants (operators, support staff)
+ * (ADR-0079 §1, §5, ADR-0084 §4. Requires `system:manage`).
  *
- * テナントの外の人はテナントに属さない。足すときにロール（運用者かサポート担当か）を選び、
- * 招待のメールが届いた本人がパスワードを決める。自分は外せず、最後の運用者も外せない（サーバーが断る）。
+ * People outside tenants do not belong to any tenant. When adding, choose the role (operator or
+ * support), and the person who receives the invitation email sets their password. You cannot
+ * remove yourself or the last operator (the server refuses).
  */
 import { useEffect, useState, type SubmitEvent } from 'react'
 
@@ -15,7 +17,7 @@ import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 import { useAuth } from '../store/AuthContext'
 
-/** テナントの外の人に付けるロール（`master_data.SYSTEM_ROLES`） */
+/** Roles given to people outside tenants (`master_data.SYSTEM_ROLES`) */
 const SYSTEM_ROLES = ['system-admin', 'system-support'] as const
 type SystemRole = (typeof SYSTEM_ROLES)[number]
 

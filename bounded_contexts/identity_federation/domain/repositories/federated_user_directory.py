@@ -1,8 +1,8 @@
-"""利用者（``users``）への窓口。
+"""Gateway to users (``users``).
 
-ID 連携から見ると、利用者の作成・検索・ロールの付け替えは「外の仕組み」に当たる。
-Domain 層が SQLAlchemy のモデルへ触れないよう、必要な操作だけをここで宣言し、
-実装（Infrastructure 層）が ``shared`` のモデルへ橋渡しする。
+From identity federation's view, creating, finding and reassigning roles of users is "an
+outside mechanism". So that Domain doesn't touch SQLAlchemy models, only the needed operations
+are declared here, and the implementation (Infrastructure) bridges to the ``shared`` models.
 """
 
 from __future__ import annotations
@@ -18,30 +18,30 @@ from bounded_contexts.identity_federation.domain.entities.federated_account impo
 
 class FederatedUserDirectory(Protocol):
     def find_by_id(self, user_id: int) -> FederatedAccount | None:
-        """利用者を内部 ID で引く。無ければ ``None``。"""
+        """Look up a user by internal ID. ``None`` if absent."""
 
     def find_by_email(self, email: str) -> FederatedAccount | None:
-        """利用者をメールアドレスで引く（初回の結び付けの手掛かり）。"""
+        """Look up a user by email (the clue for the first binding)."""
 
     def provision(self, account: NewFederatedAccount) -> FederatedAccount:
-        """利用者を作る。パスワードでは入れない状態で作ること。"""
+        """Create a user. Must be created in a state that can't sign in with a password."""
 
     def refresh_profile(self, user_id: int, *, email: str | None, username: str) -> None:
-        """IdP が名乗った名前とメールアドレスを写しへ上書きする（ADR-0077 §6）。
+        """Overwrite the copy with the name and email the IdP claimed (ADR-0077 §6).
 
-        ⚠ **写しは IdP を正とする**（idp の ADR-0049 I5）。書かないと、向こうで
-        改名・メール変更をしても**こちらの表示は永久に古いまま**になる。
+        ⚠ **The copy treats the IdP as the source of truth** (idp ADR-0049 I5). Without writing,
+        renames and email changes over there would leave **our display stale forever**.
 
-        ⚠ **他の利用者とぶつかる値は書かない。** ``users.email`` は一意なので、
-        ぶつかったまま書くと**ログインが 500 で落ちる** ——写しの更新でログインを
-        壊してはいけないので、その項目だけ黙って見送る。
+        ⚠ **Don't write values that conflict with other users.** ``users.email`` is unique, so
+        writing a conflicting value **makes the login fail with a 500** — a copy update must not
+        break login, so only that field is silently skipped.
         """
 
     def apply_roles(self, user_id: int, roles: Sequence[str]) -> FederatedAccount:
-        """ロールを与え直す（IdP を正とする運用のとき）。
+        """Reassign roles (when operating with the IdP as source of truth).
 
-        存在しないロール名は黙って捨てる（IdP 側のグループが増えても
-        ログインが止まらないようにする）。
+        Unknown role names are silently dropped (so login doesn't stop when groups increase
+        on the IdP side).
         """
 
 

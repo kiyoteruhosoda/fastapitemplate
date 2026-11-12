@@ -1,4 +1,4 @@
-"""アプリログ閲覧 API（``GET /api/admin/logs``）の絞り込みとページング。"""
+"""Filtering and paging of the app log API (``GET /api/admin/logs``)."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def test_filters_by_logger_prefix_and_message_substring(
 def test_wildcards_in_the_filter_are_literal_text(
     client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """``%`` を渡しても全件一致にならない（LIKE パターンとして解釈しない）。"""
+    """Passing ``%`` does not match everything (not interpreted as a LIKE pattern)."""
     _insert_log(engine, message="plain")
     _insert_log(engine, message="100% done")
 
@@ -105,11 +105,11 @@ def test_filters_by_period(client: TestClient, system_admin_headers: dict[str, s
 def test_accepts_offset_aware_period_boundaries(
     client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """タイムゾーン付きの境界も UTC へ揃えて比較する。"""
+    """Boundaries with a time zone are also converted to UTC for comparison."""
     _insert_log(engine, created_at=utcnow() - timedelta(days=2), message="old")
     _insert_log(engine, created_at=utcnow(), message="recent")
 
-    # "+" はクエリ文字列では空白を表すため、オフセットの符号は URL エンコードする
+    # "+" means a space in a query string, so the offset sign is URL-encoded
     far_future = (utcnow() + timedelta(days=1)).isoformat() + "%2B09:00"
     assert _messages(_search(client, system_admin_headers, f"?created_to={far_future}")) == ["recent", "old"]
 
@@ -125,7 +125,7 @@ def test_paginates_newest_first(client: TestClient, system_admin_headers: dict[s
 
     second = _search(client, system_admin_headers, "?logger=test&limit=2&offset=2")
     assert _messages(second) == ["entry-0"]
-    # total は絞り込み条件に対する件数で、ページの件数ではない
+    # total is the count for the filter, not the count on the page
     assert second["total"] == 3
 
 

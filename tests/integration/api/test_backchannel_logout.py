@@ -1,11 +1,12 @@
-"""停止の伝播（IdP → RP）が効いているか（ADR-0077 §3 / ADR-0076 §5）。
+"""Whether suspension propagation (IdP -> RP) works (ADR-0077 §3 / ADR-0076 §5).
 
-IdP との通信はゲートウェイを差し替えて止める。ここで確かめたいのは、**届いた通知が
-実際にセッションを終わらせること**と、終わらせる範囲を間違えないことである。
+Communication with the IdP is stopped by replacing the gateway. What we want to confirm is that
+**a received notice actually ends the session**, and that it does not get the scope wrong.
 
-⚠ **効くのは「次の更新のとき」である**（ADR-0076 §5）。アクセストークンの検証は DB を
-引かないので、止まった直後でも**手元のアクセストークンは寿命まで通る**。止める判定は
-更新の 1 点に集約してあり、**上限時間はアクセストークンの寿命**（既定 5 分）になる。
+⚠ **It takes effect "at the next refresh"** (ADR-0076 §5). Access-token verification does not
+query the DB, so even right after suspension **the access token in hand stays valid until it
+expires**. The suspension check is concentrated at the single refresh point, and **the upper bound
+is the access-token lifetime** (5 minutes by default).
 """
 
 from __future__ import annotations
@@ -49,10 +50,10 @@ _LOGOUT = "/api/auth/sso/backchannel-logout"
 
 @dataclass
 class _StubGateway:
-    """ID トークンと ``logout_token`` を、検証済みのクレームとして返すだけの IdP。
+    """An IdP that just returns the ID token and ``logout_token`` as verified claims.
 
-    ``logout_token`` は「``<sid>|<jti>``」という綴りにする。**署名の検証は
-    Infrastructure 層の責任**なので、ここではそこを模さない。
+    ``logout_token`` is spelled "``<sid>|<jti>``". **Signature verification is the Infrastructure
+    layer's responsibility**, so it is not imitated here.
     """
 
     sid: str = "session-1"
@@ -106,7 +107,7 @@ def sso_client(
     monkeypatch.setenv("OIDC_CLIENT_ID", "rp")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
-    # 既存の管理者へ寄せる（この試験の主題は結び付け方ではない）。
+    # Merge into the existing administrator (how linking works is not the subject of this test).
     monkeypatch.setenv("OIDC_LINK_BY_EMAIL", "true")
     app: FastAPI = create_app()
     app.dependency_overrides[dependencies.oidc_gateway] = lambda: gateway
@@ -115,7 +116,7 @@ def sso_client(
 
 
 def _sign_in_with_sso(client: TestClient) -> None:
-    """SSO で入る（認可要求 → 戻り → 券の引き換え）。"""
+    """Signs in via SSO (authorization request -> return -> ticket exchange)."""
     redirect = client.get("/api/auth/sso/login", follow_redirects=False)
     state = redirect.headers["location"].split("state=")[1].split("&")[0]
     callback = client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
@@ -124,10 +125,10 @@ def _sign_in_with_sso(client: TestClient) -> None:
 
 
 def _post_logout(client: TestClient, logout_token: str) -> int:
-    """IdP のサーバーが叩く経路。**Cookie も CSRF トークンも持たない。**
+    """The path the IdP server calls. **It has neither a cookie nor a CSRF token.**
 
-    通知は JWT の形で送る（発行者でテナントを選ぶため。ADR-0079 §4）。中身の「``<sid>|<jti>``」は
-    ``raw`` に入れ、検証はスタブの IdP が受け持つ。
+    The notice is sent as a JWT (the issuer selects the tenant; ADR-0079 §4). The contents
+    "``<sid>|<jti>``" go in ``raw`` and verification is handled by the stub IdP.
     """
     signed = jwt.encode({"iss": _ISSUER, "raw": logout_token}, "stub-idp-key", algorithm="HS256")
     with TestClient(client.app) as idp:
@@ -135,8 +136,9 @@ def _post_logout(client: TestClient, logout_token: str) -> int:
 
 
 def _reissue(client: TestClient) -> int:
-    """出し直しの口を通るか。SSO で入ったログインは更新の札を持たないので（ADR-0104）、止まったかは
-    トークンを出し直す口（ロールの切り替え）で見る。IdP への問い合わせ（続ける往復）は IdP 側が断る。"""
+    """Whether the reissue entrance passes. SSO sign-ins hold no refresh marker (ADR-0104), so whether
+    they were stopped is seen at an entrance that reissues tokens (role switching). Querying the IdP
+    (continuation) is refused on the IdP side."""
     response = client.post(
         "/api/auth/switch-role",
         json={"role": None},
@@ -151,24 +153,24 @@ def test_a_stop_from_the_idp_ends_the_session_at_the_next_refresh(sso_client: Te
 
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
 
-    # ⚠ **手元のアクセストークンは寿命まで通る**（ADR-0076 §5。検証は DB を引かない）。
+    # ⚠ **The access token in hand stays valid until it expires** (ADR-0076 §5; verification does not query the DB).
     assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
     assert sso_client.get("/api/auth/me").status_code == 200
-    # 終わるのは更新のとき。ここから先は新しいアクセストークンが出ない。
+    # It ends at refresh time. From here on no new access token is issued.
     assert _reissue(sso_client) == 401
 
 
 def test_the_access_token_outlives_the_stop_only_until_it_expires(sso_client: TestClient) -> None:
-    """⚠ **これが引き受けた緩さである**（ADR-0076 §5）。
+    """⚠ **This is the accepted looseness** (ADR-0076 §5).
 
-    止まった利用者が通り続ける上限は、アクセストークンの寿命そのものになる。
-    短くするほど上限が縮み、長くするほど停止が遅れて効く。
+    How long a suspended user keeps getting through is bounded by the access-token lifetime itself.
+    Shorter shrinks the bound; longer delays the suspension taking effect.
     """
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    # 止まっているのに、手元のアクセストークンはまだ通る。
+    # Suspended, yet the access token in hand still passes.
     assert sso_client.get("/api/auth/me").status_code == 200
-    # その「まだ」の上限が寿命である。
+    # The bound on that "still" is the lifetime.
     assert settings.access_token_expires_seconds <= 300
 
 
@@ -176,13 +178,13 @@ def test_a_stop_outlives_the_period_when_the_period_was_shortened(
     sso_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """期間を短くしても、止めた記録は今あるログインより先に消えない（ADR-0102）。"""
+    """Even with a shorter period, revocation records are not deleted before existing sign-ins (ADR-0102)."""
     monkeypatch.setenv("REFRESH_TOKEN_EXPIRES_SECONDS", "3600")
     _sign_in_with_sso(sso_client)
     monkeypatch.setenv("REFRESH_TOKEN_EXPIRES_SECONDS", "60")
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
 
-    # 今の期間（60 秒）を過ぎたころに別の停止が届く。掃除はこのときに走る。
+    # Another suspension arrives after the current period (60 s) has passed. Cleanup runs at this point.
     later = utcnow() + timedelta(seconds=120)
     monkeypatch.setattr(sql_session_revocation_repository, "utcnow", lambda: later)
     assert _post_logout(sso_client, "another-session|delivery-2") == 200
@@ -191,10 +193,10 @@ def test_a_stop_outlives_the_period_when_the_period_was_shortened(
 
 
 def test_a_stopped_session_cannot_be_refreshed(sso_client: TestClient) -> None:
-    """⚠ **止める判定はここだけである**（ADR-0076 §5）。
+    """⚠ **This is the only place the suspension is checked** (ADR-0076 §5).
 
-    アクセストークンの検証は DB を引かないので、ここが抜けると停止はどこにも
-    効かなくなる ——寿命による上限そのものが無くなる。
+    Access-token verification does not query the DB, so without this the suspension would take effect
+    nowhere: the lifetime bound itself would disappear.
     """
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
@@ -214,7 +216,7 @@ def test_a_stop_without_a_sid_ends_every_session_of_that_user(sso_client: TestCl
 
 
 def test_signing_in_again_after_a_stop_works(sso_client: TestClient, gateway: _StubGateway) -> None:
-    """止めるのは**そのときのセッション**であって、利用者ではない。"""
+    """What is stopped is **that session**, not the user."""
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "|delivery-1") == 200
     gateway.sid = "session-2"
@@ -232,7 +234,7 @@ def _switch_role(client: TestClient) -> int:
 
 
 def test_switching_roles_keeps_the_session_stoppable(sso_client: TestClient) -> None:
-    """⚠ 出し直したトークンが宛名を落とすと、切り替えた瞬間に伝播から外れる。"""
+    """⚠ If a reissued token dropped the subject, switching would immediately escape propagation."""
     _sign_in_with_sso(sso_client)
     assert _switch_role(sso_client) == 200
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
@@ -240,43 +242,43 @@ def test_switching_roles_keeps_the_session_stoppable(sso_client: TestClient) -> 
 
 
 def test_a_stopped_session_cannot_mint_new_tokens_by_switching_roles(sso_client: TestClient) -> None:
-    """⚠ **出し直しの経路を塞がないと、寿命による上限が破れる**（ADR-0076 §5）。
+    """⚠ **Unless the reissue path is blocked, the lifetime bound is broken** (ADR-0076 §5).
 
-    アクセストークンの検証は DB を引かないので、止まった利用者でも手元の 1 枚は
-    寿命まで通る。その 1 枚でロールを切り替えられてしまうと、**5 分ごとに新しい
-    トークンを受け取れる** ——いつまでも入っていられることになる。
+    Access-token verification does not query the DB, so even a suspended user's token in hand is valid
+    until it expires. If that token could switch roles, **a new token could be obtained every 5
+    minutes**, staying signed in indefinitely.
     """
     _sign_in_with_sso(sso_client)
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
-    # 読む経路はまだ通る（引き受けた緩さ）。
+    # Read paths still pass (the accepted looseness).
     assert sso_client.get("/api/auth/me").status_code == 200
-    # ⚠ 出し直す経路は通さない。
+    # ⚠ Reissue paths do not pass.
     assert _switch_role(sso_client) == 401
 
 
 def test_a_stopped_session_cannot_register_a_new_way_in(sso_client: TestClient) -> None:
-    """⚠ **止められた相手に、新しい入り口を作らせない**（ADR-0076 §5 決定 6）。
+    """⚠ **A suspended user cannot create new ways in** (ADR-0076 §5 decision 6).
 
-    二要素認証やパスキーの登録は「入り口を増やす」操作である。アクセストークンの
-    検証は DB を引かないので、止まった利用者でも手元の 1 枚は寿命まで通る
-    ——その 1 枚で入り口を増やされては、止めた意味が半分無くなる。
+    Enrolling two-factor authentication or a passkey "adds a way in". Access-token verification does
+    not query the DB, so a suspended user's token in hand is valid until it expires; letting that token
+    add ways in would undo half the point of suspending.
     """
     _sign_in_with_sso(sso_client)
     assert sso_client.get("/api/account/security/two-factor").status_code == 200
 
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
 
-    # 読むだけの経路はまだ通る（引き受けた緩さ）。
+    # Read-only paths still pass (the accepted looseness).
     assert sso_client.get("/api/auth/me").status_code == 200
-    # ⚠ 資格情報を作り替える経路は通さない。
+    # ⚠ Paths that recreate credentials do not pass.
     assert sso_client.get("/api/account/security/two-factor").status_code == 401
 
 
 def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient, gateway: _StubGateway) -> None:
-    """送り手は再送でも同じ ``jti`` を使う（idp の ADR-0024）。
+    """The sender uses the same ``jti`` for resends (idp ADR-0024).
 
-    ⚠ **弾かないと、古い通知の再送で「いま生きているセッション」を落とせる**
-    ——ここでは、同じ ``sid`` を使い回す IdP を想定して最悪の形にしてある。
+    ⚠ **Without rejecting them, resending an old notice could kill "a session alive right now"**:
+    the worst case is set up here, assuming an IdP that reuses the same ``sid``.
     """
     assert _post_logout(sso_client, "session-1|delivery-1") == 200
     gateway.sid = "session-1"
@@ -286,7 +288,7 @@ def test_a_resent_notice_is_accepted_but_changes_nothing(sso_client: TestClient,
 
 
 def test_a_local_login_is_not_touched(sso_client: TestClient) -> None:
-    """停止の伝播が消せるのは IdP 経由で始まったセッションだけ（ADR-0076 §3）。"""
+    """Suspension propagation can only end sessions that started via the IdP (ADR-0076 §3)."""
     signed_in = sso_client.post(
         "/api/auth/login",
         json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": master_data.DEFAULT_ADMIN_PASSWORD},

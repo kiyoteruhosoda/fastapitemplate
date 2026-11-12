@@ -1,10 +1,10 @@
-"""assay が答える「いま誰がこのアプリを使ってよいか」（ADR-0077 §7）。
+"""assay's answer to "who may use this app now" (ADR-0077 §7).
 
-idp の ADR-0057 の口が返す形をそのまま写した値。載っているのは ``sub`` と状態だけで、
-プロフィールは含まない（属性の写しはログインのたびに渡っている。ADR-0077 §6）。
+A value mirroring exactly what idp's ADR-0057 endpoint returns. It holds only ``sub`` and status,
+no profile (attribute copies are passed on every login. ADR-0077 §6).
 
-⚠ **知らない状態は「触らない」へ倒す。** assay が 4 つ目の状態を足した日に、こちらが
-「知らない＝止める」と読むと**全員が止まる**。読めない値で人を止めない。
+⚠ **Unknown statuses fall to "leave alone".** If on the day assay adds a 4th status we read
+"unknown = stop", **everyone is stopped**. Never stop people on an unreadable value.
 """
 
 from __future__ import annotations
@@ -14,15 +14,15 @@ from enum import Enum
 
 
 class RosterState(Enum):
-    """名簿に載る 1 人の扱い。**RP が取る行動**で 3 つに分かれる（idp の ADR-0057）。"""
+    """How one person on the roster is handled. Three kinds by **the action the RP takes** (idp ADR-0057)."""
 
-    #: いま使ってよい。
+    #: May use it now.
     ALLOWED = "allowed"
-    #: assay に居るが、いまは使えない。⚠ **結び付きは残す**（向こうで戻れば、そのまま SSO で入れる）。
+    #: In assay but can't use it now. ⚠ **Keep the binding** (if restored over there, they can sign in via SSO as is).
     BLOCKED = "blocked"
-    #: assay のこのテナントに居ない（＝消えた）。結び付きごと落としてよい。
+    #: Not in this assay tenant (= deleted). The binding may be dropped too.
     UNKNOWN = "unknown"
-    #: ⚠ assay が**こちらの知らない値**を返した・名簿に載っていない。何もしない。
+    #: ⚠ assay returned **a value we don't know**, or not on the roster. Do nothing.
     UNRECOGNISED = ""
 
     @classmethod
@@ -34,29 +34,29 @@ class RosterState(Enum):
 
     @property
     def ends_sessions(self) -> bool:
-        """この状態は「もう SSO のセッションを使わせない」か。"""
+        """Whether this status means "no longer allow SSO sessions"."""
         return self in {RosterState.BLOCKED, RosterState.UNKNOWN}
 
     @property
     def drops_the_link(self) -> bool:
-        """結び付き（``federated_identities`` の行）まで落としてよいか。
+        """Whether the binding (the ``federated_identities`` row) may be dropped too.
 
-        ⚠ **止まっただけの人の結び付きは落とさない。** 落とすと、向こうで戻ったときに
-        本人がもう一度結び付け直すことになる（ADR-0077 §5 により本人の操作でしか作れない）。
+        ⚠ **Don't drop the binding of someone merely suspended.** Dropping it would force them to bind
+        again when restored over there (per ADR-0077 §5, only the person can create it).
         """
         return self is RosterState.UNKNOWN
 
 
 @dataclass(frozen=True)
 class RosterEntry:
-    """名簿の 1 行。"""
+    """One roster row."""
 
     subject: str
     state: RosterState
 
     @classmethod
     def of(cls, payload: dict[str, object]) -> RosterEntry | None:
-        """応答の 1 要素から組み立てる。``sub`` が読めなければ ``None``。"""
+        """Build from one element of the response. ``None`` if ``sub`` can't be read."""
         subject = payload.get("sub")
         state = payload.get("state")
         if not isinstance(subject, str) or not subject:
@@ -66,16 +66,17 @@ class RosterEntry:
 
 @dataclass(frozen=True)
 class Roster:
-    """1 回の問い合わせで受け取った名簿。
+    """The roster received in one query.
 
-    ⚠ **「引けなかった」をこの型で表さない。** 引けなかったときは例外で止め、照合そのものを
-    見送る ——空の名簿と区別が付かなくなると、assay が不調なだけで全員を止める（ADR-0077 §7）。
+    ⚠ **Don't represent "couldn't fetch" with this type.** On failure stop with an exception and
+    skip the reconciliation itself — if it became indistinguishable from an empty roster, everyone
+    would be stopped just because assay is unwell (ADR-0077 §7).
     """
 
     entries: tuple[RosterEntry, ...]
 
     def state_of(self, subject: str) -> RosterState:
-        """その ``sub`` の状態。⚠ **名簿に無い `sub` は `UNRECOGNISED`**（＝触らない）。"""
+        """Status of that ``sub``. ⚠ **A `sub` not on the roster is `UNRECOGNISED`** (= leave alone)."""
         for entry in self.entries:
             if entry.subject == subject:
                 return entry.state

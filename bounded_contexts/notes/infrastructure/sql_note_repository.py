@@ -1,4 +1,4 @@
-"""``INoteRepository`` の SQLAlchemy 実装。テナントはコンストラクタで受け取る（ADR-0079 §2）。"""
+"""SQLAlchemy implementation of ``INoteRepository``. Takes the tenant in the constructor (ADR-0079 §2)."""
 
 from __future__ import annotations
 
@@ -29,9 +29,9 @@ class SqlNoteRepository(INoteRepository):
         return None if row is None else _to_note(row)
 
     def find_readable(self, viewer: Viewer) -> list[Note]:
-        """読めるメモの一覧。決まりは ``Note.readable_by`` と同じものを SQL で書く。
+        """List of readable notes. The same rule as ``Note.readable_by``, written in SQL.
 
-        1 件ずつ ``readable_by`` で篩うと、テナントの全部のメモを読むことになる。
+        Filtering one by one with ``readable_by`` would read every note in the tenant.
         """
         readable = or_(
             NoteModel.owner_user_id == viewer.user_id,

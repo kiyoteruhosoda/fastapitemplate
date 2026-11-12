@@ -1,7 +1,7 @@
-"""このアプリ側が持っている第二要素（ADR-0076 §7）。
+"""Second factors held on this app's side (ADR-0076 §7).
 
-⚠ **IdP 側の多要素とは別物である。** IdP で多要素を必須にしても、ここは掛からない
-——認証系が 2 つあるとはそういうことで、棚卸しはその前提で読む。
+⚠ **These are separate from the IdP's multi-factor.** Requiring multi-factor at the IdP does not
+apply here — that is what having two authentication systems means; read the inventory with that in mind.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class LocalFactors:
-    #: 二要素認証（TOTP）が**有効になっている**か（登録手続き中は数えない）。
+    #: Whether two-factor authentication (TOTP) is **enabled** (not counted while enrollment is in progress).
     totp: bool = False
-    #: 登録済みのパスキーの本数。
+    #: Number of registered passkeys.
     passkeys: int = 0
 
 

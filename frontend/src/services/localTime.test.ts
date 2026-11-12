@@ -9,35 +9,35 @@ import {
 } from './localTime'
 
 describe('utcOffsetLabel', () => {
-  it('東は + と時間だけ', () => {
+  it('east is + and hours only', () => {
     expect(utcOffsetLabel(9 * 60)).toBe('UTC+9')
     expect(utcOffsetLabel(14 * 60)).toBe('UTC+14')
   })
 
-  it('分があれば :分 を付ける', () => {
+  it('adds :minutes when there are minutes', () => {
     expect(utcOffsetLabel(5 * 60 + 30)).toBe('UTC+5:30')
     expect(utcOffsetLabel(5 * 60 + 45)).toBe('UTC+5:45')
     expect(utcOffsetLabel(10 * 60 + 5)).toBe('UTC+10:05')
   })
 
-  it('西は -', () => {
+  it('west is -', () => {
     expect(utcOffsetLabel(-5 * 60)).toBe('UTC-5')
     expect(utcOffsetLabel(-(3 * 60 + 30))).toBe('UTC-3:30')
   })
 
-  it('ずれが無ければ UTC だけ', () => {
+  it('just UTC when there is no offset', () => {
     expect(utcOffsetLabel(0)).toBe('UTC')
   })
 })
 
-describe('見る人の時間帯', () => {
+describe("the viewer's time zone", () => {
   const at = new Date('2026-11-04T22:00:00Z')
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('getTimezoneOffset（西が正）の向きを直して書く', () => {
+  it('flips the sign of getTimezoneOffset (west positive) when writing', () => {
     vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(-540)
     expect(localZoneLabel(at)).toBe('UTC+9')
     vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(-330)
@@ -48,19 +48,19 @@ describe('見る人の時間帯', () => {
     expect(localZoneLabel(at)).toBe('UTC')
   })
 
-  it('書いた時刻の後ろに時間帯を添える', () => {
+  it('appends the time zone after the written time', () => {
     vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(-540)
     expect(withLocalZone(at, '2026/11/05 07:00')).toBe('2026/11/05 07:00 UTC+9')
   })
 
-  it('お知らせの時刻も時間帯つき', () => {
+  it('notification times carry the time zone too', () => {
     const value = at.toISOString()
     expect(formatWithLocalZone(value, 'en')).toBe(
       `${at.toLocaleString('en')} ${localZoneLabel(at)}`,
     )
   })
 
-  it('日付を長めにした時刻も時間帯つき', () => {
+  it('times with a longer date carry the time zone too', () => {
     const shown = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(
       at,
     )

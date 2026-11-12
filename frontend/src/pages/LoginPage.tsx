@@ -14,14 +14,14 @@ import { forgotPasswordPathOf, rememberTenant } from '../services/tenantEntrance
 import { isPasskeyCancellation, isPasskeySupported } from '../services/webauthn'
 import { RECONNECT_INTERVAL_MS, useAuth } from '../store/AuthContext'
 
-/** 資格情報の入力 → （二要素認証が有効なら）ワンタイムコードの入力。 */
+/** Credentials input -> (if two-factor authentication is enabled) one-time code input. */
 type Step = 'credentials' | 'totp'
 
 export function LoginPage() {
   const { t } = useI18n()
   const { login, loginWithPasskey } = useAuth()
   const navigate = useNavigate()
-  // 入口のテナント（`/t/<slug>/login`）。無ければ共通の入口（ADR-0079 §4）
+  // Entry tenant (`/t/<slug>/login`). The shared entry point if absent (ADR-0079 §4)
   const { tenant } = useParams<{ tenant?: string }>()
   const [step, setStep] = useState<Step>('credentials')
   const [email, setEmail] = useState('')
@@ -30,16 +30,19 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [params] = useSearchParams()
-  // 開こうとしていた画面（ADR-0077 §8）。どの入口で入っても、入れたらここへ戻す。
+  // The page the user was trying to open (ADR-0077 §8). Whichever entry they use, return here once in.
   const destination = sanitizeRedirectTo(params.get(REDIRECT_TO_PARAM))
-  // SSO の設定は起動後に変えられるので、画面を開くたびに問い合わせる。
-  // ⚠ **取れないうちは入口を出さない。** 取れないのはサーバーに届かないとき（リリース中など）で、
-  // そのときはどの入口を押しても通らない。既定の入口（パスワード欄）を出すと、サーバーが戻っても
-  // IdP のボタンの無い画面に取り残される。つながるまで聞き直す。
+  // SSO settings can change after startup, so ask every time the page opens.
+  // Note: **no entry points until it is fetched.** It fails when the server is unreachable (e.g.
+  // during a release), and then no entry point works. Showing the default (password fields) would
+  // leave the user stranded on a page without the IdP button once the server is back. Keep asking
+  // until connected.
   const [sso, setSso] = useState<SsoProvider | null>(null)
   const [ssoUnreachable, setSsoUnreachable] = useState(false)
-  // IdP で入っていればボタンを押さずに入れる（ADR-0077 §9）。試してよいかは開いたときの URL で決める。
-  // ⚠ **試すと決めたら入口を描かない。** 描いてから飛ぶと、一瞬だけログイン画面が見える。
+  // If signed in at the IdP, the user gets in without pressing the button (ADR-0077 §9). Whether to
+  // try is decided by the URL at open.
+  // Note: **once it decides to try, it does not render the entry points.** Rendering and then
+  // redirecting flashes the login page.
   const [silentAllowed] = useState(() => maySilentSso(params))
 
   useEffect(() => {
@@ -70,20 +73,20 @@ export function LoginPage() {
     }
   }, [tenant, destination, silentAllowed])
 
-  // サーバー側の往復（``/api/auth/sso/callback``）が失敗すると、ここへ
-  // ``?sso_error=<コード>`` で戻ってくる。表示文言は画面が決める。
+  // When the server-side round trip (``/api/auth/sso/callback``) fails, it comes back here
+  // with ``?sso_error=<code>``. The page decides the displayed text.
   useEffect(() => {
     const code = params.get('sso_error')
     if (code) setError(`error.${code}`)
   }, [params])
 
-  // IdP でのサインアウトを終えると `?signed_out=1` で戻ってくる（ADR-0077 §2）。
-  // **出さないと、期限切れで飛ばされたのと見分けが付かない。**
+  // After signing out at the IdP it comes back with `?signed_out=1` (ADR-0077 §2).
+  // **Without showing it, it cannot be told apart from being kicked out by expiry.**
   useEffect(() => {
     if (params.get('signed_out')) setNotice('login.signedOut')
   }, [params])
-  // パスワード欄は表示切り替えボタンを持つため `<label>` で囲まず `for` で結ぶ
-  // （labelable な要素を 2 つ入れると対応付けが曖昧になる）。
+  // The password field has a visibility toggle, so it is tied with `for` instead of wrapped in `<label>`
+  // (two labelable elements inside make the association ambiguous).
   const passwordId = useId()
 
   const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {
@@ -96,7 +99,7 @@ export function LoginPage() {
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'unknown_error'
       if (code === 'totp_required') {
-        // コード要求はエラーではなく次の手順。案内としてコード入力へ進める。
+        // A code request is not an error but the next step. Proceed to code input as guidance.
         setStep('totp')
         setTotpCode('')
         setError(null)
@@ -162,7 +165,8 @@ export function LoginPage() {
             {t('login.withSso', { provider: sso.display_name })}
           </ActionButton>
         )}
-        {/* 入口が閉じているときは、押しても 403 になるものを出さない（ADR-0076 §3 決定 2）。 */}
+        {/* When the entry is closed, do not show things that would return 403 when pressed
+            (ADR-0076 §3 decision 2). */}
         {!sso.local_login_enabled ? (
           <p className="hint">{t('login.localDisabled')}</p>
         ) : step === 'credentials' ? (

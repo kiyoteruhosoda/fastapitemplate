@@ -1,8 +1,8 @@
 /**
- * グループの管理（ADR-0081 §3。要 `group:manage`）。
+ * Group management (ADR-0081 §3. Requires `group:manage`).
  *
- * グループは「誰と誰か」を束ねるだけで、権限は持たない（権限はロール）。
- * お知らせの宛先に使う。所属は編集ダイアログで、有効な利用者から選ぶ。
+ * A group only bundles "who and who" and holds no permissions (permissions belong to roles).
+ * Used as announcement recipients. Membership is edited in the dialog, choosing from active users.
  */
 import { useEffect, useState, type SubmitEvent } from 'react'
 
@@ -27,7 +27,7 @@ interface Group {
   members: Member[]
 }
 
-/** 編集中の内容。`id` が無ければ新規。 */
+/** Content being edited. New if there is no `id`. */
 interface Draft {
   id: number | null
   name: string
@@ -94,7 +94,8 @@ export function GroupsPage() {
       }
     })
 
-  // 止められた利用者は候補に出ないが、既に所属していれば外せるように並べる。
+  // Suspended users are not offered as candidates, but are listed if already members so they
+  // can be removed.
   const choices = draft
     ? [
         ...candidates,

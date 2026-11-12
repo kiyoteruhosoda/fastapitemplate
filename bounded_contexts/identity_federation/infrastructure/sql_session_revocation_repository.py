@@ -1,4 +1,4 @@
-"""停止の記録の SQLAlchemy 実装（ADR-0077 §3）。"""
+"""SQLAlchemy implementation of logout records (ADR-0077 §3)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class SqlSessionRevocationRepository:
     session: Session
 
     def record(self, revocation: SessionRevocation) -> bool:
-        """記録を残す。既に同じ ``jti`` があれば ``False``（再送として無視する）。"""
+        """Store the record. If the same ``jti`` already exists, ``False`` (ignored as a resend)."""
         self.session.execute(
             delete(FederatedSessionRevocationRecord).where(FederatedSessionRevocationRecord.expires_at < utcnow())
         )
@@ -47,19 +47,19 @@ class SqlSessionRevocationRepository:
         return True
 
     def _kept_until(self, earliest: datetime) -> datetime:
-        """記録を残す時刻。今あるログインのうち最後に終わるものより先に消さない（ADR-0102）。
+        """Time until which to keep the record. Never delete before the last of the current logins ends (ADR-0102).
 
-        ⚠ **利用者を絞らない。** ログインの控えは IdP 側の宛名を持たず、結び付きは外されていることがある。
+        ⚠ **Don't filter by user.** Login records hold no IdP-side address, and bindings may have been removed.
         """
         last_end: datetime | None = self.session.scalar(select(func.max(RefreshSession.expires_at)))
         return earliest if last_end is None else max(earliest, last_end)
 
     def is_revoked(self, login: FederatedLogin) -> bool:
-        """そのログインを無効にする記録があるか。
+        """Whether there is a record invalidating that login.
 
-        ⚠ **``session_id`` が NULL の行は利用者単位の停止**なので、こちらの
-        ``session_id`` が何であっても当たる。逆に、こちらが ``None``（``sid`` を
-        出さない IdP）のときは利用者単位の行にしか当たらない。
+        ⚠ **Rows with NULL ``session_id`` are per-user stops**, so they match whatever our
+        ``session_id`` is. Conversely, when ours is ``None`` (an IdP that doesn't provide
+        ``sid``), only per-user rows match.
         """
         record = FederatedSessionRevocationRecord
         target = login.session

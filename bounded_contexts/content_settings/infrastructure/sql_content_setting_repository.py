@@ -1,4 +1,7 @@
-"""``IContentSettingRepository`` の SQLAlchemy 実装。テナントはコンストラクタで受け取る（ADR-0079 §1 決定 5）。"""
+"""SQLAlchemy implementation of ``IContentSettingRepository``.
+
+Takes the tenant in the constructor (ADR-0079 §1 decision 5).
+"""
 
 from __future__ import annotations
 

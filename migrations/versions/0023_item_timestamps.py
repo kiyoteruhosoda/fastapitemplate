@@ -1,7 +1,7 @@
 """item timestamps
 
-アイテムに ``created_at`` / ``updated_at`` を足す（task #799）。既にある行には移行した時刻を入れる
-（本当の時刻は残っていない）。定義の正本は ``bounded_contexts/example/infrastructure/item_model.py``。
+Add ``created_at`` / ``updated_at`` to items (task #799). Existing rows get the migration time
+(the real times are not preserved). The definition lives in ``bounded_contexts/example/infrastructure/item_model.py``.
 
 Revision ID: item_timestamps
 Revises: refresh_sessions

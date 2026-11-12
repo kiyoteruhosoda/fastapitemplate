@@ -1,7 +1,7 @@
 /**
- * パスワードの変更。プロフィールページの「パスワード変更」区画に出す（ADR-0080 §4）。
+ * Password change. Shown in the "Change password" section of the profile page (ADR-0080 §4).
  *
- * 見出しと区画の枠は呼び出し側（ProfilePage）が持ち、ここは中身だけを描く。
+ * The heading and section frame belong to the caller (ProfilePage); this renders only the content.
  */
 import { useId, useState, type SubmitEvent } from 'react'
 
@@ -17,7 +17,7 @@ export function PasswordChangeForm() {
   const { notify } = useToast()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
-  // 表示切り替えボタンを持つ欄は `<label>` で囲まず `for` で結ぶ（LoginPage 参照）。
+  // Fields with a visibility toggle are tied with `for` instead of wrapped in `<label>` (see LoginPage).
   const currentId = useId()
   const nextId = useId()
 

@@ -1,9 +1,9 @@
-"""共有メモ API の統合テスト（ADR-0078 §6）。
+"""Integration tests for the shared notes API (ADR-0078 §6).
 
-認可の 2 段を確かめる。
+Checks both levels of authorization.
 
-- 機能を使えるか —— トークンの scope（``note:view`` / ``note:write``）
-- この 1 件を扱えるか —— 持ち主とグループの所属（DB）
+- Can the feature be used: the token scope (``note:view`` / ``note:write``)
+- Can this one note be handled: owner and group membership (DB)
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ class SignUp(Protocol):
 
 @pytest.fixture
 def sign_up(app: FastAPI, client: TestClient, admin_headers: dict[str, str]) -> Iterator[SignUp]:
-    """管理者が利用者を作り、その人として入った別のブラウザを返す。"""
+    """The administrator creates a user and returns a separate browser signed in as that person."""
     with ExitStack() as stack:
 
         def _sign_up(name: str, role: str) -> tuple[int, Side]:
@@ -71,7 +71,7 @@ def test_a_private_note_is_seen_only_by_its_owner(sign_up: SignUp) -> None:
 
     assert _titles(alice) == ["alice only"]
     assert _titles(bob) == []
-    # 読めないメモは「無い」と答える（在ることも漏らさない）
+    # Notes that cannot be read are answered as "not found" (not even their existence leaks)
     browser, headers = bob
     assert browser.get(f"/api/notes/{note_id}").json()["detail"]["error"] == "note_not_found"
     response = browser.put(f"/api/notes/{note_id}", json={"title": "taken"}, headers=headers)
@@ -91,13 +91,13 @@ def test_group_members_read_a_shared_note_but_only_the_owner_changes_it(
     assert (shared["mine"], shared["can_change"]) == (False, False)
     assert [(n["id"], n["can_change"]) for n in bob[0].get("/api/notes").json()] == [(note_id, False)]
 
-    # bob も note:write を持つ（機能は使える）が、この 1 件は alice のもの
+    # bob also has note:write (can use the feature), but this note belongs to alice
     browser, headers = bob
     response = browser.put(f"/api/notes/{note_id}", json={"title": "edited by bob"}, headers=headers)
     assert (response.status_code, response.json()["detail"]["error"]) == (403, "note_not_owned")
     assert browser.delete(f"/api/notes/{note_id}", headers=headers).status_code == 403
 
-    # グループの外の人には無い
+    # Not visible to people outside the group
     assert _titles(dave) == []
     assert dave[0].get(f"/api/notes/{note_id}").status_code == 404
 
@@ -119,12 +119,12 @@ def test_the_scope_gates_the_feature_before_any_note_is_looked_at(sign_up: SignU
     _, carol = sign_up("carol", "member")
     _, gus = sign_up("gus", "guest")
 
-    # member は note:view だけ。書く機能はトークンの時点で断られる
+    # member has only note:view. Writing is refused at the token level
     browser, headers = carol
     response = browser.post("/api/notes", json={"title": "x"}, headers=headers)
     assert (response.status_code, response.json()["detail"]["error"]) == (403, "forbidden")
     assert browser.get("/api/notes").status_code == 200
-    # guest は機能そのものを使えない
+    # guest cannot use the feature at all
     assert gus[0].get("/api/notes").status_code == 403
 
 
@@ -140,7 +140,7 @@ def test_leaving_the_group_hides_the_note_without_a_new_token(
     response = client.put(f"/api/admin/groups/{group_id}", json={"member_ids": [alice_id]}, headers=admin_headers)
     assert response.status_code == 200, response.text
 
-    # carol のトークンはそのまま（更新していない）。所属は DB で見るので、すぐ効く
+    # carol's token is unchanged (not refreshed). Membership is checked in the DB, so it takes effect immediately
     assert _titles(carol) == []
 
 

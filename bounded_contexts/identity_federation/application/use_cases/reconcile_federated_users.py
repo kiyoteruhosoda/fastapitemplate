@@ -1,16 +1,17 @@
-"""assay へ聞き直して、使えなくなった人の SSO のセッションを止める（定期照合。ADR-0077 §7）。
+"""Ask assay again and stop SSO sessions of people who can no longer use it (periodic
+reconciliation. ADR-0077 §7).
 
-受け口（ADR-0077 §3）が取りこぼしたぶんを拾う 2 段目である。止める範囲は受け口と同じ
-——**SSO で始まったセッションだけ**で、利用者そのもの（ローカルのパスワード・パスキー）には
-触らない。この雛形はローカル口座を意図して持つ（ADR-0076 §7）。
+The second tier, catching what the receiver (ADR-0077 §3) missed. What it stops is the same as
+the receiver — **only sessions started via SSO**; the user itself (local password, passkeys)
+is untouched. This template intentionally keeps local accounts (ADR-0076 §7).
 
-⚠ **引けなかったときは何もしない。** 名簿が引けないことと、名簿が空であることを混ぜない
-——混ぜると、assay が不調なだけで全員を止める。引けない場合は
+⚠ **Do nothing when the lookup fails.** Don't mix "can't fetch the roster" with "the roster
+is empty" — mixing them would stop everyone just because assay is unwell. On failure
 :class:`~bounded_contexts.identity_federation.domain.exceptions.IdentityProviderUnavailableError`
-が上がり、この仕事は何も変えずに終わる。
+is raised and this job ends without changing anything.
 
-⚠ **何度走らせても結果が同じになるように書く。** 定期実行はワーカーの数だけ同時に走る
-（ADR-0075 §3）。
+⚠ **Written so that any number of runs gives the same result.** Periodic jobs run
+concurrently, one per worker (ADR-0075 §3).
 """
 
 from __future__ import annotations
@@ -45,13 +46,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ReconciliationOutcome:
-    """1 回の照合で何が起きたか（記録と試験のための数）。"""
+    """What happened in one reconciliation (counts for logging and tests)."""
 
     checked: int = 0
-    #: 新しく失効させた人数。⚠ 前の周回で失効済みの人は数えない（同じ行は書かない）。
+    #: Number newly revoked. ⚠ People already revoked in a previous cycle aren't counted (same row isn't written).
     revoked: int = 0
     unlinked: int = 0
-    #: ⚠ **全員が `unknown` で返ったので見送った**か（決定 3）。真のときは何も変えていない。
+    #: ⚠ Whether it **was skipped because everyone came back `unknown`** (decision 3). When true nothing changed.
     held_back: bool = False
 
 
@@ -61,19 +62,20 @@ class ReconcileFederatedUsers:
     identities: FederatedIdentityRepository
     revocations: SessionRevocationRepository
     roster: RosterGateway
-    #: 失効の記録を残す最低限の秒数。**リフレッシュトークンの寿命**を渡す（受け口と同じ。ADR-0102）。
+    #: Minimum seconds to keep revocation records. Pass **the refresh token lifetime** (same as the receiver.
+    #: ADR-0102).
     keep_for_seconds: int
 
     def execute(self) -> ReconciliationOutcome:
         links = list(self.identities.list_for_issuer(self.issuer))
         if not links:
             return ReconciliationOutcome()
-        # ⚠ 名指しで聞く。候補の一覧では「向こうに居ない（消えた）」が分からない。
+        # ⚠ Ask by name. A candidate list can't tell "not there anymore (deleted)".
         answers = self.roster.fetch(subjects=tuple(link.subject for link in links))
         outcome = ReconciliationOutcome(checked=len(links))
         if _everyone_is_unknown(links, answers):
-            # ⚠ テナントの取り違え・アプリの付け替えでもこの形になる。結び付きは本人の
-            #   操作でしか作り直せない（ADR-0077 §5）ので、全員分を外す前に止まる。
+            # ⚠ A tenant mix-up or app reassignment also looks like this. Bindings can only be recreated
+            #   by the person themselves (ADR-0077 §5), so stop before removing everyone's.
             logger.warning("sso_reconciliation_everyone_unknown", extra={"checked": len(links)})
             return replace(outcome, held_back=True)
         now = utcnow()
@@ -88,7 +90,7 @@ class ReconcileFederatedUsers:
         now: datetime,
         outcome: ReconciliationOutcome,
     ) -> ReconciliationOutcome:
-        """1 人ぶんの結果を反映する。⚠ **触らない側も明示的に返す。**"""
+        """Apply one person's result. ⚠ **Also return the untouched side explicitly.**"""
         if not state.ends_sessions:
             return outcome
         revocation = SessionRevocation.after_reconciliation(
@@ -101,18 +103,18 @@ class ReconcileFederatedUsers:
             outcome = replace(outcome, revoked=outcome.revoked + 1)
         if not state.drops_the_link:
             return outcome
-        # 向こうに居ない＝結び付きの相手がもう存在しない。行を残すと、同じ `sub` が
-        # 別人へ再利用されたときに他人へ繋がる（再利用しない約束だが、残す理由も無い）。
-        # ⚠ 失効の記録は結び付きではなく `(issuer, sub)` に効くので、外した後も残る。
+        # Not there = the bound party no longer exists. Keeping the row would connect to someone else if
+        # the same `sub` were reused for another person (promised not to be reused, but no reason to keep it).
+        # ⚠ Revocation records apply to `(issuer, sub)`, not the binding, so they remain after removal.
         self.identities.unlink(link)
         logger.info("sso_identity_unlinked_by_reconciliation", extra={"user_id": link.user_id})
         return replace(outcome, unlinked=outcome.unlinked + 1)
 
 
 def _everyone_is_unknown(links: list[FederatedIdentity], answers: Roster) -> bool:
-    """結び付きが 2 件以上あり、全員が `unknown` で返ったか（ADR-0077 §7 決定 3）。
+    """Whether there are 2+ bindings and everyone came back `unknown` (ADR-0077 §7 decision 3).
 
-    1 件だけのときは「その 1 人が消えた」と区別が付かないので、通常どおり扱う。
+    With only one, "that one person was deleted" can't be told apart, so it is handled normally.
     """
     if len(links) < 2:
         return False

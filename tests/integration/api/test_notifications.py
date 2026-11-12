@@ -1,4 +1,4 @@
-"""お知らせの配信と手元（ベル・画面上部）の統合テスト（ADR-0081 §3）。"""
+"""Integration tests for notification delivery and the in-app views (bell, top banner) (ADR-0081 §3)."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def test_everyone_finds_it_in_the_bell_and_can_read_it(
 ) -> None:
     _create_member(client, admin_headers, "alice")
     sent = _send(client, admin_headers)
-    assert sent["recipient_count"] == 2  # 管理者と alice
+    assert sent["recipient_count"] == 2  # the administrator and alice
     notification_id = sent["notification"]["id"]  # type: ignore[index]
 
     alice = sign_in(other_client, "alice@example.com", _PASSWORD)
@@ -142,7 +142,7 @@ def test_a_personal_notice(client: TestClient, other_client: TestClient, admin_h
     sent = _send(client, admin_headers, audience={"kind": "user", "target_id": alice})
     assert sent["recipient_count"] == 1
 
-    assert client.get("/api/notifications").json()["items"] == []  # 管理者には届かない
+    assert client.get("/api/notifications").json()["items"] == []  # does not reach the administrator
     sign_in(other_client, "alice@example.com", _PASSWORD)
     assert len(other_client.get("/api/notifications").json()["items"]) == 1
 
@@ -234,7 +234,7 @@ def test_audience_options_list_groups_and_active_people(client: TestClient, admi
 def test_a_sender_without_user_manage_sees_names_but_not_email_addresses(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """宛先を選ぶのに名前があれば足りる。メールアドレスは利用者を管理する人にだけ（nolumiatask #785）。"""
+    """A name is enough to choose recipients. Email addresses only for those who manage users (nolumiatask #785)."""
     alice = _create_member(client, admin_headers, "alice")
     client.post("/api/admin/groups", json={"name": "経理", "member_ids": [alice]}, headers=admin_headers)
     role = client.post(
@@ -257,12 +257,12 @@ def test_a_sender_without_user_manage_sees_names_but_not_email_addresses(
     groups = other_client.get("/api/admin/groups").json()
     assert [(m["username"], m["email"]) for m in groups[0]["members"]] == [("alice", None)]
 
-    # 管理者には今までどおり見える
+    # The administrator still sees it as before
     assert "alice@example.com" in {u["email"] for u in client.get("/api/admin/notifications/audiences").json()["users"]}
     assert client.get("/api/admin/groups").json()[0]["members"][0]["email"] == "alice@example.com"
 
 
-# --- 端末への通知 ---------------------------------------------------------------
+# --- Device notifications ----------------------------------------------------------------
 
 _ENDPOINT = "https://fcm.googleapis.com/fcm/send/device-1"
 _KEYS = {"p256dh": "BKeyForTests", "auth": "authForTests"}
@@ -303,7 +303,7 @@ def test_a_subscribed_device_receives_the_push(
     assert endpoint == _ENDPOINT
     assert message.title == "メンテナンスのお知らせ"
     assert message.link_url == "/items"
-    # 端末への通知だけのものは、ベルにも上部にも出ない
+    # Device-only notifications show in neither the bell nor the top banner
     assert client.get("/api/notifications").json()["items"] == []
 
 
@@ -333,12 +333,12 @@ def test_unsubscribing(client: TestClient, admin_headers: dict[str, str], push_s
     "endpoint",
     [
         "http://127.0.0.1:8000/api/admin/users",
-        # 通知サービス以外の https（task #738 で stg から届いたもの）
+        # https other than the push services (received from stg in task #738)
         "https://127.0.0.1:8000/",
         "https://db:3306/",
         "https://front.fastapitemplate-stg.svc.cluster.local:80/",
         "https://10.10.2.11:10910/",
-        # 通知サービスの名前でも 443 以外・利用者情報付き・名前の後ろに足したものは断る
+        # Refuse a push-service name with a port other than 443, userinfo, or something appended after the name
         "https://fcm.googleapis.com:8443/fcm/send/x",
         "https://user@fcm.googleapis.com/fcm/send/x",
         "https://fcm.googleapis.com.attacker.example/fcm/send/x",
@@ -347,7 +347,7 @@ def test_unsubscribing(client: TestClient, admin_headers: dict[str, str], push_s
 def test_an_endpoint_that_is_not_a_push_service_is_refused(
     client: TestClient, admin_headers: dict[str, str], push_sender: _FakePushSender, endpoint: str
 ) -> None:
-    """endpoint はサーバーが POST しに行く先。通知サービス以外を受けると内側の URL を叩かされる（ADR-0083）。"""
+    """The server POSTs to endpoint. Accepting non-push-service URLs would let it hit internal URLs (ADR-0083)."""
     response = client.post(
         "/api/notifications/push/subscribe", json={"endpoint": endpoint, "keys": _KEYS}, headers=admin_headers
     )
@@ -358,7 +358,7 @@ def test_an_endpoint_that_is_not_a_push_service_is_refused(
 @pytest.mark.parametrize(
     "endpoint",
     [
-        "https://fcm.googleapis.com/fcm/send/abc:APA91b",  # Chrome・Edge（Android）
+        "https://fcm.googleapis.com/fcm/send/abc:APA91b",  # Chrome, Edge (Android)
         "https://updates.push.services.mozilla.com/wpush/v2/gAAAAA",  # Firefox
         "https://wns2-par02p.notify.windows.com/w/?token=BQYAAA",  # Edge（Windows）
         "https://web.push.apple.com/QGuQyavXutnMH",  # Safari
@@ -377,7 +377,7 @@ def test_signing_in_is_required(client: TestClient) -> None:
     assert client.get("/api/notifications").status_code == 401
 
 
-# --- スマホアプリへの通知（FCM。ADR-0081 §5） -------------------------------------
+# --- Notifications to the phone app (FCM; ADR-0081 §5) ----------------------------------------
 
 
 class _FakeDeviceSender(DevicePushSender):
@@ -414,7 +414,7 @@ def test_device_registration_is_off_without_a_key(client: TestClient, admin_head
 def test_a_registered_app_receives_the_push(
     client: TestClient, admin_headers: dict[str, str], device_sender: _FakeDeviceSender
 ) -> None:
-    """Web Push の鍵が無くても、FCM だけで「端末への通知」を選べる。"""
+    """Even without Web Push keys, "device notification" can be chosen with FCM alone."""
     assert client.get("/api/notifications/push").json()["device_enabled"] is True
     response = client.post("/api/notifications/device/register", json={"token": _DEVICE}, headers=admin_headers)
     assert response.status_code == 204

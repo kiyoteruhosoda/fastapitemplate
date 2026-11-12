@@ -1,4 +1,4 @@
-"""定期照合 ——止まった人・消えた人の SSO のセッションを止め、それ以外には触らない（ADR-0077 §7）。"""
+"""Periodic reconciliation: stop SSO sessions of suspended or deleted people and touch nobody else (ADR-0077 §7)."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ class _Identities:
 
 @dataclass
 class _Revocations:
-    """``jti`` の重複を弾くところまで実物と同じにした控え。"""
+    """Stand-in that, like the real one, rejects duplicate ``jti``."""
 
     rows: dict[str, SessionRevocation] = field(default_factory=dict)
 
@@ -129,7 +129,7 @@ def test_nothing_is_asked_when_nobody_is_linked() -> None:
 
 
 def test_everyone_linked_is_asked_by_name() -> None:
-    """⚠ 名指しで聞く。候補の一覧では「消えた」が分からない。"""
+    """⚠ Ask by name. A candidate list cannot tell you someone was "deleted"."""
     world = _world({}, _link("a", 1), _link("b", 2))
 
     world.run()
@@ -147,7 +147,7 @@ def test_an_allowed_user_is_left_alone() -> None:
 
 
 def test_a_blocked_user_loses_every_sso_session_but_keeps_the_link() -> None:
-    """⚠ 結び付きは残す ——assay で戻れば、本人は結び付け直さずに SSO で入れる。"""
+    """⚠ Keep the link: if they come back in assay, they can sign in via SSO without relinking."""
     world = _world({"a": RosterState.BLOCKED}, _link("a", 1))
 
     outcome = world.run()
@@ -169,7 +169,7 @@ def test_an_unknown_user_loses_the_sessions_and_the_link() -> None:
 
 @pytest.mark.parametrize("states", [{"a": RosterState.UNRECOGNISED}, {}], ids=["unrecognised", "not-listed"])
 def test_an_answer_we_cannot_read_touches_nobody(states: dict[str, RosterState]) -> None:
-    """⚠ assay が 4 つ目の状態を足した日に、全員を止めない。"""
+    """⚠ On the day assay adds a fourth state, do not stop everyone."""
     world = _world(states, _link("a", 1))
 
     assert world.run() == ReconciliationOutcome(checked=1)
@@ -177,7 +177,7 @@ def test_an_answer_we_cannot_read_touches_nobody(states: dict[str, RosterState])
 
 
 def test_an_unreachable_roster_changes_nothing() -> None:
-    """⚠ 「引けない」を「空」と読まない。"""
+    """⚠ Do not read "could not look up" as "empty"."""
     world = _world({}, _link("a", 1))
     world.roster.unavailable = True
 
@@ -189,7 +189,7 @@ def test_an_unreachable_roster_changes_nothing() -> None:
 
 
 def test_everyone_unknown_is_held_back() -> None:
-    """⚠ テナントの取り違えでも全員 `unknown` になる。結び付きを全員分外す前に止まる。"""
+    """⚠ A tenant mix-up also makes everyone `unknown`. Stop before unlinking everyone."""
     world = _world({"a": RosterState.UNKNOWN, "b": RosterState.UNKNOWN}, _link("a", 1), _link("b", 2))
 
     outcome = world.run()
@@ -200,14 +200,14 @@ def test_everyone_unknown_is_held_back() -> None:
 
 
 def test_a_single_unknown_link_is_not_held_back() -> None:
-    """1 件だけなら「その人が消えた」と区別が付かないので、通常どおり扱う。"""
+    """A single one cannot be told apart from "that person was deleted", so it is handled normally."""
     world = _world({"a": RosterState.UNKNOWN}, _link("a", 1))
 
     assert world.run().held_back is False
 
 
 def test_running_again_writes_nothing_new() -> None:
-    """⚠ 毎時・ワーカーの数だけ走る。同じログインに対する失効は 1 本で足りる。"""
+    """⚠ Runs hourly, once per worker. One revocation per sign-in is enough."""
     world = _world({"a": RosterState.BLOCKED}, _link("a", 1))
 
     world.run()
@@ -218,7 +218,7 @@ def test_running_again_writes_nothing_new() -> None:
 
 
 def test_a_user_who_came_back_and_was_stopped_again_is_stopped_again() -> None:
-    """⚠ 入り直したセッションは古い失効に当たらない。新しいログインには新しい失効を書く。"""
+    """⚠ A re-entered session is not hit by the old revocation. A new sign-in gets a new revocation."""
     world = _world({"a": RosterState.BLOCKED}, _link("a", 1))
     world.run()
     came_back_at = _NOW + timedelta(hours=1)

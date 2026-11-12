@@ -18,7 +18,7 @@ function item(overrides: Partial<InboxItem>): InboxItem {
 }
 
 describe('notifications', () => {
-  it('上部には、閉じていない banner のうち新しい 1 通だけを出す', () => {
+  it('shows at the top only the newest unclosed banner', () => {
     const inbox = {
       items: [
         item({ id: 3, channels: ['bell'] }),
@@ -32,13 +32,13 @@ describe('notifications', () => {
     expect(bannerItem(null)).toBeNull()
   })
 
-  it('アプリの中の行き先を見分ける（// は別のホスト）', () => {
+  it('tells in-app destinations apart (// is another host)', () => {
     expect(isInAppLink('/items')).toBe(true)
     expect(isInAppLink('//evil.example/')).toBe(false)
     expect(isInAppLink('https://example.com/')).toBe(false)
   })
 
-  it('公開鍵を base64url から 65 バイトの点へ戻す', () => {
+  it('decodes the public key from base64url into a 65-byte point', () => {
     const raw = new Uint8Array(65).map((_, i) => (i === 0 ? 4 : i))
     const encoded = btoa(String.fromCharCode(...raw))
       .replace(/\+/g, '-')

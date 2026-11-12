@@ -1,5 +1,5 @@
 class NotificationError(Exception):
-    """notification コンテキストのドメイン例外の基底。``code`` は画面へ返す安定キー。"""
+    """Base of the notification context's domain exceptions. ``code`` is a stable key returned to the UI."""
 
     code = "notification_error"
 
@@ -10,13 +10,13 @@ class NotificationError(Exception):
 
 
 class NotificationValidationError(NotificationError):
-    """お知らせの中身・宛先・購読が正しくない。"""
+    """Invalid notification content, audience or subscription."""
 
     code = "invalid_notification"
 
 
 class NotificationNotFoundError(NotificationError):
-    """その利用者宛てのお知らせが無い（他人宛てのものも「無い」と答える）。"""
+    """No such notification for that user (ones addressed to others are also reported as missing)."""
 
     code = "notification_not_found"
 
@@ -26,7 +26,7 @@ class NotificationNotFoundError(NotificationError):
 
 
 class AudienceNotFoundError(NotificationError):
-    """宛先に選んだグループ・利用者が無い（``group_not_found`` / ``user_not_found``）。"""
+    """The group or user chosen as the audience does not exist (``group_not_found`` / ``user_not_found``)."""
 
     code = "audience_not_found"
 

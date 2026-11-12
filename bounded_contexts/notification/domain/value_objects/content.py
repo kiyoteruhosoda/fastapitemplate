@@ -1,4 +1,4 @@
-"""お知らせの中身（題・本文・押したときの行き先）。"""
+"""Notification content (title, body, and where tapping it leads)."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ LINK_MAX_LENGTH = 1000
 
 
 def _validated_link(link_url: str | None) -> str | None:
-    """行き先は ``https://`` / ``http://`` の絶対 URL か、このアプリの中のパス（``/items``）。
+    """The link is an absolute ``https://`` / ``http://`` URL or a path within this app (``/items``).
 
-    ⚠ ``javascript:`` などを通すと、押した人の画面で任意のスクリプトが走る。
-    ``//evil.example`` はパスに見えて別のホストへ飛ぶので断る。
+    ⚠ Letting ``javascript:`` and the like through would run arbitrary script on the screen of whoever taps it.
+    ``//evil.example`` looks like a path but goes to another host, so it is refused.
     """
     if link_url is None or not link_url.strip():
         return None
@@ -45,5 +45,5 @@ class NotificationContent:
 
     @classmethod
     def of(cls, title: str, body: str, link_url: str | None) -> NotificationContent:
-        """管理者が書いた内容から作る（前後の空白を落とし、行き先を検証する）。"""
+        """Build from what an admin wrote (trim surrounding whitespace and validate the link)."""
         return cls(title=title.strip(), body=body.strip(), link_url=_validated_link(link_url))

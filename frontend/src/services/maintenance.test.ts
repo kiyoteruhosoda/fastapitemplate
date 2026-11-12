@@ -1,5 +1,5 @@
 /**
- * 前段（edge）が閉じていると答えたことの受け取り（ADR-0080 §10）。
+ * Receiving the front tier (edge) saying it is closed (ADR-0080 §10).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +21,7 @@ const MAINTENANCE = {
   body: 'B',
 }
 
-/** title・body を足す前の edge が返す形（task #663 より前）。 */
+/** The shape edge returned before title/body were added (before task #663). */
 const OLD_MAINTENANCE = {
   error: 'service_unavailable',
   reason: 'maintenance',
@@ -38,7 +38,7 @@ function respond(status: number, body: unknown) {
 }
 
 describe('outageFrom', () => {
-  it('メンテナンスの宣言の文言を読む', () => {
+  it('reads the maintenance declaration text', () => {
     expect(outageFrom(503, MAINTENANCE)).toEqual({
       reason: 'maintenance',
       title: 'T',
@@ -48,7 +48,7 @@ describe('outageFrom', () => {
     })
   })
 
-  it('古い edge の形（title・body 無し）でも閉じていると読む', () => {
+  it('reads the old edge shape (no title/body) as closed', () => {
     expect(outageFrom(503, OLD_MAINTENANCE)).toMatchObject({
       reason: 'maintenance',
       title: null,
@@ -57,13 +57,13 @@ describe('outageFrom', () => {
     })
   })
 
-  it('上流が居ないだけのときは stopped', () => {
+  it('is stopped when only the upstream is down', () => {
     expect(outageFrom(503, { error: 'service_unavailable', reason: 'stopped', host: 'x' })).toEqual(
       { reason: 'stopped', title: null, body: null, message: null, until: null },
     )
   })
 
-  it('アプリ自身のエラーの形や 503 以外は閉じているとは扱わない', () => {
+  it("does not treat the app's own error shape or non-503 as closed", () => {
     expect(outageFrom(503, { detail: { error: 'service_unavailable' } })).toBeNull()
     expect(outageFrom(503, null)).toBeNull()
     expect(outageFrom(500, MAINTENANCE)).toBeNull()
@@ -84,7 +84,7 @@ describe('checkService', () => {
     vi.unstubAllGlobals()
   })
 
-  it('503 の宣言なら閉じた状態にし、通れば外す', async () => {
+  it('sets the closed state on a 503 declaration and clears it once through', async () => {
     fetchMock.mockReturnValueOnce(respond(503, MAINTENANCE))
     await expect(checkService()).resolves.toBe('closed')
     expect(currentOutage()?.title).toBe('T')
@@ -94,7 +94,7 @@ describe('checkService', () => {
     expect(currentOutage()).toBeNull()
   })
 
-  it('届かないときは状態を変えない', async () => {
+  it('leaves the state unchanged when unreachable', async () => {
     reportOutage({ reason: 'maintenance', title: null, body: null, message: null, until: null })
     fetchMock.mockRejectedValueOnce(new Error('offline'))
 
@@ -102,14 +102,14 @@ describe('checkService', () => {
     expect(currentOutage()).not.toBeNull()
   })
 
-  it('保存された答えを使わない', async () => {
+  it('does not use a cached answer', async () => {
     fetchMock.mockReturnValueOnce(respond(200, {}))
     await checkService()
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).cache).toBe('no-store')
   })
 })
 
-/** 遅れて読み込む部品の失敗（AC6）。 */
+/** Lazily loaded chunk failures (AC6). */
 describe('watchLazyLoadFailures', () => {
   const fetchMock = vi.fn()
   const reload = vi.fn()
@@ -134,7 +134,7 @@ describe('watchLazyLoadFailures', () => {
     return event
   }
 
-  it('閉じているならメンテナンスの画面にし、開いたら読み込み直す', async () => {
+  it('shows the maintenance screen if closed and reloads once open', async () => {
     fetchMock.mockReturnValueOnce(respond(503, MAINTENANCE))
     failLazyLoad()
     await vi.waitFor(() => {
@@ -147,7 +147,7 @@ describe('watchLazyLoadFailures', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
-  it('ただの失敗なら何もしない（エラーは今までどおり投げさせる）', async () => {
+  it('does nothing on a plain failure (the error is still thrown)', async () => {
     fetchMock.mockReturnValueOnce(respond(200, {}))
     const event = failLazyLoad()
     await vi.waitFor(() => {
@@ -159,7 +159,7 @@ describe('watchLazyLoadFailures', () => {
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('アプリ自身の 503 はメンテナンスとは扱わない', async () => {
+  it("does not treat the app's own 503 as maintenance", async () => {
     fetchMock.mockReturnValueOnce(respond(503, { detail: { error: 'x' } }))
     failLazyLoad()
     await vi.waitFor(() => {

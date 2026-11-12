@@ -1,8 +1,8 @@
-"""ID トークン（および UserInfo）のクレーム -> :class:`FederatedUser` の対応付け。
+"""Mapping of ID token (and UserInfo) claims -> :class:`FederatedUser`.
 
-クレーム名は IdP ごとに違うため設定で変えられる（``OIDC_*_CLAIM``）。ここは
-「どの名前から何を読むか」だけを持ち、通信は行わない（純粋な変換なので単体
-テストで確かめられる）。
+Claim names differ per IdP, so they are configurable (``OIDC_*_CLAIM``). This only holds
+"which name to read what from" and does no communication (a pure conversion, so unit
+tests can verify it).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from bounded_contexts.identity_federation.domain.value_objects.federated_user im
     FederatedUser,
 )
 
-# 表示名が対応付け先に無いときの代替。IdP の実装差を吸収する。
+# Fallback when the display name isn't in the mapped claim. Absorbs IdP implementation differences.
 _USERNAME_FALLBACK_CLAIMS = ("name", "preferred_username", "nickname")
 
 
@@ -28,13 +28,13 @@ class ClaimsMapping:
     username_claim: str = "name"
 
     def apply(self, claims: Mapping[str, Any]) -> FederatedUser:
-        """クレームを利用者の情報へ写す。
+        """Map the claims to user information.
 
-        ``sub`` が無いものは ID トークンとして成立していない。
+        Anything without ``sub`` is not a valid ID token.
 
-        ⚠ **メールアドレスが無くても通す**（ADR-0077 §6）。結び付けの鍵は ``sub`` なので、
-        既に結び付いている相手はメールが無くても入れる。**無いと困る場面で断る**
-        ——初回にメールで寄せるときと、利用者を作るとき。
+        ⚠ **Passes even without an email** (ADR-0077 §6). The binding key is ``sub``, so already
+        bound parties can sign in without an email. **Refuse where its absence matters**
+        — when merging by email the first time, and when creating a user.
         """
         subject = _text(claims.get("sub"))
         if not subject:
@@ -48,10 +48,10 @@ class ClaimsMapping:
         )
 
     def _username(self, claims: Mapping[str, Any], email: str, subject: str) -> str:
-        """表示名。対応付け先が空なら別名のクレーム、それも無ければメールの左側。
+        """Display name. If the mapped claim is empty, an alias claim; failing that, the email's local part.
 
-        ⚠ **メールも無ければ ``sub`` を使う。** 読みにくい値になるが、**表示名が
-        空の利用者を作るよりはよい** ——後から画面で直せる。
+        ⚠ **If there's no email either, use ``sub``.** It's hard to read, but **better than creating a
+        user with an empty display name** — it can be fixed on screen later.
         """
         candidates = (self.username_claim, *_USERNAME_FALLBACK_CLAIMS)
         for claim in candidates:

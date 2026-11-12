@@ -1,8 +1,8 @@
 name: E2E
 
-# 本物のサーバーを立て、実ブラウザ（Playwright）で画面を通す煙試験（ADR-0072 §6）。
-# ci.yml の Backend / Frontend とは別の workflow にして、速い検査を待たせない。
-# トリガーと取り消しは ci.yml と同じ（ADR-0072 §3）。
+# Smoke test that starts a real server and drives the UI in a real browser (Playwright)
+# (ADR-0072 §6). Kept as a separate workflow from ci.yml's Backend / Frontend so the fast
+# checks don't wait on it. Triggers and cancellation match ci.yml (ADR-0072 §3).
 on:
   push:
     branches: [main]
@@ -16,7 +16,7 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: [self-hosted, nolumialab]
-    # ⚠ 既定は 6 時間。ぶら下がったジョブが枠と台を食い潰すので上限を置く。
+    # ⚠ The default is 6 hours. Hung jobs eat up the quota and runners, so set a limit.
     timeout-minutes: 25
     # Run the whole job inside the official Playwright image (browsers, OS deps and Node 24).
     # ⚠ Keep the image version equal to `@playwright/test` (the version check step below enforces it).
@@ -27,17 +27,18 @@ jobs:
       options: --ipc=host
     env:
       PLAYWRIGHT_VERSION: "1.65.0"
-      # uv が入れる Python も forge から（ci.yml と同じ）。
+      # Python installed by uv also comes from forge (same as ci.yml).
       UV_PYTHON_INSTALL_MIRROR: "https://git.nolumia.com/astral-sh/python-build-standalone/releases/download"
 
     steps:
       - uses: actions/checkout@v6
 
-      # 版・置き場は ci.yml と同じ（理由もそちら）。
+      # Version and location are the same as ci.yml (reasons are there too).
       - name: Set up uv
         uses: https://git.nolumia.com/astral-sh/setup-uv@v10.0.1
         with:
-          # 版は書かない: manifest-file の一覧（forge の写し・毎週取り込み）の最新を使う。manifest-file があれば GitHub の API へは行かない（2026-10-27）。
+          # No version pinned: use the latest in the manifest-file list (forge mirror, imported weekly).
+          # With manifest-file set, the GitHub API is never called (2026-10-27).
           manifest-file: "https://git.nolumia.com/astral-sh/uv/raw/branch/main/uv.ndjson"
           download-from-astral-mirror: false
 
@@ -46,26 +47,27 @@ jobs:
           uv sync
           cd frontend && npm ci
 
-      # 像のタグと `@playwright/test` の版がずれると、ブラウザが見つからず
-      # 「Executable doesn't exist」で落ちる。原因が分かる形で先に止める。
-      - name: Playwright の版が像と揃っているか
+      # If the image tag and the `@playwright/test` version drift, browsers are not found and it
+      # fails with "Executable doesn't exist". Stop early with a clear cause.
+      - name: Check Playwright version matches the image
         working-directory: frontend
         run: |
           installed="$(npx playwright --version | awk '{print $2}' | tr -d '\r')"
           if [ "$installed" != "$PLAYWRIGHT_VERSION" ]; then
-            echo "::error::@playwright/test は ${installed}、像は ${PLAYWRIGHT_VERSION}。e2e.yml の image と PLAYWRIGHT_VERSION を揃える"
+            echo "::error::@playwright/test is ${installed} but the image is ${PLAYWRIGHT_VERSION}. Align image and PLAYWRIGHT_VERSION in e2e.yml"
             exit 1
           fi
 
-      # 画面のビルド → マイグレーション → サーバーの起動は playwright.config.ts の webServer が行う。
+      # Frontend build -> migrations -> server start are done by webServer in playwright.config.ts.
       - name: E2E (Playwright)
         working-directory: frontend
         env:
           CI: "true"
         run: npm run test:e2e
 
-      # レポートは結果の表示であって合否ではない。上げられなくてもジョブの赤の理由を上書きしない。
-      # ⚠ v4 は forge では動かない（GHES と見なして警告だけ出し、上げない）。v3 を使う。
+      # The report only displays results; it is not the verdict. A failed upload must not mask
+      # why the job is red.
+      # ⚠ v4 doesn't work on forge (treats it as GHES, only warns and doesn't upload). Use v3.
       - name: Keep the Playwright report
         if: failure()
         continue-on-error: true

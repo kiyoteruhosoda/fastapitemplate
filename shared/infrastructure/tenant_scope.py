@@ -1,12 +1,13 @@
-"""テナントの中の利用者・グループへの入口（ADR-0079 §1 決定 5）。
+"""Entry point to users and groups inside a tenant (ADR-0079 §1 decision 5).
 
-管理画面・お知らせの宛先・グループの所属候補は、どれも「自分のテナントの利用者・グループ」
-しか扱わない。``select(User)`` をルーターで書くと絞り忘れても動いてしまうので、
-引くのは必ずここを通す。別のテナントの行は「無い」（``None``）として返す
-——呼び側は 404 にする（在ることも見せない）。
+The admin screen, announcement recipients and group membership candidates all handle only "users
+and groups of one's own tenant". Writing ``select(User)`` in a router still works when the
+filter is forgotten, so lookups must always go through here. Rows of another tenant are returned
+as "absent" (``None``); the caller turns that into 404 (not even revealing that they exist).
 
-⚠ **``tenant_id`` に ``None`` を渡さない。** 「テナントに属さない主体」は中身を扱えない。
-入口の依存関数（``presentation/fastapi/dependencies/tenant.py``）が先に 403 で断っている。
+⚠ **Never pass ``None`` as ``tenant_id``.** "A principal outside the tenants" cannot handle
+content. The entry dependency (``presentation/fastapi/dependencies/tenant.py``) already refuses
+with 403 first.
 """
 
 from __future__ import annotations
@@ -22,9 +23,9 @@ from shared.infrastructure.models import Role, RoleTenant, Tenant, User, UserGro
 
 
 def tenant_admits(session: Session, user: User) -> bool:
-    """この利用者のテナントが開いているか（止めたテナントの人は入れない）。
+    """Whether this user's tenant is open (people of a suspended tenant cannot sign in).
 
-    テナントに属さない利用者（システム管理者）は、テナントの止め外しに左右されない。
+    Users outside the tenants (system administrators) are unaffected by suspending tenants.
     """
     if user.tenant_id is None:
         return True
@@ -34,13 +35,13 @@ def tenant_admits(session: Session, user: User) -> bool:
 
 @dataclass(frozen=True)
 class TenantMembers:
-    """1 つのテナントの利用者とグループ。"""
+    """Users and groups of one tenant."""
 
     session: Session
     tenant_id: int
 
     def users_query(self) -> sa.Select[User]:
-        """このテナントの利用者を引く問い合わせ（条件を足して使う）。"""
+        """Query that selects this tenant's users (add conditions to use it)."""
         return (
             sa.select(User)
             .join(UserTenant, UserTenant.user_id == User.id)
@@ -65,7 +66,7 @@ class TenantMembers:
         return self.session.scalars(self.users_query().where(User.id.in_(user_ids))).all()
 
     def admit(self, user: User) -> User:
-        """新しい利用者をこのテナントへ入れる。"""
+        """Put a new user into this tenant."""
         user.join(self.tenant_id)
         return user
 
@@ -85,7 +86,8 @@ class TenantMembers:
         return UserGroup(tenant_id=self.tenant_id, name=name, description=description)
 
     def _roles(self) -> sa.Select[Role]:
-        """このテナントで使えるロール: 共有の雛形（システムのロールを除く）と、自分で作ったもの（ADR-0079 §3）。"""
+        """Roles usable in this tenant: shared templates (excluding system roles) and those it
+        created itself (ADR-0079 §3)."""
         shared = sa.and_(RoleTenant.tenant_id.is_(None), Role.name.not_in(list(master_data.SYSTEM_ROLES)))
         return (
             sa.select(Role)
@@ -97,7 +99,8 @@ class TenantMembers:
         return self.session.scalars(self._roles().order_by(Role.id)).all()
 
     def role(self, role_id: int) -> Role | None:
-        """使えるロール（共有の雛形を含む）。中身を変えてよいかは :meth:`Role.tenant_id` で見る。"""
+        """A usable role (shared templates included). Whether its content may be changed is
+        checked via :meth:`Role.tenant_id`."""
         return self.session.scalar(self._roles().where(Role.id == role_id))
 
     def roles_named(self, names: Sequence[str]) -> Sequence[Role]:

@@ -1,7 +1,7 @@
 """app device tokens
 
-スマホアプリへの通知（FCM。ADR-0081 §5）の宛先、``app_device_tokens`` を足す。定義の正本は
-``bounded_contexts/notification/infrastructure/notification_models.py``。
+Add ``app_device_tokens``, the recipients of notifications to the mobile apps (FCM; ADR-0081 §5).
+The definition lives in ``bounded_contexts/notification/infrastructure/notification_models.py``.
 
 Revision ID: app_device_tokens
 Revises: groups_and_notifications
@@ -24,7 +24,7 @@ _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 
 
 def upgrade() -> None:
-    # ⚠ token（150〜200 文字、上限は決まっていない）へ直接一意制約を張らない。sha256 の列で取る。
+    # ⚠ No unique constraint directly on token (150-200 characters, no fixed maximum). Use the sha256 column.
     op.create_table(
         "app_device_tokens",
         sa.Column("id", _BIGINT, autoincrement=True, nullable=False),

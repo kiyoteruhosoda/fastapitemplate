@@ -1,13 +1,14 @@
-"""一定間隔で同じ仕事を繰り返す常駐スレッド。
+"""Resident thread that repeats the same job at a fixed interval.
 
-``shared/kernel/restart`` の ``RestartWatcher`` と同じ形（daemon スレッド + 停止用の
-``Event``）だが、あちらは「要求が来たか」を見るためのもので、こちらは「時間が来たか」
-だけを見る。時刻の比較をしないので、コンテナと DB の時計のずれに影響されない。
+Same shape as ``RestartWatcher`` in ``shared/kernel/restart`` (a daemon thread plus an ``Event``
+for stopping), but that one looks for "has a request come in", while this one only looks at "has
+the time come". It does not compare times, so it is not affected by clock skew between the
+container and the DB.
 
-**仕事の中身は知らない。** 何を繰り返すかは呼び出し側が渡す（ADR-0075 §3）。
+**It knows nothing about the job itself.** The caller passes what to repeat (ADR-0075 §3).
 
-冪等な仕事だけを渡すこと。Gunicorn は複数ワーカーで動くため、同じ仕事が同時刻に
-プロセスの数だけ走る。排他の仕組みは持たない。
+Pass idempotent jobs only. Gunicorn runs several workers, so the same job runs at the same time
+once per process. There is no mutual exclusion.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class IntervalWorker:
-    """*interval_seconds* ごとに *job* を呼ぶスレッド。"""
+    """Thread that calls *job* every *interval_seconds*."""
 
     def __init__(self, name: str, job: Callable[[], None], interval_seconds: float) -> None:
         self._name = name
@@ -34,13 +35,13 @@ class IntervalWorker:
         return self._name
 
     def start(self) -> None:
-        """スレッドを開始する（二重に呼んでも 1 つだけ動く）。"""
+        """Start the thread (calling it twice still runs only one)."""
         if self._thread is not None:
             return
         self._thread = threading.Thread(target=self._run, name=self._name, daemon=True)
         self._thread.start()
         logger.info(
-            "定期処理を開始しました: name=%s interval=%ss",
+            "Started periodic job: name=%s interval=%ss",
             self._name,
             self._interval_seconds,
             extra={"event": "scheduling.worker.start"},
@@ -50,24 +51,24 @@ class IntervalWorker:
         self._stop_event.set()
 
     def run_once(self) -> None:
-        """仕事を 1 回実行する。失敗しても例外を投げない。
+        """Run the job once. Never raises, even on failure.
 
-        1 回の失敗（DB の一時障害など）でスレッドを死なせない。死ぬと次の間隔以降が
-        黙って止まり、プロセスを再起動するまで誰も気付けない。
+        A single failure (a transient DB failure etc.) must not kill the thread. If it dies, every
+        later interval silently stops and nobody notices until the process restarts.
         """
         try:
             self._job()
         except Exception:
             logger.warning(
-                "定期処理に失敗しました: name=%s",
+                "Periodic job failed: name=%s",
                 self._name,
                 exc_info=True,
                 extra={"event": "scheduling.worker.failed"},
             )
 
     def _run(self) -> None:
-        # 起動直後に 1 回走らせる。長い間隔にしても、コンテナを起動し直せば
-        # すぐ実行できる（間隔の分だけ待たされない）。
+        # Run once right after startup. Even with a long interval, restarting the container runs
+        # it immediately (no waiting for a full interval).
         self.run_once()
         while not self._stop_event.wait(self._interval_seconds):
             self.run_once()

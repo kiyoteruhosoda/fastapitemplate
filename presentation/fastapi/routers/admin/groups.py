@@ -1,12 +1,12 @@
-"""グループ管理 API（ADR-0081 §3）。作成・更新・削除は要 ``group:manage``。
+"""Group management API (ADR-0081 §3). Create, update and delete require ``group:manage``.
 
-グループは「誰と誰か」を束ねるだけで権限を持たない（権限はロール）。一覧の取得は
-``notification:send`` でも通す ——お知らせの宛先にグループを選ぶ人が、どんな
-グループがあるかを知る必要があるため（ロールの一覧と同じ考え方。ADR-0078 §2）。
+A group only bundles "who is in it" and carries no permissions (roles do). Listing is also
+allowed with ``notification:send``: someone choosing a group as a notification recipient needs
+to know which groups exist (same idea as the role list; ADR-0078 §2).
 
-所属の候補（有効な利用者の一覧）は ``/users`` で返す。``user:manage`` を持たない
-グループの管理者にも、名前とメールアドレスだけは見せる。``notification:send`` だけの
-人には名前までで、メールアドレスは見せない（nolumiatask #785）。
+Membership candidates (active users) are returned by ``/users``. Group managers without
+``user:manage`` still see name and email address. People with only ``notification:send`` see
+names only, not email addresses (nolumiatask #785).
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def _ensure_unique_name(members: TenantMembers, name: str, *, except_id: int | N
 
 
 def _member_count(group: UserGroup) -> str:
-    """監査ログの ``reason``。誰が入ったかは ID の並びで長くなるので、人数だけ残す。"""
+    """Audit log ``reason``. Listing member IDs would get long, so only the count is kept."""
     return f"members={len(group.members)}"
 
 
@@ -83,7 +83,7 @@ def list_groups(
 
 @router.get("/users", response_model=list[GroupMemberResponse], dependencies=[_MANAGE_GROUPS])
 def member_candidates(members: TenantMembersDep) -> list[GroupMemberResponse]:
-    """所属に選べる利用者（自分のテナントの、有効な人だけ）。"""
+    """Users selectable as members (active users of your own tenant only)."""
     users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
     return [_member(u) for u in users]
 
@@ -133,7 +133,7 @@ def delete_group(group_id: int, members: TenantMembersDep, audit: AuditRecorderD
     group = members.group(group_id)
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "group_not_found"})
-    # ⚠ SQLite は外部キーの CASCADE を既定で効かせない。所属は明示的に外す。
+    # ⚠ SQLite does not enforce foreign key CASCADE by default. Remove memberships explicitly.
     group.members = []
     members.session.delete(group)
     audit.execute(

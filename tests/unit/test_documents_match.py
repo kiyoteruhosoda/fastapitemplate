@@ -1,4 +1,4 @@
-"""文書と実物の突き合わせ（ADR-0089）。ER 図の突き合わせは ``tests/integration/test_er_document.py``。"""
+"""Comparing documents with reality (ADR-0089). ER diagram: ``tests/integration/test_er_document.py``."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DECISIONS = _PROJECT_ROOT / "docs" / "decisions"
 _ADR_FILE = re.compile(r"^ADR-(\d{4})-.+\.md$")
 
-#: Dockerfile の ARG に許すもの。ビルド情報は ``--build-arg`` で渡さない（CLAUDE.md「ビルドとデプロイ」）
+#: ARGs allowed in the Dockerfile. Build info is not passed via ``--build-arg`` (CLAUDE.md "Build and deploy")
 _ALLOWED_BUILD_ARGS = {"UV_VERSION", "APP_UID"}
 
 
@@ -23,7 +23,7 @@ def _dockerfile_lines() -> list[str]:
 
 
 def test_adr_numbers_have_no_gaps() -> None:
-    """採番の重複はファイル名だけでは見えないので、見出しの番号も見る（次の試験）。"""
+    """Duplicate numbering is not visible from file names alone, so heading numbers are checked too (next test)."""
     numbers = _adr_numbers()
     assert numbers
     assert numbers == list(range(numbers[0], numbers[-1] + 1))
@@ -45,7 +45,7 @@ def test_every_adr_is_listed_in_the_index() -> None:
 
 def test_every_screen_route_is_in_the_screen_document() -> None:
     routes = re.findall(r'path="([^"]+)"', (_PROJECT_ROOT / "frontend/src/App.tsx").read_text(encoding="utf-8"))
-    assert "/admin/users" in routes  # 読み方が変わって空になると、下は素通りする
+    assert "/admin/users" in routes  # if parsing changes and this comes back empty, the checks below pass trivially
     document = (_PROJECT_ROOT / "frontend/README.md").read_text(encoding="utf-8")
     assert not [route for route in routes if f"`{route}" not in document]
 
@@ -53,11 +53,11 @@ def test_every_screen_route_is_in_the_screen_document() -> None:
 def test_the_dockerfile_takes_no_build_information() -> None:
     declared = {line.split()[1].split("=")[0] for line in _dockerfile_lines() if line.startswith("ARG ")}
     assert declared
-    assert declared <= _ALLOWED_BUILD_ARGS, f"ビルド情報は scripts/generate_version.sh で: {declared}"
+    assert declared <= _ALLOWED_BUILD_ARGS, f"Build info goes through scripts/generate_version.sh: {declared}"
 
 
 def test_the_dockerfile_copies_only_from_its_own_stages() -> None:
-    """外の像から ``COPY --from`` すると、像のビルドがその置き場に頼る（uv は PyPI から入れる）。"""
+    """``COPY --from`` an external image makes the image build depend on that registry (uv is installed from PyPI)."""
     lines = _dockerfile_lines()
     stages = {line.split()[-1] for line in lines if line.startswith("FROM ") and " AS " in line}
     sources = set(re.findall(r"^COPY --from=(\S+)", "\n".join(lines), re.MULTILINE))

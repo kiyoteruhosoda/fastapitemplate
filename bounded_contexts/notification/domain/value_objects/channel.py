@@ -2,11 +2,11 @@ from enum import StrEnum
 
 
 class NotificationChannel(StrEnum):
-    """お知らせを出す場所。値が DB と API に出る安定キーなので変えない。"""
+    """Where a notification appears. The values are stable keys in the DB and the API; don't change them."""
 
-    #: ヘッダーのベル。一覧に残り、既読にするまで数に出る。
+    #: Bell in the header. Stays in the list and is counted until read.
     BELL = "bell"
-    #: 画面の上部。閉じるか押すまで出続ける。
+    #: Top of the screen. Shown until dismissed or tapped.
     BANNER = "banner"
-    #: 端末への通知（Web Push）。購読している端末にだけ届く。
+    #: Device notification (Web Push). Reaches only subscribed devices.
     PUSH = "push"

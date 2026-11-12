@@ -1,6 +1,6 @@
-"""共有メモのユースケース。
+"""Shared note use cases.
 
-どの操作も、最初に「誰が」を :class:`IGroupMembership` で組み立てる（所属は毎回 DB から）。
+Every operation first builds "who" via :class:`IGroupMembership` (memberships from the DB every time).
 """
 
 from bounded_contexts.notes.application.dto.note_dto import NoteDTO, NoteInput, ShareTargetDTO

@@ -1,4 +1,4 @@
-"""``LogPage`` の不変条件と、外部入力の丸め方。"""
+"""``LogPage`` invariants and how external input is normalised."""
 
 from __future__ import annotations
 

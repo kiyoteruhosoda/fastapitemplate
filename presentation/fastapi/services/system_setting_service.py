@@ -1,8 +1,8 @@
-"""システム設定の読み書き（管理画面 Config が使用する）。
+"""Reading and writing system settings (used by the admin console Config).
 
-保存後は ``settings.reload_db_overrides()`` で即時反映する。ただし起動時にしか
-読まれない設定（``restart_scopes`` 付き）はプロセスを再起動するまで効かないため、
-保存結果として「どの設定がどのサービスの再起動を要するか」を返す。
+After saving, ``settings.reload_db_overrides()`` applies them immediately. Settings read only at
+startup (those with ``restart_scopes``) don't take effect until the process restarts, so the save
+result reports "which settings need a restart of which services".
 """
 
 from __future__ import annotations
@@ -31,12 +31,13 @@ from shared.kernel.settings.system_settings_defaults import (
 _SETTING_KEY = "app.config"
 _SECRET_PLACEHOLDER = "********"
 
-#: ホスト名だけを持つ通信先。画面に残すが、宅内やクラスタの内側は断る（ADR-0090）。
+#: Destinations holding only a host name. Kept editable in the UI, but home-network and
+#: in-cluster hosts are rejected (ADR-0090).
 _CHECKED_HOST_SETTINGS = frozenset({"MAIL_SERVER"})
 
 
 def _is_refresh_lifetime(value: Any) -> bool:
-    """正の整数か。⚠ ``True`` は ``int`` の仲間なので先に除く。"""
+    """Whether it is a positive integer. ⚠ ``True`` is an ``int``, so exclude it first."""
     if isinstance(value, bool) or not isinstance(value, int | str):
         return False
     try:
@@ -46,7 +47,8 @@ def _is_refresh_lifetime(value: Any) -> bool:
 
 
 class SettingRefusedError(ValueError):
-    """保存できない設定。``error`` は ``setting_env_only`` / ``invalid_destination`` / ``invalid_setting_value``。"""
+    """A setting that cannot be saved. ``error`` is ``setting_env_only`` / ``invalid_destination`` /
+    ``invalid_setting_value``."""
 
     def __init__(self, error: str, key: str) -> None:
         super().__init__(error)
@@ -56,7 +58,7 @@ class SettingRefusedError(ValueError):
 
 @dataclass(frozen=True)
 class RestartRequirement:
-    """保存した設定のうち、反映に再起動が要るもの。"""
+    """Saved settings that need a restart to take effect."""
 
     scopes: tuple[RestartScope, ...]
     keys: tuple[str, ...]
@@ -73,7 +75,7 @@ class SystemSettingService:
 
     @classmethod
     def effective_config(cls, session: Session, env: Any = None) -> list[dict[str, Any]]:
-        """管理画面向けに、定義・現在値・上書き状態を返す。"""
+        """Return definitions, current values and override state for the admin console."""
         env = os.environ if env is None else env
         stored = cls.stored_payload(session)
         result = []
@@ -81,8 +83,9 @@ class SystemSettingService:
             key = str(definition["key"])
             value = settings.resolve(key)
             if definition.get("value_type") == "boolean":
-                # 環境変数の値は文字列のまま来る。画面がそのまま真偽に直すと "false" でも
-                # オンに見えるので、動きを決める ``get_bool`` と同じ読み方で返す（task #828）
+                # Env values arrive as strings. If the UI converted them to booleans directly,
+                # "false" would look on, so read it the same way as ``get_bool``, which drives
+                # behaviour (task #828)
                 value = settings.get_bool(key)
             elif definition.get("secret") and value:
                 value = _SECRET_PLACEHOLDER
@@ -91,9 +94,9 @@ class SystemSettingService:
                     **definition,
                     "env_only": key in ENV_ONLY_SETTINGS,
                     "value": value,
-                    # ⚠ **止める印ではない。** DB の値が環境変数より強いので、
-                    #   ここが真でも画面から変えられる。意味は「この鍵は
-                    #   環境変数にも値がある＝画面の値を消すとそちらへ戻る」。
+                    # ⚠ **Not a lock flag.** DB values beat env vars, so it can still be
+                    #   changed from the UI when this is true. It means "this key also has an
+                    #   env value = clearing the UI value falls back to it".
                     "env_fallback": bool(env.get(key)),
                     "stored": key in stored,
                     "default": DEFAULT_APPLICATION_SETTINGS.get(key),
@@ -103,10 +106,11 @@ class SystemSettingService:
 
     @classmethod
     def save(cls, session: Session, values: Mapping[str, Any]) -> RestartRequirement:
-        """編集可能なキーのみを保存する。未知のキーは黙って捨てる。
+        """Save only editable keys. Unknown keys are silently dropped.
 
-        戻り値は、保存したキーのうち反映に再起動が必要なものの一覧。
-        環境変数だけの鍵や宛先の検査に落ちた値は :class:`SettingRefusedError` で断る（ADR-0090）。
+        Returns the saved keys that need a restart to take effect.
+        Env-only keys and values failing the destination check are rejected with
+        :class:`SettingRefusedError` (ADR-0090).
         """
         for key, value in values.items():
             cls._ensure_acceptable(key, value)
@@ -116,7 +120,7 @@ class SystemSettingService:
             definition = SYSTEM_SETTING_DEFINITIONS_BY_KEY.get(key)
             if definition is None:
                 continue
-            # 伏せ字をそのまま送り返されても実値を壊さない
+            # Don't clobber the real value if the mask placeholder is sent back as is
             if definition.get("secret") and value == _SECRET_PLACEHOLDER:
                 continue
             if value is None:
@@ -143,7 +147,7 @@ class SystemSettingService:
                 check_host_name(str(value))
             except DestinationRefusedError as error:
                 raise SettingRefusedError("invalid_destination", key) from error
-        # ``None`` は「保存を消して既定へ戻す」で、いつでも通す
+        # ``None`` means "delete the saved value and revert to the default"; always allowed
         if key == "REFRESH_TOKEN_EXPIRES_SECONDS" and value is not None and not _is_refresh_lifetime(value):
             raise SettingRefusedError("invalid_setting_value", key)
         if key == "REFRESH_TOKEN_SLIDING_ENABLED" and value is not None and not isinstance(value, bool):
@@ -151,14 +155,14 @@ class SystemSettingService:
 
     @staticmethod
     def restart_requirement(keys: Iterable[str]) -> RestartRequirement:
-        """*keys* のうち、反映に再起動が必要なものと対象サービスを返す。"""
+        """Return those of *keys* that need a restart, with the target services."""
         affected: list[str] = []
         scopes: set[RestartScope] = set()
         for key in sorted(set(keys)):
             definition = SYSTEM_SETTING_DEFINITIONS_BY_KEY.get(key)
             if definition is None:
                 continue
-            # 定義は dict[str, object] なので、Iterable として扱える形に絞ってから渡す
+            # Definitions are dict[str, object], so narrow to an Iterable before passing it on
             raw_scopes = definition.get("restart_scopes")
             scope_values: Iterable[object] = raw_scopes if isinstance(raw_scopes, list | tuple) else ()
             parsed = RestartScope.parse_all(scope_values)

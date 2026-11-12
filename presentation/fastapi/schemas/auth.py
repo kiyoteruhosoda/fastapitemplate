@@ -1,4 +1,4 @@
-"""認証系の Pydantic スキーマ。"""
+"""Pydantic schemas for authentication."""
 
 from __future__ import annotations
 
@@ -8,18 +8,18 @@ from pydantic import BaseModel, EmailStr, Field
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    # 二要素認証が有効なアカウントでのみ必須（未提示なら totp_required を返す）
+    # Required only for accounts with two-factor auth (returns totp_required if missing)
     totp_code: str | None = None
-    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0079 §4）
+    #: Tenant of the entrance (``/t/<slug>/login``). If absent, the common entrance (ADR-0079 §4)
     tenant: str | None = Field(default=None, max_length=50, pattern=r"^[a-z0-9-]+$")
 
 
 class SessionResponse(BaseModel):
-    """ログインが成立したことと、アクセストークンの寿命（ADR-0076 §4）。
+    """That login succeeded, and the access token lifetime (ADR-0076 §4).
 
-    ⚠ **トークンそのものは載せない。** Cookie で運ぶ。本文にも返すと、Cookie が
-    自動で送られる以上、XSS が更新の口を叩いて新しいトークンを読めてしまう。
-    ``expires_in`` は SPA が更新の頃合いを測るためだけの値。
+    ⚠ **The token itself is not included.** It travels in a cookie. Since the cookie is sent
+    automatically, returning it in the body too would let XSS call the refresh endpoint and read
+    the new token. ``expires_in`` only lets the SPA time its refresh.
     """
 
     expires_in: int
@@ -29,30 +29,31 @@ class MeResponse(BaseModel):
     user_id: int
     email: str
     username: str
-    # いま有効な scope（アクティブロールで絞り込まれた後の権限）
+    # Currently effective scopes (permissions after narrowing by the active role)
     scopes: list[str]
-    # 付与されている全ロール = 切り替えられる先の一覧（ADR-0078 §1）
+    # All granted roles = the roles one can switch to (ADR-0078 §1)
     roles: list[str]
-    # None = すべてのロール（保有権限の和集合）で操作している
+    # None = operating with all roles (union of held permissions)
     active_role: str | None = None
-    # パスワードという入り口を持っているか（ADR-0076 §6）。⚠ **偽のとき、画面は
-    # パスワード変更の導線を出さない**——出すと「今のパスワード」を入力できない
-    # 利用者に、絶対に通らないフォームを見せることになる。
+    # Whether the user has a password entrance (ADR-0076 §6). ⚠ **When false, the UI does not
+    # offer password change**: it would show a user who cannot enter a "current password" a form
+    # that can never succeed.
     has_password: bool = True
-    # サインアウトを IdP まで通すか（``OIDC_RP_LOGOUT_ENABLED``。既定は偽。ADR-0077 §2）。
-    # **この画面がどう入ったかではなく、サーバーの設定**を返す。真にするのは
-    # 「SSO でしか入れないアプリ」と「共有の端末で開くもの」だけなので、パスワードで
-    # 入った利用者を巻き込む形にはならない（ローカル口座を持つアプリは偽のまま）。
-    # SSO の可否とは別に **/me で返す**——サインアウトのたびに問い合わせを増やさない。
+    # Whether sign-out goes through to the IdP (``OIDC_RP_LOGOUT_ENABLED``; default false;
+    # ADR-0077 §2). Returns **the server setting, not how this session signed in**. It is only
+    # true for "SSO-only apps" and "apps opened on shared devices", so it never drags in users who
+    # signed in with a password (apps with local accounts keep it false).
+    # **Returned by /me**, separately from SSO availability, to avoid an extra request per
+    # sign-out.
     rp_logout_enabled: bool = False
-    # IdP と結び付いている。名前とメールは IdP が正なので、画面は入力欄を出さない（ADR-0094）。
+    # Linked to an IdP. The IdP owns name and email, so the UI shows no input fields (ADR-0094).
     profile_managed_by_idp: bool = False
-    # 二要素認証の登録が済むまで、登録の画面しか使えない（ADR-0093）。
+    # Until two-factor enrollment is done, only the enrollment screen is usable (ADR-0093).
     two_factor_setup_required: bool = False
 
 
 class RoleSwitchRequest(BaseModel):
-    """アクティブロールの切り替え要求。``None`` ですべてのロールへ戻す。"""
+    """Active role switch request. ``None`` reverts to all roles."""
 
     role: str | None = None
 
@@ -69,7 +70,7 @@ class ChangePasswordRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
-    #: 入口のテナント（``/t/<slug>/login``）。無ければ共通の入口（ADR-0079 §4）
+    #: Tenant of the entrance (``/t/<slug>/login``). If absent, the common entrance (ADR-0079 §4)
     tenant: str | None = Field(default=None, max_length=50, pattern=r"^[a-z0-9-]+$")
 
 

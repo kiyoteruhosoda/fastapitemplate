@@ -1,7 +1,8 @@
-"""本番では、公開されている既定のパスワードで入れない（ADR-0073 §4）。
+"""In production, the publicly known default password does not get you in (ADR-0073 §4).
 
-既定の管理者は ``ADMIN_INITIAL_PASSWORD`` を渡し忘れると、リポジトリに載っている
-パスワードのまま全権で据わる。渡し忘れを「誰でも入れる」ではなく「誰も入れない」に倒す。
+If ``ADMIN_INITIAL_PASSWORD`` is not passed, the default administrator sits with full rights and the
+password from the repository. A forgotten value is made to fail as "nobody gets in" rather than
+"anyone gets in".
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ def test_production_refuses_the_published_default_password(client: TestClient, m
         json={"email": master_data.DEFAULT_ADMIN_EMAIL, "password": master_data.DEFAULT_ADMIN_PASSWORD},
     )
     assert response.status_code == 401
-    # 理由は他の失敗と同じにそろえる（アカウントの存在や状態を漏らさない）
+    # The reason is aligned with other failures (does not leak the account's existence or state)
     assert response.json()["detail"]["error"] == "invalid_credentials"
 
 
@@ -45,6 +46,6 @@ def test_production_accepts_a_password_that_was_changed(
 
 
 def test_development_still_accepts_the_default_password(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """開発では据え付け直後に今までどおり入れる（README の手順どおり）。"""
+    """In development you can sign in right after installation as before (as in the README steps)."""
     monkeypatch.setenv("APP_ENV", "development")
     assert _login(client, master_data.DEFAULT_ADMIN_PASSWORD) == 200

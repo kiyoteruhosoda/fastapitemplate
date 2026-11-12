@@ -1,9 +1,9 @@
-"""主体のテナントを取り出す依存関数（ADR-0079 §1 決定 5）。
+"""Dependency that extracts the principal's tenant (ADR-0079 §1 decision 5).
 
-テナントの中身を扱う口は、リポジトリを組み立てるときにここからテナントを受け取る。
-ルーター本文で ``tenant_id`` を書かない ——書き忘れても動いてしまい、気付くのは漏れた後になる。
+Endpoints that handle tenant data get the tenant from here when building their repositories.
+Don't write ``tenant_id`` in router bodies: forgetting it still works, and you only notice after a leak.
 
-⚠ **テナントに属さない主体（システム管理者）は 403。** 「全部のテナント」として扱わない。
+⚠ **A principal outside any tenant (system administrator) gets 403.** It is not treated as "all tenants".
 """
 
 from __future__ import annotations
@@ -22,7 +22,8 @@ TENANT_REQUIRED = "tenant_required"
 
 
 async def get_current_tenant_id(
-    # 機械の主体も通す（テナントを取り出すだけで、何も許さない。可否は scope の関門が決める。ADR-0087）
+    # Machine principals pass too (this only extracts the tenant and grants nothing; the scope gate
+    # decides access. ADR-0087)
     principal: AuthenticatedPrincipal = Depends(get_operation_principal),
 ) -> int:
     if principal.tenant_id is None:

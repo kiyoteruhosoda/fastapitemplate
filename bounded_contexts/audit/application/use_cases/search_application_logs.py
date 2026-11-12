@@ -1,4 +1,4 @@
-"""アプリログを検索するユースケース（管理画面の閲覧）。"""
+"""Use case that searches application logs (viewing on the admin screen)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ class SearchApplicationLogs:
 
 
 class ListApplicationLogFilterOptions:
-    """絞り込みに使えるログレベルの一覧を返す（画面のセレクト用）。"""
+    """Return the log levels available for filtering (for the screen's select)."""
 
     def execute(self) -> ApplicationLogFilterOptionsDto:
         return ApplicationLogFilterOptionsDto(levels=tuple(level.value for level in LogLevel))

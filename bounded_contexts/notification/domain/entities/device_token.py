@@ -5,13 +5,13 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class DeviceToken:
-    """スマホアプリ 1 台の通知の宛先（FCM の登録トークン。ADR-0081 §5）。
+    """Notification target for one installed mobile app (an FCM registration token; ADR-0081 §5).
 
-    トークンは FCM がアプリの入った端末ごとに発行し、アプリを入れ直す・データを消すと
-    変わる。これが端末の識別になる（Web Push の ``endpoint`` と同じ役）。
+    FCM issues the token per device the app is installed on; it changes when the app is
+    reinstalled or its data is cleared. It identifies the device (same role as Web Push's ``endpoint``).
     """
 
     user_id: int
     token: str
-    #: いまは ``android`` だけ。iOS を足すときに分けられるよう持っておく。
+    #: Only ``android`` for now. Kept so iOS can be told apart when it is added.
     platform: str = "android"

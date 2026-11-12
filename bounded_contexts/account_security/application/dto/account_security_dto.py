@@ -1,4 +1,4 @@
-"""ユースケースの入出力（Presentation 層へ返す形）。"""
+"""Use case inputs/outputs (the shape returned to the Presentation layer)."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from typing import Any
 
 @dataclass(frozen=True)
 class TwoFactorStatusDto:
-    """二要素認証の状態。
+    """Two-factor authentication status.
 
-    ``enrolling`` は「共有鍵は発行したが、認証アプリでの確認がまだ」の状態。
+    ``enrolling`` means "the shared key was issued but not yet confirmed in the authenticator app".
     """
 
     enabled: bool
@@ -20,9 +20,9 @@ class TwoFactorStatusDto:
 
 @dataclass(frozen=True)
 class TotpEnrollmentDto:
-    """登録開始時に利用者へ渡すもの。
+    """What is handed to the user when enrollment starts.
 
-    ``secret`` は認証アプリへ QR を読ませられない場合の手入力用。
+    ``secret`` is for manual entry when the QR code can't be scanned by the authenticator app.
     """
 
     secret: str
@@ -31,7 +31,7 @@ class TotpEnrollmentDto:
 
 @dataclass(frozen=True)
 class PasskeyChallengeDto:
-    """ブラウザへ渡す WebAuthn オプションと、検証時に送り返す ID。"""
+    """WebAuthn options passed to the browser, and the ID sent back at verification."""
 
     challenge_id: str
     public_key: dict[str, Any]
@@ -39,7 +39,7 @@ class PasskeyChallengeDto:
 
 @dataclass(frozen=True)
 class PasskeySummaryDto:
-    """登録済みパスキーの一覧表示用。"""
+    """For listing registered passkeys."""
 
     id: int
     name: str

@@ -1,4 +1,4 @@
-"""notes コンテキストの SQLAlchemy モデル（ADR-0078 §6 の見本）。"""
+"""SQLAlchemy models of the notes context (sample for ADR-0078 §6)."""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ class NoteModel(Base):
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
-    #: 持ち主。消えたらメモも消える
+    #: Owner. Deleting the owner deletes the note too
     owner_user_id: Mapped[int] = mapped_column(
         BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    #: 共有先のグループ。グループを消すと共有が外れ、持ち主だけのメモに戻る
+    #: Group shared with. Deleting the group removes the share; the note goes back to owner-only
     shared_group_id: Mapped[int | None] = mapped_column(
         BigIntPk, sa.ForeignKey("user_groups.id", ondelete="SET NULL"), nullable=True, index=True
     )

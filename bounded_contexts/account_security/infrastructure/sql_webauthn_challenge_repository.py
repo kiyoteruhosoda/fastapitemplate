@@ -1,4 +1,4 @@
-"""WebAuthn チャレンジの SQLAlchemy 実装。"""
+"""SQLAlchemy implementation of WebAuthn challenges."""
 
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ class SqlWebAuthnChallengeRepository:
     session: Session
 
     def issue(self, challenge: WebAuthnChallenge) -> WebAuthnChallenge:
-        # 期限切れは放っておくと溜まり続けるため、発行のたびに掃除する。
-        # 専用の定期ジョブを持たない構成でもテーブルが肥大しない。
+        # Expired ones would keep piling up if left alone, so clean up on every issuance.
+        # The table doesn't bloat even without a dedicated periodic job.
         self.session.execute(delete(WebAuthnChallengeRecord).where(WebAuthnChallengeRecord.expires_at < utcnow()))
         self.session.add(
             WebAuthnChallengeRecord(
@@ -52,15 +52,15 @@ class SqlWebAuthnChallengeRepository:
             expires_at=record.expires_at,
         )
 
-        # 「読んでから消す」だと、同じ assertion を同時に 2 回送られたとき、
-        # どちらの削除も確定する前に両方が読み終えてしまい、2 本ともトークンを
-        # 得られる。消費は **削除の成否**（1 行消せたか）で決める。DELETE は
-        # 行ロックを取るため、後続は先行のコミットを待ってから 0 行を返す。
+        # With "read, then delete", if the same assertion is sent twice concurrently, both may
+        # finish reading before either delete commits, and both get a token. Consumption is
+        # decided by **whether the delete succeeded** (one row deleted). DELETE takes a row lock,
+        # so the later one waits for the earlier commit and then returns 0 rows.
         result = cast(
             "CursorResult[Any]",
             self.session.execute(
                 delete(WebAuthnChallengeRecord).where(WebAuthnChallengeRecord.challenge_id == challenge_id),
-                # 同期方法を方言任せにせず、消えた行の後始末は expunge で明示する
+                # Don't leave synchronization to the dialect; clean up the deleted row explicitly with expunge
                 execution_options={"synchronize_session": False},
             ),
         )
@@ -69,7 +69,7 @@ class SqlWebAuthnChallengeRepository:
         if deleted != 1:
             raise ChallengeNotFoundError
 
-        # 期限切れでも削除は済ませる（再送で粘られないように）
+        # Delete even if expired (so that retries can't keep at it)
         if challenge.is_expired(utcnow()):
             raise ChallengeNotFoundError
         return challenge

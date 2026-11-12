@@ -1,8 +1,8 @@
-"""提示されたトークンが、停止済みのセッションのものかを見る（ADR-0077 §3）。
+"""Check whether a presented token belongs to a stopped session (ADR-0077 §3).
 
-トークンを検証する側（``TokenService``）から毎回呼ばれる。**ローカルのログインで
-発行されたトークンには IdP のセッションが載っていない**ので、その場合は常に「有効」
-——停止の伝播が消せるのは、IdP 経由で始まったセッションだけである。
+Called every time by the token verifier (``TokenService``). **Tokens issued by a local login
+carry no IdP session**, so in that case the result is always "valid"
+— logout propagation can only end sessions that started via the IdP.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class CheckSessionRevocation:
     revocations: SessionRevocationRepository
 
     def execute(self, login: FederatedLogin | None) -> bool:
-        """停止済みなら ``True``。判断する材料が無いものは ``False``（有効）とする。"""
+        """``True`` if stopped. Anything without material to judge is ``False`` (valid)."""
         if login is None:
             return False
         return self.revocations.is_revoked(login)

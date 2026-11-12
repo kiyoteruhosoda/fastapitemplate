@@ -1,9 +1,10 @@
-"""アプリ（assay に直接ログインした Android アプリ）から叩いてよい口の**例**（ADR-0081 §1）。
+"""An **example** endpoint that the app (an Android app logged in directly to assay) may call
+(ADR-0081 §1).
 
-⚠ **雛形は 1 本だけ置く。** 派生のアプリで「アプリからも叩いてよい」ルータを増やすときは、
-ここと同じく :data:`~bounded_contexts.identity_federation.presentation.app_bearer.AppOrWebPrincipalDep`
-を付ける。付けないルータは、これまでどおりこのアプリのトークン（Web）だけを受ける。
-⚠ **``APP_CLIENT_IDS`` が空なら、ここも Web のトークンしか受けない。**
+⚠ **The template ships only one.** When a derived app adds routers the app may also call,
+attach :data:`~bounded_contexts.identity_federation.presentation.app_bearer.AppOrWebPrincipalDep`
+as done here. Routers without it keep accepting only this application's own (Web) tokens.
+⚠ **If ``APP_CLIENT_IDS`` is empty, this one also accepts only Web tokens.**
 """
 
 from __future__ import annotations
@@ -20,13 +21,14 @@ class AppMeResponse(BaseModel):
     user_id: int
     email: str
     username: str
-    # 権限は毎回 DB から引く（assay のトークンには載っていない）
+    # Permissions are read from the DB every time (assay tokens do not carry them)
     scopes: list[str]
 
 
 @router.get("/me", response_model=AppMeResponse)
 def app_me(principal: AppOrWebPrincipalDep) -> AppMeResponse:
-    """いま誰として叩いているか。アプリがログインの直後に 1 回呼んで、口座ができたことを確かめる。"""
+    """Who the caller currently is. The app calls this once right after login to confirm the account
+    exists."""
     return AppMeResponse(
         user_id=principal.user_id,
         email=principal.email,

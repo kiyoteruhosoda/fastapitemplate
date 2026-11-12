@@ -1,8 +1,8 @@
-"""監査イベントの操作対象（何に対しての操作か）。
+"""Target of an audit event (what the operation was performed on).
 
-対象は **種別と内部識別子** で表す。メールアドレス・ユーザー名のような PII は
-入れない（ADR-0075 §1）。``user:42`` を後から人が読むには管理画面のユーザー一覧を
-突き合わせる。
+Targets are represented by **type and internal identifier**. No PII such as email addresses or user
+names (ADR-0075 §1). For a person to read ``user:42`` later, match it against the user list on the
+admin screen.
 """
 
 from __future__ import annotations
@@ -10,13 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-# DDL と一致させる上限
+# Limit matching the DDL
 MAX_TARGET_TYPE_LENGTH = 64
 MAX_TARGET_ID_LENGTH = 64
 
 
 class AuditTargetType(StrEnum):
-    """操作対象の種別。値が DB に入る安定キーなので変えない。"""
+    """Type of the target. The value is a stable key stored in the DB, so never change it."""
 
     USER = "user"
     ROLE = "role"
@@ -33,14 +33,14 @@ class AuditTargetType(StrEnum):
 
 @dataclass(frozen=True)
 class AuditTarget:
-    """操作対象 1 つ。``identifier`` は内部 ID（``42``）やスコープ名（``web``）。"""
+    """One target. ``identifier`` is an internal ID (``42``) or a scope name (``web``)."""
 
     type: AuditTargetType
     identifier: str | None = None
 
     @classmethod
     def of(cls, target_type: AuditTargetType, identifier: object = None) -> AuditTarget:
-        """識別子を文字列へ揃えて生成する（``int`` の内部 ID をそのまま渡せる）。"""
+        """Create it with the identifier normalized to a string (an ``int`` internal ID can be passed as is)."""
         return cls(type=target_type, identifier=None if identifier is None else str(identifier))
 
 

@@ -1,4 +1,4 @@
-"""引き換え券の永続化インターフェース（実装は Infrastructure 層）。"""
+"""Persistence interface for redemption tickets (implemented in Infrastructure)."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ from bounded_contexts.identity_federation.domain.entities.sso_login_ticket impor
 
 class SsoLoginTicketRepository(Protocol):
     def issue(self, ticket: SsoLoginTicket) -> SsoLoginTicket:
-        """券を保存する。期限切れのものはこの機会に掃除する。"""
+        """Save the ticket. Expired ones are cleaned up at this opportunity."""
 
     def redeem(self, ticket_hash: str) -> SsoLoginTicket:
-        """券を取り出して破棄する（1 回限り）。
+        """Take out the ticket and discard it (single use).
 
-        見つからない・期限切れの場合は
-        :class:`~bounded_contexts.identity_federation.domain.exceptions.SsoTicketNotFoundError`。
+        If not found or expired,
+        :class:`~bounded_contexts.identity_federation.domain.exceptions.SsoTicketNotFoundError`.
         """
 
 

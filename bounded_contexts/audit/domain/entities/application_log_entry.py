@@ -1,8 +1,8 @@
-"""アプリログの読み取りモデル（``log`` テーブル 1 行）。
+"""Read model of application logs (one row of the ``log`` table).
 
-書き込みは :mod:`shared.kernel.logging` の ``DbLogHandler`` が行う（ログ出力は
-全レイヤー横断の関心事なので、記録側は audit コンテキストに属さない）。ここは
-**閲覧のためにテーブルを読む側**の型。
+Writing is done by ``DbLogHandler`` in :mod:`shared.kernel.logging` (logging is a concern across
+all layers, so the writing side does not belong to the audit context). This is the type for **the
+side that reads the table for viewing**.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class ApplicationLogEntry:
-    """``log`` の 1 行。PII は含まれない（利用者は ``user_id_hash`` のみ）。"""
+    """One row of ``log``. Contains no PII (users appear only as ``user_id_hash``)."""
 
     id: int
     created_at: datetime
@@ -31,7 +31,7 @@ class ApplicationLogEntry:
 
 @dataclass(frozen=True)
 class ApplicationLogPage:
-    """検索結果 1 ページと、条件に一致する総件数。"""
+    """One page of search results and the total count matching the criteria."""
 
     entries: tuple[ApplicationLogEntry, ...] = field(default_factory=tuple)
     total: int = 0

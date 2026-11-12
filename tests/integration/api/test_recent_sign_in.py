@@ -1,11 +1,11 @@
-"""入り口を作り替える操作は、入り直したばかりのときだけ（ADR-0076 §10）。
+"""Operations that recreate ways in are allowed only right after re-signing in (ADR-0076 §10).
 
-盗まれたセッションでパスキーを足す・メールを替えると、そのあとはパスワードも二要素も
-無しに入り続けられる。最後に**実際に**サインインしてから ``RECENT_SIGN_IN_SECONDS``
-（既定 600 秒）を過ぎていたら 403 ``reauthentication_required`` で断る。
+Adding a passkey or changing the email on a stolen session lets the thief keep getting in without
+the password or second factor. If more than ``RECENT_SIGN_IN_SECONDS`` (600 s by default) have
+passed since the last **actual** sign-in, it is refused with 403 ``reauthentication_required``.
 
-「古いセッション」は、11 分前にサインインし、そのあと更新だけしたものとして作る
-（更新は入り直しではないので、サインインした時刻は古いまま引き継がれる）。
+An "old session" is created as one that signed in 11 minutes ago and has only been refreshed since
+(a refresh is not re-signing in, so the old sign-in time carries over).
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def _headers(client: TestClient) -> dict[str, str]:
 
 
 def _stale_session(client: TestClient) -> dict[str, str]:
-    """11 分前にサインインし、いま更新だけしたセッション。"""
+    """A session that signed in 11 minutes ago and has just been refreshed."""
     with _clock_set_back(11):
         sign_in(client, _EMAIL, _PASSWORD)
     refreshed = client.post("/api/auth/refresh", headers=_headers(client))
@@ -92,7 +92,7 @@ def test_a_stale_session_may_not_change_the_email(client: TestClient) -> None:
 
 
 def test_a_stale_session_may_still_change_the_display_name(client: TestClient) -> None:
-    """表示名は入り口ではないので、入り直しは求めない。"""
+    """The display name is not a way in, so re-signing in is not required."""
     headers = _stale_session(client)
     changed = client.put("/api/auth/me", headers=headers, json={"email": _EMAIL, "username": "renamed"})
     assert changed.status_code == 200, changed.text
@@ -105,6 +105,6 @@ def test_a_fresh_sign_in_may_change_the_email(client: TestClient) -> None:
 
 
 def test_a_token_without_the_sign_in_time_counts_as_long_ago() -> None:
-    """この仕組みより前のトークンが、更新 1 回で「入り直したばかり」に化けない。"""
+    """A token from before this mechanism does not turn into "just re-signed in" with a single refresh."""
     assert _authenticated_at_of({}) == SIGNED_IN_LONG_AGO
     assert _authenticated_at_of({"auth_time": "not-a-number"}) == SIGNED_IN_LONG_AGO

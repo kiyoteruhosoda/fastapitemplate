@@ -1,15 +1,15 @@
 /**
- * 画面に出す時刻の書き方。サーバーは UTC で返し、見る人の時計に直すのはここだけ
- * （CLAUDE.md「時刻の契約」）。
+ * How times are written on screen. The server returns UTC; this is the only place it's converted to
+ * the viewer's clock (CLAUDE.md "time contract").
  *
- * 時刻の後ろには時間帯を `UTC+9` の形で付ける。コピーした時刻がどの時計の時刻か
- * わかるように。`JST` のような略称は環境ごとに出たり出なかったりするので数字で書く。
+ * The time zone is appended as `UTC+9`, so a copied time shows which clock it's in. Abbreviations
+ * like `JST` appear in some environments and not others, so write it numerically.
  *
- * 時刻を文字にするのはこのファイルだけ（ADR-0105）。ほかで `toLocaleString`・
- * `Intl.DateTimeFormat` を書くと ESLint が止める。
+ * This file is the only place times are turned into text (ADR-0105). Writing `toLocaleString` or
+ * `Intl.DateTimeFormat` elsewhere is stopped by ESLint.
  */
 
-/** UTC からのずれ（分・東が正）を `UTC+9`・`UTC+5:30`・`UTC-3:30`・`UTC` の形に。 */
+/** Offset from UTC (minutes, east positive) as `UTC+9`, `UTC+5:30`, `UTC-3:30`, or `UTC`. */
 export function utcOffsetLabel(offsetMinutes: number): string {
   if (offsetMinutes === 0) return 'UTC'
   const sign = offsetMinutes < 0 ? '-' : '+'
@@ -20,24 +20,27 @@ export function utcOffsetLabel(offsetMinutes: number): string {
   return `UTC${sign}${hours}${tail}`
 }
 
-/** その時点での、見る人の時間帯（夏時間はその日のもの）。 */
+/** The viewer's time zone at that instant (daylight saving as of that day). */
 export function localZoneLabel(at: Date): string {
-  // getTimezoneOffset は西が正なので向きを逆にする。
+  // getTimezoneOffset is west-positive, so flip the sign.
   return utcOffsetLabel(-at.getTimezoneOffset())
 }
 
-/** 書式どおりに描いた時刻の後ろに時間帯を付ける。 */
+/** Append the time zone to a time rendered with the given format. */
 export function withLocalZone(at: Date, formatted: string): string {
   return `${formatted} ${localZoneLabel(at)}`
 }
 
-/** 既定の書式（`toLocaleString`）で描いた時刻に時間帯を添える。 */
+/** Append the time zone to a time rendered with the default format (`toLocaleString`). */
 export function formatWithLocalZone(value: string, locale: string): string {
   const at = new Date(value)
   return withLocalZone(at, at.toLocaleString(locale))
 }
 
-/** 日付を少し長め（`Nov 5, 2026`）にした時刻に時間帯を添える。メンテナンス画面の戻りの見込みなど。 */
+/**
+ * Append the time zone to a time with a slightly longer date (`Nov 5, 2026`). E.g. the expected
+ * return time on the maintenance screen.
+ */
 export function formatMediumWithLocalZone(at: Date, locale: string): string {
   return withLocalZone(
     at,

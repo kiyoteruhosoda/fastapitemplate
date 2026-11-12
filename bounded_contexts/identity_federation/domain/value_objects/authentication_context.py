@@ -1,13 +1,13 @@
-"""要求した認証の強度（``acr_values``）と、返ってきた ``acr`` の突き合わせ。
+"""Matching the requested authentication strength (``acr_values``) against the returned ``acr``.
 
-**要求したら確かめる。さもなければ要求しない**（ADR-0076 §3 決定 1）。``acr_values``
-は送っただけでは何の保証にもならない —— IdP 側のポリシーの綴り違い 1 つで条件が
-外れ、単要素のログインが黙って通る。RP がそれに気付ける唯一の手段が、返ってきた
-``acr`` を要求と突き合わせることである。
+**If you request it, verify it; otherwise don't request it** (ADR-0076 §3 decision 1). Merely
+sending ``acr_values`` guarantees nothing — one typo in the IdP-side policy drops the condition
+and single-factor logins silently pass. The only way for the RP to notice is to match the
+returned ``acr`` against the request.
 
-⚠ **``amr`` は使わない。** RFC 8176 の ``amr`` は使われた方式の一覧であって強度では
-ない。外部 IdP 経由（``fed``）はその先で何が使われたかを IdP 自身も知らないため、
-値の並びから多要素かどうかは読み取れない。
+⚠ **``amr`` is not used.** RFC 8176 ``amr`` lists the methods used, not a strength. Via an
+external IdP (``fed``) the IdP itself doesn't know what was used beyond it, so whether it was
+multi-factor can't be read from the values.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from bounded_contexts.identity_federation.domain.exceptions import (
 
 @dataclass(frozen=True)
 class RequestedAuthenticationContext:
-    #: 要求する ``acr`` の候補。**空 = 要求しない**（既定）。
+    #: Candidate ``acr`` values to require. **Empty = none required** (default).
     values: tuple[str, ...] = ()
 
     @property
@@ -29,11 +29,11 @@ class RequestedAuthenticationContext:
         return bool(self.values)
 
     def ensure_satisfied(self, acr: object) -> None:
-        """返ってきた ``acr`` が要求のいずれかと一致することを確かめる。
+        """Check that the returned ``acr`` matches one of the requested values.
 
-        ⚠ **``acr`` が返ってこない場合も断る。** 要求したのに保証が得られていない
-        以上、通してはいけない。予約語を持たない IdP へつなぐ派生は、要求そのものを
-        しない（``values`` を空にする）ことで従来どおり動く。
+        ⚠ **Also refuse when no ``acr`` comes back.** It was requested but not assured, so it must
+        not pass. Derived apps connecting to an IdP without reserved values work as before by not
+        requesting at all (empty ``values``).
         """
         if not self.is_requested:
             return

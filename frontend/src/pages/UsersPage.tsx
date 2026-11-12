@@ -1,12 +1,13 @@
 /**
- * ユーザー管理（要 `user:manage`）。
+ * User management (requires `user:manage`).
  *
- * ロールは 1 人に複数割り当てられる。追加フォームでは複数選択でき、一覧では
- * ロールごとの列のチェックで付け外しする（ロール × ユーザーの対応表）。
- * 利用者自身がどのロールで操作するかはヘッダーで切り替える（ADR-0078 §1）。
+ * A user can have several roles. The add form allows multiple selection, and the list toggles
+ * them with a checkbox per role column (a role x user matrix).
+ * Which role a user acts as is switched in the header (ADR-0078 §1).
  *
- * 更新は 1 行ずつ直列に行う。ロールの更新はリスト全体の置き換えなので、同じ行へ
- * 続けてチェックを入れると、2 つ目が古い `roles` から差分を作って 1 つ目を打ち消す。
+ * Updates are serialized per row. A role update replaces the whole list, so checking the same
+ * row twice in a row would make the second compute its diff from the stale `roles` and undo
+ * the first.
  */
 import { useEffect, useMemo, useState, type SubmitEvent } from 'react'
 
@@ -19,7 +20,7 @@ import { usePendingRows } from '../hooks/usePendingRows'
 import { useI18n } from '../i18n'
 import { api, errorMessageKey } from '../services/api'
 
-/** この利用者が**このアプリへ入れる手段**（ADR-0076 §7）。 */
+/** The **ways this user can get into this app** (ADR-0076 §7). */
 interface SignInEntrances {
   password: boolean
   totp: boolean
@@ -37,10 +38,10 @@ interface User {
 }
 
 /**
- * 入れる手段を短い並びにする（ADR-0076 §7）。
+ * Turns the ways in into a short list (ADR-0076 §7).
  *
- * ⚠ **IdP 側の多要素はここに出ない。** 出せるのはこのアプリが知っている口だけで、
- * それがまさに「認証系が 2 つある」ということである。
+ * Note: **IdP-side multi-factor does not show here.** Only the entry points this app knows
+ * about can be shown, and that is exactly what "there are two authentication systems" means.
  */
 function entranceLabels(entrances: SignInEntrances, t: (key: string) => string): string[] {
   const labels: string[] = []
@@ -56,7 +57,7 @@ interface Role {
   name: string
 }
 
-/** 行の中で実行しうる操作（実行中の目印をどこに出すかが変わる）。 */
+/** Operations that can run within a row (decides where the running marker shows). */
 type RowAction = 'update' | 'removal'
 
 export function UsersPage() {
@@ -84,10 +85,10 @@ export function UsersPage() {
   }, [])
 
   /**
-   * 列に出すロール。ロール一覧（`GET /api/admin/roles`）が読めない場合でも、
-   * **既に割り当てられているロール名**から列を補う。読めないのは `user:manage`
-   * より更に絞った権限のときで（ADR-0078 §2）、そのときに割り当ての表示ごと
-   * 消えてしまわないようにする。
+   * Roles shown as columns. Even if the role list (`GET /api/admin/roles`) cannot be read,
+   * columns are filled in from **role names already assigned**. It cannot be read with a
+   * permission narrower than `user:manage` (ADR-0078 §2), and this keeps the assignment display
+   * from disappearing entirely in that case.
    */
   const roleNames = useMemo(() => {
     const catalog = roles.map((r) => r.name)
@@ -119,7 +120,7 @@ export function UsersPage() {
     }
   })
 
-  /** 1 行分の更新。終わるまでその行の次の操作を受け付けない。 */
+  /** Update one row. Further operations on that row are not accepted until it finishes. */
   const runExclusively = (userId: number, action: RowAction, request: () => Promise<unknown>) =>
     runForRow(userId, action, async () => {
       try {
@@ -133,7 +134,7 @@ export function UsersPage() {
   const update = (user: User, changes: Partial<Pick<User, 'roles' | 'is_active'>>) =>
     runExclusively(user.id, 'update', () => api.put(`/api/admin/users/${user.id}`, changes))
 
-  /** ロールの付け外し。複数ロールを許す（外すと権限は減る）。 */
+  /** Toggle a role. Multiple roles are allowed (removing one reduces permissions). */
   const toggleRole = (user: User, name: string) =>
     update(user, {
       roles: user.roles.includes(name)
@@ -188,7 +189,7 @@ export function UsersPage() {
                 required
               />
             </label>
-            {/* パスワード欄は表示切り替えボタンを持つため `<label>` で囲めない。 */}
+            {/* The password field has a visibility toggle, so it cannot be wrapped in `<label>`. */}
             <div className="field">
               <label htmlFor="new-user-password">{t('common.password')}</label>
               <PasswordInput
@@ -241,7 +242,7 @@ export function UsersPage() {
               <th>{t('common.username')}</th>
               <th>ID</th>
               <th>{t('common.email')}</th>
-              {/* ロールの列は数が増えるので縦組みにする（`.matrix` の指定を参照）。 */}
+              {/* Role columns grow in number, so write them vertically (see the `.matrix` rules). */}
               {roleNames.map((name) => (
                 <th key={name} className="vertical">
                   {name}
@@ -258,8 +259,8 @@ export function UsersPage() {
               const busy = rowAction !== null
               return (
                 <tr key={user.id}>
-                  {/* 横スクロールしても残す列（`.matrix` が固定する）。どの行を
-                      操作しているか分かるよう、人が読める名前を先頭に置く。 */}
+                  {/* Column that stays during horizontal scroll (fixed by `.matrix`). A human-readable
+                      name comes first so it is clear which row is being operated on. */}
                   <th scope="row">{user.username}</th>
                   <td>{user.id}</td>
                   <td>{user.email}</td>
@@ -288,8 +289,8 @@ export function UsersPage() {
                     />
                   </td>
                   <td>
-                    {/* 入れる手段は変えられない（ここは棚卸しのための表示）。
-                        取り上げ方はそれぞれの口の側にある。 */}
+                    {/* The ways in cannot be changed here (this is an inventory display).
+                        Each is revoked on its own side. */}
                     {entranceLabels(user.entrances, t).join(' / ') || t('users.entrance.none')}
                   </td>
                   <td>
@@ -304,7 +305,7 @@ export function UsersPage() {
                     >
                       {t('common.delete')}
                     </ActionButton>
-                    {/* チェックの付け外しは押しても表示が変わらないので、行に目印を出す。 */}
+                    {/* Toggling a checkbox shows no change on press, so mark the row. */}
                     {rowAction === 'update' && (
                       <span className="spinner" role="status" aria-label={t('common.processing')} />
                     )}

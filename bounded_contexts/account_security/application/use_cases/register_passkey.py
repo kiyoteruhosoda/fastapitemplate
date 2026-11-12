@@ -1,4 +1,4 @@
-"""パスキーの登録（ログイン済みの利用者が自分の認証器を追加する）。"""
+"""Passkey registration (a signed-in user adds their own authenticator)."""
 
 from __future__ import annotations
 
@@ -40,10 +40,10 @@ class StartPasskeyRegistration:
     challenge_ttl_seconds: int
 
     def execute(self, *, user_id: int, user_name: str, display_name: str) -> PasskeyChallengeDto:
-        """登録用オプションを発行する。
+        """Issue the registration options.
 
-        登録済みの資格情報は ``excludeCredentials`` として渡し、同じ認証器を
-        二重に登録させない（ブラウザ側で弾かれる）。
+        Already registered credentials are passed as ``excludeCredentials`` so the same
+        authenticator can't be registered twice (the browser rejects it).
         """
         registered = self.credentials.list_for_user(user_id)
         options = self.relying_party.create_registration_options(
@@ -80,9 +80,9 @@ class CompletePasskeyRegistration:
         name: str | None = None,
     ) -> PasskeySummaryDto:
         challenge = self.challenges.consume(challenge_id, CHALLENGE_PURPOSE_REGISTRATION)
-        # チャレンジは発行した本人の分だけ使える。ここを見ないと、A の
-        # challenge_id を握った B が「A 向けに発行された資格情報」を B の
-        # アカウントに保存でき、以後その資格情報で B としてログインできてしまう。
+        # A challenge can only be used by the user it was issued to. Without this check, B holding
+        # A's challenge_id could save "the credential issued for A" to B's account, and from then
+        # on log in as B with that credential.
         if challenge.user_id != user_id:
             raise ChallengeNotFoundError
 
@@ -111,7 +111,7 @@ class CompletePasskeyRegistration:
 
 
 def _extract_transports(credential: Mapping[str, Any]) -> tuple[str, ...]:
-    """レスポンスの ``response.transports`` を取り出す（無ければ空）。"""
+    """Extract ``response.transports`` from the response (empty if absent)."""
     response = credential.get("response")
     if not isinstance(response, Mapping):
         return ()

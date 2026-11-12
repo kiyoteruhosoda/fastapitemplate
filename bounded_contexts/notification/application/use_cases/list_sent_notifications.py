@@ -3,7 +3,7 @@ from __future__ import annotations
 from bounded_contexts.notification.application.dto.notification_dto import SentNotificationDTO
 from bounded_contexts.notification.domain.repositories.notification_repository import INotificationRepository
 
-#: 管理画面の履歴に出す件数。
+#: Number of entries shown in the admin console history.
 SENT_LIMIT = 100
 
 

@@ -1,18 +1,20 @@
-"""切れたログインを、画面を出さずに続ける往復の後始末（ADR-0104）。
+"""Follow-up of the round trip that silently continues an expired login (ADR-0104).
 
-画面（SPA）は見えない枠（iframe）を開き、``/api/auth/sso/login?frame=1`` から IdP へ ``prompt=none`` で
-往復させる。戻り（``/callback``）は引き換え券を経ずに Cookie を載せ、**結果の頁**へ送る。画面は
-枠の行き先（同じオリジン）を読んで結果を知る ——枠の中でスクリプトを動かさないので、CSP の
-``script-src 'self'`` を緩めずに済む。
+The screen (SPA) opens a hidden frame (iframe) and round-trips from ``/api/auth/sso/login?frame=1`` to the
+IdP with ``prompt=none``. The return (``/callback``) sets cookies without a redemption ticket and sends to
+**the result page**. The screen learns the result by reading the frame's location (same origin) — no
+script runs inside the frame, so CSP ``script-src 'self'`` needn't be relaxed.
 
-結果は 3 つ。
+Three results.
 
-- ``renewed`` —— 続けられた（新しいアクセストークンの Cookie が載った）
-- ``declined`` —— IdP で入っていない・許可が無い・別の人に入れ替わっていた。画面はログイン画面へ送る
-- ``failed`` —— 往復が壊れた（往復状態が読めない・IdP と話せない）。画面はログイン画面へ送る
+- ``renewed`` — continued (a new access token cookie was set)
+- ``declined`` — not signed in at the IdP, not permitted, or switched to a different person.
+  The screen goes to the login screen
+- ``failed`` — the round trip broke (round-trip state unreadable, IdP unreachable). The screen
+  goes to the login screen
 
-⚠ **枠に入れてよいのは自分のオリジンだけ。** 往復の口（``/login``・``/callback``）と結果の頁は
-``frame-ancestors 'self'`` を付ける。ほかの応答はこれまでどおり ``'none'``（ADR-0073 §5）。
+⚠ **Only our own origin may frame these.** The round-trip endpoints (``/login``, ``/callback``) and the
+result page get ``frame-ancestors 'self'``. Other responses stay ``'none'`` as before (ADR-0073 §5).
 """
 
 from __future__ import annotations
@@ -23,11 +25,11 @@ from urllib.parse import urlencode
 from fastapi import Response
 from fastapi.responses import HTMLResponse
 
-#: 結果の頁。画面（``frontend/src/services/silentRenewal.ts``）と対で合わせる
+#: Result page. Keep in sync with the screen (``frontend/src/services/silentRenewal.ts``)
 RESULT_PATH = "/api/auth/sso/renewed"
 RESULT_PARAM = "result"
 
-#: 枠の中で開く応答の CSP。結果の頁は何も読み込まない
+#: CSP for responses opened inside the frame. The result page loads nothing
 _FRAMED_CSP = "default-src 'none'; frame-ancestors 'self'"
 
 
@@ -38,19 +40,20 @@ class RenewalResult(StrEnum):
 
 
 def allow_same_origin_framing(response: Response) -> Response:
-    """自分のオリジンの枠にだけ入れてよい印を付ける（全体の守りのヘッダは ``setdefault`` なので残る）。"""
+    """Mark as frameable only by our own origin (global protective headers use ``setdefault``, so
+    they remain)."""
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Content-Security-Policy"] = _FRAMED_CSP
     return response
 
 
 def result_location(result: RenewalResult) -> str:
-    """結果の頁の URL。"""
+    """URL of the result page."""
     return f"{RESULT_PATH}?{urlencode({RESULT_PARAM: result.value})}"
 
 
 def result_page() -> HTMLResponse:
-    """結果の頁。中身は要らない（画面が読むのは URL だけ）。"""
+    """Result page. No content needed (the screen only reads the URL)."""
     response = HTMLResponse("<!doctype html><title>sso</title>", headers={"Cache-Control": "no-store"})
     allow_same_origin_framing(response)
     return response

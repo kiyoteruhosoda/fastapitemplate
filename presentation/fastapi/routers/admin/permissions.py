@@ -1,9 +1,10 @@
-"""権限コード一覧 API（要 ``role:manage``。ロールを定義するために読む。ADR-0084 §3）。
+"""Permission code list API (requires ``role:manage``; read to define roles. ADR-0084 §3).
 
-権限コードの正本は ``shared/domain/auth/master_data.py``。追加・削除は
-マスタデータ + マイグレーションで行うため、この API は読み取り専用。
+The source of truth for permission codes is ``shared/domain/auth/master_data.py``. They are
+added or removed via master data + migrations, so this API is read-only.
 
-テナントのロールに付けられない全体の権限（``SYSTEM_PERMISSIONS``）は出さない（ADR-0079 §1）。
+System-wide permissions that cannot be given to tenant roles (``SYSTEM_PERMISSIONS``) are not
+listed (ADR-0079 §1).
 """
 
 from __future__ import annotations

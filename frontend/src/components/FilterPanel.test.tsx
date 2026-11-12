@@ -1,9 +1,9 @@
 /**
- * ログの絞り込みの畳み方（ADR-0080 §6）。
+ * Collapsing the log filters (ADR-0080 §6).
  *
- * jsdom はメディアクエリを適用しないので、検証できるのは `data-open` と
- * `aria-expanded` の遷移だけ（`AppLayout.test.tsx` と同じ理由）。狭い画面で
- * 実際に畳まれるかは `index.css` 側の指定になる。
+ * jsdom does not apply media queries, so only the `data-open` and `aria-expanded` transitions
+ * can be verified (same reason as `AppLayout.test.tsx`). Whether it actually collapses on
+ * narrow screens is up to `index.css`.
  */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -26,16 +26,16 @@ function renderPanel() {
 }
 
 describe('FilterPanel', () => {
-  it('既定では畳んだ状態で、中身は常に描かれている', () => {
+  it('is collapsed by default and the content is always rendered', () => {
     const { container, toggle } = renderPanel()
 
     expect(container.querySelector('.filter-panel')).toHaveAttribute('data-open', 'false')
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    // 広い画面では開閉ボタンごと消えて常に見えるため、中身は DOM に残す。
+    // On wide screens the toggle disappears and the content is always visible, so it stays in the DOM.
     expect(screen.getByText('filter fields')).toBeInTheDocument()
   })
 
-  it('押すたびに開閉が入れ替わる', () => {
+  it('toggles open and closed on each press', () => {
     const { container, toggle } = renderPanel()
 
     fireEvent.click(toggle)
@@ -46,7 +46,7 @@ describe('FilterPanel', () => {
     expect(container.querySelector('.filter-panel')).toHaveAttribute('data-open', 'false')
   })
 
-  it('開閉ボタンは中身と `aria-controls` で結ばれている', () => {
+  it('ties the toggle button to the content with `aria-controls`', () => {
     const { container, toggle } = renderPanel()
 
     const fields = container.querySelector('.filter-panel-fields')

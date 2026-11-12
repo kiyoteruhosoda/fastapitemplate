@@ -1,11 +1,11 @@
 class DomainError(Exception):
-    """example コンテキストのドメイン例外の基底。``code`` は画面へ返す安定キー。"""
+    """Base of the example context's domain exceptions. ``code`` is a stable key returned to the UI."""
 
     code = "item_error"
 
 
 class ItemNotFoundError(DomainError):
-    """そのアイテムが無い。**ほかのテナントのものも「無い」と答える**（在ることを漏らさない）。"""
+    """No such item. **Items of other tenants are also reported as missing** (don't leak that they exist)."""
 
     code = "item_not_found"
 

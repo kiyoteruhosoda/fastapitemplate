@@ -1,15 +1,15 @@
-"""notification コンテキストのテーブル（ADR-0081 §3）。
+"""Tables of the notification context (ADR-0081 §3).
 
-- ``notifications`` —— 送ったお知らせ 1 通 1 行
-- ``notification_deliveries`` —— 宛先の 1 人ずつ（送った時点の顔ぶれ）。既読・閉じたかを持つ
-- ``web_push_subscriptions`` —— 端末（ブラウザ）1 つの購読
-- ``app_device_tokens`` —— スマホアプリ 1 台の FCM の登録トークン（ADR-0081 §5）
+- ``notifications`` -- one row per sent notification
+- ``notification_deliveries`` -- one row per recipient (members as of sending), with read/dismissed state
+- ``web_push_subscriptions`` -- one subscription per device (browser)
+- ``app_device_tokens`` -- FCM registration token per installed mobile app (ADR-0081 §5)
 
-チャネルは列を分けて持つ（``in_bell`` / ``in_banner`` / ``by_push``）。「ベルに出る未読の数」を
-文字列の部分一致ではなく素直な条件で数えるため。
+Channels are separate columns (``in_bell`` / ``in_banner`` / ``by_push``), so "unread count in
+the bell" is a plain condition rather than a substring match.
 
-⚠ **``endpoint`` に一意制約を直接張らない。** 通知サービスの URL は数百文字あり、
-MariaDB（utf8mb4）の索引の長さの上限を超える。sha256 を別の列に持って、そちらを一意にする。
+⚠ **Don't put a unique constraint directly on ``endpoint``.** Push service URLs run to hundreds of
+characters, beyond MariaDB's (utf8mb4) index length limit. Keep a sha256 in another column and make that unique.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from shared.infrastructure.models.base import BigIntPk, utcnow
 from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
-# DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる）
+# No DB-native ENUM (becomes VARCHAR with a CHECK constraint)
 AUDIENCE_KIND = sa.Enum("all", "group", "user", name="notification_audience_kind", native_enum=False)
 
 
@@ -38,9 +38,9 @@ class NotificationModel(Base):
     in_banner: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False)
     by_push: Mapped[bool] = mapped_column(sa.Boolean(), nullable=False)
     audience_kind: Mapped[str] = mapped_column(AUDIENCE_KIND, nullable=False)
-    #: グループ・利用者の ID。⚠ 外部キーを張らない（相手を消しても「誰に送ったか」を残す）。
+    #: Group or user ID. ⚠ No foreign key (keeps "who it was sent to" even if the target is deleted).
     audience_target_id: Mapped[int | None] = mapped_column(BigIntPk, nullable=True)
-    #: 送った管理者。⚠ 外部キーを張らない（監査ログと同じく、消しても記録を残す）。
+    #: Admin who sent it. ⚠ No foreign key (like the audit log, the record survives deletion).
     sender_user_id: Mapped[int | None] = mapped_column(BigIntPk, nullable=True)
     sent_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, index=True)
 
@@ -75,7 +75,7 @@ class WebPushSubscriptionModel(Base):
 
 
 class AppDeviceTokenModel(Base):
-    """スマホアプリ 1 台（ADR-0081 §5）。トークンも長いので、一意は sha256 の列で取る。"""
+    """One installed mobile app (ADR-0081 §5). Tokens are long too, so uniqueness uses a sha256 column."""
 
     __tablename__ = "app_device_tokens"
     __table_args__ = declared(Tenancy.PERSONAL)
@@ -88,8 +88,8 @@ class AppDeviceTokenModel(Base):
     token: Mapped[str] = mapped_column(sa.Text(), nullable=False)
     platform: Mapped[str] = mapped_column(sa.String(16), nullable=False)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
-    #: 最後に登録し直された時刻。アプリは起動のたびに登録し直すので、古いままの行は
-    #: 使われなくなった端末の目安になる。
+    #: Last time it was re-registered. The app re-registers on every launch, so a stale row
+    #: hints at a device that is no longer used.
     updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
 

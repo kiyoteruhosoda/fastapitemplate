@@ -1,14 +1,14 @@
-"""IdP 経由で始まった、このアプリのセッション 1 つ分（ADR-0077 §3）。
+"""One session of this app that started via the IdP (ADR-0077 §3).
 
-宛名（:class:`FederatedSession`）に**いつ始まったか**を添えたもの。停止の記録は
-「この時刻より前に始まったセッションを無効にする」という形で効くので、時刻が要る。
+The address (:class:`FederatedSession`) plus **when it started**. Logout records work as
+"invalidate sessions started before this time", so the time is needed.
 
-⚠ **トークンを発行した時刻ではなく、セッションが始まった時刻である。** 更新の
-たびに新しくすると、**更新を 1 回通すだけで停止をすり抜けられる**（更新で出る
-トークンの ``iat`` は必ず停止より後になるため）。
+⚠ **It's when the session started, not when the token was issued.** Renewing it on each
+refresh would let **a single refresh slip past the stop** (the ``iat`` of a refreshed
+token is always after the stop).
 
-⚠ **トークンの ``iat`` では代用できない。** ``iat`` は秒までしか持たないので、
-止めた直後の同じ秒にログインし直した利用者を巻き添えにする。
+⚠ **The token's ``iat`` can't substitute.** ``iat`` only has second precision, so it would
+catch a user who signed in again within the same second right after the stop.
 """
 
 from __future__ import annotations

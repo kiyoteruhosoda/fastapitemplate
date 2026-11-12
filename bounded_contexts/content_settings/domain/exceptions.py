@@ -1,4 +1,4 @@
-"""コンテンツ設定の誤り。画面にはエラーコードで返す。"""
+"""Content setting errors. Returned to the UI as error codes."""
 
 from __future__ import annotations
 
@@ -12,13 +12,13 @@ class ContentSettingError(Exception):
 
 
 class UnknownContentSettingError(ContentSettingError):
-    """定義に無い項目。"""
+    """An item that is not defined."""
 
     code = "unknown_content_setting"
 
 
 class InvalidContentSettingValueError(ContentSettingError):
-    """型・選べる値・範囲に合わない値。"""
+    """A value that does not match the type, choices or range."""
 
     code = "invalid_content_setting"
 

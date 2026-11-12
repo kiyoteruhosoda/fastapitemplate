@@ -1,8 +1,8 @@
-"""パスキーによるログイン（パスワードを使わない認証）。
+"""Login with a passkey (passwordless authentication).
 
-ユーザー名を入力せずに始められるよう、``allowCredentials`` は空にして認証器に
-資格情報を選ばせる（discoverable credential）。誰のパスキーかは、返ってきた
-資格情報 ID から特定する。
+So that it can start without entering a username, ``allowCredentials`` is left empty and the
+authenticator picks the credential (discoverable credential). Whose passkey it is gets determined
+from the returned credential ID.
 """
 
 from __future__ import annotations
@@ -62,14 +62,14 @@ class CompletePasskeyAuthentication:
     relying_party: WebAuthnRelyingParty
 
     def execute(self, *, challenge_id: str, credential: Mapping[str, Any]) -> int:
-        """検証に成功したパスキーの持ち主（``user_id``）を返す。"""
+        """Return the owner (``user_id``) of the passkey that verified successfully."""
         challenge = self.challenges.consume(challenge_id, CHALLENGE_PURPOSE_AUTHENTICATION)
 
         credential_id = self.relying_party.extract_credential_id(credential)
         stored = self.credentials.find_by_credential_id(credential_id) if credential_id else None
         if stored is None:
-            # 「未登録の資格情報」と「署名不一致」を呼び出し側から区別できる
-            # 必要はない（どちらもログイン失敗として同じ応答を返す）。
+            # Callers don't need to tell "unregistered credential" from "signature mismatch"
+            # (both return the same response as a failed login).
             raise PasskeyVerificationError
 
         verified = self.relying_party.verify_authentication(

@@ -1,4 +1,4 @@
-"""端末への通知の宛先を登録・解除する（ブラウザの購読と、スマホアプリのトークン）。"""
+"""Register and remove device notification targets (browser subscriptions and mobile app tokens)."""
 
 from __future__ import annotations
 
@@ -12,13 +12,13 @@ from bounded_contexts.notification.domain.repositories.push_subscription_reposit
 from bounded_contexts.notification.domain.services.push_sender import DevicePushSender, PushSender
 from shared.kernel.outbound_destination import PUSH_SERVICE_HOST_SUFFIXES, DestinationRefusedError, check_https_url
 
-#: 通知サービスの endpoint は数百文字。これを超えるものは購読として受け取らない。
+#: Push service endpoints are hundreds of characters. Anything longer is not accepted as a subscription.
 ENDPOINT_MAX_LENGTH = 1000
-#: FCM の登録トークンは 150〜200 文字程度。これを超えるものは受け取らない。
+#: FCM registration tokens are about 150-200 characters. Anything longer is not accepted.
 DEVICE_TOKEN_MAX_LENGTH = 4096
-#: 受け付ける端末の種類。
+#: Accepted device platforms.
 DEVICE_PLATFORMS = frozenset({"android"})
-#: 鍵は base64url で p256dh が 87 文字・auth が 22 文字。余裕を見て切る。
+#: Keys are base64url: p256dh is 87 characters, auth 22. Cut off with some margin.
 KEY_MAX_LENGTH = 255
 
 
@@ -30,8 +30,8 @@ class SubscribeToPush:
     def execute(self, user_id: int, endpoint: str, p256dh: str, auth: str) -> None:
         if not self._sender.enabled:
             raise NotificationValidationError("push_not_configured")
-        # ⚠ endpoint はこのサーバーが POST しに行く先。ブラウザの通知サービスのホスト（443）だけ受け取る。
-        #   ほかを受けると、利用者がサーバーに宅内やクラスタの内側を叩かせられる（ADR-0083）
+        # ⚠ The endpoint is where this server POSTs. Accept only browser push service hosts (443).
+        #   Accepting others would let a user make the server hit the home LAN or cluster internals (ADR-0083)
         if len(endpoint) > ENDPOINT_MAX_LENGTH:
             raise NotificationValidationError("invalid_push_endpoint")
         try:
@@ -52,7 +52,7 @@ class UnsubscribeFromPush:
 
 
 class RegisterDevice:
-    """スマホアプリの FCM の登録トークンを預かる（ADR-0081 §5）。"""
+    """Store the mobile app's FCM registration token (ADR-0081 §5)."""
 
     def __init__(self, devices: IDeviceTokenRepository, sender: DevicePushSender) -> None:
         self._devices = devices

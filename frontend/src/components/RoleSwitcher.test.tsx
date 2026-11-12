@@ -1,8 +1,8 @@
 /**
- * ロールの切り替え（ADR-0078 §1）。
+ * Role switching (ADR-0078 §1).
  *
- * 見るのは 3 点。切り替えが「トークンの再発行 → /me の引き直し」で行われること、
- * 選べる先が無い利用者には何も出さないこと、開いたメニューを閉じられること。
+ * Checks three things: switching is done as "reissue the token -> refetch /me"; nothing is
+ * shown to users with nothing to choose; and the opened menu can be closed.
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -50,7 +50,7 @@ async function renderSwitcher(me: Me) {
       </I18nProvider>
     </MemoryRouter>,
   )
-  // /me が解決するまで（未サインイン扱いのあいだは何も描かれない）待つ。
+  // Wait until /me resolves (nothing is rendered while treated as signed out).
   if (me.roles.length > 1) {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /All roles/ })).toBeInTheDocument()
@@ -71,7 +71,7 @@ describe('RoleSwitcher', () => {
     vi.clearAllMocks()
   })
 
-  it('保有ロールと「すべてのロール」を選択肢に出す', async () => {
+  it('offers the held roles and "All roles" as options', async () => {
     await renderSwitcher(MULTI_ROLE)
 
     fireEvent.click(toggle())
@@ -81,16 +81,16 @@ describe('RoleSwitcher', () => {
     expect(screen.getByRole('menuitemradio', { name: 'All roles' })).toBeInTheDocument()
     expect(screen.getByRole('menuitemradio', { name: 'manager' })).toBeInTheDocument()
     expect(screen.getByRole('menuitemradio', { name: 'member' })).toBeInTheDocument()
-    // 既定は「すべてのロール」が選択済み
+    // "All roles" is selected by default
     expect(screen.getByRole('menuitemradio', { name: 'All roles' })).toHaveAttribute(
       'aria-checked',
       'true',
     )
   })
 
-  it('選ぶとセッションを載せ替えて /me を引き直す', async () => {
+  it('on select swaps the session and refetches /me', async () => {
     await renderSwitcher(MULTI_ROLE)
-    // トークンは Cookie に載り替わるので、応答は寿命だけ（ADR-0076 §4）。
+    // The token moves into the cookie, so the response carries only the lifetime (ADR-0076 §4).
     apiPost.mockResolvedValue({ expires_in: 900 })
     apiGet.mockResolvedValue({ ...MULTI_ROLE, active_role: 'member', scopes: ['dashboard:view'] })
 
@@ -103,11 +103,11 @@ describe('RoleSwitcher', () => {
     await waitFor(() => {
       expect(screen.getByText('Now acting as member.')).toBeInTheDocument()
     })
-    // 切り替え後は選択中のロールがボタンに出る
+    // After switching, the selected role shows on the button
     expect(screen.getByRole('button', { name: /member/ })).toBeInTheDocument()
   })
 
-  it('切り替えに失敗するとエラーを知らせ、選択は変えない', async () => {
+  it('reports an error and keeps the selection when switching fails', async () => {
     await renderSwitcher(MULTI_ROLE)
     apiPost.mockRejectedValue(new Error('boom'))
 
@@ -120,7 +120,7 @@ describe('RoleSwitcher', () => {
     expect(screen.getByRole('button', { name: /All roles/ })).toBeInTheDocument()
   })
 
-  it('Esc で閉じ、ボタンへフォーカスが戻る', async () => {
+  it('closes on Esc and returns focus to the button', async () => {
     await renderSwitcher(MULTI_ROLE)
 
     fireEvent.click(toggle())
@@ -133,7 +133,7 @@ describe('RoleSwitcher', () => {
     expect(document.activeElement).toBe(toggle())
   })
 
-  it('メニューの外側を押すと閉じる', async () => {
+  it('closes when clicking outside the menu', async () => {
     await renderSwitcher(MULTI_ROLE)
 
     fireEvent.click(toggle())
@@ -144,7 +144,7 @@ describe('RoleSwitcher', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('ロールが 1 つ以下なら何も出さない', async () => {
+  it('shows nothing when the user has one role or fewer', async () => {
     await renderSwitcher({ ...MULTI_ROLE, roles: ['member'] })
 
     expect(screen.queryByRole('button')).not.toBeInTheDocument()

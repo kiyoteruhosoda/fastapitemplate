@@ -1,7 +1,7 @@
-"""「この利用者が入れる手段」の棚卸し（ADR-0076 §7）。
+"""Inventory of "the ways this user can get in" (ADR-0076 §7).
 
-認証系が 2 つある以上、開いている口の数は**並べて見ないと分からない**。
-材料はそれぞれのコンテキストが答える（パスワード / TOTP・パスキー / IdP との結び付き）。
+With two authentication systems, how many entrances are open **is only clear when listed side by
+side**. Each context supplies its part (password / TOTP, passkeys / IdP link).
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def test_a_password_only_user_shows_one_entrance(client: TestClient) -> None:
 
 
 def test_every_entrance_is_listed(client: TestClient, db_session: Session) -> None:
-    """⚠ IdP 側の多要素はここに出ない。出せるのはこのアプリが知っている口だけ。"""
+    """⚠ IdP-side multi-factor does not appear here. Only entrances this app knows about can be shown."""
     headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     admin = db_session.scalar(select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     assert admin is not None
@@ -70,7 +70,7 @@ def test_every_entrance_is_listed(client: TestClient, db_session: Session) -> No
 
 
 def test_an_enrolment_in_progress_is_not_an_entrance(client: TestClient, db_session: Session) -> None:
-    """登録手続きの途中（``confirmed_at`` が NULL）は、まだ入り口ではない。"""
+    """Mid-enrolment (``confirmed_at`` is NULL) is not an entrance yet."""
     headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     admin = db_session.scalar(select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     assert admin is not None
@@ -81,7 +81,7 @@ def test_an_enrolment_in_progress_is_not_an_entrance(client: TestClient, db_sess
 
 
 def test_a_user_without_a_password_shows_only_what_is_left(client: TestClient, db_session: Session) -> None:
-    """⚠ パスワードを取り上げても、結び付きが残っていれば SSO では入れる。"""
+    """⚠ Even with the password taken away, SSO still works while the link remains."""
     headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     admin = db_session.scalar(select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     assert admin is not None

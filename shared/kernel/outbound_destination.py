@@ -1,18 +1,20 @@
-"""利用者が渡した宛先へサーバーがつなぐときの確かめ（ADR-0083）。
+"""Checks for when the server connects to a destination given by a user (ADR-0083).
 
-Web Push の送り先や、取りに行くファイルの URL のように、**利用者が書いた URL へサーバーが
-つなぎに行く**ところでは、宅内やクラスタの内側（DB・ほかのアプリ・ホストの管理の口）へ
-向けさせない（SSRF）。2 段で確かめる。
+Where **the server connects to a URL a user wrote** (Web Push endpoints, URLs of files to fetch),
+it must not be pointed at the home network or the inside of the cluster (the DB, other apps, host
+management endpoints) (SSRF). Checked in two steps.
 
-1. :func:`check_https_url` —— 形だけを見る（名前を引かない）。https・ポート 443・利用者情報なし。
-   内側の名前（``db`` のような 1 語の Service 名・``.svc``・``.local`` など）と、全世界向けでない
-   IP の直書きは断る。``allowed_host_suffixes`` を渡すと、そのホスト（とその下）だけ受け取る。
-2. :func:`ensure_public_host` —— 名前を引き、**どれか 1 つでも**全世界向けでないアドレス
-   （私設・ループバック・リンクローカル・予約など）なら断る。つなぐ直前に呼ぶ。
-   転送（3xx）を追うなら、**転送のたびに** 1 と 2 をやり直す（Scheduler の ``http_fetcher.py`` と同じ）。
+1. :func:`check_https_url` -- looks at the shape only (no name lookup): https, port 443, no
+   userinfo. Refuses internal names (one-word Service names like ``db``, ``.svc``, ``.local``
+   etc.) and literal IPs that are not globally routable. With ``allowed_host_suffixes``, only
+   those hosts (and their subdomains) are accepted.
+2. :func:`ensure_public_host` -- resolves the name and refuses if **any** address is not globally
+   routable (private, loopback, link-local, reserved, etc.). Call it right before connecting.
+   When following redirects (3xx), redo 1 and 2 **for every redirect** (same as Scheduler's
+   ``http_fetcher.py``).
 
-⚠ 名前を引いてからつなぐまでの間に答えが変わる（DNS の付け替え）ことまでは防がない。
-⚠ URL そのものはログに出さない（送り先の URL はそれだけで宛先を名乗れる）。
+⚠ Does not prevent the answer from changing between the lookup and the connection (DNS rebinding).
+⚠ Never log the URL itself (a push endpoint URL alone is enough to claim the destination).
 """
 
 from __future__ import annotations
@@ -23,8 +25,8 @@ import socket
 from collections.abc import Callable, Iterable
 from urllib.parse import SplitResult, urlsplit
 
-#: ブラウザの通知サービスのホスト（完全一致か、その下のホスト）。WBS の ``PUSH_SERVICE_HOST_SUFFIXES`` と同じ。
-#: Chrome / Edge（Android 含む）= FCM、Firefox = Mozilla、Edge（Windows）= WNS、Safari = Apple。
+#: Hosts of browser push services (exact match or a subdomain). Same as WBS's ``PUSH_SERVICE_HOST_SUFFIXES``.
+#: Chrome / Edge (incl. Android) = FCM, Firefox = Mozilla, Edge (Windows) = WNS, Safari = Apple.
 PUSH_SERVICE_HOST_SUFFIXES = (
     "fcm.googleapis.com",
     "push.services.mozilla.com",
@@ -32,19 +34,20 @@ PUSH_SERVICE_HOST_SUFFIXES = (
     "push.apple.com",
 )
 
-#: 内側にしか無い名前の末尾。1 語の名前（``db``・``app`` = 同じ namespace の Service）も断る。
+#: Name suffixes that exist only on the inside. One-word names (``db``, ``app`` = Services in the
+#: same namespace) are refused too.
 INTERNAL_NAME_SUFFIXES = (".localhost", ".local", ".internal", ".lan", ".home.arpa", ".svc", ".cluster.local")
 
 _HOST_NAME = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
 
 IpAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
-#: 名前 → アドレスの組。試験だけが差し替える。
+#: Name -> addresses. Only tests replace it.
 Resolver = Callable[[str, int], Iterable[IpAddress]]
 
 
 class DestinationRefusedError(ValueError):
-    """宛先を断った。``reason`` は ``invalid_url`` / ``host_not_allowed`` / ``port_not_allowed`` /
-    ``blocked_address`` / ``unresolvable`` のどれか。"""
+    """Destination refused. ``reason`` is one of ``invalid_url`` / ``host_not_allowed`` /
+    ``port_not_allowed`` / ``blocked_address`` / ``unresolvable``."""
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
@@ -85,7 +88,7 @@ def _check_host(host: str, allowed_host_suffixes: Iterable[str] | None) -> None:
 
 
 def check_https_url(url: str, *, allowed_host_suffixes: Iterable[str] | None = None) -> SplitResult:
-    """URL の形を確かめて、分けたものを返す（名前は引かない）。"""
+    """Check the shape of a URL and return its parts (no name lookup)."""
     try:
         parts = urlsplit(url.strip())
         port = parts.port
@@ -101,7 +104,8 @@ def check_https_url(url: str, *, allowed_host_suffixes: Iterable[str] | None = N
 
 
 def check_host_name(host: str) -> str:
-    """URL ではなくホスト名だけを持つ設定（メールサーバーなど）の形を確かめる（名前は引かない）。"""
+    """Check the shape of a setting that holds a host name rather than a URL (mail server etc.;
+    no name lookup)."""
     name = host.strip().lower().rstrip(".")
     if not _HOST_NAME.fullmatch(name) and _literal_address(name) is None:
         raise DestinationRefusedError("invalid_url")
@@ -110,7 +114,7 @@ def check_host_name(host: str) -> str:
 
 
 def resolve_addresses(host: str, port: int) -> set[IpAddress]:
-    """名前を引いたアドレスの全部。引けなければ ``unresolvable``。"""
+    """All addresses the name resolves to. ``unresolvable`` if it cannot be resolved."""
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except (socket.gaierror, UnicodeError) as error:
@@ -119,7 +123,7 @@ def resolve_addresses(host: str, port: int) -> set[IpAddress]:
 
 
 def ensure_public_host(host: str, port: int = 443, *, resolve: Resolver = resolve_addresses) -> None:
-    """名前の全部のアドレスが全世界向けか確かめる（違えば ``blocked_address``）。"""
+    """Check that every address of the name is globally routable (``blocked_address`` if not)."""
     literal = _literal_address(host)
     addresses = {literal} if literal is not None else set(resolve(host, port))
     if not addresses:

@@ -1,12 +1,12 @@
-"""控えた監査イベントを永続化するユースケース。
+"""Use case that persists queued audit events.
 
-リクエストの処理（DB セッションの commit / rollback）が完全に終わってから、1 回だけ
-呼ばれる。この時点でリクエストのトランザクションは閉じているため、SQLite でも書き
-込みロックが競合しない（ADR-0075 §1）。
+Called exactly once after the request's processing (DB session commit / rollback) has fully
+finished. By then the request's transaction is closed, so even on SQLite there is no write lock
+contention (ADR-0075 §1).
 
-書き込みの失敗で呼び出し元を落とさない。監査ログが書けない状態（マイグレーション前・
-DB 障害）でも、既に返したレスポンスを取り消すことはできないため、失敗はアプリログへ
-残して続行する。
+A write failure does not bring down the caller. Even when audit logs cannot be written (before
+migrations, DB failure), a response already returned cannot be undone, so the failure is written
+to the application log and processing continues.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class WriteAuditEvents:
             self._recorder.record_all(events)
         except Exception:
             logger.exception(
-                "監査イベントの記録に失敗しました",
+                "Failed to record audit events",
                 extra={"audit_event_count": len(events)},
             )
 

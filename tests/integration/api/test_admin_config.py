@@ -18,7 +18,7 @@ def test_get_config_returns_definitions(client: TestClient, system_admin_headers
     items = {item["key"]: item for item in response.json()}
     assert "MAIL_SERVER" in items
     assert items["MAIL_SERVER"]["env_fallback"] is False
-    # secret 項目は値をそのまま返さない
+    # secret items do not return the value as is
     assert items["MAIL_PASSWORD"]["value"] in (None, "", "********")
 
 
@@ -30,14 +30,14 @@ def test_save_config_overrides_default(client: TestClient, system_admin_headers:
     )
     assert response.status_code == 200
 
-    # settings オブジェクト経由で即時反映される（DB > 環境変数 > デフォルト）
+    # Takes effect immediately through the settings object (DB > environment variable > default)
     assert settings.mail_server == "smtp.custom.example"
 
     items = {i["key"]: i for i in client.get("/api/admin/config", headers=system_admin_headers).json()}
     assert items["MAIL_SERVER"]["value"] == "smtp.custom.example"
     assert items["MAIL_SERVER"]["stored"] is True
 
-    # null で DB 上書きを削除しデフォルトへ戻す
+    # null deletes the DB override and returns to the default
     client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": None}})
     assert settings.mail_server == "smtp.example.com"
 
@@ -56,13 +56,13 @@ def test_unknown_key_is_ignored(client: TestClient, system_admin_headers: dict[s
 def test_saved_value_wins_over_environment(
     client: TestClient, system_admin_headers: dict[str, str], monkeypatch: MonkeyPatch
 ) -> None:
-    """⚠ **画面で保存した値は環境変数より強い。**
+    """⚠ **A value saved on screen beats the environment variable.**
 
-    逆にすると、compose に 1 行書いた鍵は**画面に出ているのに変えられない**。
+    Otherwise, a key written as one line in compose would be **shown on screen but impossible to change**.
     """
     monkeypatch.setenv("MAIL_SERVER", "smtp.from-env.example")
     settings.reload_db_overrides()
-    # 保存が無ければ環境変数が効く（＝配るときの初期値としては生きている）
+    # Without a saved value the environment variable applies (= it still works as the deployment initial value)
     assert settings.mail_server == "smtp.from-env.example"
 
     client.put(
@@ -73,11 +73,11 @@ def test_saved_value_wins_over_environment(
     assert settings.mail_server == "smtp.from-screen.example"
 
     items = {i["key"]: i for i in client.get("/api/admin/config", headers=system_admin_headers).json()}
-    # ⚠ 止める印ではない ——「消すと環境変数へ戻る」という案内である
+    # ⚠ Not a lock marker: it tells you "deleting it falls back to the environment variable"
     assert items["MAIL_SERVER"]["env_fallback"] is True
     assert items["MAIL_SERVER"]["value"] == "smtp.from-screen.example"
 
-    # 消せば環境変数へ戻る（デフォルトではない）
+    # Deleting it falls back to the environment variable (not the default)
     client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": None}})
     assert settings.mail_server == "smtp.from-env.example"
 
@@ -101,7 +101,7 @@ def test_saved_value_wins_over_environment(
 def test_boolean_from_environment_is_shown_as_the_server_reads_it(
     client: TestClient, system_admin_headers: dict[str, str], monkeypatch: MonkeyPatch, raw: str, expected: bool
 ) -> None:
-    """環境変数の ``"false"`` を文字列のまま返すと、画面ではオンに見える（task #828）。"""
+    """Returning the environment variable ``"false"`` as a string would show as on in the screen (task #828)."""
     monkeypatch.setenv("SESSION_COOKIE_SECURE", raw)
     settings.reload_db_overrides()
 
@@ -127,7 +127,7 @@ def test_saved_boolean_wins_over_environment_string(
 def test_env_only_setting_cannot_be_saved_from_the_screen(
     client: TestClient, system_admin_headers: dict[str, str], monkeypatch: MonkeyPatch
 ) -> None:
-    """通信先と鍵の場所は環境変数だけで決め、画面には見るだけで出す（ADR-0090）。"""
+    """Destinations and key locations are set only by environment variables and shown read-only on screen (ADR-0090)."""
     monkeypatch.setenv("OIDC_ISSUER", "https://idp.from-env.example")
     for key, value in (
         ("OIDC_ISSUER", "https://attacker.example"),
@@ -148,7 +148,7 @@ def test_env_only_setting_cannot_be_saved_from_the_screen(
 
 
 def test_env_only_setting_ignores_a_value_left_in_the_database(db_session: Session, monkeypatch: MonkeyPatch) -> None:
-    """取り込む前に画面で入れた値が DB に残っていても読まない。"""
+    """Values entered on screen before the import are not read even if they remain in the DB."""
     monkeypatch.setenv("OIDC_ISSUER", "https://idp.from-env.example")
     db_session.add(
         SystemSetting(
@@ -169,7 +169,7 @@ def test_mail_server_inside_the_home_is_refused(client: TestClient, system_admin
         assert response.status_code == 400, host
         assert response.json()["detail"] == {"error": "invalid_destination", "key": "MAIL_SERVER"}
 
-    # 空に戻す操作は通る
+    # Clearing it is allowed
     assert (
         client.put("/api/admin/config", headers=system_admin_headers, json={"values": {"MAIL_SERVER": ""}}).status_code
         == 200

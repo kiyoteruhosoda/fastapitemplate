@@ -1,17 +1,17 @@
 /**
- * パスワード入力欄（入力内容の表示・非表示を切り替えられる）。
+ * Password field whose content can be shown or hidden.
  *
- * 伏せ字のままだと打ち間違いに気付けないため、目のアイコンで平文表示へ切り替える。
- * 既定は非表示で、切り替えは欄ごとに独立している（表示状態は保存しない）。
+ * Masked input hides typos, so an eye icon switches it to plain text.
+ * Hidden by default; each field toggles independently (the state is not persisted).
  *
- * 見た目は素の `<input type="password">` と揃える。枠線は `index.css` の
- * `button` / `input` と同じ `var(--border)` をそのまま使い、色を直に書かない。
+ * Looks the same as a plain `<input type="password">`. The border uses the same
+ * `var(--border)` as `button` / `input` in `index.css`; no colors are hard-coded.
  */
 import { useState, type ComponentPropsWithoutRef } from 'react'
 
 import { useI18n } from '../i18n'
 
-/** `type` だけは自前で持つ（表示状態で text / password を切り替えるため）。 */
+/** `type` is owned here (it switches between text / password with the visibility state). */
 type PasswordInputProps = Omit<ComponentPropsWithoutRef<'input'>, 'type'>
 
 export function PasswordInput({ className, ...inputProps }: PasswordInputProps) {
@@ -40,8 +40,8 @@ export function PasswordInput({ className, ...inputProps }: PasswordInputProps) 
 }
 
 /**
- * 目のアイコン。表示中は「押すと隠れる」ことが分かるよう斜線を重ねる。
- * 色は `currentColor`（ボタンの文字色）に任せ、テーマごとの指定を持たない。
+ * Eye icon. While the text is shown, a slash is overlaid so it is clear that clicking hides it.
+ * The color comes from `currentColor` (the button's text color); no per-theme rules.
  */
 function EyeIcon({ crossedOut }: { crossedOut: boolean }) {
   return (

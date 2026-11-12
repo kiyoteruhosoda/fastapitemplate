@@ -1,4 +1,4 @@
-"""掃除のユースケース（何を呼ぶか・何を呼ばないか）。"""
+"""The cleanup use case (what it calls and what it does not)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _NOW = datetime(2026, 8, 2, 12, 0, 0)
 
 
 class _SpyRemover:
-    """削除の依頼を記録するだけの差し替え（DB を触らない）。"""
+    """A stand-in that only records deletion requests (does not touch the DB)."""
 
     def __init__(self, application_logs: int = 0, audit_logs: int = 0) -> None:
         self.application_cutoffs: list[datetime] = []
@@ -33,7 +33,7 @@ class _SpyRemover:
 
 
 def test_the_default_policy_does_not_touch_the_database() -> None:
-    """既定（どちらも 0）なら削除を一切依頼しないこと。"""
+    """With the defaults (both 0), no deletion is requested at all."""
     remover = _SpyRemover()
 
     outcome = PurgeExpiredLogs(remover).execute(LogRetentionPolicy(), _NOW)
@@ -54,7 +54,7 @@ def test_each_table_is_purged_with_its_own_cutoff() -> None:
 
 
 def test_the_audit_log_is_left_alone_when_only_application_logs_expire() -> None:
-    """アプリログの掃除が監査ログを巻き込まないこと（ADR-0075 §3 の要）。"""
+    """App-log cleanup does not drag audit logs in (the crux of ADR-0075 §3)."""
     remover = _SpyRemover(application_logs=5)
 
     outcome = PurgeExpiredLogs(remover).execute(LogRetentionPolicy(application_log_days=7), _NOW)

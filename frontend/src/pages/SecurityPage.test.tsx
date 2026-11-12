@@ -1,9 +1,9 @@
 /**
- * セキュリティ画面（`/profile/security`）。
+ * Security page (`/profile/security`).
  *
- * パスワード変更・二要素認証・パスキー・IdP との連携が 1 つの画面に並ぶこと
- * （ADR-0080 §4 / ADR-0077 §5）と、
- * それぞれが正しい API を叩くことを確認する。
+ * Checks that password change, two-factor authentication, passkeys and IdP linking are on one
+ * page (ADR-0080 §4 / ADR-0077 §5),
+ * and that each calls the right API.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,7 +14,7 @@ import { I18nProvider } from '../i18n'
 import { AuthProvider, type Me, useAuth } from '../store/AuthContext'
 import { SecurityPage } from './SecurityPage'
 
-/** 実アプリと同じく、`/me` の解決後にだけページをマウントする（RequireAuth 相当）。 */
+/** As in the real app, mount the page only after `/me` resolves (equivalent to RequireAuth). */
 function Gate() {
   const { user } = useAuth()
   if (!user) return null
@@ -49,7 +49,7 @@ vi.mock('../services/webauthn', () => ({
   isPasskeySupported: () => true,
 }))
 
-/** この画面が開いたときに引く 4 本（本人・二要素認証・連携の状態・パスキーの一覧）。 */
+/** The four requests made when this page opens (self, two-factor, link state, passkey list). */
 function respondToGet(path: string, me: Me = ME) {
   if (path === '/api/auth/me') return Promise.resolve(me)
   if (path === '/api/account/security/two-factor')
@@ -91,7 +91,7 @@ describe('SecurityPage', () => {
     apiPost.mockResolvedValue({})
   })
 
-  it('パスワード変更・二要素認証・パスキー・連携が 1 つの画面に並ぶ', async () => {
+  it('shows password change, two-factor, passkeys and linking on one page', async () => {
     await renderPage()
 
     expect(screen.getByRole('heading', { name: 'Change password' })).toBeInTheDocument()
@@ -100,16 +100,16 @@ describe('SecurityPage', () => {
     expect(screen.getByText('No passkeys registered yet.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Single sign-on' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Link with Example IdP' })).toBeInTheDocument()
-    // プロフィールへ戻る導線がある
+    // There is a way back to the profile
     expect(screen.getByRole('link', { name: 'Back to profile' })).toHaveAttribute(
       'href',
       '/profile',
     )
   })
 
-  it('パスワードを持たない利用者には変更フォームを出さない', async () => {
-    // ⚠ 出すと、「今のパスワード」を入力できない相手に絶対に通らない入力欄を見せる
-    //   ことになる（ADR-0076 §6）。
+  it('does not show the change form to users without a password', async () => {
+    // Note: otherwise users who cannot enter a "current password" would see inputs that can never
+    //   succeed (ADR-0076 §6).
     apiGet.mockImplementation((path: string) => respondToGet(path, { ...ME, has_password: false }))
     await renderPage()
 
@@ -122,7 +122,7 @@ describe('SecurityPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('パスワードを変更すると POST /api/auth/change-password が飛ぶ', async () => {
+  it('changing the password sends POST /api/auth/change-password', async () => {
     await renderPage()
 
     fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-secret' } })
@@ -138,7 +138,7 @@ describe('SecurityPage', () => {
     expect(screen.getByText('Saved.')).toBeInTheDocument()
   })
 
-  it('二要素認証を設定すると QR と確認コードの入力欄が出る', async () => {
+  it('setting up two-factor shows the QR and the confirmation code input', async () => {
     await renderPage()
     apiPost.mockResolvedValueOnce({
       secret: 'ABCDEF',
@@ -154,7 +154,7 @@ describe('SecurityPage', () => {
     expect(screen.getByLabelText('Verification code')).toBeInTheDocument()
   })
 
-  it('登録済みのパスキーを一覧に出し、削除できる', async () => {
+  it('lists registered passkeys and can delete them', async () => {
     apiGet.mockImplementation((path: string) =>
       path === '/api/account/security/two-factor'
         ? Promise.resolve({ enabled: false, enrolling: false })

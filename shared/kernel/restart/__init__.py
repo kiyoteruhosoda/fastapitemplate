@@ -1,19 +1,18 @@
-"""アプリケーションの自己再起動。
+"""Self-restart of the application.
 
-管理画面で保存した設定のうち、**起動時にしか読まれないもの**（ログ設定・CORS
-の許可オリジン等）を反映するために、管理者がアプリ自身から再起動を指示できる
-ようにする仕組み。
+A mechanism that lets administrators order the app itself to restart, to apply settings saved on
+the admin screen that **are only read at startup** (logging settings, CORS allowed origins, etc.).
 
-要求は DB（``system_settings`` の ``app.restart_request``）に置き、各プロセスが
-:class:`RestartWatcher` で拾って自分を終了させる。コンテナは
-``restart: unless-stopped`` で自動的に起動し直される。
+The request is placed in the DB (``app.restart_request`` of ``system_settings``), and each
+process picks it up via :class:`RestartWatcher` and terminates itself. The container is restarted
+automatically by ``restart: unless-stopped``.
 
-呼び出し側はこのモジュールの公開名だけを使う::
+Callers use only this module's public names::
 
-    # 要求する（管理 API）
+    # Request (admin API)
     RestartRequestStore().save(db, [RestartScope.WEB], requested_by="user:1")
 
-    # 受け取る（プロセスの起動処理）
+    # Receive (process startup)
     start_restart_watcher(RestartScope.WEB)
 """
 
@@ -45,11 +44,10 @@ _watchers: dict[RestartScope, RestartWatcher] = {}
 
 
 def start_restart_watcher(scope: RestartScope) -> RestartWatcher | None:
-    """*scope* 宛の再起動要求の監視を開始する。
+    """Start watching restart requests addressed to *scope*.
 
-    テスト実行時（``TESTING``）は何もしない。同じスコープで二重に呼ばれた場合は
-    最初のウォッチャーをそのまま返す（Gunicorn ワーカーごとに 1 つ動く想定で、
-    プロセス内で重複しないようにする）。
+    Does nothing during tests (``TESTING``). If called twice for the same scope, returns the first
+    watcher as is (one is expected per Gunicorn worker; avoids duplicates within a process).
     """
     from shared.kernel.settings.settings import settings
 
@@ -64,9 +62,9 @@ def start_restart_watcher(scope: RestartScope) -> RestartWatcher | None:
     try:
         watcher.start()
     except Exception:
-        # 監視が立ち上がらないこと自体でアプリ起動を止めない
+        # Failing to start the watcher must not stop the app from starting
         logger.warning(
-            "再起動要求の監視を開始できませんでした: scope=%s",
+            "Could not start watching restart requests: scope=%s",
             scope.value,
             exc_info=True,
         )
@@ -77,7 +75,7 @@ def start_restart_watcher(scope: RestartScope) -> RestartWatcher | None:
 
 
 def stop_restart_watchers() -> None:
-    """起動済みの監視スレッドを止める（プロセス終了時・テスト後始末用）。"""
+    """Stop the started watcher threads (on process exit and for test cleanup)."""
     for watcher in _watchers.values():
         watcher.stop()
     _watchers.clear()

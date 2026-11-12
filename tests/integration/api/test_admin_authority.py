@@ -1,7 +1,7 @@
-"""管理 API の「権限を動かす操作」の関門（ADR-0078 §4）。
+"""The gate on "operations that move permissions" in the admin API (ADR-0078 §4).
 
-scope を持っていても、自分の権限を超えて配る・格上に触れる・自分を変える・
-最後の管理者を失う、の 4 つは通らない。
+Even with the scope, four things never pass: granting beyond your own permissions, touching a
+higher-ranked user, changing yourself, and losing the last administrator.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _admin_id(client: TestClient, headers: dict[str, str]) -> int:
     return int(next(u["id"] for u in users if u["email"] == master_data.DEFAULT_ADMIN_EMAIL))
 
 
-# --- 自分の権限を超えて配らない -------------------------------------------
+# --- Do not grant beyond your own permissions -------------------------------------
 
 
 def test_user_admin_can_onboard_a_member(
@@ -80,7 +80,7 @@ def test_user_admin_cannot_grant_a_stronger_role(
 def test_user_admin_cannot_touch_a_stronger_user(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """格上のパスワードを書き換えれば、その人の権限を丸ごと取れてしまう。"""
+    """Rewriting a higher-ranked user's password would hand over all of their permissions."""
     admin_id = _admin_id(client, admin_headers)
     _add_user(client, admin_headers, "helpdesk", ["user-admin"])
     headers = sign_in(other_client, "helpdesk@example.com", _PASSWORD)
@@ -122,7 +122,7 @@ def test_role_keeper_cannot_put_codes_they_lack_into_a_role(
     assert within.status_code == 201, within.text
 
 
-# --- 自分自身は変えない ------------------------------------------------------
+# --- Do not change yourself ------------------------------------------------------
 
 
 def test_an_admin_cannot_change_their_own_standing(client: TestClient, admin_headers: dict[str, str]) -> None:
@@ -138,7 +138,7 @@ def test_an_admin_cannot_change_their_own_standing(client: TestClient, admin_hea
 
 
 def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """止めるのはロール・有効状態・削除だけ。同じロールを送り直すのも変更ではない。"""
+    """Only roles, active state and deletion are blocked. Resending the same roles is not a change."""
     admin_id = _admin_id(client, admin_headers)
 
     response = client.put(
@@ -150,13 +150,13 @@ def test_an_admin_can_still_rename_themselves(client: TestClient, admin_headers:
     assert response.status_code == 200, response.text
 
 
-# --- 最後の管理者を失わない --------------------------------------------------
+# --- Do not lose the last administrator ---------------------------------------------
 
 
 def test_the_shared_administrator_role_cannot_be_hollowed_out(
     client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """雛形のロールは全テナントが共有するので、テナントの管理者からは変えられない（ADR-0079 §3）。"""
+    """Template roles are shared by every tenant, so a tenant administrator cannot change them (ADR-0079 §3)."""
     roles = client.get("/api/admin/roles", headers=admin_headers).json()
     admin_role = next(r for r in roles if r["name"] == "owner")
     without_core = [code for code in admin_role["permissions"] if code != "role:manage"]
@@ -176,19 +176,19 @@ def test_the_shared_administrator_role_cannot_be_hollowed_out(
 def test_a_stale_token_cannot_disable_the_last_administrator(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """ロールを外されても、手元のアクセストークンは寿命まで通る（ADR-0076 §5）。
+    """Even after a role is removed, an access token in hand stays valid until it expires (ADR-0076 §5).
 
-    その古い 1 枚で残った 1 人を止めると、誰も権限を配り直せなくなる。
+    Stopping the one remaining administrator with that old token would leave nobody able to re-grant permissions.
     """
     admin_id = _admin_id(client, admin_headers)
     second_id = _add_user(client, admin_headers, "second", ["owner"])
     second_headers = sign_in(other_client, "second@example.com", _PASSWORD)
 
-    # second が既定の管理者から owner を外す（有効な管理者は second だけになる）
+    # second removes owner from the default administrator (second becomes the only active admin)
     demoted = other_client.put(f"/api/admin/users/{admin_id}", headers=second_headers, json={"roles": ["member"]})
     assert demoted.status_code == 200, demoted.text
 
-    # 既定の管理者は古いトークンのまま、最後の 1 人を止めようとする
+    # The default administrator, still on the old token, tries to stop the last one
     response = client.put(f"/api/admin/users/{second_id}", headers=admin_headers, json={"is_active": False})
 
     assert response.status_code == 409

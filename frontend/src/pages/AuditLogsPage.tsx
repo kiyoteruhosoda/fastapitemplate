@@ -1,12 +1,12 @@
 /**
- * 監査ログ画面（`audit_log` テーブルの検索・閲覧）。
+ * Audit log page (search and browse the `audit_log` table).
  *
- * 「誰が何をしたか」の記録。`result=failure` で失敗した操作だけを、`requestId` で
- * 1 リクエスト分だけを取り出せる。同じ `requestId` をシステムログ画面
- * （`/admin/logs`）に入れれば、その裏で何が起きていたかを突き合わせられる。
+ * The record of "who did what". `result=failure` extracts only failed operations, and
+ * `requestId` only one request. Entering the same `requestId` on the system log page
+ * (`/admin/logs`) lets you match up what was happening behind it.
  *
- * 実行者・対象は内部 ID で表示する。監査ログにメールアドレス等の PII を保存しない
- * ため（ADR-0075 §1）。ID から利用者を辿るときはユーザー管理画面を見る。
+ * Actors and targets are shown by internal ID, because the audit log does not store PII such
+ * as email addresses (ADR-0075 §1). To trace a user from an ID, use the user management page.
  */
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
@@ -56,19 +56,20 @@ const EMPTY_FILTERS: LogFilters = {
 
 const NO_OPTIONS: FilterOptions = { event_types: [], results: [], target_types: [] }
 
-/** どの操作が検索を起こしたか。押した操作にだけ実行中の目印を出すために持つ。 */
+/** Which action triggered the search. Held so the running marker shows only on the pressed action. */
 type SearchTrigger = 'search' | 'failuresOnly' | 'reset' | 'previous' | 'next'
 
 export function AuditLogsPage() {
   const { t } = useI18n()
-  // 入力中の値（form）と検索済みの値（applied）を分ける（ページ送りで条件を保つ）
+  // Keep the values being typed (form) separate from the searched values (applied)
+  // (pagination keeps the conditions)
   const [form, setForm] = useState<LogFilters>(EMPTY_FILTERS)
   const [applied, setApplied] = useState<LogFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
   const [options, setOptions] = useState<FilterOptions>(NO_OPTIONS)
   const [trigger, setTrigger] = useState<SearchTrigger | null>(null)
   const { result, searching } = useLogSearch<AuditLogEntry>('/api/admin/audit-logs', applied, page)
-  // 取得していないあいだは目印を出さない（初回の読み込みは誰も押していない）。
+  // No marker while not fetching (nobody pressed anything for the initial load).
   const pendingTrigger = searching ? trigger : null
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export function AuditLogsPage() {
     setApplied(EMPTY_FILTERS)
   }
 
-  /** 「失敗だけ」は最頻の絞り込みなので 1 クリックで出せるようにする。 */
+  /** "Failures only" is the most common filter, so make it one click. */
   const showFailuresOnly = () => {
     const failuresOnly = { ...EMPTY_FILTERS, result: 'failure' }
     setTrigger('failuresOnly')
@@ -291,7 +292,7 @@ export function AuditLogsPage() {
         </div>
       )}
 
-      {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので、押した側に目印を出す。 */}
+      {/* Pagination shows no change until the table content is replaced, so mark the pressed control. */}
       <div className="pager">
         <ActionButton
           type="button"

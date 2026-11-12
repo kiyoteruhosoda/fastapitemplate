@@ -1,7 +1,7 @@
-"""ログ検索のページ指定（新しい順に ``limit`` 件、``offset`` 件目から）。
+"""Page specification for log searches (``limit`` rows, newest first, starting at row ``offset``).
 
-過大な取得で DB と画面を詰まらせないため、上限をここで強制する。境界の判断を
-各エンドポイントに散らさないための値オブジェクト。
+The upper limit is enforced here so oversized fetches do not clog the DB and the screen. A value
+object so boundary decisions are not scattered across endpoints.
 """
 
 from __future__ import annotations
@@ -14,20 +14,20 @@ MAX_LIMIT = 500
 
 @dataclass(frozen=True)
 class LogPage:
-    """1 ページの取得範囲。常に ``1 <= limit <= MAX_LIMIT`` かつ ``offset >= 0``。"""
+    """Range of one page. Always ``1 <= limit <= MAX_LIMIT`` and ``offset >= 0``."""
 
     limit: int = DEFAULT_LIMIT
     offset: int = 0
 
     def __post_init__(self) -> None:
         if not 1 <= self.limit <= MAX_LIMIT:
-            raise ValueError(f"limit は 1〜{MAX_LIMIT} の範囲でなければならない: {self.limit}")
+            raise ValueError(f"limit must be between 1 and {MAX_LIMIT}: {self.limit}")
         if self.offset < 0:
-            raise ValueError(f"offset は 0 以上でなければならない: {self.offset}")
+            raise ValueError(f"offset must be 0 or greater: {self.offset}")
 
     @classmethod
     def of(cls, limit: int | None = None, offset: int | None = None) -> LogPage:
-        """未指定・範囲外の値を既定値へ丸めて生成する（外部入力の受け口）。"""
+        """Create it with unspecified or out-of-range values rounded to defaults (the entry for external input)."""
         clamped_limit = DEFAULT_LIMIT if limit is None or limit < 1 else min(limit, MAX_LIMIT)
         return cls(limit=clamped_limit, offset=max(offset or 0, 0))
 

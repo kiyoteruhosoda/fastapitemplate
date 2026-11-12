@@ -1,4 +1,4 @@
-"""アプリから来たトークンと、その出し方（ADR-0081 §1・ADR-0103）。"""
+"""A token from an app and how it was presented (ADR-0081 §1, ADR-0103)."""
 
 from __future__ import annotations
 
@@ -7,21 +7,21 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PresentedAppToken:
-    """``Authorization`` の方式・``DPoP`` の証明・要求の宛先をまとめたもの。
+    """Bundle of the ``Authorization`` scheme, the ``DPoP`` proof and the request target.
 
-    ``cnf.jkt`` のあるトークンは ``DPoP`` の方式と証明が要り、無いトークンは ``Bearer`` だけ。
+    Tokens with ``cnf.jkt`` need the ``DPoP`` scheme and a proof; tokens without it use ``Bearer`` only.
     """
 
     token: str
-    #: ``Authorization: DPoP`` で来たか（``False`` は ``Bearer``）。
+    #: Whether it came as ``Authorization: DPoP`` (``False`` means ``Bearer``).
     dpop: bool
-    #: ``DPoP`` ヘッダーの証明。
+    #: Proof from the ``DPoP`` header.
     proof: str | None
-    #: 大文字の HTTP メソッド。
+    #: Uppercase HTTP method.
     method: str
-    #: このサーバーが外へ名乗る、この口の URL（問い合わせは付けない）。
+    #: This endpoint's URL as this server presents it externally (no query).
     uri: str
-    #: アプリが同じログインで受け取った ID トークン。結び付けたトークンで初めて来たときのプロフィールに使う。
+    #: ID token the app received in the same login. Used for the profile when first arriving with a bound token.
     id_token: str | None = None
 
 

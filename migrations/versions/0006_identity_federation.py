@@ -1,11 +1,12 @@
 """identity federation (SSO)
 
-外部 IdP との SSO（ADR-0077 §1）で要るテーブルを追加する。定義の正本は
-``bounded_contexts/identity_federation/infrastructure/identity_federation_models.py``。
+Add the tables needed for SSO with an external IdP (ADR-0077 §1). The definitions live in
+``bounded_contexts/identity_federation/infrastructure/identity_federation_models.py``.
 
-**表は 2 つだけ。** 認可要求の往復状態（``state`` / ``nonce`` / ``code_verifier``）は
-署名付き Cookie でブラウザに預けるので、控えの表を持たない（ADR-0077 §1）。保管も
-掃除も要らず、``state`` を知っているだけの相手は戻りを完了できない。
+**Only two tables.** The round-trip state of the authorization request (``state`` / ``nonce`` /
+``code_verifier``) is entrusted to the browser in a signed cookie, so there is no table for it
+(ADR-0077 §1). Nothing to store or clean up, and someone who only knows ``state`` cannot
+complete the callback.
 
 Revision ID: identity_federation
 Revises: seed_audit_permission
@@ -28,8 +29,8 @@ _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 
 
 def upgrade() -> None:
-    # IdP のアカウントと利用者の結び付き。鍵は (issuer, subject)。
-    # 利用者側に一意制約は置かない（1 人が複数の IdP アカウントを持てる）。
+    # Link between IdP accounts and users. The key is (issuer, subject).
+    # No unique constraint on the user side (one person can have several IdP accounts).
     op.create_table(
         "federated_identities",
         sa.Column("issuer", sa.String(length=255), nullable=False),
@@ -42,8 +43,8 @@ def upgrade() -> None:
     )
     op.create_index("ix_federated_identities_user_id", "federated_identities", ["user_id"])
 
-    # コールバックが発行する 1 回限りの引き換え券。**ハッシュだけを保存する**
-    # （漏れた控えからそのままログインできないようにする）。
+    # One-time exchange ticket issued by the callback. **Only the hash is stored**
+    # (so a leaked record cannot be used to sign in directly).
     op.create_table(
         "sso_login_tickets",
         sa.Column("ticket_hash", sa.String(length=64), nullable=False),
@@ -55,7 +56,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
     )
     op.create_index("ix_sso_login_tickets_user_id", "sso_login_tickets", ["user_id"])
-    # 期限切れは券を発行するたびに掃除するので、定期ジョブは持たない。
+    # Expired tickets are cleaned up whenever a ticket is issued, so there is no periodic job.
     op.create_index("ix_sso_login_tickets_expires_at", "sso_login_tickets", ["expires_at"])
 
 

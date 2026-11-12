@@ -1,9 +1,9 @@
-"""お知らせの API（ADR-0081 §3）。
+"""Notification API (ADR-0081 §3).
 
-- ``/api/notifications`` —— 本人の手元（ベル・画面上部）と、端末への通知の購読。
-  **アプリからも叩いてよい**（:data:`AppOrWebPrincipalDep`。ADR-0081 §1）ので、スマホアプリも
-  同じ口でベルと上部の知らせを出せる。scope は要求しない（自分宛てのものしか見えない）
-- ``/api/admin/notifications`` —— 管理画面からの配信と履歴（``notification:send``）
+- ``/api/notifications`` -- the user's own inbox (bell, top of screen) and device push subscriptions.
+  **Apps may call it too** (:data:`AppOrWebPrincipalDep`; ADR-0081 §1), so the mobile app can
+  show the bell and top-of-screen notices through the same endpoints. No scope required (users only see their own)
+- ``/api/admin/notifications`` -- sending and history from the admin console (``notification:send``)
 """
 
 from __future__ import annotations
@@ -69,16 +69,16 @@ admin_router = APIRouter(prefix="/api/admin/notifications", tags=["admin"])
 
 SenderDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("notification:send"))]
 
-# reason 列は 255 文字。
+# The reason column is 255 characters.
 _MAX_REASON_LENGTH = 255
 
 
-# --- 本人の手元 -----------------------------------------------------------------
+# --- The user's own inbox --------------------------------------------------------
 
 
 @router.get("", response_model=InboxResponse)
 def list_my_notifications(principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> InboxResponse:
-    """ベルと画面上部に出すもの（新しい順）。どこに出すかは ``channels`` で画面が決める。"""
+    """What to show in the bell and top of screen (newest first). The UI decides where via ``channels``."""
     inbox = ListInbox(repo).execute(principal.user_id)
     return InboxResponse(
         items=[InboxItemResponse.of_entry(e) for e in inbox.entries],
@@ -98,11 +98,11 @@ def mark_read(notification_id: int, principal: AppOrWebPrincipalDep, repo: Notif
 
 @router.post("/{notification_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 def dismiss(notification_id: int, principal: AppOrWebPrincipalDep, repo: NotificationRepoDep) -> None:
-    """画面上部から閉じる（既読にもなる）。"""
+    """Dismiss from the top of the screen (also marks as read)."""
     DismissNotification(repo).execute(principal.user_id, notification_id, utcnow())
 
 
-# --- 端末への通知（Web Push）の購読 -------------------------------------------
+# --- Device notification (Web Push) subscriptions ------------------------------
 
 
 @router.get("/push", response_model=PushConfigResponse)
@@ -134,15 +134,15 @@ def unsubscribe(
 def push_status(
     body: PushEndpointRequest, principal: AppOrWebPrincipalDep, subscriptions: PushSubscriptionRepoDep
 ) -> PushStatusResponse:
-    """この端末の購読が、いまの利用者のものとして登録されているか。
+    """Whether this device's subscription is registered to the current user.
 
-    同じブラウザで別の人がログインし直すと、ブラウザ側の購読は残っているのにサーバーでは
-    前の人のものになっている。画面のスイッチはこの答えで出す。
+    When someone else signs in again in the same browser, the browser still holds the subscription
+    but the server has it as the previous user's. The UI's toggle is driven by this answer.
     """
     return PushStatusResponse(subscribed=subscriptions.exists(principal.user_id, body.endpoint))
 
 
-# --- スマホアプリの通知（FCM）の登録（ADR-0081 §5） ---------------------------------
+# --- Mobile app notification (FCM) registration (ADR-0081 §5) -------------------------
 
 
 @router.post("/device/register", status_code=status.HTTP_204_NO_CONTENT)
@@ -152,7 +152,7 @@ def register_device(
     devices: DeviceTokenRepoDep,
     sender: DevicePushSenderDep,
 ) -> None:
-    """アプリが起動・サインインのたびに呼ぶ（トークンは FCM の都合で変わるため）。"""
+    """Called by the app on every launch and sign-in (FCM may change the token)."""
     RegisterDevice(devices, sender).execute(principal.user_id, body.token, body.platform)
 
 
@@ -160,11 +160,11 @@ def register_device(
 def unregister_device(
     body: DeviceUnregisterRequest, principal: AppOrWebPrincipalDep, devices: DeviceTokenRepoDep
 ) -> None:
-    """サインアウトのときに呼ぶ（その端末に前の人のお知らせが届き続けないように）。"""
+    """Called on sign-out (so the device stops receiving the previous user's notifications)."""
     UnregisterDevice(devices).execute(principal.user_id, body.token)
 
 
-# --- 管理画面からの配信 -------------------------------------------------------
+# --- Sending from the admin console --------------------------------------------
 
 
 @admin_router.get("", response_model=list[SentNotificationResponse])
@@ -174,7 +174,7 @@ def list_sent(_principal: SenderDep, repo: SentNotificationRepoDep) -> list[Sent
 
 @admin_router.get("/audiences", response_model=AudienceOptionsResponse)
 def audience_options(principal: SenderDep, members: TenantMembersDep) -> AudienceOptionsResponse:
-    """宛先に選べる相手（送り手のテナントの中だけ）。``user:manage`` を持たない送り手にも、名前だけは見せる。"""
+    """Possible audience targets (within the sender's tenant only). Senders without ``user:manage`` still see names."""
     groups = members.groups()
     users = sorted(members.users(active_only=True), key=lambda u: (u.username, u.id))
     with_email = principal.can("user:manage")
@@ -219,7 +219,7 @@ def send_notification(
 
 
 def _audit_reason(result: SendResultDTO) -> str:
-    """監査ログの ``reason``。宛先・チャネル・配った人数（本文は入れない）。"""
+    """Audit log ``reason``: audience, channels and number delivered (not the body)."""
     audience = result.notification.audience_kind
     if result.notification.audience_target_id is not None:
         audience += f":{result.notification.audience_target_id}"

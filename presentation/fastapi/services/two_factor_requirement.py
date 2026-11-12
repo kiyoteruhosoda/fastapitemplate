@@ -1,7 +1,8 @@
-"""パスワードで入ったログインに二要素認証を求めるか（ADR-0093）。
+"""Whether to require two-factor authentication for password logins (ADR-0093).
 
-⚠ **トークンを出すたびに決め直す。** 更新の口も通るので、設定を入れれば 5 分以内に今のログインへ効き、
-登録を済ませて更新すれば外れる。
+⚠ **Decided again every time a token is issued.** The refresh endpoint goes through it too, so
+turning the setting on affects current logins within 5 minutes, and it is lifted on the next
+refresh after enrolling.
 """
 
 from __future__ import annotations
@@ -17,11 +18,12 @@ from shared.kernel.settings.settings import settings
 
 
 def needs_two_factor_setup(user: User, carry: SessionCarryOver) -> bool:
-    """SSO は IdP の強度に任せ（ADR-0076 §3）、パスキーはそれだけで二要素を満たす。残るのはパスワードだけ。"""
+    """SSO relies on the IdP's strength (ADR-0076 §3) and a passkey satisfies two factors on its own;
+    only passwords remain."""
     if not settings.local_two_factor_required or carry.federated_login is not None or carry.signed_in_with_passkey:
         return False
     session = object_session(user)
-    if session is None:  # pragma: no cover - 入口は全部 DB から読んだ利用者を渡す
+    if session is None:  # pragma: no cover - every caller passes a user loaded from the DB
         raise RuntimeError("the user must belong to a session")
     return not SqlLocalFactorDirectory(session).factors_of(user.id).totp
 

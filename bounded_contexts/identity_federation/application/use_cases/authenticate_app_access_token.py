@@ -1,13 +1,14 @@
-"""アプリから来た assay のアクセストークンを、このアプリの利用者へ落とす（ADR-0081 §1）。
+"""Resolve an assay access token coming from an app to a user of this app (ADR-0081 §1).
 
-受け取る条件（どれか 1 つでも外れたら同じ 401）:
+Acceptance conditions (failing any one gives the same 401):
 
-- 署名・``typ``・発行者・宛先・期限（ゲートウェイが確かめる）
-- ``client_id`` が受け取ってよいアプリのもの
-- ``sub_type`` が無い（機械のトークンではない）
-- 停止の記録（ADR-0077 §3）に当たらない
-- ``cnf.jkt`` があれば、``Authorization: DPoP`` と、その鍵で作った証明が付いている（ADR-0103）。
-  証明は鍵ごとに 1 回だけ。``cnf`` が無ければ ``Bearer`` だけ（今までのアプリ）
+- Signature, ``typ``, issuer, audience, expiry (checked by the gateway)
+- ``client_id`` belongs to an app we may accept
+- No ``sub_type`` (not a machine token)
+- Not hit by a logout record (ADR-0077 §3)
+- If ``cnf.jkt`` is present, it comes with ``Authorization: DPoP`` and a proof made with that key
+  (ADR-0103).
+    Each proof is single-use per key. Without ``cnf``, ``Bearer`` only (existing apps)
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ from shared.kernel.timestamps import utcnow_aware
 
 @dataclass(frozen=True)
 class AppTokenAcceptance:
-    """誰のトークンを受け取るか（設定から起こす）。"""
+    """Whose tokens to accept (built from settings)."""
 
     issuer: str
     client_ids: frozenset[str]
@@ -63,7 +64,7 @@ class AuthenticateAppAccessToken:
     dpop_replays: DpopProofReplayRepository
 
     def execute(self, presented: PresentedAppToken) -> int:
-        """受け取れるなら利用者の id を返す。"""
+        """Return the user's id if acceptable."""
         if not (self.acceptance.issuer and self.acceptance.client_ids):
             raise AppAccessTokenRejectedError
         claims = self.gateway.verify_access_token(self.acceptance.issuer, presented.token)
@@ -76,9 +77,9 @@ class AuthenticateAppAccessToken:
         return self._first_visit(presented, subject, bound=bound_key is not None)
 
     def _check_possession(self, presented: PresentedAppToken, bound_key: str | None) -> None:
-        """出し方とトークンの結び付けが合うか（ADR-0103）。
+        """Whether the presentation scheme matches the token's binding (ADR-0103).
 
-        ⚠ **結び付けたトークンを ``Bearer`` で受けない。** 受けると、トークンだけを写した者が使える。
+        ⚠ **Don't accept a bound token via ``Bearer``.** Doing so would let anyone who copied just the token use it.
         """
         if bound_key is None:
             if presented.dpop:
@@ -108,8 +109,8 @@ class AuthenticateAppAccessToken:
             raise AppAccessTokenRejectedError
         if str(claims.get("client_id") or "") not in self.acceptance.client_ids:
             raise AppAccessTokenRejectedError
-        # セッションの始まりは ``iat`` とみなす。更新のたびに新しくなるが、停止した利用者の
-        # 更新は assay が断るので、停止より後の ``iat`` は現れない。
+        # Treat ``iat`` as the session start. It renews on every refresh, but assay refuses refreshes
+        # for suspended users, so no ``iat`` later than the suspension appears.
         started_at = datetime.fromtimestamp(int(claims["iat"]), tz=UTC).replace(tzinfo=None)
         login = FederatedLogin(FederatedSession(self.acceptance.issuer, subject), started_at)
         if self.revocations.is_revoked(login):
@@ -117,10 +118,11 @@ class AuthenticateAppAccessToken:
         return subject
 
     def _first_visit(self, presented: PresentedAppToken, subject: str, *, bound: bool) -> int:
-        """アプリから先に来た人。SSO のログインと同じ規則で作る・寄せる（ADR-0081 §1 決定 4）。
+        """A person arriving from an app first. Created / merged by the same rules as SSO login
+        (ADR-0081 §1 decision 4).
 
-        結び付けたトークンでは assay の userinfo を引けない（このサーバーは鍵を持たない）ので、
-        アプリが送った ID トークンの署名を確かめて読む（ADR-0103）。
+        With a bound token, assay's userinfo can't be fetched (this server doesn't hold the key), so
+        the ID token sent by the app is read after verifying its signature (ADR-0103).
         """
         profile = dict(self._profile(presented, bound=bound))
         if profile.get("sub") not in (None, subject):
@@ -138,13 +140,13 @@ class AuthenticateAppAccessToken:
 
 
 def _bound_key(claims: Mapping[str, Any]) -> str | None:
-    """``cnf.jkt``（DPoP で結び付けた鍵の指紋）。無ければ ``None``。"""
+    """``cnf.jkt`` (thumbprint of the key bound via DPoP). ``None`` if absent."""
     confirmation = claims.get("cnf")
     if confirmation is None:
         return None
     jkt = confirmation.get("jkt") if isinstance(confirmation, Mapping) else None
     if not isinstance(jkt, str) or not jkt:
-        # 読めない結び付けは「無い」に倒さない（倒すと Bearer で通ってしまう）
+        # An unreadable binding isn't treated as "absent" (that would let it pass as Bearer)
         raise AppAccessTokenRejectedError
     return jkt
 

@@ -1,8 +1,8 @@
 /**
- * テナントの外の人（運用者・サポート担当）の付け外し（ADR-0079 §1・§5・ADR-0084 §4）。
+ * Adding / removing people outside tenants (operators, support staff) (ADR-0079 §1, §5, ADR-0084 §4).
  *
- * 見るのは、足すと招待を送れたかを知らせること・自分の行には外すボタンを出さないこと・
- * サーバーが断った理由（最後の 1 人など）を出すこと。
+ * Checks that adding reports whether the invitation was sent, that your own row has no remove button,
+ * and that the reason the server refused (e.g. the last one) is shown.
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,14 +52,14 @@ async function renderPage() {
 
 function rowOf(name: string): HTMLElement {
   const row = screen.getByRole('rowheader', { name }).closest('tr')
-  if (!row) throw new Error(`${name} の行が無い`)
+  if (!row) throw new Error(`no row for ${name}`)
   return row
 }
 
-/** 入力の検査を通さずに送る（空のまま送ったときにサーバーが断る道を見る）。 */
+/** Submits without input validation (to exercise the server refusing an empty submission). */
 function submitWithout(button: HTMLElement) {
   const form = button.closest('form')
-  if (!form) throw new Error('フォームが無い')
+  if (!form) throw new Error('no form')
   fireEvent.submit(form)
 }
 
@@ -69,7 +69,7 @@ describe('SystemAdministratorsPage', () => {
     apiDelete.mockResolvedValue(undefined)
   })
 
-  it('自分は外せない（外すボタンを出さない）', async () => {
+  it('cannot remove yourself (no remove button)', async () => {
     await renderPage()
     expect(within(rowOf('me')).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
     fireEvent.click(within(rowOf('second')).getByRole('button', { name: 'Delete' }))
@@ -79,7 +79,7 @@ describe('SystemAdministratorsPage', () => {
     expect(apiGet).toHaveBeenCalledTimes(2)
   })
 
-  it('外すのを断られたら理由を出す', async () => {
+  it('shows the reason when removal is refused', async () => {
     apiDelete.mockRejectedValue(new ApiError(409, 'last_administrator'))
     await renderPage()
     fireEvent.click(within(rowOf('second')).getByRole('button', { name: 'Delete' }))
@@ -88,7 +88,7 @@ describe('SystemAdministratorsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('足すと招待を送り、送れなければメールを整えてから足し直すよう案内する', async () => {
+  it('sends an invitation on add, and if it cannot be sent advises fixing email and adding again', async () => {
     apiPost.mockResolvedValue({ user_id: 3, invitation_sent: false })
     await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Add an operator or support staff' }))
@@ -108,7 +108,7 @@ describe('SystemAdministratorsPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('同じメールアドレスの人が居れば理由を出す', async () => {
+  it('shows the reason when someone with the same email address exists', async () => {
     apiPost.mockRejectedValue(new ApiError(409, 'email_already_exists'))
     await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Add an operator or support staff' }))
@@ -116,7 +116,7 @@ describe('SystemAdministratorsPage', () => {
     expect(await screen.findByText('This email is already registered.')).toBeInTheDocument()
   })
 
-  it('役割を並べ、足すときにサポート担当を選べる', async () => {
+  it('lists the roles and lets support be chosen when adding', async () => {
     apiPost.mockResolvedValue({ user_id: 3, invitation_sent: true })
     await renderPage()
     expect(within(rowOf('second')).getByText('Support')).toBeInTheDocument()

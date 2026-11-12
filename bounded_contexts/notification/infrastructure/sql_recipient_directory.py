@@ -1,7 +1,7 @@
-"""``IRecipientDirectory`` の SQLAlchemy 実装（利用者・グループは shared のテーブル）。
+"""SQLAlchemy implementation of ``IRecipientDirectory`` (users and groups are shared tables).
 
-宛先に選べるのは送り手のテナントの人とグループだけ（ADR-0079 §1）。別のテナントの
-グループ・利用者は「無い」として断る。
+Only people and groups in the sender's tenant can be chosen as the audience (ADR-0079 §1).
+Groups and users of other tenants are refused as not found.
 """
 
 from __future__ import annotations

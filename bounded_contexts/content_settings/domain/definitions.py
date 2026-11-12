@@ -1,7 +1,8 @@
-"""コンテンツ設定の項目の定義（ADR-0085 決定 1）。
+"""Definitions of the content setting items (ADR-0085 decision 1).
 
-**項目を足すのはここだけ。** 値の型・選べる値・既定値をコードで持ち、DB はテナントが
-変えた値しか持たない。派生アプリは見本（``item_list_order``）を消して自分の項目を並べる。
+**This is the only place to add items.** The code holds each value's type, choices and default;
+the DB holds only values a tenant changed. Derived apps delete the sample (``item_list_order``)
+and list their own items.
 """
 
 from __future__ import annotations
@@ -21,14 +22,14 @@ class ContentSettingDefinition:
     key: str
     value_type: ContentSettingType
     default: str | bool | int
-    #: ``CHOICE`` で選べる値（表示の文言は画面の辞書が持つ）
+    #: Allowed values for ``CHOICE`` (the display labels live in the UI dictionary)
     choices: tuple[str, ...] = ()
-    #: ``INTEGER`` の範囲（両端を含む）
+    #: Range for ``INTEGER`` (inclusive on both ends)
     minimum: int | None = None
     maximum: int | None = None
 
 
-#: 見本。アイテムの一覧の並び順（``bounded_contexts/example`` が読む）
+#: Sample: sort order of the item list (read by ``bounded_contexts/example``)
 ITEM_LIST_ORDER = ContentSettingDefinition(
     key="item_list_order",
     value_type=ContentSettingType.CHOICE,

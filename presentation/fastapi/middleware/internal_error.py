@@ -1,26 +1,24 @@
-"""想定外の例外を、通常の応答としてミドルウェアの内側で受け止める。
+"""Catch unexpected exceptions inside the middleware stack as ordinary responses.
 
-``Exception`` ハンドラだけでは足りない。Starlette はそれを
-``ServerErrorMiddleware``（全ミドルウェアの**外側**）へ載せるため、そこで作った
-応答は CORS ミドルウェアもリクエストログミドルウェアも通らない。結果として
+An ``Exception`` handler alone is not enough. Starlette mounts it on ``ServerErrorMiddleware``
+(**outside** all middleware), so a response built there passes through neither the CORS
+middleware nor the request logging middleware. As a result:
 
-- 別オリジンのフロントエンドでは ``Access-Control-Allow-Origin`` が付かず、
-  ブラウザが本文を捨てる。せっかくのエラーコードが読まれず ``unknown_error``
-  に戻ってしまう。
-- アクセスログに 500 の行が残らない（例外が記録層を素通りするため）。
-- アプリログ・監査ログのまとめ書きが走らず、そのリクエストで出たログ行ごと
-  失われる（まとめ書きのミドルウェアも外側にいるため）。
+- A frontend on another origin gets no ``Access-Control-Allow-Origin``, and the browser
+  discards the body. The error code is never read and falls back to ``unknown_error``.
+- No 500 line is left in the access log (the exception bypasses the logging layer).
+- The batched app/audit log writes don't run, and all log rows from that request are lost
+  (the batching middleware is outside too).
 
-このミドルウェアを最も内側に置き、例外をここで応答へ変えることで、以降の
-ミドルウェアからは「ふつうの 500 応答」に見えるようにする。
+Placing this middleware innermost and turning the exception into a response here makes it look
+like "an ordinary 500 response" to the middleware further out.
 
-**素の ASGI ミドルウェアとして書いている**（``BaseHTTPMiddleware`` を使わない）。
-``BaseHTTPMiddleware`` は下流を**別のタスク**で走らせるため、そこで設定された
-``contextvars`` が ``dispatch`` 側へ伝わらない。認証依存関数が設定する
-``user_id_hash``（:mod:`shared.kernel.logging.request_context`）がまさにそれで、
-``BaseHTTPMiddleware`` のままだと 500 のログ行だけ「誰のリクエストか」が空になる。
-``await self.app(...)`` は同じタスクで下流を待つので、認証済みの文脈がそのまま
-記録に乗る。
+**Written as a plain ASGI middleware** (not ``BaseHTTPMiddleware``). ``BaseHTTPMiddleware`` runs
+the downstream in **a separate task**, so ``contextvars`` set there don't propagate to
+``dispatch``. ``user_id_hash`` set by the auth dependency
+(:mod:`shared.kernel.logging.request_context`) is exactly that case: with ``BaseHTTPMiddleware``,
+only the 500 log lines would lack "whose request it was". ``await self.app(...)`` waits for the
+downstream in the same task, so the authenticated context carries into the record.
 """
 
 from __future__ import annotations
@@ -47,11 +45,11 @@ class InternalErrorMiddleware:
         try:
             await self.app(scope, receive, started.watching(send))
         except Exception as error:
-            # 最後の受け皿なので、ここでは種類を問わず握って応答へ変える。
+            # This is the last resort, so catch any kind here and turn it into a response.
             request = Request(scope)
             if started.value:
-                # ヘッダーを送り出した後は応答を差し替えられない。記録だけ残して
-                # 投げ直す（外側の ServerErrorMiddleware が接続を閉じる）。
+                # The response cannot be replaced once headers are sent. Just record it and
+                # re-raise (the outer ServerErrorMiddleware closes the connection).
                 log_unhandled_exception(request, error)
                 raise
             response = internal_error_response(request, error)
@@ -59,7 +57,7 @@ class InternalErrorMiddleware:
 
 
 class _ResponseStarted:
-    """応答の送出が始まったかを覚える（差し替え可能かの判断に使う）。"""
+    """Remember whether sending the response has started (used to decide if it can be replaced)."""
 
     def __init__(self) -> None:
         self.value = False

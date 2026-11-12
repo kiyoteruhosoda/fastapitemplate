@@ -1,4 +1,4 @@
-"""アプリの代わりに P-256 の鍵で DPoP の証明を作る（ADR-0103 の試験）。"""
+"""Creates DPoP proofs with a P-256 key in place of the app (tests for ADR-0103)."""
 
 from __future__ import annotations
 

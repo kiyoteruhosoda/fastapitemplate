@@ -1,4 +1,4 @@
-/** 画面右下の簡易トースト通知。 */
+/** Simple toast notification at the bottom right of the screen. */
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
 import { currentOutage } from '../services/maintenance'
@@ -19,7 +19,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const notify = useCallback((kind: Toast['kind'], text: string) => {
-    // 前段が閉じている間の失敗は、メンテナンスの画面が伝える（ADR-0080 §10）
+    // Failures while the front tier is closed are reported by the maintenance screen (ADR-0080 §10)
     if (kind === 'error' && currentOutage()) return
     const id = Date.now() + Math.random()
     setToasts((prev) => [...prev, { id, kind, text }])

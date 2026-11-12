@@ -1,8 +1,8 @@
 """account security (TOTP / passkey)
 
-二要素認証（TOTP 共有鍵）とパスキー（WebAuthn 資格情報・チャレンジ）の
-テーブルを追加する。定義の正本は
-``bounded_contexts/account_security/infrastructure/account_security_models.py``。
+Add the tables for two-factor authentication (TOTP shared secrets) and passkeys (WebAuthn
+credentials and challenges). The definitions live in
+``bounded_contexts/account_security/infrastructure/account_security_models.py``.
 
 Revision ID: account_security
 Revises: seed_master_data
@@ -22,7 +22,7 @@ branch_labels = None
 depends_on = None
 
 _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
-# DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる）
+# No DB-native ENUM (becomes a VARCHAR with a CHECK constraint)
 _CHALLENGE_PURPOSE = sa.Enum(
     "registration",
     "authentication",

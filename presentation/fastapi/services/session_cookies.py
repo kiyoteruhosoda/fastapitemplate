@@ -1,14 +1,13 @@
-"""ログインが成立したときに載せるもの（ADR-0076 §4）。
+"""What is set when a login succeeds (ADR-0076 §4).
 
-トークンを発行する経路は 3 本ある（パスワード / パスキー / SSO の券の引き換え）。
-**SSO で入ったログインにはリフレッシュトークンを出さない**（アクセストークンだけ。ADR-0104）。
-**載せ方をここ 1 か所に集める** ——1 本でも Cookie の付け方がずれると、その入口
-だけ CSRF が効かない・更新できない、といった差が出る。
+There are three paths that issue tokens (password / passkey / SSO ticket exchange).
+**SSO logins get no refresh token** (access token only; ADR-0104).
+**How they are set lives in this one place**: if even one path sets cookies differently, that
+entrance alone ends up without CSRF protection, unable to refresh, and so on.
 
-⚠ **応答本文にトークンを載せない。** Cookie は自動で送られるので、本文にも返すと
-XSS が ``POST /api/auth/refresh`` を叩いて新しいトークンを読めてしまい、
-``httpOnly`` にした意味が無くなる。返すのは寿命だけで、SPA はそれを使って
-更新の頃合いを測る。
+⚠ **Tokens are not put in the response body.** Cookies are sent automatically, so returning them
+in the body too would let XSS call ``POST /api/auth/refresh`` and read the new token, defeating
+``httpOnly``. Only the lifetime is returned, which the SPA uses to time its refresh.
 """
 
 from __future__ import annotations
@@ -38,31 +37,33 @@ def establish_session(
     user: User,
     carry: SessionCarryOver = FRESH_SIGN_IN,
 ) -> SessionResponse:
-    """トークン対を発行し、Cookie へ載せて寿命だけを返す。
+    """Issue a token pair, set it in cookies, and return only the lifetime.
 
-    ``carry`` は前のセッションから引き継ぐもの（ロール・IdP のセッション・最後に実際に
-    サインインした時刻）。⚠ **更新・ロールの切り替えでは必ず全部引き継ぐこと**
-    （:mod:`~presentation.fastapi.services.session_carry_over`）。既定は「いま入口から
-    入った」で、そのまま使ってよいのはパスワード・パスキーの入口だけ（SSO は IdP の
-    セッションを渡す）。
+    ``carry`` is what carries over from the previous session (role, IdP session, time of the last
+    actual sign-in). ⚠ **Refresh and role switch must always carry all of it**
+    (:mod:`~presentation.fastapi.services.session_carry_over`). The default means "just came in
+    through an entrance" and may be used as is only by the password and passkey entrances (SSO
+    passes the IdP session).
     """
     from presentation.fastapi.services.token_service import RENEWAL_CARRY_SECONDS, TokenService
 
     ensure_tenant_admits(user)
     if carry.federated_login is not None:
-        # SSO で入ったログインはリフレッシュトークンを持たない（ADR-0104）。切れたら画面が IdP に問い合わせる
-        # Cookie はトークンより長く残す。切れた後に続ける往復が、ロールとサインインした時刻を読む
+        # SSO logins have no refresh token (ADR-0104). When it expires the UI asks the IdP
+        # The cookie outlives the token: the round trip that continues after expiry reads the role
+        # and sign-in time from it
         set_access_token_cookie(
             response,
             TokenService.create_access_token(user, carry=carry),
             max_age=RENEWAL_CARRY_SECONDS,
         )
-        # この仕組みより前に出した更新の札が手元に残っていれば落とす（更新の口も、もう受けない）
+        # Drop any refresh token issued before this mechanism (the refresh endpoint no longer
+        # accepts it either)
         clear_refresh_cookies(response)
         _set_csrf_cookie(response)
         return SessionResponse(expires_in=settings.access_token_expires_seconds)
     session = object_session(user)
-    if session is None:  # pragma: no cover - 入口は全部 DB から読んだ利用者を渡す
+    if session is None:  # pragma: no cover - every caller passes a user loaded from the DB
         raise RuntimeError("the user must belong to a session")
     lifetime = refresh_sessions.lifetime_for(session, carry.refresh_session_id or carry.lifetime_from_session_id)
     pair = TokenService.create_token_pair(user, carry=carry, refresh_expires_at=lifetime.expires_at)
@@ -85,13 +86,14 @@ def _record_refresh_session(
     issued: refresh_sessions.IssuedRefreshToken,
     carry: SessionCarryOver,
 ) -> bool:
-    """控えを作るか振り替える（ADR-0091）。リフレッシュトークンの Cookie を載せてよければ真。"""
+    """Create or rotate the login record (ADR-0091). True if the refresh token cookie may be set."""
     if carry.refresh_session_id is None:
         refresh_sessions.begin(session, issued=issued, user_id=user.id)
         return True
     rotated = refresh_sessions.rotate(session, issued=issued, expected_jti=carry.presented_jti)
-    # ⚠ **行のロックを応答まで持ち越さない。** 同じログインの更新が同時に来ると、後の更新は確定までこの行を待つ。
-    #   確定は応答を返した後（``get_db`` の後始末）なので、ここで確定して待ちを短くする。
+    # ⚠ **Don't hold the row lock until the response.** If refreshes of the same login arrive at
+    #   once, the later one waits on this row until commit. The commit happens after the response
+    #   (``get_db`` teardown), so commit here to shorten the wait.
     session.commit()
     return rotated
 
@@ -100,17 +102,17 @@ TENANT_SUSPENDED = "tenant_suspended"
 
 
 def ensure_tenant_admits(user: User) -> None:
-    """止めたテナントの人にはトークンを出さない（ADR-0079 §1）。入口は全部ここを通る。"""
+    """No tokens for members of a suspended tenant (ADR-0079 §1). Every entrance goes through here."""
     session = object_session(user)
     if session is not None and not tenant_admits(session, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_SUSPENDED})
 
 
 def _set_csrf_cookie(response: Response) -> None:
-    """CSRF の二重送信トークン。**これだけは JavaScript から読める。**
+    """The CSRF double-submit token. **This one alone is readable from JavaScript.**
 
-    読めなければヘッダーに載せられない。漏れてもそれ単体では何もできない値なので、
-    アクセストークンと同じ扱いにしない。
+    It can't be put in a header unless it is readable. Leaking it achieves nothing on its own, so
+    it is not treated like the access token.
     """
     response.set_cookie(
         CSRF_COOKIE,

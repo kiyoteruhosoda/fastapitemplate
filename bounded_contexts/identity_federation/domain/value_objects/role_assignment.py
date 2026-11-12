@@ -1,12 +1,12 @@
-"""IdP で入った利用者へ与えるロール。
+"""Roles given to users who signed in via the IdP.
 
-認可そのものは scope（権限コード）で行う（CLAUDE.md「権限管理」）。ここが決めるのは
-**どのロールを与えるか**までで、scope はロールが持つ権限としてすでに決まっている。
+Authorization itself uses scopes (permission codes) (CLAUDE.md "Permission management"). This only
+decides **which roles to give**; scopes are already determined as the permissions roles hold.
 
-⚠ **グループからは引かない**（ADR-0077 §6 / idp の ADR-0049 G7）。自前 idp (assay) は
-``groups`` クレームを発行しないので、**設定として存在するのに一度も効かない**状態に
-なっていた。idp の ADR-0049 は I6 として「**権限は RP が持つ。IdP は配らない**」と
-決めているので、引く側を消すのが筋である。
+⚠ **Not derived from groups** (ADR-0077 §6 / idp ADR-0049 G7). Our own idp (assay) doesn't
+issue a ``groups`` claim, so it was **a setting that existed but never took effect**.
+idp ADR-0049 decides as I6 that "**permissions are held by the RP; the IdP doesn't hand them
+out**", so removing the deriving side is the right thing.
 """
 
 from __future__ import annotations
@@ -17,11 +17,11 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RoleAssignment:
-    """IdP で入った利用者へ与える既定のロール。
+    """Default roles given to users who signed in via the IdP.
 
-    ``sync_on_login`` が真なら毎回のログインで引き直す。⚠ **引き直すのは既定の
-    ロールだけなので、管理画面で足したロールは毎回のログインで消える。** 管理画面で
-    運用するなら偽にすること（既定は偽）。
+    If ``sync_on_login`` is true they are re-applied on every login. ⚠ **Only the default roles
+    are re-applied, so roles added on the admin screen disappear on every login.** Set it false
+    if managing via the admin screen (default is false).
     """
 
     default_roles: tuple[str, ...] = ()
@@ -35,7 +35,7 @@ class RoleAssignment:
         )
 
     def roles(self) -> tuple[str, ...]:
-        """与えるロール。"""
+        """Roles to give."""
         return self.default_roles
 
 

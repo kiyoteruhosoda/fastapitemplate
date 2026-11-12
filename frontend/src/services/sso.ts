@@ -1,46 +1,46 @@
 /**
- * 外部 IdP（OIDC）によるログイン（ADR-0077 §1）。
+ * Sign-in via an external IdP (OIDC) (ADR-0077 §1).
  *
- * 開始はブラウザの画面遷移で行う（fetch では IdP のログイン画面を出せない）。
- * IdP から戻ってきた時点でトークンは URL に載っておらず、代わりに 1 回限りの
- * 引き換え券が付く。それをトークンへ換えるのが `exchangeSsoTicket`。
+ * Starting is done by browser navigation (fetch can't show the IdP's sign-in page).
+ * On return from the IdP the URL carries no token; instead it carries a one-time exchange
+ * ticket. `exchangeSsoTicket` exchanges it for tokens.
  */
 import { api } from './api'
 
 export interface SsoProvider {
   enabled: boolean
-  /** ログインボタンに出す名前（IdP の呼び名）。 */
+  /** Name shown on the sign-in button (what the IdP is called). */
   display_name: string
   /**
-   * パスワード・パスキーの入口が開いているか（ADR-0076 §3 決定 2）。
-   * 偽ならログイン画面はパスワード欄とパスキーのボタンを出さない。
+   * Whether the password/passkey entry points are open (ADR-0076 §3, decision 2).
+   * If false, the sign-in screen shows neither the password field nor the passkey button.
    */
   local_login_enabled: boolean
   /**
-   * サインアウトを IdP まで通すか（既定は偽）。真のときだけ、アプリの
-   * サインアウトを済ませたあと `startSsoLogout` で IdP へ送り出す。
+   * Whether sign-out goes through to the IdP (default false). Only when true, after the app's
+   * sign-out completes, `startSsoLogout` sends the browser to the IdP.
    */
   rp_logout_enabled: boolean
 }
 
 export interface SsoSession {
   expires_in: number
-  /** SSO を始めた画面（アプリ内の経路）。 */
+  /** Screen where SSO started (an in-app path). */
   redirect_to: string
 }
 
-/** SSO が使える構成かを問い合わせる（未認証で呼べる）。 */
+/** Ask whether SSO is configured (callable unauthenticated). */
 export function fetchSsoProvider(tenant?: string): Promise<SsoProvider> {
   const query = tenant ? `?${new URLSearchParams({ tenant }).toString()}` : ''
   return api.get<SsoProvider>(`/api/auth/sso/provider${query}`)
 }
 
 /**
- * IdP へ送り出す。戻り先は `redirectTo`（アプリ内の経路のみ有効）。
- * `silent` なら `prompt=none` を付ける（ログイン画面が開いたときの試し。ADR-0077 §9）。
+ * Send the browser to the IdP. Returns to `redirectTo` (only in-app paths are valid).
+ * With `silent`, add `prompt=none` (the attempt when the sign-in screen opens; ADR-0077 §9).
  *
- * `assign` ではなく `replace` を使う。ログイン画面を履歴に残すと、ログイン後の
- * 「戻る」でログイン画面へ戻ってしまうため。
+ * Use `replace`, not `assign`. Leaving the sign-in screen in history would make "Back" after
+ * signing in return to the sign-in screen.
  */
 export function startSsoLogin(
   redirectTo: string,
@@ -48,28 +48,28 @@ export function startSsoLogin(
   options: { silent?: boolean } = {},
 ): void {
   const query = new URLSearchParams({ redirect_to: redirectTo })
-  // 送り出す先はテナントの IdP（ADR-0079 §4）
+  // The destination is the tenant's IdP (ADR-0079 §4)
   if (tenant) query.set('tenant', tenant)
-  // IdP に画面を出させずに試す（ADR-0077 §9。services/silentSso.ts）
+  // Try without letting the IdP show a screen (ADR-0077 §9; services/silentSso.ts)
   if (options.silent) query.set('prompt', 'none')
   window.location.replace(`/api/auth/sso/login?${query.toString()}`)
 }
 
 /**
- * サインアウトを IdP まで通す（RP-Initiated Logout）。
+ * Carry sign-out through to the IdP (RP-Initiated Logout).
  *
- * `startSsoLogin` と同じく**画面遷移**でしか行えない。IdP の Cookie を落とすのは
- * IdP 自身なので、fetch では届かない。
+ * Like `startSsoLogin`, this only works via **navigation**. Only the IdP itself can drop the
+ * IdP's cookies, so fetch can't reach them.
  *
- * `replace` を使う。サインアウトした画面を履歴に残すと、「戻る」でそこへ戻れて
- * しまい、サインアウトしたのかどうかが読めなくなる。
+ * Use `replace`. Leaving the signed-out screen in history would let "Back" return to it,
+ * making it unclear whether the user signed out.
  */
 export function startSsoLogout(tenant?: string): void {
   const query = tenant ? `?${new URLSearchParams({ tenant }).toString()}` : ''
   window.location.replace(`/api/auth/sso/logout${query}`)
 }
 
-/** 引き換え券をトークンへ換える。 */
+/** Exchange the ticket for tokens. */
 export function exchangeSsoTicket(ticket: string): Promise<SsoSession> {
   return api.post<SsoSession>('/api/auth/sso/token', { ticket })
 }

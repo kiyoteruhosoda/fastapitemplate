@@ -1,11 +1,12 @@
-"""ログの保持期間。
+"""Log retention periods.
 
-``log`` と ``audit_log`` は性質が違うので日数を別に持つ（ADR-0075 §3）。アプリログは
-多い・短命で削ってよいが、監査ログは「誰が何をしたか」の記録で、消してよい行が無い。
+``log`` and ``audit_log`` differ in nature, so they have separate day counts (ADR-0075 §3).
+Application logs are numerous and short-lived and may be trimmed, while audit logs record "who
+did what" and have no rows that may be deleted.
 
-``0`` は「削除しない」。保持期間は運用・監査の要件で決まるもので、テンプレートが
-既定で消し始めてよいものではないため、既定はどちらも ``0``。負の日数も同じ扱いに
-する（設定の打ち間違いで直近の行まで消さない）。
+``0`` means "never delete". Retention is decided by operational and audit requirements, and the
+template should not start deleting by default, so both default to ``0``. Negative day counts are
+treated the same (a typo in the setting must not delete even the most recent rows).
 """
 
 from __future__ import annotations
@@ -18,22 +19,22 @@ KEEP_FOREVER = 0
 
 @dataclass(frozen=True, slots=True)
 class LogRetentionPolicy:
-    """どのテーブルを何日残すか。"""
+    """Which table to keep for how many days."""
 
     application_log_days: int = KEEP_FOREVER
     audit_log_days: int = KEEP_FOREVER
 
     @property
     def purges_nothing(self) -> bool:
-        """どちらのテーブルも削除対象にならないか。"""
+        """Whether neither table is subject to deletion."""
         return self.application_log_days <= KEEP_FOREVER and self.audit_log_days <= KEEP_FOREVER
 
     def application_log_cutoff(self, now: datetime) -> datetime | None:
-        """これより古いアプリログを消す境界。削除しない設定なら ``None``。"""
+        """Boundary before which application logs are deleted. ``None`` if set to never delete."""
         return _cutoff(self.application_log_days, now)
 
     def audit_log_cutoff(self, now: datetime) -> datetime | None:
-        """これより古い監査ログを消す境界。削除しない設定なら ``None``。"""
+        """Boundary before which audit logs are deleted. ``None`` if set to never delete."""
         return _cutoff(self.audit_log_days, now)
 
 

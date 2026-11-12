@@ -1,7 +1,7 @@
-"""``log`` テーブルの検索実装（読み取り専用）。
+"""Search implementation for the ``log`` table (read only).
 
-書き込みは :mod:`shared.kernel.logging` の ``DbLogHandler`` が行う。ここは管理
-画面の閲覧のために読むだけ。
+Writing is done by ``DbLogHandler`` in :mod:`shared.kernel.logging`. This only reads for viewing
+on the admin screen.
 """
 
 from __future__ import annotations
@@ -18,15 +18,15 @@ from bounded_contexts.audit.domain.value_objects.log_search_criteria import (
 )
 from shared.infrastructure.models.log import Log
 
-# LIKE のメタ文字を無効化するためのエスケープ文字
+# Escape character that disables LIKE metacharacters
 _LIKE_ESCAPE = "\\"
 
 
 def _escaped_for_like(value: str) -> str:
-    """``%`` / ``_`` / ``\\`` を打ち消す。
+    """Neutralize ``%`` / ``_`` / ``\\``.
 
-    利用者の入力は「文字列」であってパターンではない。エスケープしないと
-    ``%`` の 1 文字で全件一致になり、絞り込みとして機能しない。
+    User input is a "string", not a pattern. Without escaping, a single ``%`` matches everything
+    and the filter stops working.
     """
     for character in (_LIKE_ESCAPE, "%", "_"):
         value = value.replace(character, _LIKE_ESCAPE + character)
@@ -34,7 +34,7 @@ def _escaped_for_like(value: str) -> str:
 
 
 class SqlApplicationLogQuery:
-    """条件に一致するアプリログを新しい順に返す。"""
+    """Return application logs matching the criteria, newest first."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -53,7 +53,7 @@ class SqlApplicationLogQuery:
 
 
 def _conditions(criteria: ApplicationLogCriteria) -> list[sa.ColumnElement[bool]]:
-    """指定された項目だけを AND 条件として積む。"""
+    """Stack only the given fields as AND conditions."""
     conditions: list[sa.ColumnElement[bool]] = []
     if criteria.level:
         conditions.append(Log.level == criteria.level)

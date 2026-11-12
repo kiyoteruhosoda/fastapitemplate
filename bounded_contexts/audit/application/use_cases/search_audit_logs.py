@@ -1,4 +1,4 @@
-"""監査ログを検索するユースケース（管理画面の閲覧）。"""
+"""Use case that searches audit logs (viewing on the admin screen)."""
 
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ class SearchAuditLogs:
 
 
 class ListAuditLogFilterOptions:
-    """絞り込みに使える値の一覧を返す。
+    """Return the list of values available for filtering.
 
-    画面に列挙を写して二重管理しないための入口。DB を読まない（現在定義されて
-    いる監査イベント種別そのものが答え）。
+    The entry point that avoids duplicating the enums on the screen. Does not read the DB (the
+    currently defined audit event types are the answer themselves).
     """
 
     def execute(self) -> AuditLogFilterOptionsDto:

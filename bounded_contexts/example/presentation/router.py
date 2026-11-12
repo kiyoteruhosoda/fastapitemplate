@@ -1,10 +1,11 @@
-"""example コンテキストの API（Item CRUD）。
+"""example context API (Item CRUD).
 
-コンテキスト固有のルーター・スキーマ・依存関数は presentation/ 配下に
-まとめる。認可は scope（``item:view`` / ``item:write``）で宣言する。
+Context-specific routers, schemas and dependencies are grouped under presentation/.
+Authorization is declared by scope (``item:view`` / ``item:write``).
 
-一覧の並び順はテナントのコンテンツ設定 ``item_list_order`` に従う（コンテンツ設定を読む見本。ADR-0085）。
-一覧はページで返す（一覧 API の規約の見本。ADR-0095）。
+The list's sort order follows the tenant's content setting ``item_list_order`` (sample of reading
+a content setting; ADR-0085).
+The list is returned in pages (sample of the list API conventions; ADR-0095).
 """
 
 from __future__ import annotations
@@ -95,7 +96,7 @@ def list_items(
     repo: RepoDep,
     settings: Annotated[ContentSettingsBook, Depends(get_content_settings_book)],
 ) -> PageResponse[ItemResponse]:
-    # 選択の項目なので値は選べる値のどれか（合わない値は既定値で読む）
+    # A choice item, so the value is one of the allowed values (a non-matching value reads as the default)
     order = ItemListOrder(str(settings.value_of(ITEM_LIST_ORDER)))
     page = ListItemsUseCase(repo).execute(order, query.to_page())
     return PageResponse(entries=[ItemResponse.of(dto) for dto in page.entries], total=page.total)

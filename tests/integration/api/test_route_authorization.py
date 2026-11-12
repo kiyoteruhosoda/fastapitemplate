@@ -1,7 +1,7 @@
-"""全部の API に認可が掛かっているか（ADR-0089）。
+"""Whether every API has authorization (ADR-0089).
 
-口を足すときに ``require_permission`` を書き忘れると、誰でも叩ける口ができ、試験は何も言わない。
-公開する口はここに理由と一緒に書く。
+Forgetting ``require_permission`` when adding an entrance creates one anyone can call, and tests say nothing.
+Public entrances are listed here with a reason.
 """
 
 from __future__ import annotations
@@ -15,25 +15,25 @@ from fastapi.routing import APIRoute, iter_route_contexts
 from bounded_contexts.identity_federation.presentation.app_bearer import get_app_or_web_principal
 from presentation.fastapi.dependencies.auth import get_operation_principal, require_any_permission, require_permission
 
-#: 主体を確かめる関門。ほかの依存関数（require_permission など）はどれかを通る
+#: Gates that verify the principal. Other dependencies (require_permission, etc.) go through one of them
 _GATES: set[Callable[..., object]] = {get_operation_principal, get_app_or_web_principal}
 
-#: scope まで求める経路（管理の口は、入っているだけでは足りない）
+#: Paths that also require a scope (for admin entrances, being signed in is not enough)
 _PERMISSION_REQUIRED_PREFIXES = ("/api/admin", "/api/system")
 
 _PUBLIC_ROUTES = {
-    # 稼働の確かめ・ビルド情報（公開の範囲は Ingress と nginx で絞る）
+    # Health checks and build info (exposure is limited by Ingress and nginx)
     ("GET", "/metrics"),
     ("GET", "/api/health"),
     ("GET", "/healthz"),
     ("GET", "/readyz"),
-    # 版だけを返す。画面のフッターと配ったあとの確かめが読む（ADR-0096）
+    # Returns only the version. Read by the screen footer and post-deploy checks (ADR-0096)
     ("GET", "/info"),
-    # Android が確かめに来るファイル（ADR-0081 §1）
+    # File Android fetches for verification (ADR-0081 §1)
     ("GET", "/.well-known/assetlinks.json"),
-    # ログインの前に画面が読む既定の言語とテーマ（ADR-0080 §1）
+    # Default language and theme the screen reads before sign-in (ADR-0080 §1)
     ("GET", "/api/ui/settings"),
-    # 入る前の口。それぞれ自分で資格情報を確かめる
+    # Entrances before sign-in. Each verifies its own credentials
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/refresh"),
     ("POST", "/api/auth/logout"),
@@ -41,7 +41,8 @@ _PUBLIC_ROUTES = {
     ("POST", "/api/auth/reset-password"),
     ("POST", "/api/auth/passkey/challenge"),
     ("POST", "/api/auth/passkey/login"),
-    # SSO の往復（ADR-0077）。戻りは state、引き換えは券、停止の通知は IdP の署名で確かめる
+    # SSO round trip (ADR-0077). The return is checked by state, the exchange by ticket,
+    # logout notices by the IdP signature
     ("GET", "/api/auth/sso/provider"),
     ("GET", "/api/auth/sso/login"),
     ("GET", "/api/auth/sso/callback"),
@@ -49,14 +50,15 @@ _PUBLIC_ROUTES = {
     ("GET", "/api/auth/sso/logout"),
     ("GET", "/api/auth/sso/signed-out"),
     ("POST", "/api/auth/sso/backchannel-logout"),
-    # 切れたログインを続ける往復（ADR-0104）。始まりは誰でも開けるが IdP の prompt=none が決め、結果の頁は何も返さない
+    # Round trip that continues an expired sign-in (ADR-0104). Anyone can start it, but the IdP's
+    # prompt=none decides, and the result page returns nothing
     ("GET", "/api/auth/sso/renew"),
     ("GET", "/api/auth/sso/renewed"),
-    # 機械のトークンを換える口。assay のトークンと許可簿で確かめる（ADR-0087）
+    # Entrance that exchanges machine tokens. Checked by the assay token and the allow list (ADR-0087)
     ("POST", "/api/machine/token"),
 }
 
-#: 画面（SPA）の受け皿。``frontend/dist`` があるときだけ足される
+#: The SPA fallback. Only added when ``frontend/dist`` exists
 _PUBLIC_WHEN_BUILT_PATHS = {"/", "/{path:path}"}
 
 
@@ -68,11 +70,11 @@ def _dependencies(dependant: Dependant) -> Iterator[Callable[..., object]]:
 
 
 def _api_routes(app: FastAPI) -> dict[tuple[str, str], Dependant]:
-    """全部の API の口と、実効の依存関係。
+    """Every API entrance and its effective dependencies.
 
-    ⚠ **``app.routes`` を直に回さない。** ``include_router`` した口はそこに並ばず、``_IncludedRouter`` に
-    包まれている（回すと 1 本も見つからないまま試験が通る）。``include_router(dependencies=...)`` の
-    依存関係も、``iter_route_contexts`` の実効の値にしか無い。
+    ⚠ **Do not iterate ``app.routes`` directly.** Entrances added with ``include_router`` are not listed there
+    but wrapped in ``_IncludedRouter`` (iterating it finds none and the test passes). Dependencies from
+    ``include_router(dependencies=...)`` exist only in the effective values of ``iter_route_contexts``.
     """
     routes: dict[tuple[str, str], Dependant] = {}
     for context in iter_route_contexts(app.routes):
@@ -114,7 +116,7 @@ def _writes_with_any_permission(app: FastAPI) -> list[tuple[str, str]]:
 
 
 def _a_badly_guarded_app() -> FastAPI:
-    """規則を破った口を、``include_router`` の奥に置いたアプリ（判定の空振りを見つけるため）。"""
+    """An app with rule-breaking entrances placed deep inside ``include_router`` (to catch the check missing them)."""
     inner = APIRouter(prefix="/admin")
 
     @inner.get("/open")
@@ -144,28 +146,28 @@ def test_the_checks_catch_a_route_that_breaks_the_rules() -> None:
 
 
 def test_the_real_routes_are_being_looked_at(app: FastAPI) -> None:
-    """列挙が空だと、下の試験は全部素通りする（FastAPI の版上げで実際に起きた）。"""
+    """If the listing is empty, every test below passes trivially (this actually happened on a FastAPI upgrade)."""
     assert {("GET", "/api/auth/me"), ("GET", "/api/admin/users"), ("POST", "/api/auth/login")} <= set(_api_routes(app))
 
 
 def test_every_route_checks_who_is_calling(app: FastAPI) -> None:
     missing = _unguarded(app)
-    assert not missing, f"認可の無い口です。require_permission を付けるか、公開なら理由を書いて表へ: {missing}"
+    assert not missing, f"No authorization. Add require_permission, or if public, list it with a reason: {missing}"
 
 
 def test_the_public_list_has_no_leftovers(app: FastAPI) -> None:
-    """消した口や、認可を付けた口が表に残ると、次に同じ名前で足した口が素通りする。"""
+    """A removed or now-guarded entrance left in the table lets the next one added under that name slip through."""
     routes = _api_routes(app)
     stale = [key for key in _PUBLIC_ROUTES if key not in routes or _GATES & set(_dependencies(routes[key]))]
-    assert not stale, f"もう公開の口ではありません。表から消してください: {stale}"
+    assert not stale, f"No longer public entrances; remove them from the table: {stale}"
 
 
 def test_administration_routes_require_a_permission(app: FastAPI) -> None:
     missing = _administration_without_permission(app)
-    assert not missing, f"管理の口には scope が要ります: {missing}"
+    assert not missing, f"Admin entrances need a scope: {missing}"
 
 
 def test_any_permission_is_only_used_for_reading(app: FastAPI) -> None:
-    """「いずれか 1 つ」を書き込みに使うと、どの権限で許したのか監査から読めない（ADR-0078 §2）。"""
+    """Using "any one of" for writes makes the audit unable to tell which permission allowed it (ADR-0078 §2)."""
     found = _writes_with_any_permission(app)
-    assert not found, f"書き込みには require_permission を使ってください: {found}"
+    assert not found, f"Use require_permission for writes: {found}"

@@ -1,6 +1,7 @@
-"""ER 図と実際の表の突き合わせ（ADR-0089）。
+"""Comparing the ER diagram with the actual tables (ADR-0089).
 
-図はコードから生成せず手で書く（ADR-0072 §2）ので、表や列を足して図を直し忘れても何も起きない。
+The diagram is written by hand, not generated from code (ADR-0072 §2), so adding tables or columns
+without updating it would otherwise go unnoticed.
 """
 
 from __future__ import annotations
@@ -32,4 +33,4 @@ def test_every_column_is_in_the_er_diagram() -> None:
     different = {
         name: columns ^ documented[name] for name, columns in _actual().items() if columns != documented.get(name)
     }
-    assert not different, f"docs/ER.md と実際の列が違います: {different}"
+    assert not different, f"docs/ER.md differs from the actual columns: {different}"

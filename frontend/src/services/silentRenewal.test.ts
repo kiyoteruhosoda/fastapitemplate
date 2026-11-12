@@ -1,4 +1,4 @@
-/** 見えない枠で IdP に問い合わせ、枠の行き先から結果を読む（ADR-0104）。 */
+/** Ask the IdP in a hidden frame and read the result from the frame's location (ADR-0104). */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { RENEWAL_RESULT_PATH, renewInFrame } from './silentRenewal'
@@ -9,7 +9,7 @@ function frameNow(): HTMLIFrameElement {
   return frame
 }
 
-/** 枠が `href` まで進んで読み込みを終えたことにする。 */
+/** Pretend the frame advanced to `href` and finished loading. */
 function land(frame: HTMLIFrameElement, href: string | (() => never)): void {
   const location =
     typeof href === 'string'
@@ -29,7 +29,7 @@ describe('renewInFrame', () => {
     document.body.innerHTML = ''
   })
 
-  it('見えない枠で続ける往復を始める', () => {
+  it('starts the continuing round trip in a hidden frame', () => {
     void renewInFrame()
     const frame = frameNow()
     expect(frame.getAttribute('src')).toBe('/api/auth/sso/renew')
@@ -37,7 +37,7 @@ describe('renewInFrame', () => {
   })
 
   it.each(['renewed', 'declined'] as const)(
-    '結果の頁の %s を返し、枠を片付ける',
+    'returns %s from the result page and cleans up the frame',
     async (result) => {
       const pending = renewInFrame()
       land(frameNow(), `${RENEWAL_RESULT_PATH}?result=${result}`)
@@ -46,13 +46,13 @@ describe('renewInFrame', () => {
     },
   )
 
-  it('知らない結果は failed', async () => {
+  it('an unknown result is failed', async () => {
     const pending = renewInFrame()
     land(frameNow(), `${RENEWAL_RESULT_PATH}?result=ok`)
     await expect(pending).resolves.toBe('failed')
   })
 
-  it('読めないオリジン（IdP の画面）で止まったら failed', async () => {
+  it('stopping on an unreadable origin (the IdP page) is failed', async () => {
     const pending = renewInFrame()
     land(frameNow(), () => {
       throw new DOMException('Blocked a frame', 'SecurityError')
@@ -60,13 +60,13 @@ describe('renewInFrame', () => {
     await expect(pending).resolves.toBe('failed')
   })
 
-  it('別の頁へ着いたら failed', async () => {
+  it('arriving at a different page is failed', async () => {
     const pending = renewInFrame()
     land(frameNow(), '/login?sso_error=x')
     await expect(pending).resolves.toBe('failed')
   })
 
-  it('始まる前の about:blank は待つ', async () => {
+  it('waits through about:blank before it starts', async () => {
     const pending = renewInFrame()
     const frame = frameNow()
     Object.defineProperty(frame, 'contentWindow', {
@@ -78,7 +78,7 @@ describe('renewInFrame', () => {
     await expect(pending).resolves.toBe('renewed')
   })
 
-  it('時間切れは failed', async () => {
+  it('timing out is failed', async () => {
     vi.useFakeTimers()
     const pending = renewInFrame(1000)
     vi.advanceTimersByTime(1000)

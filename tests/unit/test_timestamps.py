@@ -1,9 +1,9 @@
-"""時刻の境界。
+"""Time boundaries.
 
-契約（HANDOVER §14）: 保存・比較は UTC、ローカルタイムへ直すのは画面だけ。
-サーバが返す ISO 文字列に ``Z`` が無いと、ブラウザの ``new Date()`` はそれを
-ローカル時刻として読む。JST の閲覧者では表示が 9 時間ずれるので、境界を出る
-値が必ず ``Z`` で終わることをここで固定する。
+Contract (HANDOVER §14): store and compare in UTC; only the screen converts to local time. If an
+ISO string returned by the server lacks ``Z``, the browser's ``new Date()`` reads it as local
+time, shifting the display by 9 hours for JST viewers. This pins that values leaving the boundary
+always end in ``Z``.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def test_to_naive_utc_drops_the_offset_after_converting() -> None:
 
 
 def test_utc_datetime_field_renders_with_a_trailing_z() -> None:
-    """レスポンスモデルに載せた時刻も Z で出る（フロントの new Date が正しく読む）。"""
+    """Times in response models also come out with Z (so the frontend's new Date reads them correctly)."""
     from pydantic import BaseModel
 
     from presentation.fastapi.schemas.types import UtcDatetime

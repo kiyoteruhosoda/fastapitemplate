@@ -1,10 +1,14 @@
 /**
- * 入る・出るときに手元へ残す印と、前段が閉じている間の聞き直し。
+ * Local markers left on sign-in / sign-out, and re-asking while the front gate is closed.
  *
- * - 入れたら、ボタンを押さずに入る試し（ADR-0077 §9）の印を消す。消えないと、次に期限が切れても試さない
- * - サインアウトしたら印を付ける。付かないと、IdP の SSO が残っていてすぐ入り直してしまう
- * - 入った入口のテナント（ADR-0079 §4）を覚え、IdP のサインアウトもそのテナントへ送る
- * - 前段が閉じている間は `/me` を聞き直さず、開いたらすぐ聞き直す（ADR-0080 §10）
+ * - On sign-in, clear the marker of the no-click sign-in attempt (ADR-0077 §9). If it stays,
+ *   the next expiry will not try again
+ * - On sign-out, set the marker. Without it, the IdP SSO session still exists and the user is
+ *   signed straight back in
+ * - Remember the entrance tenant used to sign in (ADR-0079 §4), and send the IdP sign-out to
+ *   that tenant too
+ * - While the front gate is closed, do not re-ask `/me`; re-ask right away once it opens
+ *   (ADR-0080 §10)
  */
 import { act, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,7 +54,7 @@ const DECLARED = {
   until: null,
 } as const
 
-/** 描いた AuthProvider の中身を外から触る。 */
+/** Access the rendered AuthProvider's value from outside. */
 function renderAuth(): { current: () => ReturnType<typeof useAuth> } {
   let latest: ReturnType<typeof useAuth> | null = null
   function Probe() {
@@ -64,7 +68,7 @@ function renderAuth(): { current: () => ReturnType<typeof useAuth> } {
   )
   return {
     current: () => {
-      if (!latest) throw new Error('AuthProvider が描かれていない')
+      if (!latest) throw new Error('AuthProvider has not rendered')
       return latest
     },
   }
@@ -80,7 +84,7 @@ async function renderSignedOut() {
   return auth
 }
 
-/** 前に試して・サインアウトした跡（どちらかがあれば、ログイン画面は試さない）。 */
+/** Traces of a previous attempt and a sign-out (either one stops the login screen trying). */
 function leaveSilentSsoMarks() {
   window.localStorage.setItem('ssoSignedOut', '1')
   window.sessionStorage.setItem('ssoSilentTried', '1')
@@ -100,8 +104,8 @@ describe('AuthProvider', () => {
     vi.useRealTimers()
   })
 
-  describe('入れたら試しの印を消す（ADR-0077 §9）', () => {
-    it('パスワードで入った', async () => {
+  describe('clears the attempt marker after signing in (ADR-0077 §9)', () => {
+    it('signed in with a password', async () => {
       const auth = await renderSignedOut()
       leaveSilentSsoMarks()
       await act(() => auth.current().login('admin@example.com', 'pw'))
@@ -109,7 +113,7 @@ describe('AuthProvider', () => {
       expect(maySilentSso(new URLSearchParams())).toBe(true)
     })
 
-    it('パスキーで入った', async () => {
+    it('signed in with a passkey', async () => {
       post.mockResolvedValueOnce({ challenge_id: 'c', public_key: {} })
       assertPasskey.mockResolvedValue({ id: 'cred' })
       const auth = await renderSignedOut()
@@ -118,7 +122,7 @@ describe('AuthProvider', () => {
       expect(maySilentSso(new URLSearchParams())).toBe(true)
     })
 
-    it('SSO で入った（戻り先を返す）', async () => {
+    it('signed in with SSO (returns the return-to path)', async () => {
       exchangeSsoTicket.mockResolvedValue({ expires_in: 300, redirect_to: '/items' })
       const auth = await renderSignedOut()
       leaveSilentSsoMarks()
@@ -130,7 +134,7 @@ describe('AuthProvider', () => {
       expect(maySilentSso(new URLSearchParams())).toBe(true)
     })
 
-    it('入れなかったら印は残す', async () => {
+    it('keeps the marker when sign-in fails', async () => {
       const auth = await renderSignedOut()
       leaveSilentSsoMarks()
       post.mockRejectedValueOnce(new ApiError(401, 'invalid_credentials'))
@@ -141,8 +145,8 @@ describe('AuthProvider', () => {
     })
   })
 
-  describe('入口のテナント（ADR-0079 §4）', () => {
-    it('入った入口のテナントを送り、覚える', async () => {
+  describe('entrance tenant (ADR-0079 §4)', () => {
+    it('sends and remembers the entrance tenant used', async () => {
       const auth = await renderSignedOut()
       await act(() => auth.current().login('boss@acme.example', 'pw', undefined, 'acme'))
       expect(post).toHaveBeenCalledWith('/api/auth/login', {
@@ -154,7 +158,7 @@ describe('AuthProvider', () => {
       expect(rememberedTenant()).toBe('acme')
     })
 
-    it('共通の入口から入ったら、前のテナントを忘れる', async () => {
+    it('forgets the previous tenant after signing in through the shared entrance', async () => {
       rememberTenant('acme')
       const auth = await renderSignedOut()
       await act(() => auth.current().login('admin@example.com', 'pw'))
@@ -166,8 +170,8 @@ describe('AuthProvider', () => {
     })
   })
 
-  describe('サインアウト', () => {
-    it('印を付け、次にログイン画面を開いても試さない（IdP へは送らない設定）', async () => {
+  describe('sign-out', () => {
+    it('sets the marker so the next login screen does not try (IdP sign-out disabled)', async () => {
       get.mockResolvedValue(ME)
       const auth = renderAuth()
       await waitFor(() => {
@@ -180,7 +184,7 @@ describe('AuthProvider', () => {
       expect(startSsoLogout).not.toHaveBeenCalled()
     })
 
-    it('IdP まで通す設定なら、アプリのサインアウトが済んでから入口のテナントの IdP へ送る', async () => {
+    it('with IdP sign-out enabled, sends to the entrance tenant IdP after the app sign-out finishes', async () => {
       rememberTenant('acme')
       get.mockResolvedValue({ ...ME, rp_logout_enabled: true })
       let finishLogout: (value: unknown) => void = () => undefined
@@ -208,8 +212,8 @@ describe('AuthProvider', () => {
     })
   })
 
-  describe('前段が閉じている間（ADR-0080 §10）', () => {
-    it('届かない間も、閉じていれば聞き直さず、開いたらすぐ聞き直す', async () => {
+  describe('while the front gate is closed (ADR-0080 §10)', () => {
+    it('does not re-ask while unreachable if the gate is closed, and re-asks as soon as it opens', async () => {
       vi.useFakeTimers()
       get.mockRejectedValue(new ApiError(503, 'service_unavailable'))
       const auth = renderAuth()
@@ -237,7 +241,7 @@ describe('AuthProvider', () => {
       expect(auth.current().unreachable).toBe(false)
     })
 
-    it('閉じていなければ、届かない間は間を置いて聞き直す', async () => {
+    it('re-asks at intervals while unreachable if the gate is not closed', async () => {
       vi.useFakeTimers()
       get.mockRejectedValue(new ApiError(502, 'bad_gateway'))
       const auth = renderAuth()

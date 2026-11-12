@@ -1,17 +1,17 @@
 """tenants
 
-テナントを足す（ADR-0079 §1）。
+Add tenants (ADR-0079 §1).
 
-- ``tenants`` —— assay のテナント 1 つに 1 行（発行者・クライアント ID・短い名前・状態）
-- ``user_tenants`` —— 利用者の所属（1 人 1 行）。⚠ ``users`` の列にしない（据え付けの
-  ``0002`` が ``User`` のモデルで ``users`` を書くので、列を足すとそこで落ちる）
-- 中身の表（``items`` / ``user_groups`` / ``notifications`` / ``audit_log``）に ``tenant_id``
+- ``tenants`` -- one row per assay tenant (issuer, client ID, short name, status)
+- ``user_tenants`` -- user membership (one row per user). ⚠ Not a ``users`` column (the setup
+  ``0002`` writes ``users`` through the ``User`` model, so adding a column breaks there)
+- ``tenant_id`` on content tables (``items`` / ``user_groups`` / ``notifications`` / ``audit_log``)
 
-**既存の環境は「既定のテナント」1 つに全員を入れて移る**（決定 9）。発行者とクライアント ID は
-いまの ``OIDC_ISSUER`` / ``OIDC_CLIENT_ID``（画面で保存した値があればそちら）から取る。
-グループの名前の一意はテナントの中へ狭める。
+**Existing environments migrate by putting everyone into one "default tenant"** (decision 9). The
+issuer and client ID come from the current ``OIDC_ISSUER`` / ``OIDC_CLIENT_ID`` (or the values
+saved on the screen, if any). Group name uniqueness is narrowed to within a tenant.
 
-モデルは使わない（Core だけで書く）。この移行より後でモデルが変わっても、ここが落ちないように。
+Models are not used (Core only), so this does not break if models change after this migration.
 
 Revision ID: tenants
 Revises: login_attempts
@@ -37,12 +37,12 @@ _STATUS = sa.Enum("active", "suspended", name="tenant_status", native_enum=False
 _DEFAULT_SLUG = "default"
 _DEFAULT_NAME = "Default"
 
-#: 中身の表。``tenant_id`` は NOT NULL で、既定のテナントを入れてから締める。
+#: Content tables. ``tenant_id`` is NOT NULL, tightened after filling in the default tenant.
 _CONTENT_TABLES = ("items", "user_groups", "notifications")
 
 
 def _configured(key: str) -> str:
-    """画面で保存した値（``system_settings`` の ``app.config``）、無ければ環境変数。"""
+    """Value saved on the screen (``app.config`` of ``system_settings``), else the environment variable."""
     from shared.kernel.settings.settings import settings
 
     row = (
@@ -84,7 +84,7 @@ def _create_tables() -> None:
 
 
 def _seat_everyone() -> int:
-    """既定のテナントを作り、全利用者を入れる。作ったテナントの ID を返す。"""
+    """Create the default tenant and put every user in it. Returns the created tenant's ID."""
     bind = op.get_bind()
     issuer = _configured("OIDC_ISSUER").rstrip("/")
     client_id = _configured("OIDC_CLIENT_ID")
@@ -128,11 +128,11 @@ def _add_tenant_column(table: str, tenant_id: int) -> None:
 
 
 def _group_names_unique_per_tenant() -> None:
-    """``user_groups.name`` の一意を ``(tenant_id, name)`` へ狭める。
+    """Narrow the uniqueness of ``user_groups.name`` to ``(tenant_id, name)``.
 
-    元の一意制約は名前を付けずに作っている。名前は DB が決める（MariaDB は ``name``、
-    PostgreSQL は ``user_groups_name_key``）ので、実物から引く。SQLite は名前を持たないので、
-    命名規則を当てて作り直す。
+    The original unique constraint was created without a name. The DB chose the name (MariaDB
+    ``name``, PostgreSQL ``user_groups_name_key``), so it is looked up from the actual schema.
+    SQLite keeps no name, so it is rebuilt using the naming convention.
     """
     found = [
         uc["name"]
@@ -152,8 +152,8 @@ def upgrade() -> None:
     for table in _CONTENT_TABLES:
         _add_tenant_column(table, tenant_id)
     _group_names_unique_per_tenant()
-    # 監査ログ。NULL は全体の操作。⚠ 外部キーを張らない（テナントを消しても記録は残す）。
-    # いままでの記録は、いまの環境 ＝ 既定のテナントのもの。
+    # Audit log. NULL means a global operation. ⚠ No foreign key (records stay when a tenant is deleted).
+    # Existing records belong to the current environment = the default tenant.
     with op.batch_alter_table("audit_log") as batch:
         batch.add_column(sa.Column("tenant_id", _BIGINT, nullable=True))
     op.get_bind().execute(sa.text("UPDATE audit_log SET tenant_id = :t"), {"t": tenant_id})

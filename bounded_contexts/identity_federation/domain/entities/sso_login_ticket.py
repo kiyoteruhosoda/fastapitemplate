@@ -1,12 +1,12 @@
-"""コールバックが発行する 1 回限りの引き換え券。
+"""Single-use redemption ticket issued by the callback.
 
-IdP からの戻りはブラウザの**画面遷移**で、SPA の JavaScript は応答本文を読めない。
-トークンを URL に載せると履歴・Referer・アクセスログへ残るため、代わりに短命の
-引き換え券だけを渡し、SPA が ``POST /api/auth/sso/token`` でトークンへ交換する
-（ADR-0077 §1）。
+The return from the IdP is a browser **navigation**; the SPA's JavaScript can't read the body.
+Tokens in the URL would remain in history, Referer and access logs, so instead only a short-lived
+redemption ticket is handed over, and the SPA exchanges it for tokens via ``POST /api/auth/sso/token``
+(ADR-0077 §1).
 
-券そのものは持ち主に渡す資格情報なので、DB にはハッシュだけを保存する
-（パスワードリセットトークンと同じ扱い）。
+The ticket itself is a credential handed to its holder, so only its hash is stored in the DB
+(same treatment as password reset tokens).
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ class SsoLoginTicket:
     user_id: int
     redirect_to: str
     expires_at: datetime
-    #: どの IdP セッションから始まったログインか（ADR-0077 §3）。券と一緒に運ばないと、
-    #: 停止の通知が届いたときに落とす相手を決められない。
+    #: Which IdP session the login started from (ADR-0077 §3). Without carrying it with the ticket,
+    #: we can't decide whom to drop when a logout notice arrives.
     login: FederatedLogin
 
     def is_expired(self, now: datetime) -> bool:

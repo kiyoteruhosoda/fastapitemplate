@@ -1,15 +1,15 @@
-"""IdP の名乗りを、このアプリの利用者へ落とす。
+"""Resolve the IdP's identity to a user of this app.
 
-順に、
+In order, try
 
-1. ``(issuer, subject)`` の結び付きがあればその利用者
-2. 無ければ**検証済みの**メールアドレスで既存のローカルアカウントへ寄せる
-   （同じアドレスの利用者が居るのに寄せてよくない場合は断る。作り直すと
-   メールアドレスの一意制約に当たるため）
-3. それも無ければ（許可されていれば）新しく作る
+1. the user of the ``(issuer, subject)`` binding, if any
+2. otherwise, merge into an existing local account by **verified** email
+   (refuse if a user with the same address exists but merging isn't allowed; recreating would
+   hit the email uniqueness constraint)
+3. otherwise, create a new one (if allowed)
 
-を試し、いずれでもなければログインを断る。結び付けた・作った時点で
-``federated_identities`` に控えを残すので、2 回目以降は 1 で決まる。
+and if none applies, refuse the login. A record is kept in ``federated_identities`` once
+bound or created, so from the second time on it is resolved by 1.
 """
 
 from __future__ import annotations
@@ -63,15 +63,15 @@ class ResolveFederatedAccount:
         known = self._known_account(issuer, user.subject)
         if known is not None:
             self._ensure_active(known)
-            # ⚠ **写しは IdP を正とする**（ADR-0077 §6）。ここで上書きしないと、
-            #   向こうで改名・メール変更をしても表示が永久に古いままになる。
+            # ⚠ **The copy treats the IdP as the source of truth** (ADR-0077 §6). Without overwriting
+            #   here, renames and email changes over there would leave the display stale forever.
             self.directory.refresh_profile(known.user_id, email=user.email, username=user.username)
             self._synchronize_roles(known)
             return ResolvedAccountDto(user_id=known.user_id)
         return self._attach(issuer, user)
 
     # ------------------------------------------------------------------
-    # 既に結び付いている利用者
+    # User already bound
     # ------------------------------------------------------------------
 
     def _known_account(self, issuer: str, subject: str) -> FederatedAccount | None:
@@ -80,31 +80,31 @@ class ResolveFederatedAccount:
             return None
         account = self.directory.find_by_id(identity.user_id)
         if account is None:
-            # 利用者が消されたのに結び付きだけ残っている。次のログインで作り直す。
+            # The user was deleted but the binding remains. Recreate on the next login.
             return None
         self.identities.touch(identity)
         return account
 
     def _synchronize_roles(self, account: FederatedAccount) -> None:
-        """IdP を正とする運用のときだけ、ロールを毎回引き直す。
+        """Re-fetch roles every time, only when operating with the IdP as source of truth.
 
-        既定（``sync_on_login`` が偽）では触らない。管理画面で足したロールを
-        ログインのたびに剥がしてしまわないようにするため。
+        By default (``sync_on_login`` false) roles are left alone, so roles added on the admin
+        screen aren't stripped on every login.
         """
         if not self.roles.sync_on_login:
             return
         self.directory.apply_roles(account.user_id, self.roles.roles())
 
     # ------------------------------------------------------------------
-    # まだ結び付いていない相手
+    # Party not yet bound
     # ------------------------------------------------------------------
 
     def _attach(self, issuer: str, user: FederatedUser) -> ResolvedAccountDto:
-        # ⚠ **メールアドレスが要るのはここだけである**（ADR-0077 §6）。既に結び付いて
-        #   いる相手は ``sub`` で引けるので、無くても入れる。
+        # ⚠ **This is the only place an email is required** (ADR-0077 §6). Already bound parties
+        #   are looked up by ``sub``, so they can sign in without one.
         if user.email is None:
-            # 寄せる先も探せないし、作ることもできない（``users.email`` は必須）。
-            # ⚠ **理由を分けない** ——本人にできることは「管理者に頼む」で同じである。
+            # Can't find a user to merge into, and can't create one either (``users.email`` is required).
+            # ⚠ **Don't distinguish the reasons** — what the person can do is the same: "ask an admin".
             raise SsoAccountNotLinkedError
         existing = self.directory.find_by_email(user.email)
         if existing is not None:
@@ -123,10 +123,10 @@ class ResolveFederatedAccount:
         return ResolvedAccountDto(user_id=created.user_id, provisioned=True)
 
     def _link_existing(self, issuer: str, user: FederatedUser, existing: FederatedAccount) -> ResolvedAccountDto:
-        """同じメールアドレスの利用者が既に居るとき。
+        """When a user with the same email already exists.
 
-        寄せてよい相手でなければ**作り直さずに断る**。メールアドレスは一意なので、
-        ここで新しく作ろうとすると一意制約に当たって 500 になる。
+        If merging isn't allowed, **refuse without recreating**. Emails are unique, so trying to
+        create a new one here would hit the uniqueness constraint and become a 500.
         """
         claims_seat = existing.awaiting_owner and self.linking.may_claim_seat(user)
         if not (self.linking.may_link(user) or claims_seat):

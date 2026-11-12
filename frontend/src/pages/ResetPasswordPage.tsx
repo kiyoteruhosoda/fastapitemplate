@@ -14,7 +14,7 @@ export function ResetPasswordPage() {
   const [params] = useSearchParams()
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
-  // 表示切り替えボタンを持つ欄は `<label>` で囲まず `for` で結ぶ（LoginPage 参照）。
+  // Fields with a visibility toggle are tied with `for` instead of wrapped in `<label>` (see LoginPage).
   const passwordId = useId()
 
   const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {

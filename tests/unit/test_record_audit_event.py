@@ -1,11 +1,11 @@
-"""``RecordAuditEvent`` の組み立てと、``WriteAuditEvents`` の失敗時のふるまい。
+"""How ``RecordAuditEvent`` assembles events, and how ``WriteAuditEvents`` behaves on failure.
 
-記録は 2 段階に分かれている（ADR-0075 §1）。
+Recording happens in two steps (ADR-0075 §1).
 
-- 処理の途中: :class:`RecordAuditEvent` が組み立てて控えに積む（I/O なし・失敗しない）
-- 処理の後: :class:`WriteAuditEvents` がまとめて書く（失敗しても呼び出し元を落とさない）
+- During processing: :class:`RecordAuditEvent` assembles the event and queues it (no I/O, never fails)
+- After processing: :class:`WriteAuditEvents` writes them in one go (a failure never breaks the caller)
 
-監査ログが書けないだけでログインできなくなる、という状態にしないための分割。
+The split exists so that failing to write the audit log never prevents signing in.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ class RecordingSpy:
 
 class FailingRecorder:
     def record_all(self, events: Sequence[AuditEvent]) -> None:
-        raise RuntimeError("audit_log テーブルがありません")
+        raise RuntimeError("audit_log table does not exist")
 
 
 _CONTEXT = AuditRequestContext(request_id="req-1", ip_address="203.0.113.7", user_agent="pytest")
@@ -58,16 +58,16 @@ def test_records_the_bound_request_context_and_actor() -> None:
     assert event.result is AuditResult.SUCCESS
     assert event.actor_user_id == 7
     assert event.context == _CONTEXT
-    assert event.occurred_at.tzinfo is None  # 保存値は常に UTC の naive
+    assert event.occurred_at.tzinfo is None  # stored values are always naive UTC
 
 
 def test_as_actor_rebinds_the_actor() -> None:
-    """ログインのように、実行者が処理の最中に確定する場合。"""
+    """When the actor is only determined during processing, as in sign-in."""
     pending = PendingAuditEvents()
     recorder = RecordAuditEvent(pending, _CONTEXT)
 
     recorder.as_actor(99).execute(AuditEventType.LOGIN_SUCCEEDED)
-    # 元の記録口は据え置き（束ね直した方だけが実行者を持つ）
+    # The original recorder is left as is (only the rebound one carries the actor)
     recorder.execute(AuditEventType.PASSWORD_CHANGED, AuditResult.FAILURE, reason="invalid_current_password")
 
     rebound, original = pending.drain()
@@ -77,7 +77,7 @@ def test_as_actor_rebinds_the_actor() -> None:
 
 
 def test_unauthenticated_events_have_no_actor() -> None:
-    """未認証のリクエストでは実行者を空のままにする（相手は target で表す）。"""
+    """Unauthenticated requests leave the actor empty (the other party is expressed as the target)."""
     pending = PendingAuditEvents()
     RecordAuditEvent(pending, _CONTEXT).execute(
         AuditEventType.LOGIN_FAILED,
@@ -104,7 +104,7 @@ def test_records_the_target() -> None:
 
 
 def test_pending_events_keep_the_order_and_drain_once() -> None:
-    """控えは発生順に保たれ、取り出したら空になる（二重書き込みを防ぐ）。"""
+    """The queue keeps occurrence order and is empty after draining (prevents double writes)."""
     pending = PendingAuditEvents()
     recorder = RecordAuditEvent(pending, _CONTEXT, actor_user_id=1)
     recorder.execute(AuditEventType.USER_CREATED)

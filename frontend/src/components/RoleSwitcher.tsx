@@ -1,13 +1,13 @@
 /**
- * アクティブロールの切り替え（ADR-0078 §1）。
+ * Active role switcher (ADR-0078 §1).
  *
- * 複数のロールを持つ利用者が「いまどのロールで操作しているか」を選ぶ。既定は
- * 「すべてのロール」（保有権限の和集合）で、1 つを選ぶとそのロールの権限だけに
- * 絞られる。切り替えはトークンの再発行なので、押した直後から画面に出る項目
- * （Sidebar）も送るトークンの scope も揃う。
+ * Lets a user with several roles choose which role they are acting as. The default is
+ * "All roles" (the union of their permissions); choosing one narrows to that role's
+ * permissions only. Switching reissues the token, so right after the click both the items
+ * on screen (Sidebar) and the scope of the tokens sent are in sync.
  *
- * ロールが 1 つ以下の利用者には何も出さない（選べる先が無く、「すべて」と
- * その 1 つは同じ権限になるため）。
+ * Renders nothing for users with one role or fewer (there is nothing to choose, and "All"
+ * and that single role grant the same permissions).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -22,8 +22,8 @@ export function RoleSwitcher() {
   const { notify } = useToast()
   const { user, switchRole } = useAuth()
   const [open, setOpen] = useState(false)
-  // 切り替え中の選択（押した項目にだけスピナーを出す）。「すべてのロール」は
-  // `role: null` なので、選んでいない状態と区別できるよう入れ物ごと持つ。
+  // Selection being switched to (the spinner shows only on the clicked item). "All roles"
+  // is `role: null`, so keep the whole wrapper to tell it apart from "nothing selected".
   const [switchingTo, setSwitchingTo] = useState<{ role: string | null } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -33,8 +33,8 @@ export function RoleSwitcher() {
     if (restoreFocus) buttonRef.current?.focus()
   }, [])
 
-  // 開いているあいだは Esc と外側のクリックで閉じる。Esc は「いま操作している
-  // ボタン」へフォーカスを戻し、外側のクリックは押した先へフォーカスを譲る。
+  // While open, Esc and outside clicks close it. Esc returns focus to the button being
+  // operated; an outside click leaves focus where the user clicked.
   useEffect(() => {
     if (!open) return
 
@@ -57,7 +57,7 @@ export function RoleSwitcher() {
     }
   }, [open, close])
 
-  // 選べる先が無いなら出さない（hooks はこの判定より前に呼び切る）。
+  // Render nothing when there is nothing to choose (all hooks are called before this check).
   if (!user || user.roles.length < 2) return null
 
   const activeLabel = user.active_role ?? t('role.all')

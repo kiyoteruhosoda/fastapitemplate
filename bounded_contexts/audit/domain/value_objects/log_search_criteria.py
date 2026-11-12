@@ -1,14 +1,15 @@
-"""ログ検索条件（監査ログ・アプリログ）。
+"""Log search criteria (audit logs and application logs).
 
-指定された項目（``None`` でない項目）だけを **AND** で積む。
+Only the given fields (those not ``None``) are stacked with **AND**.
 
-**受け取る値は正規化済み**とする。画面のフォームは未入力の項目も空文字で送ってくるが、
-「空文字は未指定」「レベル名は大文字」といった外部入力の丸めは Presentation 層の
-``〇〇Request`` が行う（CLAUDE.md「API 設計」: Application 層へはバリデーション済みの
-値のみを渡す）。ここまで来た空文字は「空文字に一致する行を探せ」の意味になる。
+**Received values are assumed normalized.** Screen forms send empty strings even for blank
+fields, but rounding external input such as "empty string means unspecified" and "level names
+in uppercase" is done by the Presentation layer's ``XxxRequest`` ("API design" in CLAUDE.md:
+only validated values are passed to the Application layer). An empty string that reaches here
+means "find rows equal to the empty string".
 
-監査ログとアプリログで条件の軸は違うが、「期間で挟む」「新しい順に 1 ページ取る」
-という組み立ては同じなので同じモジュールに置く。
+Audit logs and application logs filter on different axes, but the construction "bound by a
+period, take one page newest first" is the same, so they live in the same module.
 """
 
 from __future__ import annotations
@@ -21,10 +22,10 @@ from bounded_contexts.audit.domain.value_objects.log_page import LogPage
 
 
 class LogLevel(StrEnum):
-    """``log.level`` に入り得る値（Python 標準ロギングのレベル名）。
+    """Values that can appear in ``log.level`` (Python standard logging level names).
 
-    絞り込みの選択肢を画面と共有するための正本。保存済みの行はこの列挙に無い値も
-    取り得るため、読み取り側は文字列として扱う。
+    The source of truth for sharing filter choices with the screen. Stored rows may hold values not
+    in this enum, so the reading side treats them as strings.
     """
 
     DEBUG = "DEBUG"
@@ -36,10 +37,10 @@ class LogLevel(StrEnum):
 
 @dataclass(frozen=True)
 class AuditLogCriteria:
-    """監査ログの検索条件。
+    """Audit log search criteria.
 
-    ``result="failure"`` で失敗操作だけを、``request_id`` で 1 リクエスト分の
-    イベントだけを取り出せる。
+    ``result="failure"`` extracts only failed operations, and ``request_id`` only the events of one
+    request.
     """
 
     event_type: str | None = None
@@ -55,11 +56,11 @@ class AuditLogCriteria:
 
 @dataclass(frozen=True)
 class ApplicationLogCriteria:
-    """アプリログの検索条件。
+    """Application log search criteria.
 
-    ``logger_prefix`` はロガー名の前方一致（``app.request`` で HTTP アクセスログ
-    のみ、``bounded_contexts`` で業務処理のみ）。``message_contains`` は本文の
-    部分一致。
+    ``logger_prefix`` is a prefix match on the logger name (``app.request`` for HTTP access logs
+    only, ``bounded_contexts`` for business processing only). ``message_contains`` is a substring
+    match on the message.
     """
 
     level: str | None = None

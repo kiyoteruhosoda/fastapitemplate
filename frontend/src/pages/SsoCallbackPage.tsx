@@ -1,11 +1,11 @@
 /**
- * SSO の戻り先（ADR-0077 §1）。
+ * SSO return target (ADR-0077 §1).
  *
- * IdP からの戻りはサーバーの `/api/auth/sso/callback` が受け、**トークンではなく
- * 1 回限りの引き換え券**を付けてこの画面へ転送してくる。URL は履歴・Referer・
- * プロキシのログに残るので、トークンそのものは載せない。
+ * The return from the IdP is received by the server at `/api/auth/sso/callback`, which
+ * redirects here with a **one-time exchange ticket, not a token**. URLs end up in history,
+ * Referer and proxy logs, so the token itself is never put there.
  *
- * この画面がやるのは券をトークンへ換えることだけで、利用者に見せるものは無い。
+ * All this page does is exchange the ticket for tokens; there is nothing to show the user.
  */
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
@@ -21,7 +21,7 @@ export function SsoCallbackPage() {
   const ticket = params.get('ticket')
   const [destination, setDestination] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // 券は 1 回限り。React の開発時の二重実行で 2 度換えにいかないよう控える。
+  // The ticket is single-use. Guard so React's development double run does not exchange it twice.
   const exchanged = useRef(false)
 
   useEffect(() => {
@@ -34,8 +34,8 @@ export function SsoCallbackPage() {
     completeSsoLogin(ticket)
       .then(setDestination)
       .catch((err: unknown) => {
-        // ログイン画面と同じ形（``?sso_error=<コード>``）で返す。サーバーからの
-        // 転送とここからの転送で、画面側の読み方を分けないため。
+        // Return in the same form as the login page (``?sso_error=<code>``), so the page does
+        // not need to read redirects from the server and from here differently.
         setError(err instanceof ApiError ? err.code : 'sso_error')
       })
   }, [ticket, completeSsoLogin])

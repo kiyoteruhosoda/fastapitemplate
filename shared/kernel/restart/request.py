@@ -1,17 +1,18 @@
-"""再起動要求の永続化。
+"""Persistence of restart requests.
 
-``system_settings`` テーブルの ``app.restart_request`` レコードを唯一の出所と
-して、「いつ・誰が・どのサービスの再起動を要求したか」を保持する。
+The ``app.restart_request`` record of the ``system_settings`` table is the single source that
+holds "when, who, and which service's restart was requested".
 
-管理 API のプロセスから、再起動したいプロセスへ直接シグナルを送ることはできない
-（Gunicorn は複数ワーカーで動き、将来サービスを分ければ別コンテナになる）。DB に
-要求を置き、各プロセスが :mod:`shared.kernel.restart.watcher` で拾って自分自身を
-終了させ、Docker の restart policy で復帰する。この方式ならコンテナへ docker
-socket をマウントせずに済む。
+The admin API process cannot signal the process to be restarted directly (Gunicorn runs several
+workers, and if services are split in the future they become separate containers). The request
+is placed in the DB; each process picks it up via :mod:`shared.kernel.restart.watcher`,
+terminates itself, and comes back through Docker's restart policy. This way the Docker socket
+does not have to be mounted into the container.
 
-要求は**スコープごとに独立して**保持する。単一の要求で上書きすると、監視の
-ポーリング間隔（既定 10 秒）の内側に 2 件の要求が入ったとき、先の要求を読む前に
-後の要求で上書きされ、まだ読んでいないプロセスが自分宛の再起動を取りこぼす。
+Requests are held **independently per scope**. With a single overwritten request, if two
+requests arrive within the watcher's polling interval (default 10 seconds), the later one
+overwrites the earlier before it is read, and a process that has not read it yet misses the
+restart meant for it.
 """
 
 from __future__ import annotations
@@ -34,12 +35,12 @@ RESTART_REQUEST_SETTING_KEY = "app.restart_request"
 
 @dataclass(frozen=True)
 class RestartRequest:
-    """あるスコープに対する直近の再起動要求。
+    """The latest restart request for a scope.
 
-    ``token`` は要求を識別する文字列（要求時刻の ISO 表現）。監視側は起動時に
-    読んだ token を基準値とし、値が**変わった**ときだけ再起動する。時刻の大小
-    ではなく変化で判定するため、アプリコンテナと DB の時計がずれていても
-    再起動ループに陥らない。
+    ``token`` identifies the request (the ISO form of the request time). The watcher takes the
+    token read at startup as its baseline and restarts only when the value **changes**. Because
+    it compares for change rather than ordering of times, it does not fall into a restart loop
+    even if the app container's clock and the DB's clock differ.
     """
 
     scope: RestartScope
@@ -87,7 +88,7 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 def _decode_requests(payload: Any) -> dict[RestartScope, RestartRequest]:
-    """保存形式 ``{"scopes": {"web": {...}}}`` を読み解く。"""
+    """Decode the stored form ``{"scopes": {"web": {...}}}``."""
     if not isinstance(payload, dict):
         return {}
     raw_scopes = payload.get("scopes")
@@ -110,21 +111,21 @@ def _encode_requests(requests: Mapping[RestartScope, RestartRequest]) -> dict[st
 
 
 class RestartRequestReader(Protocol):
-    """スコープ宛の再起動要求を 1 件読み出す。
+    """Read the restart request addressed to a scope.
 
-    :class:`~shared.kernel.restart.watcher.RestartWatcher` はこの口だけに依存する
-    （DIP）。DB を持たないテストダブルを差し替えられる。
+    :class:`~shared.kernel.restart.watcher.RestartWatcher` depends only on this interface
+    (DIP), so a test double without a DB can be substituted.
     """
 
     def load(self, scope: RestartScope) -> RestartRequest | None:
-        """*scope* 宛の直近の要求を返す。無ければ ``None``。"""
+        """Return the latest request for *scope*, or ``None`` if there is none."""
 
 
 class RestartRequestStore:
-    """``app.restart_request`` レコードの読み書き。"""
+    """Reads and writes the ``app.restart_request`` record."""
 
     def load_all(self) -> dict[RestartScope, RestartRequest]:
-        """スコープごとの直近の要求を返す。DB が使えないときは空。"""
+        """Return the latest request per scope. Empty when the DB is unavailable."""
         from shared.kernel.settings.system_setting_records import (
             SystemSettingRecordReader,
         )
@@ -132,12 +133,12 @@ class RestartRequestStore:
         try:
             payload = SystemSettingRecordReader.read_json(RESTART_REQUEST_SETTING_KEY)
         except Exception:
-            logger.debug("再起動要求の読み取りに失敗しました", exc_info=True)
+            logger.debug("Failed to read restart requests", exc_info=True)
             return {}
         return _decode_requests(payload)
 
     def load(self, scope: RestartScope) -> RestartRequest | None:
-        """*scope* 宛の直近の要求を返す。"""
+        """Return the latest request for *scope*."""
         return self.load_all().get(scope)
 
     def save(
@@ -148,14 +149,13 @@ class RestartRequestStore:
         requested_by: str | None = None,
         reason: str | None = None,
     ) -> tuple[RestartRequest, ...]:
-        """再起動要求を保存する（リクエスト内から呼ぶ）。
+        """Save a restart request (call from within a request).
 
-        対象が空の場合は全スコープを対象とする。指定したスコープの分だけを
-        書き換え、対象外のスコープに残っている要求は保持する（まだ拾われて
-        いない要求を消さないため）。
+        If no targets are given, all scopes are targeted. Only the given scopes are rewritten;
+        requests left for other scopes are kept (so requests not yet picked up are not lost).
 
-        要求時刻は常にこの場で採る。テストで固定したい場合は
-        :func:`datetime.datetime.now` を差し替える（CLAUDE.md「テスト」参照）。
+        The request time is always taken here. To pin it in tests, patch
+        :func:`datetime.datetime.now` (see "Tests" in CLAUDE.md).
         """
         from shared.infrastructure.models import SystemSetting
 
@@ -185,7 +185,7 @@ class RestartRequestStore:
         session.flush()
 
         logger.info(
-            "再起動要求を保存しました: scopes=%s requested_by=%s",
+            "Saved restart request: scopes=%s requested_by=%s",
             ",".join(scope.value for scope in targets),
             requested_by or "-",
             extra={"event": "restart.requested"},

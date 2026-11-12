@@ -1,6 +1,6 @@
-"""設定解決の優先順位（DB > 環境変数 > デフォルト値）の検証。
+"""Settings resolution precedence (DB > environment variable > default).
 
-DB 層（system_settings 上書き）は integration 側で検証する。
+The DB layer (system_settings overrides) is tested on the integration side.
 """
 
 from shared.kernel.settings.settings import ApplicationSettings
@@ -46,11 +46,11 @@ def test_database_uri_is_env_only() -> None:
 
 
 def test_the_unused_secret_key_setting_is_gone() -> None:
-    """署名は JWT_SECRET_KEY だけ。読まれない秘密を持たせると、回すべき鍵を取り違える。"""
+    """Signing uses only JWT_SECRET_KEY. Holding unread secrets leads to rotating the wrong key."""
     assert "SECRET_KEY" not in DEFAULT_APPLICATION_SETTINGS
     assert not hasattr(ApplicationSettings, "secret_key")
 
 
 def test_a_leftover_secret_key_in_the_environment_is_ignored() -> None:
-    """派生アプリの宣言に残っていても起動を止めない。"""
+    """Does not block startup even if it remains in a derived app's declaration."""
     assert ApplicationSettings(env={"SECRET_KEY": "left-over"}).access_token_issuer == "fastapitemplate"

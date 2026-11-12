@@ -1,20 +1,20 @@
-# リバースプロキシ。通常のリクエストをすべてアプリ（Gunicorn + UvicornWorker）へ渡す。
-# 大容量配信やキャッシュが必要になったら、ここに location を追加する。
+# Reverse proxy. Passes all regular requests to the app (Gunicorn + UvicornWorker).
+# Add locations here if large-file delivery or caching becomes necessary.
 #
-# nginx 公式イメージの envsubst テンプレート（/etc/nginx/templates/*.template）として
-# 使う。置換されるのは **環境変数として定義されている名前だけ**なので、$host や
-# $remote_addr のような nginx 変数はそのまま残る。
+# Used as an envsubst template of the official nginx image (/etc/nginx/templates/*.template).
+# **Only names defined as environment variables** are substituted, so nginx variables
+# such as $host and $remote_addr are left intact.
 #
-# ⚠ **このファイルはローカル開発（docker-compose.yml）専用。** デプロイ先の nginx
-#   設定は deploy-repo の `k8s/<app>-<env>/20-config.yaml`（ConfigMap。雛形は
-#   deploy/k8s/20-config.yaml）にあり、**resolver が違う**——下の docker 組み込み DNS
-#   ではなく CoreDNS（10.43.0.10）で、上流も FQDN で書く。共有できないので、
-#   **片方を直したらもう片方も直す**（片方だけだと「手元では動くのに本番で 502」）。
+# ⚠ **This file is for local development (docker-compose.yml) only.** The deployed nginx
+#   config lives in deploy-repo's `k8s/<app>-<env>/20-config.yaml` (a ConfigMap; template:
+#   deploy/k8s/20-config.yaml) and **uses a different resolver** — CoreDNS (10.43.0.10)
+#   instead of docker's embedded DNS below, with FQDN upstreams. They can't be shared, so
+#   **when you fix one, fix the other** (otherwise "works locally, 502 in production").
 
-# Docker 組み込み DNS。valid=10s で再解決させる。IPv6 はこの環境では未使用。
-# ⚠ この resolver と下の変数経由 proxy_pass はセット。upstream ブロックに戻すと
-#   nginx が起動時に一度だけ解決してキャッシュし、アプリが作り直されるたびに
-#   502 を返し続ける（deploy-repo docs/new-stack.md §4-3。2026-08-24 に実際に落ちた）。
+# Docker embedded DNS. Re-resolve with valid=10s. IPv6 is unused in this environment.
+# ⚠ This resolver goes together with the variable-based proxy_pass below. Reverting to an
+#   upstream block makes nginx resolve once at startup and cache it, returning 502 every time
+#   the app is recreated (deploy-repo docs/new-stack.md §4-3; this actually broke on 2026-08-24).
 resolver 127.0.0.11 valid=10s ipv6=off;
 
 server {
@@ -24,11 +24,11 @@ server {
     client_max_body_size 100m;
 
     location / {
-        # ⚠ 変数経由にして毎リクエスト解決させる（上の resolver とセット）。
-        #    値にパスを含めないこと。含めると URI 置換の挙動に変わる。
-        # ⚠ 引く名前は `app` のような一般名ではなく、スタック固有の別名
-        #    （${APP_WEB_ALIAS}）。edge ネットワークはホスト全体で共有されるため、
-        #    一般名を引くと他スタックのコンテナを掴む。
+        # ⚠ Go through a variable so it is resolved on every request (pairs with the resolver above).
+        #    Do not include a path in the value; doing so changes the URI replacement behaviour.
+        # ⚠ Resolve a stack-specific alias (${APP_WEB_ALIAS}), not a generic name like `app`.
+        #    The edge network is shared across the whole host, so resolving a generic name
+        #    grabs another stack's container.
         set $app_upstream http://${APP_WEB_ALIAS}:8000;
         proxy_pass $app_upstream;
         proxy_http_version 1.1;

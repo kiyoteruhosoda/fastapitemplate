@@ -1,16 +1,17 @@
 /**
- * 「新しい版があります」の知らせ（ADR-0080 §7・出す場所は ADR-0106）。
+ * "A new version is available" notice (ADR-0080 §7; placement in ADR-0106).
  *
- * 新しい版が待機したときだけ画面のいちばん上に帯で出し、押されたら再読み込みする。
- * 帯はどの画面にも出し（ログイン画面にはヘッダーが無いので、ヘッダーの中ではなく
- * その上に置く）、下へ送っても上に残す。サインイン後の画面ではヘッダーが帯の真下に
- * 付くよう、帯の高さを CSS 変数 `--update-bar-height` で渡す（折り返すと高さが変わる）。
+ * Shown as a bar at the very top of the screen only when a new version is waiting, and reloads
+ * when pressed. The bar appears on every screen (the login screen has no header, so it sits
+ * above the header rather than inside it) and stays at the top when scrolling. On signed-in
+ * screens the bar height is passed in the CSS variable `--update-bar-height` so the header
+ * attaches right below the bar (the height changes when the text wraps).
  *
- * トーストや画面の下に浮かぶ知らせは使わない ——数秒で消えたり本文に紛れたりして、
- * 見落とした利用者は古い版のまま使い続けることになる。
+ * No toast or floating notice at the bottom - it would vanish after a few seconds or get lost
+ * in the content, and users who miss it keep using the old version.
  *
- * 見張り方（`services/appUpdate.ts`）は引数で受け取る。Service Worker を登録する
- * 副作用をこの部品から切り離し、試験では偽の見張りを渡せるようにするため。
+ * The watcher (`services/appUpdate.ts`) is passed in as an argument, to keep the side effect
+ * of registering the Service Worker out of this component and let tests pass a fake watcher.
  */
 import { useEffect, useRef, useState } from 'react'
 
@@ -25,14 +26,14 @@ export function AppUpdatePrompt({ watch }: { watch: WatchForUpdate }) {
   const barRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // useState は関数を「遅延初期化」と解釈するので、関数そのものを入れるときは
-    // 関数を返す関数を渡す。
+    // useState treats a function as a lazy initializer, so to store a function itself
+    // pass a function that returns it.
     watch((applyUpdate) => {
       setApply(() => applyUpdate)
     })
   }, [watch])
 
-  // 帯の高さをヘッダーの貼り付く位置へ渡す。帯が消えたら 0 に戻す。
+  // Pass the bar height to the header's sticky offset. Reset to 0 when the bar goes away.
   useEffect(() => {
     const bar = barRef.current
     if (!apply || bar === null) return
@@ -41,7 +42,7 @@ export function AppUpdatePrompt({ watch }: { watch: WatchForUpdate }) {
       root.style.setProperty('--update-bar-height', `${String(bar.offsetHeight)}px`)
     }
     publish()
-    // jsdom には ResizeObserver が無い。高さは最初に 1 回渡してあるので、見張れなくても足りる。
+    // jsdom has no ResizeObserver. The height was already passed once, so not observing is fine.
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(publish)
     observer?.observe(bar)
     return () => {
@@ -55,8 +56,8 @@ export function AppUpdatePrompt({ watch }: { watch: WatchForUpdate }) {
   return (
     <div ref={barRef} className="update-bar" role="status">
       <span className="update-bar-text">{t('update.available')}</span>
-      {/* 押してから画面が入れ替わるまでに間があるので、押せたことを見せる
-          （ADR-0080 §5）。 */}
+      {/* There is a delay between pressing and the page being replaced, so show that the
+          press registered (ADR-0080 §5). */}
       <ActionButton
         type="button"
         className="update-bar-button"

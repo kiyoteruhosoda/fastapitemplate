@@ -5,11 +5,11 @@ from collections.abc import Mapping
 
 
 class IContentSettingRepository(ABC):
-    """1 つのテナントのコンテンツ設定の置き場。テナントは実装のコンストラクタで受け取る。"""
+    """Store of one tenant's content settings. The implementation takes the tenant in its constructor."""
 
     @abstractmethod
     def stored(self) -> Mapping[str, object]:
-        """保存してある値（キー → 値）。"""
+        """Saved values (key -> value)."""
 
     @abstractmethod
     def put(self, key: str, value: str | bool | int) -> None: ...

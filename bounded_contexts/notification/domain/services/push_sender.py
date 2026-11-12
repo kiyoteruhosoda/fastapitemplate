@@ -1,8 +1,8 @@
-"""端末への通知を送る窓口（実装は Infrastructure 層）。
+"""Interface for sending device notifications (implemented in the Infrastructure layer).
 
-送り口は 2 つある。ブラウザ・PWA へは Web Push（:class:`PushSender`。ADR-0081 §3）、
-スマホアプリへは FCM（:class:`DevicePushSender`。ADR-0081 §5）。お知らせの ``push`` は
-両方へ送る（:class:`PushChannels`）。
+There are two senders: Web Push to browsers/PWAs (:class:`PushSender`; ADR-0081 §3) and
+FCM to the mobile app (:class:`DevicePushSender`; ADR-0081 §5). A notification with ``push``
+goes to both (:class:`PushChannels`).
 """
 
 from __future__ import annotations
@@ -17,15 +17,15 @@ from bounded_contexts.notification.domain.entities.push_subscription import Push
 
 class PushOutcome(StrEnum):
     DELIVERED = "delivered"
-    #: 通知サービスが「その購読はもう無い」と答えた（404 / 410）。購読を外す。
+    #: The push service said the subscription is gone (404 / 410). Remove the subscription.
     GONE = "gone"
-    #: それ以外の失敗。購読は残す（通知サービスの一時的な不調かもしれない）。
+    #: Any other failure. Keep the subscription (the push service may be having a temporary problem).
     FAILED = "failed"
 
 
 @dataclass(frozen=True)
 class PushMessage:
-    """端末に渡す中身。Service Worker がこれを読んで通知を出す。"""
+    """Payload handed to the device. The Service Worker reads it and shows the notification."""
 
     notification_id: int
     title: str
@@ -37,23 +37,23 @@ class PushSender(ABC):
     @property
     @abstractmethod
     def enabled(self) -> bool:
-        """送れる設定になっているか（鍵が無ければ偽）。"""
+        """Whether sending is configured (false without a key)."""
 
     @abstractmethod
     def public_key(self) -> str | None:
-        """ブラウザの購読に渡す公開鍵（base64url）。送れない設定なら ``None``。"""
+        """Public key (base64url) for browser subscriptions. ``None`` if sending is not configured."""
 
     @abstractmethod
     def send(self, subscription: PushSubscription, message: PushMessage) -> PushOutcome: ...
 
 
 class DevicePushSender(ABC):
-    """スマホアプリへの通知（FCM）。"""
+    """Mobile app notifications (FCM)."""
 
     @property
     @abstractmethod
     def enabled(self) -> bool:
-        """送れる設定になっているか（サービスアカウントの鍵が無ければ偽）。"""
+        """Whether sending is configured (false without a service account key)."""
 
     @abstractmethod
     def send(self, device: DeviceToken, message: PushMessage) -> PushOutcome: ...
@@ -61,12 +61,12 @@ class DevicePushSender(ABC):
 
 @dataclass(frozen=True)
 class PushChannels:
-    """``push`` を選んだお知らせの送り口の組。"""
+    """The set of senders for notifications that chose ``push``."""
 
     web: PushSender
     device: DevicePushSender
 
     @property
     def enabled(self) -> bool:
-        """どちらか 1 つでも送れるなら ``push`` を選べる。"""
+        """``push`` can be chosen if at least one of them can send."""
         return self.web.enabled or self.device.enabled

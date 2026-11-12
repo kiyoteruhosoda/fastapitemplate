@@ -4,11 +4,11 @@ import { ADMIN } from './admin'
 import { INTENDED_FAULT_HEADER, expect, test } from './fixtures'
 
 /**
- * 前段（edge）が閉じたときのアプリ内の画面（ADR-0080 §10）。
+ * The in-app screen shown when the front tier (edge) is closed (ADR-0080 §10).
  *
- * edge の代わりに、API への要求へ edge と同じ形の 503 を返す。⚠ Service Worker に制御された
- * 画面で確かめる ——読み込み直しても手元の index.html が出るので、edge のメンテナンス画面は
- * 見えない。そこから API の 503 で切り替わることがこの試験の本題。
+ * Instead of the edge, API requests get a 503 shaped like the edge's. ⚠ Checked on a screen
+ * controlled by the Service Worker: reloading still shows the local index.html, so the edge's
+ * maintenance page never appears. Switching from there on the API's 503 is the point of this test.
  */
 const MAINTENANCE = {
   error: 'service_unavailable',
@@ -45,7 +45,7 @@ async function signInUnderServiceWorker(page: Page): Promise<void> {
     .toBe(true)
 }
 
-test('閉じると読み込み直してもメンテナンスの画面になり、開くと元の画面へ戻る', async ({ page }) => {
+test('when closed, the maintenance screen shows even after reload; when reopened, the original screen returns', async ({ page }) => {
   await signInUnderServiceWorker(page)
   const dashboard = page.getByRole('heading', { name: '管理ダッシュボード' })
   await expect(dashboard).toBeVisible()
@@ -68,7 +68,7 @@ test('閉じると読み込み直してもメンテナンスの画面になり�
   await expect(dashboard).toBeVisible()
 })
 
-test('上流が居ないだけのときは「停止中」の文', async ({ page }) => {
+test('when only the upstream is missing, the "stopped" text is shown', async ({ page }) => {
   await page.goto('/login')
   await closeTheService(page, {
     error: 'service_unavailable',

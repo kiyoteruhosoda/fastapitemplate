@@ -1,14 +1,16 @@
-"""リクエスト中に発生した監査イベントの控え。
+"""Queue of audit events raised during a request.
 
-監査イベントは処理の途中で発生するが、**書き込みはリクエストの処理が終わってから**
-行う（ADR-0075 §1）。その間、イベントをここに溜める。
+Audit events are raised mid-processing, but **written after the request has been processed**
+(ADR-0075 §1). Until then, events accumulate here.
 
-控えは ``contextvars`` で運ぶ。ログや監査は横断的関心事で、途中の全関数へ引き回すと
-本来の責務が埋もれるため（:mod:`shared.kernel.logging.request_context` と同じ理由）。
+The queue travels in ``contextvars``. Logging and auditing are cross-cutting concerns, and passing
+them through every function would bury their actual responsibilities (same reason as
+:mod:`shared.kernel.logging.request_context`).
 
-ミドルウェアが**控えの実体を作ってから**下流を呼び、同じオブジェクトを両側で使う。
-``ContextVar.set()`` の結果に依存せず、可変オブジェクトの共有で受け渡すことで、
-下流が別タスクで動く構成（``BaseHTTPMiddleware`` を挟む等）でも取りこぼさない。
+The middleware **creates the queue object first** and then calls downstream, with both sides using
+the same object. Handing it over by sharing a mutable object rather than relying on the result of
+``ContextVar.set()`` means nothing is lost even when downstream runs in another task (e.g. with
+``BaseHTTPMiddleware`` in between).
 """
 
 from __future__ import annotations
@@ -19,10 +21,10 @@ from bounded_contexts.audit.domain.entities.audit_event import AuditEvent
 
 
 class PendingAuditEvents:
-    """1 リクエスト分の控え（Domain の ``AuditEventCollector`` の実装）。
+    """Queue for one request (implementation of the Domain ``AuditEventCollector``).
 
-    I/O を行わないので失敗しない。処理の途中で監査の都合により例外を出さないための
-    分割でもある（書き込みの失敗は ``WriteAuditEvents`` が引き受ける）。
+    It does no I/O, so it cannot fail. The split also ensures auditing never raises exceptions
+    mid-processing (write failures are handled by ``WriteAuditEvents``).
     """
 
     def __init__(self) -> None:
@@ -32,7 +34,7 @@ class PendingAuditEvents:
         self._events.append(event)
 
     def drain(self) -> tuple[AuditEvent, ...]:
-        """控えを取り出して空にする（二重書き込みを防ぐ）。"""
+        """Take the queued events and empty the queue (prevents double writes)."""
         events = tuple(self._events)
         self._events.clear()
         return events
@@ -42,14 +44,14 @@ _pending_events_var: ContextVar[PendingAuditEvents | None] = ContextVar("pending
 
 
 def install_pending_events() -> PendingAuditEvents:
-    """このリクエストの控えを用意して返す（ミドルウェアが最初に呼ぶ）。"""
+    """Prepare and return this request's queue (called first by the middleware)."""
     pending = PendingAuditEvents()
     _pending_events_var.set(pending)
     return pending
 
 
 def current_pending_events() -> PendingAuditEvents | None:
-    """処理中のリクエストの控え。ミドルウェアの外（スクリプト等）では ``None``。"""
+    """Queue of the request in progress. ``None`` outside the middleware (scripts etc.)."""
     return _pending_events_var.get()
 
 

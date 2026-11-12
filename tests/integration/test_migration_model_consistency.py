@@ -1,8 +1,7 @@
-"""モデル定義と Alembic マイグレーションの乖離検出。
+"""Detecting drift between model definitions and Alembic migrations.
 
-``alembic upgrade head`` で構築したスキーマと、SQLAlchemy モデル
-（``Base.metadata``）から構築したスキーマを SQLite 上で比較する。
-モデルを変更してマイグレーションを追加し忘れると、このテストが落ちる。
+Compares, on SQLite, the schema built by ``alembic upgrade head`` with the one built from the
+SQLAlchemy models (``Base.metadata``). Changing a model without adding a migration fails this test.
 """
 
 from __future__ import annotations
@@ -60,10 +59,8 @@ def test_migrations_match_models(migrated_engine: sa.Engine, tmp_path: Path) -> 
     from_models = _schema_snapshot(model_engine)
     model_engine.dispose()
 
-    assert set(migrated) == set(from_models), (
-        "テーブル集合が一致しません。モデル変更にはマイグレーション追加が必要です。"
-    )
+    assert set(migrated) == set(from_models), "Table sets differ. A model change requires adding a migration."
     for table in from_models:
         assert migrated[table] == from_models[table], (
-            f"テーブル {table} の列定義がモデルとマイグレーションで一致しません。"
+            f"Column definitions of table {table} differ between the models and the migrations."
         )

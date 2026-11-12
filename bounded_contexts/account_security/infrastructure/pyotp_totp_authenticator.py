@@ -1,4 +1,4 @@
-"""TOTP の実装（``pyotp``）。"""
+"""TOTP implementation (``pyotp``)."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ import pyotp
 
 @dataclass(frozen=True)
 class PyotpTotpAuthenticator:
-    """RFC 6238 の TOTP を ``pyotp`` で扱う。
+    """Handles RFC 6238 TOTP with ``pyotp``.
 
-    ``valid_window`` は前後いくつの時間枠（30 秒）を許容するか。端末とサーバーの
-    時計のずれを吸収するために既定で 1 を取る。
+    ``valid_window`` is how many time steps (30 seconds) before/after are accepted. Defaults to 1
+    to absorb clock skew between the device and the server.
     """
 
     issuer: str

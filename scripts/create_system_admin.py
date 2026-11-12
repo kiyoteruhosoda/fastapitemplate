@@ -1,11 +1,12 @@
-"""システム管理者（テナントに属さない ``system-admin``）を 1 人作る（ADR-0079 §1・§3）。
+"""Create one system administrator (a ``system-admin`` outside any tenant) (ADR-0079 §1, §3).
 
-使い方::
+Usage::
 
-    SYSTEM_ADMIN_PASSWORD='…' uv run python scripts/create_system_admin.py <メールアドレス> [<表示名>]
+    SYSTEM_ADMIN_PASSWORD='…' uv run python scripts/create_system_admin.py <email> [<display-name>]
 
-パスワードは環境変数で渡す（引数に書くとシェルの履歴とプロセス一覧に残る）。
-同じメールアドレスの利用者が居れば何もしない。2 人目からは、システム管理者が画面で足す。
+Pass the password via the environment (as an argument it would remain in the shell history and
+the process list). Does nothing if a user with the same email exists. From the second one on,
+a system administrator adds them in the UI.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ def main(argv: list[str]) -> int:
         return 2
     password = os.environ.get("SYSTEM_ADMIN_PASSWORD") or ""
     if len(password) < _MIN_PASSWORD_LENGTH:
-        print(f"SYSTEM_ADMIN_PASSWORD を {_MIN_PASSWORD_LENGTH} 文字以上で渡してください。")
+        print(f"Pass SYSTEM_ADMIN_PASSWORD with at least {_MIN_PASSWORD_LENGTH} characters.")
         return 2
 
     from shared.infrastructure.system_administrators import create_system_administrator

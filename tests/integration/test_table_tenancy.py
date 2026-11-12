@@ -1,8 +1,8 @@
-"""全部の表が「誰のものか」を宣言しているか（ADR-0079 §1 決定 6・ADR-0079 §2）。
+"""Every table declares "whom it belongs to" (ADR-0079 §1 decision 6, ADR-0079 §2).
 
-テナントの絞り忘れは、書き忘れても動いてしまい、気付くのは漏れた後になる。
-表を足すたびに「テナントの表 / 利用者に付く表 / 全体の表」のどれかを宣言させ、
-宣言の無い表と、宣言と列が食い違う表をここで落とす。
+Forgetting to filter by tenant still works when left out, and is noticed only after a leak. Every
+new table must declare one of "tenant table / per-user table / system table"; tables with no
+declaration, or whose columns contradict the declaration, fail here.
 """
 
 from __future__ import annotations
@@ -13,12 +13,12 @@ import sqlalchemy as sa
 from shared.infrastructure.models.tenancy import TENANCY_KEY, Tenancy
 from shared.kernel.database.db import Base
 
-# conftest が全モデルを登録している（``_REGISTERED_MODELS``）。
+# conftest registers every model (``_REGISTERED_MODELS``).
 _TABLES = sorted(Base.metadata.tables.values(), key=lambda t: t.name)
 
-#: ``tenant_id`` が NULL を取れるテナントの表と、その理由。
+#: Tenant tables whose ``tenant_id`` may be NULL, and why.
 _NULLABLE_TENANT = {
-    # システム管理者の操作・宛先の分からない失敗は、どのテナントのものでもない
+    # Operations by the system administrator and failures with an unknown target belong to no tenant
     "audit_log",
 }
 
@@ -35,7 +35,7 @@ def _points_at(column: sa.Column[object], target: str) -> bool:
 @pytest.mark.parametrize("table", _TABLES, ids=lambda t: t.name)
 def test_every_table_declares_whose_it_is(table: sa.Table) -> None:
     assert _kind(table) is not None, (
-        f"{table.name} に宣言がありません。__table_args__ に declared(Tenancy.TENANT) などを足してください"
+        f"{table.name} has no declaration. Add declared(Tenancy.TENANT) or similar to __table_args__"
         "（shared/infrastructure/models/tenancy.py）"
     )
 
@@ -43,11 +43,11 @@ def test_every_table_declares_whose_it_is(table: sa.Table) -> None:
 @pytest.mark.parametrize("table", [t for t in _TABLES if _kind(t) is Tenancy.TENANT], ids=lambda t: t.name)
 def test_a_tenant_table_has_the_tenant(table: sa.Table) -> None:
     column = table.columns.get("tenant_id")
-    assert column is not None, f"{table.name} はテナントの表なのに tenant_id がありません"
+    assert column is not None, f"{table.name} is a tenant table but has no tenant_id"
     if table.name in _NULLABLE_TENANT:
         return
-    assert not column.nullable, f"{table.name}.tenant_id が NULL を取れます"
-    assert _points_at(column, "tenants.id"), f"{table.name}.tenant_id が tenants を指していません"
+    assert not column.nullable, f"{table.name}.tenant_id is nullable"
+    assert _points_at(column, "tenants.id"), f"{table.name}.tenant_id does not reference tenants"
 
 
 @pytest.mark.parametrize("table", [t for t in _TABLES if _kind(t) is Tenancy.PERSONAL], ids=lambda t: t.name)
@@ -55,16 +55,16 @@ def test_a_personal_table_follows_its_user(table: sa.Table) -> None:
     if table.name == "users":
         return
     column = table.columns.get("user_id")
-    assert column is not None, f"{table.name} は利用者に付く表なのに user_id がありません"
-    assert _points_at(column, "users.id"), f"{table.name}.user_id が users を指していません"
+    assert column is not None, f"{table.name} is a per-user table but has no user_id"
+    assert _points_at(column, "users.id"), f"{table.name}.user_id does not reference users"
 
 
 @pytest.mark.parametrize("table", [t for t in _TABLES if _kind(t) is not Tenancy.TENANT], ids=lambda t: t.name)
 def test_only_tenant_tables_carry_a_tenant(table: sa.Table) -> None:
-    """``tenant_id`` を持つのにテナントの表と宣言していないのは、宣言の誤り。
+    """Having ``tenant_id`` without being declared a tenant table is a declaration error.
 
-    （所属の表 ``user_tenants`` だけは、利用者に付く表として ``tenant_id`` を持つ。）
+    (Only the membership table ``user_tenants`` has ``tenant_id`` as a per-user table.)
     """
     if table.name == "user_tenants":
         return
-    assert "tenant_id" not in table.columns, f"{table.name} は tenant_id を持つのにテナントの表ではありません"
+    assert "tenant_id" not in table.columns, f"{table.name} has tenant_id but is not a tenant table"

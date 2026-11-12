@@ -1,11 +1,13 @@
 /**
- * 端末への通知（Web Push）の購読（ADR-0081 §3）。
+ * Subscribing to device notifications (Web Push) (ADR-0081 §3).
  *
- * ブラウザの Service Worker に購読を作らせ、その宛先（endpoint）と鍵をサーバーへ
- * 預ける。通知を受け取って出すのは Service Worker 側（`public/push-sw.js`）。
+ * Has the browser's Service Worker create a subscription and hands its destination (endpoint)
+ * and keys to the server. Receiving and showing notifications is the Service Worker's job
+ * (`public/push-sw.js`).
  *
- * ⚠ **購読はブラウザ単位、登録は利用者単位。** 同じブラウザで別の人がログインし直すと、
- * ブラウザには前の人の購読が残っている。「オンか」は必ずサーバーに聞く（`/push/status`）。
+ * WARNING: **Subscriptions are per browser; registrations are per user.** If someone else signs
+ * in on the same browser, the previous user's subscription remains. Always ask the server whether
+ * it is on (`/push/status`).
  */
 import { api } from './api'
 
@@ -15,11 +17,11 @@ interface PushConfig {
 }
 
 export type PushState =
-  /** このブラウザは Web Push を扱えない（iOS のホーム画面に追加していない Safari など）。 */
+  /** This browser can't handle Web Push (e.g. Safari on iOS not added to the home screen). */
   | 'unsupported'
-  /** サーバーが送れる設定になっていない。 */
+  /** The server isn't configured to send. */
   | 'unavailable'
-  /** 通知を拒否されている（ブラウザの設定から戻すしかない）。 */
+  /** Notifications are denied (only the browser settings can undo it). */
   | 'denied'
   | 'off'
   | 'on'
@@ -28,7 +30,7 @@ export function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
-/** base64url の公開鍵を、`pushManager.subscribe` が受け取る形へ。 */
+/** Convert a base64url public key into the form `pushManager.subscribe` accepts. */
 export function applicationServerKey(publicKey: string): Uint8Array<ArrayBuffer> {
   const padded = publicKey
     .replace(/-/g, '+')
@@ -58,7 +60,7 @@ export async function pushState(): Promise<PushState> {
   return status.subscribed ? 'on' : 'off'
 }
 
-/** 通知を許可してもらい、購読してサーバーへ預ける。許可されなければ `denied` を返す。 */
+/** Ask for permission, subscribe, and hand it to the server. Returns `denied` if not allowed. */
 export async function enablePush(): Promise<PushState> {
   const config = await api.get<PushConfig>('/api/notifications/push')
   if (!config.enabled || !config.public_key) return 'unavailable'
@@ -67,7 +69,8 @@ export async function enablePush(): Promise<PushState> {
   const registration = await navigator.serviceWorker.ready
   let subscription = await registration.pushManager.getSubscription()
   if (subscription) {
-    // 鍵を替えたサーバーへ古い購読を預けても届かない。公開鍵が違えば作り直す。
+    // An old subscription handed to a server whose key changed won't deliver. Recreate it if the
+    // public key differs.
     const current = subscription.options.applicationServerKey
     const expected = applicationServerKey(config.public_key)
     const same =
@@ -87,7 +90,7 @@ export async function enablePush(): Promise<PushState> {
   return 'on'
 }
 
-/** サーバーから外し、ブラウザの購読もやめる。 */
+/** Remove it from the server and unsubscribe the browser too. */
 export async function disablePush(): Promise<PushState> {
   const subscription = await currentSubscription()
   if (subscription) {

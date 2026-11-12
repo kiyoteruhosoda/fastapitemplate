@@ -1,13 +1,13 @@
 """login attempts
 
-宛名ごとの失敗の控え（ADR-0076 §9）。プロセスのメモリではなく DB に置くのは、
-Gunicorn が複数ワーカーで動くため（ワーカーの数だけ試せてしまう）。
+Record of failures per account name (ADR-0076 §9). Kept in the DB rather than process memory
+because Gunicorn runs several workers (otherwise one could try once per worker).
 
-主キーは（用途, 宛名）。宛名は**送られてきたメールアドレス**で、実在する
-アカウントとは結ばない（実在するものだけを数えると、断られるかどうかで
-存在が分かってしまう）。期限切れの行は書き込みのたびに掃除する。
+The primary key is (purpose, account name). The account name is **the email address as sent**,
+not tied to an existing account (counting only existing ones would reveal existence by whether
+a request is refused). Expired rows are cleaned up on every write.
 
-**表を足すだけ**で、既存の表には触れない。
+**Only adds a table**; existing tables are untouched.
 
 Revision ID: login_attempts
 Revises: user_session_boundaries

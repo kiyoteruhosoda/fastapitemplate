@@ -1,15 +1,16 @@
-"""配布している最新版を答える（ADR-0081 §4）。
+"""Answer with the latest distributed release (ADR-0081 §4).
 
-端末はアプリを開くたび・前面に戻るたびに聞いてくる。そのたびに配布面へ
-取りに行くと、端末の数だけ置き場を叩くことになるうえ、置き場が遅いと
-聞いてきた端末を道連れにする。答えはプロセスの中で覚えておく。
+Devices ask every time the app is opened or brought to the foreground. Fetching from the
+distribution store each time would hit the store once per device, and a slow store would drag
+the asking devices down with it. The answer is cached in the process.
 
-- 読めた答え（「無い」を含む）は :data:`ANSWER_TTL_SECONDS` 覚える。新しい版は
-  焼いてから最大この時間遅れて知らされる。版は日に何度も出ないので十分
-- 読めなかったときは :data:`FAILURE_TTL_SECONDS` だけ「知らせることは無い」を
-  覚える。置き場が落ちているあいだ、端末が来るたびに待たされない
-- ⚠ **読みに行くのは同時に 1 本だけ。** 覚えが切れた瞬間に来た端末が揃って
-  置き場へ行かないよう、読みに行くあいだは鍵を持つ
+- A successful answer (including "none") is cached for :data:`ANSWER_TTL_SECONDS`. A new release
+  is announced at most this long after it is built. Releases don't come out several times a day,
+  so that is enough
+- When the read fails, "nothing to announce" is cached for :data:`FAILURE_TTL_SECONDS` only, so
+  devices are not kept waiting every time while the store is down
+- ⚠ **Only one read in flight at a time.** A lock is held while reading so that devices arriving
+  right as the cache expires don't all go to the store together
 """
 
 from __future__ import annotations
@@ -39,10 +40,11 @@ class _Remembered:
 
 
 class LatestAppReleaseQuery:
-    """配布面が最新として指している版を返す（読めなければ ``None``）。
+    """Return the release the distribution store points to as latest (``None`` if unreadable).
 
-    読む先は ``source_factory`` で**覚えが切れるたびに作り直す**。設定を管理画面で
-    変えたとき、プロセスを作り直さなくても次の読みから新しい先へ行くため。
+    The source is **rebuilt from** ``source_factory`` **each time the cache expires**, so that when
+    the settings are changed on the admin screen the next read goes to the new source without
+    restarting the process.
     """
 
     def __init__(
@@ -71,8 +73,8 @@ class LatestAppReleaseQuery:
                 release = self._source_factory().fetch()
                 ttl = self._answer_ttl_seconds
             except AppReleaseUnavailableError as exc:
-                # 端末には「知らせることは無い」と返す。版の知らせが出ないだけで、
-                # アプリのほかの機能には何も響かないため。
+                # Tell the device "nothing to announce". Only the release notice is missing;
+                # nothing else in the app is affected.
                 logger.warning(
                     "app_release_unavailable",
                     extra={"event": "app_release.latest.unavailable", "reason": str(exc)},
@@ -84,7 +86,7 @@ class LatestAppReleaseQuery:
             return release
 
     def forget(self) -> None:
-        """覚えている答えを捨てる（テストと、設定を変えた直後に確かめたいとき用）。"""
+        """Drop the cached answer (for tests, and for checking right after changing settings)."""
         with self._lock:
             self._remembered = None
 

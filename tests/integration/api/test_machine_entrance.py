@@ -1,7 +1,7 @@
-"""機械の口（ADR-0082・ADR-0087。task #718・#721）。
+"""The machine entrance (ADR-0082, ADR-0087; task #718, #721).
 
-assay の ``client_credentials`` のトークンを換え、許可簿の操作だけが通ることを確かめる。
-IdP は差し替える（署名・期限はゲートウェイの仕事。ここでは宛名と主体と許可簿を見る）。
+Exchanges an assay ``client_credentials`` token and checks that only allow-listed operations pass.
+The IdP is stubbed (signature and expiry are the gateway's job; here the audience, subject and allow list are checked).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from tests.conftest import register_issuer, sign_in
 _ISSUER = "https://idp.example.test/tenant"
 _AUDIENCE = "api://fastapitemplate"
 _CLIENTS = [
-    # 利用者（owner）は item:write も持つが、許可簿には読むだけを書く
+    # The user (owner) also has item:write, but the allow list grants read only
     {"client_id": "robot", "name": "Robot", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": ["item:view"]},
     {"client_id": "writer", "name": "Writer", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": ["item:write"]},
     {"client_id": "idle", "name": "Idle", "acts_as": master_data.DEFAULT_ADMIN_EMAIL, "operations": []},
@@ -36,7 +36,7 @@ _CLIENTS = [
 
 
 class _StubMachineTokenGateway:
-    """トークンの文字列を「どのクレームか」の名前として扱う（署名は確かめない）。"""
+    """Treats the token string as the name of "which claims" it carries (no signature check)."""
 
     def __init__(self) -> None:
         self.tokens: dict[str, dict[str, Any]] = {}
@@ -107,7 +107,7 @@ def _audit(engine: sa.Engine, event: AuditEventType) -> list[tuple[str | None, s
 def test_listed_operations_pass_with_the_machine_token(
     machine: TestClient, gateway: _StubMachineTokenGateway, engine: sa.Engine
 ) -> None:
-    """AC1: 許可簿に書いた操作は通る。"""
+    """AC1: operations in the allow list pass."""
     issued = _exchange(machine, gateway.issue("robot"))
     assert issued["scopes"] == ["item:view"]
     assert issued["acts_as"] == master_data.DEFAULT_ADMIN_EMAIL
@@ -120,7 +120,7 @@ def test_listed_operations_pass_with_the_machine_token(
 def test_unlisted_operations_are_refused_even_if_the_role_allows_them(
     machine: TestClient, gateway: _StubMachineTokenGateway, engine: sa.Engine
 ) -> None:
-    """AC2・AC5: 利用者のロールでは許される操作でも、許可簿に無ければ 403。理由つきで監査に残る。"""
+    """AC2, AC5: allowed by the user's role but not in the allow list gives 403, audited with a reason."""
     token = _exchange(machine, gateway.issue("robot"))["access_token"]
 
     response = machine.post("/api/items", json={"name": "x"}, headers=_bearer(token))
@@ -131,7 +131,7 @@ def test_unlisted_operations_are_refused_even_if_the_role_allows_them(
 def test_a_write_by_the_machine_is_audited_with_the_client(
     machine: TestClient, gateway: _StubMachineTokenGateway, engine: sa.Engine
 ) -> None:
-    """どの機械が・誰として・何を、を監査で追える（task #724）。読むだけの操作は残さない。"""
+    """Audit shows which machine did what as whom (task #724). Read-only operations are not recorded."""
     token = _exchange(machine, gateway.issue("writer"))["access_token"]
 
     response = machine.post("/api/items", json={"name": "x"}, headers=_bearer(token))
@@ -141,14 +141,14 @@ def test_a_write_by_the_machine_is_audited_with_the_client(
 
 
 def test_an_empty_allowlist_allows_nothing(machine: TestClient, gateway: _StubMachineTokenGateway) -> None:
-    """AC3: 許可簿が空の機械は、どの操作も 403。"""
+    """AC3: a machine with an empty allow list gets 403 for every operation."""
     issued = _exchange(machine, gateway.issue("idle"))
     assert issued["scopes"] == []
     assert machine.get("/api/items", headers=_bearer(issued["access_token"])).status_code == 403
 
 
 def test_people_are_not_affected_by_the_allowlist(machine: TestClient) -> None:
-    """AC4: 人のログインは許可簿の有無で変わらない。"""
+    """AC4: human sign-in is unaffected by the allow list."""
     headers = sign_in(machine, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     assert machine.post("/api/items", json={"name": "by a person"}, headers=headers).status_code == 201
 
@@ -156,7 +156,7 @@ def test_people_are_not_affected_by_the_allowlist(machine: TestClient) -> None:
 def test_unscoped_paths_refuse_machines(
     machine: TestClient, gateway: _StubMachineTokenGateway, engine: sa.Engine
 ) -> None:
-    """scope で守られていない口（本人の情報・ロールの切り替え）は、機械には開けない。"""
+    """Entrances not protected by a scope (own profile, role switching) are not open to machines."""
     token = _exchange(machine, gateway.issue("robot"))["access_token"]
 
     me = machine.get("/api/auth/me", headers=_bearer(token))
@@ -169,16 +169,16 @@ def test_unscoped_paths_refuse_machines(
 @pytest.mark.parametrize(
     ("client_id", "overrides"),
     [
-        # #718 AC2: 別のアプリ宛てのトークン
+        # #718 AC2: a token for another app
         ("robot", {"aud": "api://blobshare"}),
-        # #718 AC3: 人のログイン用トークン（sub_type が client でない）
+        # #718 AC3: a human sign-in token (sub_type is not client)
         ("robot", {"sub_type": None}),
-        # 主体が名乗りと違う
+        # The subject differs from the claimed one
         ("robot", {"sub": "someone-else"}),
-        # 許可簿に無い機械・振る舞う相手が居ない機械
+        # A machine not in the allow list, or one with no user to act as
         ("stranger", {}),
         ("ghost", {}),
-        # 登録の無い発行者
+        # An unregistered issuer
         ("robot", {"iss": "https://idp.example.test/other"}),
     ],
 )
@@ -194,7 +194,7 @@ def test_tokens_that_do_not_fit_are_refused_without_saying_why(
 def test_refusals_are_audited_with_the_client(
     machine: TestClient, gateway: _StubMachineTokenGateway, engine: sa.Engine
 ) -> None:
-    """AC5: 換えるところで断ったものも、名乗った機械と理由つきで残る。"""
+    """AC5: refusals at the exchange are also recorded with the claimed machine and a reason."""
     machine.post("/api/machine/token", headers=_bearer(gateway.issue("stranger")))
     assert _audit(engine, AuditEventType.MACHINE_TOKEN_REFUSED) == [("stranger", "machine_client_not_registered")]
 
@@ -205,7 +205,7 @@ def test_an_empty_audience_closes_the_entrance(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """#718 AC1: 宛名が空なら、正しいトークンでも 401。起動のログにも出る（ログは JSON で標準出力へ出る）。"""
+    """#718 AC1: an empty audience gives 401 even for a valid token; also in the startup log (JSON on stdout)."""
     with TestClient(_machine_app(gateway, monkeypatch, "")) as client:
         response = client.post("/api/machine/token", headers=_bearer(gateway.issue("robot")))
     assert response.status_code == 401

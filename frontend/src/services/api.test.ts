@@ -1,4 +1,4 @@
-/** API クライアントのエラーコード変換と、CSRF トークンの送り方。 */
+/** The API client's error-code conversion and how it sends the CSRF token. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError, api, errorMessageKey } from './api'
@@ -12,25 +12,25 @@ vi.mock('./silentRenewal', () => ({
 }))
 
 describe('errorMessageKey', () => {
-  it('ApiError のコードを i18n キーへ変換する', () => {
+  it('converts an ApiError code to an i18n key', () => {
     expect(errorMessageKey(new ApiError(401, 'invalid_token'))).toBe('error.invalid_token')
   })
 
-  it('API 以外の例外は unknown_error に丸める', () => {
+  it('rounds non-API exceptions to unknown_error', () => {
     expect(errorMessageKey(new Error('boom'))).toBe('error.unknown_error')
   })
 
-  it('例外でない値でも落ちない', () => {
+  it('does not crash on non-exception values', () => {
     expect(errorMessageKey(undefined)).toBe('error.unknown_error')
     expect(errorMessageKey('invalid_token')).toBe('error.unknown_error')
   })
 })
 
 /**
- * トークンは持たない（ADR-0076 §4）。この層が気にするのは Cookie を送ることと、
- * 更新系に CSRF の二重送信トークンを載せることだけ。
+ * Holds no tokens (ADR-0076 §4). All this layer cares about is sending cookies and putting the
+ * CSRF double-submit token on mutating requests.
  */
-describe('リクエストの組み立て', () => {
+describe('request construction', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
@@ -49,32 +49,32 @@ describe('リクエストの組み立て', () => {
     return fetchMock.mock.calls[0]?.[1] as RequestInit
   }
 
-  it('Cookie を送る（トークンは Cookie に載っているため）', async () => {
+  it('sends cookies (the token travels in a cookie)', async () => {
     await api.get('/api/auth/me')
     expect(initOf().credentials).toBe('same-origin')
   })
 
-  it('読み取りには CSRF トークンを載せない', async () => {
+  it('does not put the CSRF token on reads', async () => {
     await api.get('/api/auth/me')
     expect(initOf().headers).not.toHaveProperty('X-CSRF-Token')
   })
 
-  it('更新系には Cookie から読んだ CSRF トークンを載せる', async () => {
+  it('puts the CSRF token read from the cookie on mutating requests', async () => {
     await api.post('/api/items', { name: 'x' })
     expect((initOf().headers as Record<string, string>)['X-CSRF-Token']).toBe('the-token')
   })
 
-  it('Authorization ヘッダーは付けない（手元にトークンを持たないため）', async () => {
+  it('adds no Authorization header (no token is held locally)', async () => {
     await api.post('/api/items', { name: 'x' })
     expect(initOf().headers).not.toHaveProperty('Authorization')
   })
 })
 
 /**
- * 401 のあと 1 回だけログインを続ける（ADR-0104）。パスワード・パスキーのログインは更新の口、
- * SSO のログインは見えない枠で IdP へ問い合わせる。
+ * After a 401, continue the session once (ADR-0104). Password/passkey sessions use the refresh
+ * endpoint; SSO sessions ask the IdP in a hidden frame.
  */
-describe('ログインを続ける', () => {
+describe('continuing the session', () => {
   const expired = { detail: { error: 'invalid_token', reason: 'token_expired' } }
 
   function json(status: number, body: unknown = {}): Response {
@@ -94,7 +94,7 @@ describe('ログインを続ける', () => {
     vi.unstubAllGlobals()
   })
 
-  it('同時に 401 になった要求は 1 本の更新を待つ', async () => {
+  it('requests that got 401 at the same time wait on one refresh', async () => {
     let refreshed = false
     const fetchMock = vi.fn((path: string) => {
       if (path === '/api/auth/refresh') {
@@ -112,7 +112,7 @@ describe('ログインを続ける', () => {
     expect(renewInFrame).not.toHaveBeenCalled()
   })
 
-  it('更新の札が無い（SSO のログイン）なら、見えない枠で IdP に問い合わせて続ける', async () => {
+  it('without a refresh token (SSO), continues via the IdP in a hidden frame', async () => {
     let renewed = false
     renewInFrame.mockImplementation(() => {
       renewed = true
@@ -129,7 +129,7 @@ describe('ログインを続ける', () => {
     expect(renewInFrame).toHaveBeenCalledTimes(1)
   })
 
-  it('IdP に断られたら、ログインが終わったと知らせて投げる', async () => {
+  it('when the IdP declines, reports the session ended and throws', async () => {
     renewInFrame.mockResolvedValue('declined')
     vi.stubGlobal(
       'fetch',
@@ -140,12 +140,12 @@ describe('ログインを続ける', () => {
 
     await expect(api.get('/api/items')).rejects.toMatchObject({ status: 401 })
     expect(ended).toHaveBeenCalledTimes(1)
-    // このタブではログイン画面でもう試さない（ADR-0077 §10）
+    // This tab no longer tries on the sign-in screen (ADR-0077 §10)
     expect(window.sessionStorage.getItem('ssoSilentTried')).toBe('1')
     stop()
   })
 
-  it('サインアウトした後は IdP に問い合わせない', async () => {
+  it('does not ask the IdP after signing out', async () => {
     window.localStorage.setItem('ssoSignedOut', '1')
     vi.stubGlobal(
       'fetch',
@@ -156,7 +156,7 @@ describe('ログインを続ける', () => {
     expect(renewInFrame).not.toHaveBeenCalled()
   })
 
-  it('入口の 401（パスワード違い）では続けない', async () => {
+  it('does not continue on an entry-point 401 (wrong password)', async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve(json(401, { detail: { error: 'invalid_credentials' } })),
     )
@@ -170,7 +170,7 @@ describe('ログインを続ける', () => {
   })
 })
 
-describe('閉じている前段の 503', () => {
+describe('503 from a closed front tier', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
@@ -192,7 +192,7 @@ describe('閉じている前段の 503', () => {
     })
   }
 
-  it('メンテナンスの画面へ知らせ、service_unavailable で投げる', async () => {
+  it('reports to the maintenance screen and throws service_unavailable', async () => {
     respond(503, { error: 'service_unavailable', reason: 'maintenance', message: 'Test.' })
 
     await expect(api.get('/api/items')).rejects.toMatchObject({
@@ -202,14 +202,14 @@ describe('閉じている前段の 503', () => {
     expect(currentOutage()).toMatchObject({ reason: 'maintenance', message: 'Test.' })
   })
 
-  it('アプリ自身の 503 はメンテナンスとは扱わない', async () => {
+  it("does not treat the app's own 503 as maintenance", async () => {
     respond(503, { detail: { error: 'restart_request_failed' } })
 
     await expect(api.get('/api/items')).rejects.toMatchObject({ code: 'restart_request_failed' })
     expect(currentOutage()).toBeNull()
   })
 
-  it('答えが返れば閉じた状態を外す', async () => {
+  it('clears the closed state once a response comes back', async () => {
     reportOutage({ reason: 'stopped', title: null, body: null, message: null, until: null })
     respond(200, {})
 

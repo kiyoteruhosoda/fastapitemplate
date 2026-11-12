@@ -1,9 +1,9 @@
-"""app_release — 配布しているスマホアプリの最新版を知らせる（ADR-0081 §4）。
+"""app_release — tell users about the latest release of the mobile apps we distribute (ADR-0081 §4).
 
-アプリ（flutterbase から作ったもの）は Play ストアを通らず、署名済みの APK を
-配布面（Garage の ``artifacts`` バケット。人は share.nolumia.com から取る）に
-置いて配っている。端末は新しい版が出たことを知る手段を持たないので、
-配布面が書く ``latest.json`` をサーバーが読み、ログイン済みのアプリへ返す。
+The apps (built from flutterbase) do not go through the Play Store; signed APKs are
+distributed via the distribution store (Garage's ``artifacts`` bucket; people get them from
+share.nolumia.com). Devices have no way to learn that a new release is out, so the server
+reads the ``latest.json`` written to the distribution store and returns it to signed-in apps.
 
-photonest の ADR-0079 から移したもの。
+Moved over from photonest's ADR-0079.
 """

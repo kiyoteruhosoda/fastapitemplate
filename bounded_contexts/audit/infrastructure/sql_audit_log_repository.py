@@ -1,15 +1,14 @@
-"""``audit_log`` テーブルの SQLAlchemy 実装（書き込みと検索）。
+"""SQLAlchemy implementation of the ``audit_log`` table (writing and searching).
 
-書き込みは**リクエストのセッションとは別のトランザクション**（専用の短命コネクション）
-で行う。ログイン失敗は ``HTTPException`` で終わり、リクエストのセッションは
-ロールバックされるため、同じセッションで書くと「失敗したログイン」が記録されない
-（ADR-0075 §1）。
+Writes go through **a transaction separate from the request's session** (a dedicated short-lived
+connection). A failed sign-in ends with ``HTTPException`` and the request's session is rolled
+back, so writing through the same session would not record "the failed sign-in" (ADR-0075 §1).
 
-呼ばれるのは**リクエストの処理が完全に終わってから**（audit ミドルウェア）。処理の
-途中で呼ぶと、SQLite ではリクエストのセッションが持つ書き込みロックと衝突して
-``database is locked`` になる。
+It is called **only after the request has been fully processed** (the audit middleware). Called
+mid-request, on SQLite it collides with the write lock held by the request's session and gives
+``database is locked``.
 
-検索はリクエストのセッションで読む（読み取りは本処理の状態を汚さない）。
+Searches read through the request's session (reading does not disturb the main work's state).
 """
 
 from __future__ import annotations
@@ -45,14 +44,14 @@ MAX_REASON_LENGTH = 255
 
 
 def _clipped(value: str | None, limit: int) -> str | None:
-    """列の長さ上限に収める（超過分は末尾を落とす）。"""
+    """Fit within the column's length limit (the excess at the end is dropped)."""
     if value is None:
         return None
     return value[:limit]
 
 
 class SqlAuditEventRecorder:
-    """監査イベントを独立したトランザクションでまとめて書き込む。"""
+    """Writes audit events together in an independent transaction."""
 
     def record_all(self, events: Sequence[AuditEvent]) -> None:
         if not events:
@@ -64,7 +63,7 @@ class SqlAuditEventRecorder:
 
 
 def _people_of(event: AuditEvent) -> tuple[int, ...]:
-    """テナントを決める材料になる利用者（実行者・対象の利用者）。"""
+    """Users that determine the tenant (the actor and the target user)."""
     people: list[int] = []
     if event.actor_user_id is not None:
         people.append(event.actor_user_id)
@@ -84,11 +83,11 @@ def _tenants_of(connection: sa.Connection, user_ids: set[int]) -> dict[int, int]
 
 
 def _tenant_of(event: AuditEvent, tenants: dict[int, int]) -> int | None:
-    """どのテナントの記録か（ADR-0079 §1）。
+    """Which tenant the record belongs to (ADR-0079 §1).
 
-    実行者のテナント。実行者がテナントに属さない（システム管理者・未認証の失敗）ときは、
-    対象の利用者のテナント ——システム管理者がテナントの人に触れた事実は、そのテナントの
-    管理者に見えるようにする。どちらも無ければ全体の記録（``None``）。
+    The actor's tenant. When the actor belongs to no tenant (system administrator, unauthenticated
+    failure), the target user's tenant: the fact that a system administrator touched someone in a
+    tenant is made visible to that tenant's admins. If neither, a global record (``None``).
     """
     for user_id in _people_of(event):
         if user_id in tenants:
@@ -97,7 +96,7 @@ def _tenant_of(event: AuditEvent, tenants: dict[int, int]) -> int | None:
 
 
 def _to_row(event: AuditEvent, tenant_id: int | None) -> dict[str, object]:
-    """DDL の長さ上限に収めた 1 行分の値。"""
+    """Values of one row, fitted within the DDL length limits."""
     target = event.target
     return {
         "tenant_id": tenant_id,
@@ -115,10 +114,10 @@ def _to_row(event: AuditEvent, tenant_id: int | None) -> dict[str, object]:
 
 
 class SqlAuditLogQuery:
-    """条件に一致する監査ログを新しい順に返す。
+    """Return audit logs matching the criteria, newest first.
 
-    見えるのは**読む人のテナントの記録だけ**（ADR-0079 §1）。テナントに属さない人
-    （システム管理者）には、全体の記録（``tenant_id`` が NULL）だけが見える。
+    Only **records of the reader's tenant** are visible (ADR-0079 §1). People outside the tenants
+    (system administrators) see only global records (``tenant_id`` is NULL).
     """
 
     def __init__(self, session: Session, tenant_id: int | None) -> None:
@@ -145,7 +144,7 @@ def _within_tenant(tenant_id: int | None) -> sa.ColumnElement[bool]:
 
 
 def _conditions(criteria: AuditLogCriteria) -> list[sa.ColumnElement[bool]]:
-    """指定された項目だけを AND 条件として積む。"""
+    """Stack only the given fields as AND conditions."""
     conditions: list[sa.ColumnElement[bool]] = []
     if criteria.event_type:
         conditions.append(AuditLogModel.event_type == criteria.event_type)

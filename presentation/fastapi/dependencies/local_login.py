@@ -1,14 +1,15 @@
-"""ローカルの入口が開いているかの確認（ADR-0076 §3 決定 2・3）。
+"""Check whether the local entrance is open (ADR-0076 §3 decisions 2 and 3).
 
-``LOCAL_LOGIN_ENABLED`` が ``false`` のとき、パスワード・パスキーでのログインと、
-**ローカル資格情報の登録**（パスキー・TOTP・パスワード変更）を止める。
+When ``LOCAL_LOGIN_ENABLED`` is ``false``, password and passkey login and
+**registration of local credentials** (passkey, TOTP, password change) are blocked.
 
-登録まで止めるのは、閉じた入口の合鍵を作れないようにするため。SSO で入った利用者が
-パスキーを足せてしまうと、設定を戻した瞬間にその鍵が効く。「入口が閉じている＝その
-入口の鍵は増えない」を規則にすれば、運用側は「閉じた」以上のことを考えなくてよい。
+Registration is blocked too so nobody can make a spare key to a closed entrance. If a user
+who came in via SSO could add a passkey, that key would work the moment the setting is
+reverted. With the rule "entrance closed = no new keys for it", operators need not think
+beyond "it is closed".
 
-**既に登録済みの資格情報は消さない。** 閉じたときに消すと、開け直したときに全員が
-締め出される。
+**Credentials already registered are not deleted.** Deleting them on close would lock
+everyone out when it is reopened.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ ERROR_CODE = "local_login_disabled"
 
 
 def require_local_login() -> None:
-    """ローカルの入口が閉じているなら 403 で断る（``Depends()`` 用）。"""
+    """Reject with 403 if the local entrance is closed (for ``Depends()``)."""
     if not settings.local_login_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

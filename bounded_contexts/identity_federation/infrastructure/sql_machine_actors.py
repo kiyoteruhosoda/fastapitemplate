@@ -1,7 +1,7 @@
-"""``MachineActors`` の実装（振る舞う相手をテナントの席から引く）。
+"""Implementation of ``MachineActors`` (looks up the user to act as from the tenant's seats).
 
-⚠ **ここで利用者を作らない。** 利用者が生まれるのは人がサインインしたとき・管理者が足したときだけで、
-機械の設定で名簿を増やせないようにする。
+⚠ **Users are not created here.** Users only come into being when a person signs in or an admin adds them,
+so machine settings can't grow the roster.
 """
 
 from __future__ import annotations

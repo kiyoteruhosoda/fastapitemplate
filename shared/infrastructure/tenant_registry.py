@@ -1,7 +1,7 @@
-"""テナントの外側の台帳（ADR-0079 §1・§5）。システム管理者だけが使う。
+"""Registry outside the tenants (ADR-0079 §1, §5). Used only by system administrators.
 
-テナントの**中身は読まない**。数えるのは人数だけで、消すときも表の宣言
-（``shared/infrastructure/models/tenancy.py``）に従って機械的に消す。
+**Never reads tenant content.** It only counts people, and deletion too is done mechanically
+following the table declarations (``shared/infrastructure/models/tenancy.py``).
 """
 
 from __future__ import annotations
@@ -24,12 +24,12 @@ from shared.infrastructure.models import (
 from shared.infrastructure.models.tenancy import TENANCY_KEY, Tenancy
 from shared.kernel.database.db import Base
 
-#: 消すときも残す表（テナントを消しても「誰が何をしたか」は残す。ADR-0075 §1）
+#: Tables kept on deletion (even when a tenant is deleted, "who did what" is kept; ADR-0075 §1)
 _KEPT_ON_REMOVAL = frozenset({"audit_log"})
 
 
 def member_counts(session: Session) -> dict[int, tuple[int, int]]:
-    """テナントごとの人数（全員・有効な人）。中身ではなく数だけ。"""
+    """Number of people per tenant (all, active). Only counts, not content."""
     rows = session.execute(
         sa.select(
             UserTenant.tenant_id,
@@ -43,10 +43,11 @@ def member_counts(session: Session) -> dict[int, tuple[int, int]]:
 
 
 def remove_tenant(session: Session, tenant: Tenant) -> None:
-    """テナントを、人・中身・自作のロールごと消す（監査ログは残す）。
+    """Delete a tenant together with its people, content and self-made roles (audit logs are kept).
 
-    消す順は表の依存の逆（指す側を先に）。テナントの表は ``tenant_id`` で、利用者に付く表は
-    ``user_id`` で消す。宣言の無い表は試験が落とすので、ここで取りこぼすことは無い。
+    Deletion runs in reverse dependency order (referencing tables first). Tenant tables are deleted
+    by ``tenant_id``, tables attached to users by ``user_id``. Tables without a declaration fail the
+    tests, so nothing is missed here.
     """
     people = list(session.scalars(sa.select(UserTenant.user_id).where(UserTenant.tenant_id == tenant.id)))
     own_roles = list(session.scalars(sa.select(RoleTenant.role_id).where(RoleTenant.tenant_id == tenant.id)))
@@ -62,7 +63,7 @@ def remove_tenant(session: Session, tenant: Tenant) -> None:
 
 
 def remove_people(session: Session, people: Sequence[int]) -> None:
-    """利用者を、その人に付く行（パスキー・招待・所属など）ごと消す。"""
+    """Delete users together with the rows attached to them (passkeys, invitations, membership, etc.)."""
     if not people:
         return
     for table in reversed(Base.metadata.sorted_tables):
@@ -83,7 +84,7 @@ def _clear(session: Session, table: sa.Table, tenant_id: int, people: Sequence[i
 
 
 def system_administrators(session: Session) -> Sequence[User]:
-    """テナントに属さない利用者（システム管理者）。"""
+    """Users outside the tenants (system administrators)."""
     return session.scalars(
         sa.select(User)
         .outerjoin(UserTenant, UserTenant.user_id == User.id)
@@ -93,7 +94,7 @@ def system_administrators(session: Session) -> Sequence[User]:
 
 
 def count_active_system_administrators(session: Session) -> int:
-    """テナントの登録・停止を担える有効な運用者の数（0 にしない）。サポート担当は数えない。"""
+    """Number of active operators able to register/suspend tenants (never 0). Support staff do not count."""
     holders = (
         sa.select(User.id)
         .join(user_roles, user_roles.c.user_id == User.id)

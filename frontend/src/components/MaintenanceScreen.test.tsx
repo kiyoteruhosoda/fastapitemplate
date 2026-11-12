@@ -1,7 +1,8 @@
 /**
- * メンテナンス中・停止中の画面（ADR-0080 §10）。
+ * Maintenance / outage screen (ADR-0080 §10).
  *
- * 確かめ直しは偽物を渡し、「何を出すか」「いつ確かめ直すか」「開いたら消えるか」だけを見る。
+ * The recheck is a fake; only "what is shown", "when it rechecks" and "whether it disappears
+ * once open" are checked.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +40,7 @@ function renderScreen(outage: Outage, check = vi.fn(() => Promise.resolve())) {
   return check
 }
 
-/** 閲覧者の時間帯での戻りの見込み（画面と同じ書き方・時間帯つき）。 */
+/** Expected return in the viewer's time zone (formatted as on screen, with the zone). */
 function localUntil(): string {
   const at = new Date(UNTIL)
   const shown = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(
@@ -53,7 +54,7 @@ describe('MaintenanceScreen', () => {
     localStorage.clear()
   })
 
-  it('宣言の見出し・本文・理由と、戻りの見込みを手元の時間帯で出す', () => {
+  it('shows the declared heading, body and reason, and the expected return in the local zone', () => {
     renderScreen(DECLARED)
 
     expect(screen.getByRole('heading', { name: 'T' })).toBeInTheDocument()
@@ -62,7 +63,7 @@ describe('MaintenanceScreen', () => {
     expect(screen.getByText(`Expected back around ${localUntil()}`)).toBeInTheDocument()
   })
 
-  it('古い edge の形（title・body 無し）でも既定の文で出す', () => {
+  it('uses default text for the old edge format (no title or body)', () => {
     renderScreen({ ...DECLARED, title: null, body: null })
 
     expect(screen.getByRole('heading', { name: 'Under maintenance' })).toBeInTheDocument()
@@ -70,7 +71,7 @@ describe('MaintenanceScreen', () => {
     expect(screen.getByText('Reason: Test.')).toBeInTheDocument()
   })
 
-  it('上流が居ないだけのときは「停止中」の文', () => {
+  it('uses the "stopped" text when the upstream is merely absent', () => {
     renderScreen({ reason: 'stopped', title: null, body: null, message: null, until: null })
 
     expect(screen.getByRole('heading', { name: 'Service stopped' })).toBeInTheDocument()
@@ -78,13 +79,13 @@ describe('MaintenanceScreen', () => {
     expect(screen.queryByText(/Expected back/)).toBeNull()
   })
 
-  it('読めない期限は出さない', () => {
+  it('omits an unparsable deadline', () => {
     renderScreen({ ...DECLARED, until: 'soon' })
 
     expect(screen.queryByText(/Expected back/)).toBeNull()
   })
 
-  it('押せばすぐ確かめ直す', () => {
+  it('rechecks immediately when pressed', () => {
     const check = renderScreen(DECLARED)
 
     fireEvent.click(screen.getByRole('button', { name: 'Check now' }))
@@ -92,7 +93,7 @@ describe('MaintenanceScreen', () => {
     expect(check).toHaveBeenCalledTimes(1)
   })
 
-  it('1 分ごとに確かめ直す', () => {
+  it('rechecks every minute', () => {
     vi.useFakeTimers()
     try {
       const check = renderScreen(DECLARED)
@@ -118,7 +119,7 @@ describe('MaintenanceGate', () => {
     resetOutageForTests()
   })
 
-  it('閉じている間だけ出て、開いたら消える', () => {
+  it('shows only while closed and disappears once open', () => {
     render(
       <I18nProvider settings={SETTINGS}>
         <MaintenanceGate check={() => Promise.resolve()} />
@@ -138,7 +139,7 @@ describe('MaintenanceGate', () => {
   })
 })
 
-describe('閉じている間のトースト', () => {
+describe('toasts while closed', () => {
   beforeEach(() => {
     resetOutageForTests()
   })
@@ -161,7 +162,7 @@ describe('閉じている間のトースト', () => {
     )
   }
 
-  it('エラーのトーストは出さない（閉じていなければ今までどおり出す）', () => {
+  it('does not show error toasts (shows them as before when not closed)', () => {
     render(
       <ToastProvider>
         <Notifier />

@@ -27,7 +27,7 @@ log "python : $(python --version 2>&1)"
 log "mode   : ${1:-web}"
 log "================================="
 
-# ===== DB wait（MariaDB 使用時のみ） =====
+# ===== DB wait (MariaDB only) =====
 if echo "${DATABASE_URI:-}" | grep -q "mysql"; then
   export _DB_URI="$DATABASE_URI"
   log "Waiting for DB ..."
@@ -70,11 +70,11 @@ case "$MODE" in
     log "Running DB migrations"
     python scripts/run_db_migrations.py
     log "Starting Gunicorn + UvicornWorker (ASGI web mode)"
-    # --forwarded-allow-ips="" : 転送ヘッダーによる接続元の書き換えをサーバー層で
-    # 行わせない。判定はアプリ側の TRUSTED_PROXY_HOPS に一本化する（ADR-0075 §1）。
-    # uvicorn/gunicorn の実装は X-Forwarded-For の**左端**を採るため、
-    # $proxy_add_x_forwarded_for（受け取った値の後ろに実接続元を足す）と
-    # 組み合わせると詐称された値を拾ってしまう。
+    # --forwarded-allow-ips="" : don't let the server layer rewrite the client address from
+    # forwarding headers. The decision is made only by the app's TRUSTED_PROXY_HOPS (ADR-0075 §1).
+    # uvicorn/gunicorn take the **leftmost** X-Forwarded-For entry, so combined with
+    # $proxy_add_x_forwarded_for (which appends the real peer after the received value)
+    # they would pick up a spoofed value.
     exec gunicorn asgi:app \
       --worker-class uvicorn.workers.UvicornWorker \
       --workers "${GUNICORN_WORKERS:-2}" \

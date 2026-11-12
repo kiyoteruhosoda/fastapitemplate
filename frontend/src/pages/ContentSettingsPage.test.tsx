@@ -1,8 +1,8 @@
 /**
- * コンテンツ設定の画面（ADR-0085）。
+ * Content settings page (ADR-0085).
  *
- * 見るのは、辞書の文言で選択肢を出すこと・変えた項目だけを送ること・「既定に戻す」は null を送ること・
- * 見るだけの人（content-settings:view だけ）には入力欄を止めて保存ボタンを出さないこと。
+ * Checks that options use the dictionary text, only changed items are sent, "Reset to default" sends null,
+ * and view-only users (only content-settings:view) get disabled inputs and no save button.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,7 +61,7 @@ describe('ContentSettingsPage', () => {
     apiPut.mockResolvedValue([ORDER])
   })
 
-  it('選択肢を辞書の文言で出し、変えた項目だけを送る', async () => {
+  it('shows options with dictionary text and sends only changed items', async () => {
     const select = await renderPage()
     expect(select).toHaveValue('name')
     expect(screen.getByRole('option', { name: 'Newest first' })).toBeInTheDocument()
@@ -74,7 +74,7 @@ describe('ContentSettingsPage', () => {
     })
   })
 
-  it('「既定に戻す」は null を送る', async () => {
+  it('sends null for "Reset to default"', async () => {
     await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -85,7 +85,7 @@ describe('ContentSettingsPage', () => {
     })
   })
 
-  it('見るだけの人には入力欄を止め、保存ボタンを出さない', async () => {
+  it('disables inputs and hides the save button for view-only users', async () => {
     scopes.granted = ['content-settings:view']
     const select = await renderPage()
     expect(select).toBeDisabled()

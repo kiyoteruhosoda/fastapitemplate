@@ -1,6 +1,6 @@
-"""最初のシステム管理者を作るスクリプト（``scripts/create_system_admin.py``。ADR-0079 §1・§3）。
+"""The script that creates the first system administrator (``scripts/create_system_admin.py``; ADR-0079 §1, §3).
 
-テナントを入れた後の本番では、ここで作る 1 人目が居ないとテナントの台帳に誰も入れない。
+In production with tenants, without this first person nobody can get into the tenant registry.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _find(engine: sa.Engine, email: str) -> User | None:
     with Session(engine) as session:
         user = session.scalar(sa.select(User).where(User.email == email))
         if user is not None:
-            # 閉じた後も読めるように、関係を先に引いておく
+            # Load the relationships first so they can be read after closing
             _ = (user.role_names, user.tenant_id)
         return user
 
@@ -55,7 +55,7 @@ def test_the_first_system_administrator_can_sign_in_and_manage_tenants(
     assert created is not None
     assert created.username == "ops"
     assert created.role_names == (master_data.SYSTEM_ADMIN_ROLE,)
-    # ⚠ テナントに属さない（属すとテナントの中の人になり、台帳に入れない）
+    # ⚠ Belongs to no tenant (belonging would make them a tenant insider who cannot enter the registry)
     assert created.tenant_id is None
 
     sign_in(client, _EMAIL, _PASSWORD)
@@ -85,7 +85,7 @@ def test_missing_arguments_print_the_usage(engine: sa.Engine, monkeypatch: pytes
 
 
 def test_running_it_again_changes_nothing(engine: sa.Engine, monkeypatch: pytest.MonkeyPatch) -> None:
-    """2 回目は同じメールアドレスの人を見つけて何もしない（パスワードを上書きしない）。"""
+    """The second run finds the person with the same email address and does nothing (password not overwritten)."""
     monkeypatch.setenv("SYSTEM_ADMIN_PASSWORD", _PASSWORD)
     assert _run(_EMAIL) == 0
     monkeypatch.setenv("SYSTEM_ADMIN_PASSWORD", "another-password-123")

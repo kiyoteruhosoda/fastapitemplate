@@ -1,4 +1,4 @@
-"""ヘルスチェック・運用プローブ（k8s / Docker healthcheck 用）。"""
+"""Health checks and operational probes (for k8s / Docker healthcheck)."""
 
 from __future__ import annotations
 
@@ -25,13 +25,14 @@ class LivenessResponse(BaseModel):
 
 class ReadinessResponse(BaseModel):
     status: str
-    # key = チェック名, value = "ok" | "ng"。依存が増えたらここへ追加する
+    # key = check name, value = "ok" | "ng". Add new dependencies here
     checks: dict[str, str]
     timestamp_utc: str
 
 
 class InfoResponse(BaseModel):
-    """未認証で読める版だけ（ADR-0096）。枝・ビルド時刻・環境名は ``/api/admin/system``。"""
+    """Only the version, readable unauthenticated (ADR-0096). Branch, build time and environment
+    name are in ``/api/admin/system``."""
 
     version: str
     git_sha: str

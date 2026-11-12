@@ -1,4 +1,4 @@
-"""テナントのコンテンツ設定（定義と保存した値を合わせたもの）。"""
+"""A tenant's content settings (the definitions combined with the saved values)."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _accepts(definition: ContentSettingDefinition, value: object) -> bool:
         return isinstance(value, str) and value in definition.choices
     if definition.value_type == ContentSettingType.BOOLEAN:
         return isinstance(value, bool)
-    # bool は int の下位型なので先に外す
+    # bool is a subtype of int, so rule it out first
     if not isinstance(value, int) or isinstance(value, bool):
         return False
     low = definition.minimum if definition.minimum is not None else value
@@ -31,9 +31,9 @@ def _accepts(definition: ContentSettingDefinition, value: object) -> bool:
 
 
 class ContentSettings:
-    """定義に、テナントが保存した値を重ねたもの。保存していない項目は既定値で読む。
+    """The definitions with the tenant's saved values laid over them. Unsaved items read as defaults.
 
-    保存した値が定義に合わなくなったとき（選べる値を減らした等）は、既定値で読む。
+    When a saved value no longer fits its definition (e.g. a choice was removed), it reads as the default.
     """
 
     def __init__(
@@ -59,7 +59,7 @@ class ContentSettings:
         return definition.default
 
     def checked(self, changes: Mapping[str, object]) -> dict[str, SettingValue | None]:
-        """変更を確かめて返す。``None`` は「既定値へ戻す」。1 つでも誤りがあれば何も通さない。"""
+        """Check the changes and return them. ``None`` means "reset to default". One error rejects them all."""
         accepted: dict[str, SettingValue | None] = {}
         for key, value in changes.items():
             definition = self._definitions.get(key)

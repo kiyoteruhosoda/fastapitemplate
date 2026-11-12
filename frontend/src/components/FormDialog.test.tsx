@@ -1,12 +1,11 @@
 /**
- * 入力ダイアログ（ADR-0080 §6）の閉じ方。
+ * How the input dialog (ADR-0080 §6) closes.
  *
- * 見るのは「閉じる操作がすべて呼び出し側へ伝わること」。`<dialog>` の既定では、
- * Esc はダイアログだけを閉じて呼び出し側の状態が開いたまま残り、次に「追加」を
- * 押しても何も出なくなる。
+ * Checks that "every close action reaches the caller". With the `<dialog>` default, Esc closes
+ * only the dialog and the caller's state stays open, so pressing "Add" next time shows nothing.
  *
- * 幅による見え方（狭い画面で下から幅いっぱい）は CSS が決めるため、jsdom では
- * 検証できない（ADR-0080 §2）。
+ * The look by width (full width from the bottom on narrow screens) is decided by CSS, so it
+ * cannot be verified in jsdom (ADR-0080 §2).
  */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -30,20 +29,20 @@ function renderDialog(onClose: () => void) {
 }
 
 describe('FormDialog', () => {
-  it('見出しと中身を出す', () => {
+  it('renders the heading and content', () => {
     renderDialog(vi.fn())
 
     expect(screen.getByRole('heading', { name: 'Add user' })).toBeInTheDocument()
     expect(screen.getByText('form contents')).toBeInTheDocument()
   })
 
-  it('開いたら最初の入力欄へフォーカスが入る（閉じるボタンではなく）', () => {
+  it('focuses the first input when opened (not the close button)', () => {
     renderDialog(vi.fn())
 
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus()
   })
 
-  it('✕ で閉じる', () => {
+  it('closes with ✕', () => {
     const onClose = vi.fn()
     renderDialog(onClose)
 
@@ -52,7 +51,7 @@ describe('FormDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('Esc（cancel）でも閉じる。ブラウザ既定の取り消しは止める', () => {
+  it('also closes on Esc (cancel) and prevents the browser default cancel', () => {
     const onClose = vi.fn()
     const { container } = renderDialog(onClose)
     const dialog = container.querySelector('dialog')

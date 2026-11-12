@@ -1,15 +1,15 @@
 """rename admin role to owner
 
-全権限のロールの名前を ``admin`` から ``owner`` へ変える（ADR-0078 §5）。id と付与は
-そのまま、名前の列だけを書き換える。値の正本は ``shared/domain/auth/master_data.py``。
+Rename the all-permissions role from ``admin`` to ``owner`` (ADR-0078 §5). The id and grants stay;
+only the name column is rewritten. The values live in ``shared/domain/auth/master_data.py``.
 
-名前を変えずに ``seed_master_data`` だけを流すと、``owner`` が無いと見て**別の行を
-作り**、``admin`` は付与ごと残る。だから先に名前を変えてから流す。
+Running only ``seed_master_data`` without renaming would see no ``owner``, **create another row**,
+and leave ``admin`` with its grants. So rename first, then run it.
 
-``owner`` が既にある（派生アプリが自前で作っていた）ときは書き換えない。そのときは
-``admin`` が残るので、付与を見て手で寄せる。
+If ``owner`` already exists (a derived app created its own), nothing is rewritten. ``admin`` then
+remains, so merge the grants by hand after checking them.
 
-初期管理者は据えない（ADR-0078 §3）。
+Does not seat the initial administrator (ADR-0078 §3).
 
 Revision ID: rename_admin_role_to_owner
 Revises: seed_role_templates

@@ -77,7 +77,7 @@ class SentNotificationDTO:
 class SendResultDTO:
     notification: NotificationDTO
     recipient_user_ids: tuple[int, ...]
-    #: 端末への通知を送る予定か（``push`` を選んでいる）。
+    #: Whether device notifications will be sent (``push`` was chosen).
     push_scheduled: bool
 
 

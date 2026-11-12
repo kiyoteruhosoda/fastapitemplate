@@ -1,9 +1,9 @@
 """seed role templates
 
-系統ごとのロールの雛形（``system-admin`` / ``user-admin`` / ``auditor``）を足す
-（ADR-0078 §4）。値の正本は ``shared/domain/auth/master_data.py``（ここへ直書きしない）。
+Add the per-family role templates (``system-admin`` / ``user-admin`` / ``auditor``)
+(ADR-0078 §4). The values live in ``shared/domain/auth/master_data.py`` (not hard-coded here).
 
-``seed_master_data`` を流し直すだけ（冪等）。初期管理者は据えない（ADR-0078 §3）。
+Just re-runs ``seed_master_data`` (idempotent). Does not seat the initial administrator (ADR-0078 §3).
 
 Revision ID: seed_role_templates
 Revises: app_device_tokens

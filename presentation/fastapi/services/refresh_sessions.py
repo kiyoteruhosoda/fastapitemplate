@@ -1,14 +1,16 @@
-"""ログインごとの控え（``refresh_sessions``。ADR-0091）。
+"""Per-login records (``refresh_sessions``; ADR-0091).
 
-リフレッシュトークンの振り替えと、使い回しの見分けをここに集める。
+Refresh token rotation and reuse detection live here.
 
-- **今の 1 本**（``current_jti``）だけが新しいトークン対を受け取れる。ただし前の振り替えから
-  :data:`REUSE_GRACE_SECONDS` が過ぎるまでは振り替えず、アクセストークンだけを受け取る（ADR-0092）
-- **直前の 1 本**（``previous_jti``）は振り替えから :data:`REUSE_GRACE_SECONDS` のあいだだけ、
-  アクセストークンだけを受け取れる。タブが同時に更新したときの負けた側で、Cookie は勝った側のものを残す
-- **それ以外**は使い回し。そのログインだけを終わらせる（ほかの端末は巻き込まない）
+- Only **the current token** (``current_jti``) can receive a new token pair. But until
+  :data:`REUSE_GRACE_SECONDS` have passed since the last rotation, it is not rotated and receives
+  only an access token (ADR-0092)
+- **The previous token** (``previous_jti``) can receive only an access token, and only for
+  :data:`REUSE_GRACE_SECONDS` after rotation. It is the loser when tabs refresh at once; the
+  winner's cookie is kept
+- **Anything else** is reuse. Only that login is ended (other devices are not affected)
 
-寿命の決め方もここに集める（:func:`lifetime_for`。ADR-0101）。
+Deciding the lifetime lives here too (:func:`lifetime_for`; ADR-0101).
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from shared.infrastructure.models import RefreshSession
 from shared.kernel.settings.settings import settings
 from shared.kernel.timestamps import utcnow
 
-#: 直前の 1 本を受け付ける長さ。ほかのタブの更新が同時に走る幅で足りる
+#: How long the previous token is accepted. Covering concurrent refreshes from other tabs is enough
 REUSE_GRACE_SECONDS = 30
 
 
@@ -38,22 +40,24 @@ class RefreshStanding(StrEnum):
 
 @dataclass(frozen=True)
 class RefreshLifetime:
-    """これから出すトークンの寿命。``exp``・Cookie・控えを 1 つの値から揃える（ADR-0101）。
+    """Lifetime of the token about to be issued. ``exp``, cookie and record all derive from one value
+    (ADR-0101).
 
-    設定は 1 回だけ読んでここへ固める。読むたびに値が変わると、途中で設定を変えたときに食い違う。
+    The setting is read once and fixed here. Reading it each time could disagree if the setting
+    changed midway.
     """
 
-    #: 終わる時刻（UTC naive・秒まで）。``exp`` は秒までしか持たないので、控えも秒に揃える
+    #: Expiry time (naive UTC, to the second). ``exp`` only has seconds, so the record matches
     expires_at: datetime
-    #: 振り替えで控えの ``expires_at`` を書くか
+    #: Whether rotation writes the record's ``expires_at``
     extends: bool
-    #: Cookie の ``max_age``（秒）
+    #: Cookie ``max_age`` (seconds)
     max_age: int
 
 
 @dataclass(frozen=True)
 class IssuedRefreshToken:
-    """控えへ記録する 1 本。"""
+    """The token recorded in the login record."""
 
     session_id: str
     jti: str
@@ -78,15 +82,18 @@ def has_expired(row: RefreshSession) -> bool:
 
 
 def lifetime_for(session: Session, continued_session_id: str | None) -> RefreshLifetime:
-    """次に出すトークンの寿命を決める。
+    """Decide the lifetime of the next token.
 
-    ``continued_session_id`` は寿命を受け継ぐログインの控えで、``None`` は新しいログイン。
+    ``continued_session_id`` is the login record whose lifetime is inherited; ``None`` is a new
+    login.
 
-    - 新しいログインと、延長ありの続き: 今から設定の期間
-    - 延長なしの続き: 控えの ``expires_at`` のまま。設定の期間を変えても縮めない
+    - New login, or continuation with sliding: the configured period from now
+    - Continuation without sliding: the record's ``expires_at`` as is. Changing the configured
+      period doesn't shorten it
 
-    ⚠ **ここで読むのは寿命だけで、勝ち負けは決めない。** 同時に来た更新の勝者を決めるのは :func:`rotate` の条件である。
-    延長なしでは ``expires_at`` を書かないので、読んだ値が古くなることもない。
+    ⚠ **This only reads the lifetime; it doesn't pick a winner.** The winner among concurrent
+    refreshes is decided by the condition in :func:`rotate`.
+    Without sliding ``expires_at`` is never written, so the value read can't go stale.
     """
     now = utcnow()
     period = settings.refresh_token_expires_seconds
@@ -103,7 +110,8 @@ def lifetime_for(session: Session, continued_session_id: str | None) -> RefreshL
 
 
 def begin(session: Session, *, issued: IssuedRefreshToken, user_id: int) -> None:
-    """ログインの始まりに 1 行置く。期限の切れた行はここで掃除する（定期実行を持たない）。"""
+    """Insert one row at the start of a login. Expired rows are purged here (there is no periodic
+    job)."""
     session.execute(delete(RefreshSession).where(RefreshSession.expires_at < utcnow()))
     session.add(
         RefreshSession(
@@ -117,26 +125,29 @@ def begin(session: Session, *, issued: IssuedRefreshToken, user_id: int) -> None
 
 
 def rotate(session: Session, *, issued: IssuedRefreshToken, expected_jti: str | None = None) -> bool:
-    """今の 1 本を ``issued`` へ振り替える。振り替えられなかったら偽。
+    """Rotate the current token to ``issued``. False if it could not be rotated.
 
-    ⚠ **読んでから書かない。** 同時に来た更新のうち勝つのは 1 本だけで、それを決めるのはこの
-    ``UPDATE`` の条件である。負けた側は Cookie を載せない（負けた側が後から載せると、捨てられた
-    トークンが Cookie に残り、次の更新で使い回しに見える）。
+    ⚠ **No read-then-write.** Only one of concurrent refreshes wins, and the condition of this
+    ``UPDATE`` decides which. The losers don't set the cookie (if a loser set it afterwards, the
+    discarded token would stay in the cookie and look like reuse on the next refresh).
 
-    ⚠ **前の振り替えから猶予が過ぎるまでは振り替えない**（ADR-0092）。続けて振り替えると、まだ届いていない
-    ほかのタブの更新が持つ 1 本が「直前」から外れ、使い回しに見えてログインが終わる。
+    ⚠ **No rotation until the grace period since the last rotation has passed** (ADR-0092).
+    Rotating twice in a row would push the token held by another tab's not-yet-arrived refresh out
+    of "previous", making it look like reuse and ending the login.
 
-    ``expected_jti`` が ``None`` なのはロールの切り替え（更新の Cookie が届かない口で、どの 1 本かを問わない）。
+    ``expected_jti`` is ``None`` for a role switch (an endpoint the refresh cookie doesn't reach,
+    so any token is accepted).
 
-    延長なしなら ``expires_at`` に触らない（ADR-0101）。
+    Without sliding, ``expires_at`` is not touched (ADR-0101).
     """
     conditions = [RefreshSession.id == issued.session_id]
     if expected_jti is not None:
         settled = utcnow() - timedelta(seconds=REUSE_GRACE_SECONDS)
         conditions.append(RefreshSession.current_jti == expected_jti)
         conditions.append(or_(RefreshSession.rotated_at.is_(None), RefreshSession.rotated_at < settled))
-    # ⚠ **順番を固定する。** MariaDB は SET を左から評価する（標準 SQL と違う）。``values()`` は列の定義順に
-    #   並べるので、current_jti が先だと previous_jti に新しい値が入り、直前の 1 本が使い回しに見える。
+    # ⚠ **Fix the order.** MariaDB evaluates SET left to right (unlike standard SQL). ``values()``
+    #   orders by column definition, so with current_jti first, previous_jti would get the new
+    #   value and the previous token would look like reuse.
     assignments: list[tuple[Any, Any]] = [
         (RefreshSession.previous_jti, RefreshSession.current_jti),
         (RefreshSession.current_jti, issued.jti),

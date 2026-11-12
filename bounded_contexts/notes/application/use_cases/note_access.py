@@ -1,7 +1,7 @@
-"""1 件ずつの可否（ADR-0078 §6）。
+"""Per-note permission checks (ADR-0078 §6).
 
-トークンの scope で「メモの機能を使えるか」は依存関数が確かめ済み。ここでは
-「この人が、この 1 件を」を DB の持ち主・所属で確かめる。
+The dependency has already checked via the token's scope whether the notes feature may be used.
+Here we check "this person, this note" against the owner and memberships in the DB.
 """
 
 from bounded_contexts.notes.application.dto.note_dto import NoteInput
@@ -17,7 +17,7 @@ from bounded_contexts.notes.domain.value_objects.viewer import Viewer
 
 
 def readable_note(notes: INoteRepository, viewer: Viewer, note_id: int) -> Note:
-    """読めるメモを返す。無いものも読めないものも同じく :class:`NoteNotFoundError`。"""
+    """Return a readable note. Missing and unreadable both raise :class:`NoteNotFoundError`."""
     note = notes.get(note_id)
     if note is None or not note.readable_by(viewer):
         raise NoteNotFoundError
@@ -25,7 +25,7 @@ def readable_note(notes: INoteRepository, viewer: Viewer, note_id: int) -> Note:
 
 
 def changeable_note(notes: INoteRepository, viewer: Viewer, note_id: int) -> Note:
-    """変えてよいメモを返す。読めるが持ち主でなければ :class:`NoteNotOwnedError`。"""
+    """Return a note the caller may change. Readable but not owned raises :class:`NoteNotOwnedError`."""
     note = readable_note(notes, viewer, note_id)
     if not note.changeable_by(viewer):
         raise NoteNotOwnedError
@@ -33,10 +33,10 @@ def changeable_note(notes: INoteRepository, viewer: Viewer, note_id: int) -> Not
 
 
 def content_for(viewer: Viewer, data: NoteInput, current: Note | None = None) -> NoteContent:
-    """書き手の入力を中身にする。共有先は自分が入っているグループだけ。
+    """Turn the writer's input into content. The share target must be a group the caller belongs to.
 
-    書き換えでは、いまの共有先はそのまま残せる（共有した後に自分がグループを抜けても、
-    題名を直しただけで断られないように）。
+    An update may keep the current share target (so that fixing just the title isn't refused
+    after the caller has left the group it was shared with).
     """
     unchanged = current is not None and current.content.shared_group_id == data.shared_group_id
     if not unchanged and not viewer.can_share_with(data.shared_group_id):

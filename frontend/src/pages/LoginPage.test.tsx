@@ -1,8 +1,8 @@
 /**
- * ログイン画面の入口の出し分け（ADR-0077 §1 / ADR-0076 §3）。
+ * Which entry points the login page shows (ADR-0077 §1 / ADR-0076 §3).
  *
- * SSO のボタンを出すか、パスワード欄を出すかは**サーバーに聞く**
- * （`GET /api/auth/sso/provider`）。設定は起動後にも変わるため、画面に焼き込まない。
+ * Whether to show the SSO button or the password fields is **asked of the server**
+ * (`GET /api/auth/sso/provider`). Settings can change after startup, so it is not baked into the page.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -53,11 +53,12 @@ describe('LoginPage', () => {
     vi.clearAllMocks()
     window.localStorage.clear()
     window.sessionStorage.clear()
-    // 入口の出し分けを見る試験。ボタンを押さずに入る試し（ADR-0077 §9）は済んだことにする
+    // These tests are about which entry points show. Treat the no-click sign-in attempt
+    // (ADR-0077 §9) as already done
     window.sessionStorage.setItem('ssoSilentTried', '1')
   })
 
-  it('SSO が無効ならボタンを出さず、パスワードで入れる', async () => {
+  it('without SSO shows no button and allows password sign-in', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: false,
       display_name: '',
@@ -71,7 +72,7 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('button', { name: /Sign in with Nolumia/ })).not.toBeInTheDocument()
   })
 
-  it('SSO が有効ならボタンを出す（名前は IdP の呼び名）', async () => {
+  it('with SSO shows the button (named after the IdP)', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -82,11 +83,11 @@ describe('LoginPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Sign in with Nolumia' })).toBeInTheDocument()
     })
-    // 併用が既定。パスワードの入口も残っている（ADR-0076 §3）。
+    // Both is the default. The password entry is still there (ADR-0076 §3).
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
-  it('ローカルの入口が閉じているとパスワード欄もパスキーも出さない', async () => {
+  it('shows neither password fields nor passkey when the local entry is closed', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -101,9 +102,9 @@ describe('LoginPage', () => {
     expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).not.toBeInTheDocument()
   })
 
-  it('問い合わせが届かないうちは入口を出さず、つながったら IdP の入口を出す', async () => {
-    // リリース中はサーバーに届かない。既定の入口（パスワード欄）を出すと、サーバーが戻っても
-    // IdP のボタンの無い画面に取り残される。
+  it('shows no entry point until the request gets through, then shows the IdP entry', async () => {
+    // During a release the server is unreachable. Showing the default entry (password fields) would
+    // leave the user stranded on a page without the IdP button once the server is back.
     vi.useFakeTimers({ shouldAdvanceTime: true })
     fetchSsoProvider.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({
       enabled: true,
@@ -124,8 +125,8 @@ describe('LoginPage', () => {
     vi.useRealTimers()
   })
 
-  it('IdP でサインアウトして戻ると ?signed_out を文言にして出す', async () => {
-    // ⚠ 出さないと、期限切れで飛ばされたのと見分けが付かない（ADR-0077 §2）。
+  it('shows ?signed_out as a message after signing out at the IdP', async () => {
+    // Note: without it, it cannot be told apart from being kicked out by expiry (ADR-0077 §2).
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -139,7 +140,7 @@ describe('LoginPage', () => {
     })
   })
 
-  it('サーバー側の往復が失敗したら ?sso_error を文言にして出す', async () => {
+  it('shows ?sso_error as a message when the server-side round trip fails', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -160,7 +161,7 @@ describe('LoginPage', () => {
     ['/login?redirect_to=%2Fitems%3Fq%3Da', '/items?q=a'],
     ['/login', '/'],
     ['/login?redirect_to=https%3A%2F%2Fevil.example%2F', '/'],
-  ])('SSO の入口へ開こうとしていた画面を渡す（%s → %s。ADR-0077 §8）', async (entry, expected) => {
+  ])('passes the page being opened to the SSO entry (%s -> %s. ADR-0077 §8)', async (entry, expected) => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -172,7 +173,7 @@ describe('LoginPage', () => {
     expect(startSsoLogin).toHaveBeenCalledWith(expected, undefined)
   })
 
-  it('テナントの入口では、そのテナントの IdP とパスワードの再設定へつなぐ（ADR-0079 §4）', async () => {
+  it('on a tenant entry links to the IdP and password reset of that tenant (ADR-0079 §4)', async () => {
     fetchSsoProvider.mockResolvedValue({
       enabled: true,
       display_name: 'Nolumia',
@@ -199,7 +200,7 @@ describe('LoginPage', () => {
     )
   })
 
-  describe('ボタンを押さずに入る試し（ADR-0077 §9）', () => {
+  describe('no-click sign-in attempt (ADR-0077 §9)', () => {
     const PROVIDER = { enabled: true, display_name: 'Nolumia', local_login_enabled: true }
 
     beforeEach(() => {
@@ -211,7 +212,7 @@ describe('LoginPage', () => {
       vi.restoreAllMocks()
     })
 
-    it('開いたら入口を描かずに prompt=none で IdP へ送り出す（行き先は保つ）', async () => {
+    it('on open sends to the IdP with prompt=none without rendering entry points (keeps the destination)', async () => {
       renderPage('/login?redirect_to=%2Fitems')
 
       await waitFor(() => {
@@ -221,7 +222,7 @@ describe('LoginPage', () => {
       expect(window.sessionStorage.getItem('ssoSilentTried')).toBe('1')
     })
 
-    it('試して戻ってきたら、エラーを出さずにふつうの入口を出す', async () => {
+    it('after returning from an attempt shows the normal entry points without an error', async () => {
       renderPage('/login?sso_silent=declined&redirect_to=%2Fitems')
 
       expect(
@@ -232,7 +233,7 @@ describe('LoginPage', () => {
       expect(document.querySelector('.error')).toBeNull()
     })
 
-    it('試して戻った画面を再読み込みしたら、もう 1 回試す（ADR-0077 §10）', async () => {
+    it('tries once more when the returned page is reloaded (ADR-0077 §10)', async () => {
       window.sessionStorage.setItem('ssoSilentTried', '1')
       vi.spyOn(window.performance, 'getEntriesByType').mockReturnValue([
         { type: 'reload' } as PerformanceNavigationTiming,
@@ -244,7 +245,7 @@ describe('LoginPage', () => {
       })
     })
 
-    it('再読み込みでも、サインアウトした後は試さない', async () => {
+    it('does not try on reload after signing out', async () => {
       window.localStorage.setItem('ssoSignedOut', '1')
       vi.spyOn(window.performance, 'getEntriesByType').mockReturnValue([
         { type: 'reload' } as PerformanceNavigationTiming,
@@ -257,7 +258,7 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
-    it('このタブで一度試していたら試さない', async () => {
+    it('does not try if already tried in this tab', async () => {
       window.sessionStorage.setItem('ssoSilentTried', '1')
       renderPage('/login')
 
@@ -267,7 +268,7 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
-    it('サインアウトした後は試さない', async () => {
+    it('does not try after signing out', async () => {
       window.localStorage.setItem('ssoSignedOut', '1')
       renderPage('/login')
 
@@ -277,7 +278,7 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
-    it('エラーが付いているときは試さない', async () => {
+    it('does not try when an error is attached', async () => {
       renderPage('/login?sso_error=sso_account_not_linked')
 
       expect(
@@ -286,7 +287,7 @@ describe('LoginPage', () => {
       expect(startSsoLogin).not.toHaveBeenCalled()
     })
 
-    it('テナントの入口では、そのテナントの IdP で試す（ADR-0079 §4）', async () => {
+    it('on a tenant entry tries with the IdP of that tenant (ADR-0079 §4)', async () => {
       render(
         <MemoryRouter initialEntries={['/t/acme/login']}>
           <I18nProvider settings={SETTINGS}>
@@ -304,16 +305,17 @@ describe('LoginPage', () => {
       })
     })
 
-    // ⚠ 印を書けないまま試すと、戻ってきたときに試したことが分からず行き来が止まらない
+    // Note: trying without being able to write the marker means that on return it is unknown
+    //   whether it was tried, and the round trips never stop
     it.each([
       [
-        '書くと例外になる',
+        'writing throws',
         () => {
           throw new DOMException('quota', 'QuotaExceededError')
         },
       ],
-      ['書いても残らない', () => undefined],
-    ])('印を書けないブラウザでは試さない（%s）', async (_case, setItem) => {
+      ['writing does not persist', () => undefined],
+    ])('does not try in a browser that cannot write the marker (%s)', async (_case, setItem) => {
       const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(setItem)
       try {
         renderPage('/login')
@@ -327,8 +329,8 @@ describe('LoginPage', () => {
       }
     })
 
-    it('印を読めないブラウザでも試さない', async () => {
-      // 読めないのは試しの印だけにする（言語や見た目の控えは無いことにする）
+    it('does not try in a browser that cannot read the marker either', async () => {
+      // Only the attempt marker is unreadable (language and appearance preferences are treated as absent)
       const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) => {
         if (key === 'ssoSignedOut' || key === 'ssoSilentTried') {
           throw new DOMException('denied', 'SecurityError')
@@ -347,7 +349,7 @@ describe('LoginPage', () => {
       }
     })
 
-    it('SSO が無効なら試さない', async () => {
+    it('does not try when SSO is disabled', async () => {
       fetchSsoProvider.mockResolvedValue({ ...PROVIDER, enabled: false })
       renderPage('/login')
 

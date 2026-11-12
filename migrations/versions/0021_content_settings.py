@@ -1,8 +1,8 @@
 """content settings
 
-テナントごとのコンテンツ設定の表 ``content_settings`` を足す（ADR-0085）。定義の正本は
-``bounded_contexts/content_settings/infrastructure/content_setting_model.py``。権限
-（``content-settings:view`` / ``:write``）は ``0020_actors_and_roles`` で投入済み。
+Add the per-tenant content settings table ``content_settings`` (ADR-0085). The definition lives in
+``bounded_contexts/content_settings/infrastructure/content_setting_model.py``. The permissions
+(``content-settings:view`` / ``:write``) were already seeded by ``0020_actors_and_roles``.
 
 Revision ID: content_settings
 Revises: actors_and_roles

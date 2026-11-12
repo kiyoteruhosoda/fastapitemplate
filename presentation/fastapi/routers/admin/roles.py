@@ -1,19 +1,20 @@
-"""ロール管理 API（作成・更新・削除は要 ``role:manage``）。
+"""Role management API (create, update and delete require ``role:manage``).
 
-一覧の取得だけは ``user:manage`` でも通す。ユーザーへロールを割り当てる画面が
-「どんなロールがあるか」を知る必要があるため（ADR-0078 §2）。
+Only listing is also allowed with ``user:manage``, because the screen that assigns roles to users
+needs to know which roles exist (ADR-0078 §2).
 
-ロールへの権限（scope）付与は実質的な権限変更なので、作成・更新・削除を監査ログ
-へ残す。更新時の ``reason`` には**付与後の権限コード**を入れる（誰が何の権限を
-与えたかを後から検証できるようにするため。権限コードは PII ではない）。
+Granting permissions (scopes) to a role is effectively a permission change, so create, update and
+delete are recorded in the audit log. On update, ``reason`` holds the **permission codes after the
+grant** (so who granted what can be verified later; permission codes are not PII).
 
-権限の中身を変える操作には、scope とは別に関門を掛ける（ADR-0078 §4）。自分が
-持っていない権限は足すことも外すこともできず、「管理の要」を持つ人を 0 人に
-する変更は通さない。
+Operations that change a role's permissions get a gate in addition to the scope (ADR-0078 §4).
+You cannot add or remove permissions you don't hold yourself, and a change that leaves zero people
+with the "key admin" permissions is rejected.
 
-扱えるのは**自分のテナントで使えるロールだけ**（ADR-0079 §3）。雛形（``master_data.ROLES``）は
-全テナントが共有するので、一覧には出るが中身は変えられない（403 ``shared_role``）。
-作ったロールは作ったテナントのもので、ほかのテナントからは見えない（404）。
+Only **roles usable in your own tenant** can be handled (ADR-0079 §3). The templates
+(``master_data.ROLES``) are shared by all tenants, so they appear in the list but cannot be
+changed (403 ``shared_role``). A created role belongs to the tenant that created it and is
+invisible to other tenants (404).
 """
 
 from __future__ import annotations
@@ -43,13 +44,13 @@ from shared.kernel.database.session import get_db
 
 router = APIRouter(prefix="/api/admin/roles", tags=["admin"])
 
-# ロールを変える操作は role:manage。読むだけなら user:manage でも通す（ADR-0078 §2）。
+# Changing roles requires role:manage. Reading is also allowed with user:manage (ADR-0078 §2).
 _MANAGE_ROLES = Depends(require_permission("role:manage"))
 _READ_ROLES = Depends(require_any_permission("role:manage", "user:manage"))
 
 DbDep = Annotated[Session, Depends(get_db)]
 
-# reason 列は 255 文字。権限を多く持つロールでも収まるよう組み立て時に切る。
+# The reason column is 255 chars. Truncate when building it so roles with many permissions fit.
 _MAX_REASON_LENGTH = 255
 
 
@@ -74,7 +75,7 @@ def _resolve_permissions(db: Session, codes: list[str]) -> list[Permission]:
 
 
 def _granted_scopes(role: Role) -> str:
-    """監査ログの ``reason`` に載せる「付与後の権限」。"""
+    """The "permissions after the grant" put in the audit log ``reason``."""
     return f"scopes={','.join(sorted(p.code for p in role.permissions))}"[:_MAX_REASON_LENGTH]
 
 
@@ -84,7 +85,7 @@ def list_roles(admin: AdministrationDep) -> list[RoleResponse]:
 
 
 def _own_role(admin: Administration, role_id: int) -> Role:
-    """中身を変えてよいロール。見えなければ 404、共有の雛形なら 403。"""
+    """A role that may be modified. 404 if not visible, 403 if it is a shared template."""
     role = admin.members.role(role_id)
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"error": "role_not_found"})

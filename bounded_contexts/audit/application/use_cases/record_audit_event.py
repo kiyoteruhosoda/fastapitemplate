@@ -1,13 +1,12 @@
-"""監査イベントを組み立てて控えに積むユースケース。
+"""Use case that builds an audit event and queues it.
 
-呼び出し側（ルーター）はリクエスト文脈を毎回組み立てず、リクエスト単位に束縛
-された本ユースケースを ``Depends()`` で受け取る。``execute`` に渡すのは
-「何をして、どうなったか」だけ。
+Callers (routers) do not build the request context each time; they receive this use case, bound
+per request, via ``Depends()``. ``execute`` is given only "what was done and how it turned out".
 
-**ここでは DB へ書かない。** 控えに積むだけで、実際の書き込みはリクエストの処理が
-終わってから :class:`~bounded_contexts.audit.application.use_cases.write_audit_events.WriteAuditEvents`
-がまとめて行う（ADR-0075 §1）。処理の途中で別コネクションから書くと、SQLite では
-リクエストのセッションが持つ書き込みロックと衝突するため。
+**It does not write to the DB.** It only queues; the actual write is done in one go by
+:class:`~bounded_contexts.audit.application.use_cases.write_audit_events.WriteAuditEvents`
+after the request has been processed (ADR-0075 §1). Writing from another connection mid-request
+would collide on SQLite with the write lock held by the request's session.
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ from shared.kernel.timestamps import utcnow
 
 
 class RecordAuditEvent:
-    """1 リクエスト分の文脈を持ち、そのリクエスト中の監査イベントを組み立てる。"""
+    """Holds the context of one request and builds the audit events during that request."""
 
     def __init__(
         self,
@@ -41,12 +40,12 @@ class RecordAuditEvent:
         self._actor_user_id = actor_user_id
 
     def as_actor(self, actor_user_id: int) -> RecordAuditEvent:
-        """実行者を差し替えた記録口を返す。
+        """Return a recorder with the actor replaced.
 
-        実行者はふつうリクエスト開始時（認証依存関数）に決まるが、**ログインだけは
-        その最中に確定する**ため、確定した時点で束ね直す。呼び出しごとに実行者を
-        渡せるようにすると、未認証の操作にうっかり相手を実行者として渡してしまう
-        （ADR-0075 §1 で直した誤帰属がまさにそれ）。
+        The actor is normally fixed at the start of the request (authentication dependency), but
+        **only sign-in fixes it midway**, so it is rebound at that point. Allowing an actor per call
+        would make it easy to pass the other party as the actor for unauthenticated operations
+        (exactly the misattribution fixed in ADR-0075 §1).
         """
         return RecordAuditEvent(self._collector, self._context, actor_user_id)
 
@@ -58,14 +57,14 @@ class RecordAuditEvent:
         target: AuditTarget | None = None,
         reason: str | None = None,
     ) -> None:
-        """イベントを 1 件記録する（書き込みはリクエスト終了後）。
+        """Record one event (written after the request ends).
 
-        実行者はこの記録口に束ねられた**認証済みの利用者**で、未認証のリクエストでは
-        ``None`` のままになる。「誰がやったか分からないが誰に対しての操作かは分かる」
-        場合（ログイン失敗・パスワードリセット）は ``target`` に相手を入れる。
+        The actor is the **authenticated user** bound to this recorder, and stays ``None`` for
+        unauthenticated requests. When "who did it is unknown but whom it was done to is known"
+        (sign-in failure, password reset), put the other party in ``target``.
 
-        ``reason`` には失敗理由や変更した項目名を入れる。**値そのもの（パスワード・
-        メールアドレス等）は渡さない**。
+        ``reason`` holds the failure reason or the names of changed items. **Never pass the values
+        themselves (passwords, email addresses, etc.).**
         """
         self._collector.add(
             AuditEvent(

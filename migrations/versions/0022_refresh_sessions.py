@@ -1,9 +1,10 @@
 """refresh sessions
 
-ログインごとの控え ``refresh_sessions`` を足す（ADR-0091）。定義の正本は
-``shared/infrastructure/models/user.py``。
+Add the per-sign-in record ``refresh_sessions`` (ADR-0091). The definition lives in
+``shared/infrastructure/models/user.py``.
 
-⚠ 控えの無い発行済みのリフレッシュトークンは受け付けなくなるので、配った直後に全員が 1 回入り直す。
+⚠ Already issued refresh tokens without a record are no longer accepted, so everyone signs in
+again once right after deployment.
 
 Revision ID: refresh_sessions
 Revises: content_settings

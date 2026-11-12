@@ -1,11 +1,11 @@
-"""ログインの資格情報検証（パスワード → 二要素認証 → 監査記録）。
+"""Login credential verification (password -> two-factor auth -> audit record).
 
-ルーターから切り出しているのは、ログインが「入力を受けてトークンを返す」だけの
-処理ではないため。実際には照合・第二要素の検証・失敗の理由分けと、そのすべてに
-対応する監査記録があり、ルーターに置くと HTTP の関心事に業務の分岐が混ざる。
+It is split out of the router because login is not just "take input, return a token". There is
+matching, second-factor verification, classifying failure reasons, and an audit record for each;
+in the router, business branching would mix with HTTP concerns.
 
-**応答はどの失敗でも同じ ``invalid_credentials``** に揃える（アカウントの存在を
-漏らさないため）。どこで落ちたかは監査ログの ``reason`` にだけ残る。
+**Every failure returns the same ``invalid_credentials``** (so account existence is not leaked).
+Where it failed is recorded only in the audit log ``reason``.
 """
 
 from __future__ import annotations
@@ -47,14 +47,15 @@ from shared.kernel.settings.secret_guard import PRODUCTION
 from shared.kernel.timestamps import utcnow
 from shared.kernel.version import load_build_info
 
-#: 未知の宛名でも照合の時間を揃えるためのハッシュ。**何とも一致しない**
-#: （応答時間で存在が分かるのを防ぐ。ADR-0076 §9）
+#: Hash used to equalize matching time for unknown identifiers. **Matches nothing**
+#: (prevents existence being inferred from response time; ADR-0076 §9)
 _DUMMY_HASH = generate_password_hash("no-account-has-this-password")
 
 
 @dataclass(frozen=True)
 class LoginChecks:
-    """資格情報の**前後**に挟む確認。束ねているのは引数の数を設計上の数に収めるため。"""
+    """Checks run **before and after** the credentials. Bundled to keep the argument count within
+    the design limit."""
 
     second_factor: VerifySecondFactor
     throttle: ThrottleLogin
@@ -68,25 +69,26 @@ class LoginService:
         self._audit = audit
 
     def authenticate(self, credentials: LoginRequest) -> User:
-        """資格情報を検証し、通れば利用者を返す。通らなければ 401 を投げる。
+        """Verify credentials and return the user if they pass. Otherwise raise 401.
 
-        二要素認証が有効なアカウントでは ``totp_code`` も検証する。コード未提示は
-        ``totp_required``、不一致は ``invalid_totp`` を返す（どちらもパスワードは
-        正しかったことを意味するので、コードを添えて再度ログインすればよい）。
+        For accounts with two-factor auth, ``totp_code`` is verified too. A missing code returns
+        ``totp_required``, a mismatch ``invalid_totp`` (both mean the password was correct, so
+        logging in again with the code is enough).
 
-        失敗は宛名ごとに数え、上限に達したらしばらく 429 で断る（ADR-0076 §9）。
+        Failures are counted per identifier; once the limit is hit, requests are refused with 429
+        for a while (ADR-0076 §9).
         """
         self._require_not_locked(credentials.email)
         user = account_signing_in(self._db, credentials.email, credentials.tenant)
         if user is None:
-            # 未知の宛名でも照合の時間を揃える。応答時間で存在が分かるのを防ぐ
+            # Equalize matching time for unknown identifiers so response time reveals nothing
             check_password_hash(_DUMMY_HASH, credentials.password)
             self._reject(None, "unknown_email", credentials.email)
         if not user.is_active:
             self._reject(user, "inactive_user", credentials.email)
         if user.password_hash is None:
-            # パスワードという入り口を持たない利用者（ADR-0076 §6）。照合する相手が
-            # 無いので、ここで断る。
+            # A user without a password entrance (ADR-0076 §6). There is nothing to match
+            # against, so reject here.
             self._reject(user, "no_local_password", credentials.email)
         if not check_password_hash(user.password_hash, credentials.password):
             self._reject(user, "invalid_password", credentials.email)
@@ -94,18 +96,19 @@ class LoginService:
             self._reject(user, "default_password", credentials.email)
 
         self._verify_second_factor(user, credentials)
-        # 正しく入れた。それまでの失敗は打ち間違いなので忘れる
+        # Signed in correctly. Earlier failures were typos, so forget them
         self._throttle.record_success(PURPOSE_LOGIN, credentials.email)
-        # どの入口で入ったかを残す（ADR-0076 §3 決定 1）。入口ごとに認証の強度が違うため、
-        # 記録が無いと「IdP 側で止めたのにまだ入れている」ことに後から気付けない。
+        # Record which entrance was used (ADR-0076 §3 decision 1). Auth strength differs per
+        # entrance, and without a record you can't later notice "suspended at the IdP but still
+        # getting in".
         self._audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=password")
         return user
 
     def _require_not_locked(self, identifier: str) -> None:
-        """断っている最中なら、照合の前に 429（ADR-0076 §9）。
+        """If currently refusing, 429 before matching (ADR-0076 §9).
 
-        断られた試行も監査に残す ——当たられていることは、断っているあいだにこそ見える。
-        誰のアカウントかはまだ引いていないので対象は空。
+        Refused attempts are audited too: an attack is visible precisely while refusing.
+        The account hasn't been looked up yet, so the target is empty.
         """
         try:
             self._throttle.require_allowed(PURPOSE_LOGIN, identifier, utcnow())
@@ -114,22 +117,23 @@ class LoginService:
             raise
 
     def _verify_second_factor(self, user: User, credentials: LoginRequest) -> None:
-        """二要素のコードを確かめる。**間違いもパスワードと同じ数え上げに入れる**（ADR-0076 §9）。"""
+        """Verify the second-factor code. **Mistakes count toward the same tally as passwords**
+        (ADR-0076 §9)."""
         try:
             self._second_factor.execute(user_id=user.id, code=credentials.totp_code)
         except (TotpRequiredError, InvalidTotpCodeError) as error:
             self._record_failure(user, error.code, credentials.email)
-            # 認証の失敗として 401 に揃える（既定の対応付けでは 400 になる）
+            # Normalize to 401 as an authentication failure (the default mapping gives 400)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={"error": error.code},
             ) from None
 
     def _reject(self, user: User | None, reason: str, identifier: str) -> NoReturn:
-        """失敗を記録し、理由を問わず同じ 401 を返す。
+        """Record the failure and return the same 401 regardless of reason.
 
-        戻り値を ``NoReturn`` にしているのは、呼び出し側で ``user`` が
-        ``User | None`` から ``User`` へ絞り込まれるようにするため。
+        The return type is ``NoReturn`` so callers narrow ``user`` from ``User | None`` to
+        ``User``.
         """
         self._record_failure(user, reason, identifier)
         raise HTTPException(
@@ -138,12 +142,13 @@ class LoginService:
         )
 
     def _record_failure(self, user: User | None, reason: str, identifier: str) -> None:
-        """相手のアカウントは**実行者ではなく対象**として記録する。
+        """Record the account as the **target, not the actor**.
 
-        認証に失敗した時点で「誰が試したか」は分かっておらず、実行者に据えると
-        アカウントの持ち主が自分でやったように読めてしまう（ADR-0075 §1）。
+        When authentication fails, "who tried" is unknown; recording the owner as actor would
+        read as if the owner did it themselves (ADR-0075 §1).
 
-        失敗は宛名ごとに数え、上限に達したら断り始めたことも残す（ADR-0076 §9）。
+        Failures are counted per identifier, and reaching the limit and starting to refuse is
+        recorded too (ADR-0076 §9).
         """
         target = AuditTarget.of(AuditTargetType.USER, user.id) if user is not None else None
         self._audit.execute(AuditEventType.LOGIN_FAILED, AuditResult.FAILURE, target=target, reason=reason)
@@ -152,11 +157,12 @@ class LoginService:
 
 
 def _is_published_default(password: str) -> bool:
-    """本番で、公開されている既定のパスワードで入ろうとしているか（ADR-0073 §4）。
+    """Whether someone in production is signing in with the public default password (ADR-0073 §4).
 
-    既定の管理者は ``ADMIN_INITIAL_PASSWORD`` を渡し忘れると、リポジトリに載っている
-    パスワードのまま全権で据わる。**本番ではその値では入れない**ようにして、渡し忘れを
-    「誰でも入れる」ではなく「誰も入れない」に倒す。開発では今までどおり入れる。
+    If ``ADMIN_INITIAL_PASSWORD`` is not provided, the default admin sits with full rights and the
+    password published in the repository. **In production that value cannot sign in**, so a
+    forgotten setting fails as "nobody can get in" rather than "anyone can". Development still
+    allows it as before.
     """
     if load_build_info().environment != PRODUCTION:
         return False

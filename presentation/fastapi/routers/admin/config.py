@@ -1,7 +1,8 @@
-"""システム設定 API（見るには ``system-settings:view``、変えるには ``system-settings:write``。ADR-0084 §3）。
+"""System settings API (``system-settings:view`` to read, ``system-settings:write`` to change;
+ADR-0084 §3).
 
-保存は監査ログへ残す。``reason`` には**変更したキー名**だけを入れる。設定値には
-SMTP パスワードのような秘密が含まれるため、値そのものは記録しない（ADR-0075 §1）。
+Saves are recorded in the audit log. ``reason`` holds only the **names of changed keys**.
+Settings include secrets such as the SMTP password, so values are never recorded (ADR-0075 §1).
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ router = APIRouter(
 
 DbDep = Annotated[Session, Depends(get_db)]
 
-# reason 列は 255 文字。一度に多くのキーを保存しても収まるよう組み立て時に切る。
+# The reason column is 255 chars. Truncate when building it so many keys saved at once still fit.
 _MAX_REASON_LENGTH = 255
 
 
@@ -57,10 +58,10 @@ def update_config(
     db: DbDep,
     audit: AuditRecorderDep,
 ) -> SystemSettingsUpdateResponse:
-    """設定を保存する。
+    """Save settings.
 
-    起動時にしか読まれない設定を変更した場合は ``restart_required`` を返す。
-    実際の再起動は ``POST /api/admin/system/restart`` で要求する。
+    Returns ``restart_required`` if a setting read only at startup was changed.
+    The actual restart is requested via ``POST /api/admin/system/restart``.
     """
     try:
         requirement = SystemSettingService.save(db, body.values)

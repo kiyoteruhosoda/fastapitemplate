@@ -1,10 +1,10 @@
 /**
- * お知らせ（ADR-0081 §3）の API と、画面が使う小さな判定。
+ * Notifications (ADR-0081 §3) API, plus small checks the screens use.
  *
- * 1 通のお知らせは `channels` で出る場所が決まる。
- * - `bell`   … ヘッダーのベル（一覧に残る。既読にするまで数に出る）
- * - `banner` … 画面の上部（閉じるか押すまで出続ける）
- * - `push`   … 端末への通知（Web Push。`services/webPush.ts`）
+ * Where a notification appears is decided by `channels`.
+ * - `bell`   … the header bell (stays in the list; counted until marked read)
+ * - `banner` … top of the screen (shown until closed or clicked)
+ * - `push`   … device notification (Web Push; `services/webPush.ts`)
  */
 import { api } from './api'
 
@@ -72,12 +72,12 @@ export const notificationsApi = {
   audiences: () => api.get<AudienceOptions>('/api/admin/notifications/audiences'),
 }
 
-/** ベルの一覧に出すもの。 */
+/** What goes in the bell list. */
 export function bellItems(inbox: Inbox | null): InboxItem[] {
   return (inbox?.items ?? []).filter((item) => item.channels.includes('bell'))
 }
 
-/** 画面上部に出すもの（新しい順の先頭 1 通だけを出す）。 */
+/** What goes at the top of the screen (only the newest one is shown). */
 export function bannerItem(inbox: Inbox | null): InboxItem | null {
   return (
     (inbox?.items ?? []).find(
@@ -87,9 +87,9 @@ export function bannerItem(inbox: Inbox | null): InboxItem | null {
 }
 
 /**
- * 行き先がこのアプリの中か（`/items`）。中なら画面の切り替えで開き、外なら
- * 別のタブで開く。⚠ `//host` はパスに見えて別のホストなので外として扱う
- * （サーバーは受け付けないが、画面でも前提にしない）。
+ * Whether the destination is inside this app (`/items`). Inside opens via screen switch; outside
+ * opens in another tab. WARNING: `//host` looks like a path but is another host, so it counts as
+ * outside (the server rejects it, but the screen doesn't rely on that either).
  */
 export function isInAppLink(link: string): boolean {
   return link.startsWith('/') && !link.startsWith('//')

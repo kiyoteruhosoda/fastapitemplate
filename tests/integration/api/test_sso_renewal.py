@@ -1,7 +1,8 @@
-"""SSO で入ったログインはリフレッシュトークンを持たず、切れたら画面を出さずに続ける（ADR-0104）。
+"""SSO sign-ins hold no refresh token and continue without showing a screen when they expire (ADR-0104).
 
-IdP との通信はゲートウェイを差し替えて止める。続ける往復は、画面が見えない枠で開く
-``/api/auth/sso/renew`` から始まり、戻り（``/callback``）が Cookie を載せて結果の頁へ送る。
+Communication with the IdP is stopped by replacing the gateway. The continuation round trip starts
+at ``/api/auth/sso/renew`` opened in an invisible frame, and the return (``/callback``) sets the
+cookie and sends to the result page.
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ _RENEWED = "/api/auth/sso/renewed"
 
 @dataclass
 class _StubGateway:
-    """ID トークンを、検証済みのクレームとして返すだけの IdP。送り出した要求を覚える。"""
+    """An IdP that just returns the ID token as verified claims. Remembers the requests sent."""
 
     requests: list[AuthorizationRequest] = field(default_factory=list)
 
@@ -103,7 +104,7 @@ def _state_of(location: str) -> str:
 
 
 def _sign_in_with_sso(client: TestClient) -> Any:
-    """SSO で入る（認可要求 → 戻り → 券の引き換え）。券を換えた応答を返す。"""
+    """Signs in via SSO (authorization request -> return -> ticket exchange). Returns the exchange response."""
     redirect = client.get("/api/auth/sso/login", follow_redirects=False)
     callback = client.get(
         f"/api/auth/sso/callback?code=c&state={_state_of(redirect.headers['location'])}",
@@ -116,7 +117,7 @@ def _sign_in_with_sso(client: TestClient) -> Any:
 
 
 def _renew(client: TestClient, query: str = "code=c") -> Any:
-    """続ける往復（枠の中で開く口 → IdP → 戻り）。戻りの応答を返す。"""
+    """The continuation round trip (entrance opened in the frame -> IdP -> return). Returns the return response."""
     start = client.get("/api/auth/sso/renew", follow_redirects=False)
     assert start.status_code == 303
     return client.get(
@@ -137,7 +138,7 @@ def _claims(token: str) -> dict[str, Any]:
 
 
 def _replace_access_cookie(client: TestClient, claims: dict[str, Any]) -> None:
-    """手元のアクセストークンの Cookie を、書き換えたクレームのものに差し替える。"""
+    """Replaces the access-token cookie in hand with one carrying rewritten claims."""
     for cookie in list(client.cookies.jar):
         if cookie.name == ACCESS_TOKEN_COOKIE:
             client.cookies.jar.clear(cookie.domain, cookie.path, cookie.name)
@@ -149,11 +150,11 @@ def _set_cookie_headers(response: Any) -> list[str]:
 
 
 def test_an_sso_login_hands_out_no_refresh_token(sso_client: TestClient) -> None:
-    """AC3: SSO で入ったログインに、リフレッシュトークンとログアウトの札の Cookie を出さない。"""
+    """AC3: SSO sign-ins do not get refresh-token or logout-marker cookies."""
     exchanged = _sign_in_with_sso(sso_client)
     issued = " ".join(_set_cookie_headers(exchanged))
     assert f"{ACCESS_TOKEN_COOKIE}=" in issued
-    assert f'{REFRESH_TOKEN_COOKIE}=""' in issued  # 前の仕組みの札は落とす
+    assert f'{REFRESH_TOKEN_COOKIE}=""' in issued  # drop the marker from the previous mechanism
     assert REFRESH_TOKEN_COOKIE not in sso_client.cookies
     assert LOGOUT_TOKEN_COOKIE not in sso_client.cookies
     assert "rsid" not in _claims(sso_client.cookies[ACCESS_TOKEN_COOKIE])
@@ -166,7 +167,7 @@ def test_an_sso_login_keeps_no_refresh_record(sso_client: TestClient, engine: sa
 
 
 def test_the_access_cookie_outlives_the_token_to_carry_the_session(sso_client: TestClient) -> None:
-    """トークンは 5 分で切れるが、Cookie は続ける往復のために残す。"""
+    """The token expires in 5 minutes, but the cookie stays for the continuation round trip."""
     exchanged = _sign_in_with_sso(sso_client)
     access = next(value for value in _set_cookie_headers(exchanged) if value.startswith(f"{ACCESS_TOKEN_COOKIE}="))
     assert f"Max-Age={RENEWAL_CARRY_SECONDS}" in access
@@ -175,7 +176,7 @@ def test_the_access_cookie_outlives_the_token_to_carry_the_session(sso_client: T
 
 
 def test_a_refresh_token_from_an_sso_login_is_refused(sso_client: TestClient, engine: sa.Engine) -> None:
-    """この仕組みより前に出した札が残っていても、更新の口は通さず、控えと札を消す。"""
+    """A marker left from before this mechanism is refused at refresh, and the record and marker are deleted."""
     with Session(engine) as db:
         user = db.scalars(sa.select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL)).one()
         login = FederatedLogin(
@@ -207,13 +208,13 @@ def test_renewing_asks_the_idp_without_a_screen(sso_client: TestClient, gateway:
     assert start.status_code == 303
     assert start.headers["location"].startswith(_AUTHORIZE)
     assert gateway.requests[-1].silent is True
-    # 枠の中で開くので、自分のオリジンの枠にだけ入れてよい
+    # Opened in a frame, so it may only be framed by our own origin
     assert start.headers["x-frame-options"] == "SAMEORIGIN"
     assert "frame-ancestors 'self'" in start.headers["content-security-policy"]
 
 
 def test_renewing_carries_the_role_and_the_sign_in_time(sso_client: TestClient) -> None:
-    """続けるのは入り直しではない。サインインした時刻とロールを引き継ぐ。"""
+    """Continuing is not re-signing in. The sign-in time and role carry over."""
     _sign_in_with_sso(sso_client)
     switched = sso_client.post(
         "/api/auth/switch-role", json={"role": "owner"}, headers={CSRF_HEADER: sso_client.cookies[CSRF_COOKIE]}
@@ -239,16 +240,16 @@ def test_renewing_without_a_previous_token_signs_in_afresh(sso_client: TestClien
 
 
 def test_renewing_is_declined_when_the_idp_has_no_session(sso_client: TestClient) -> None:
-    """AC2: IdP で入っていなければ ``declined``。画面はログイン画面へ送る。"""
+    """AC2: if not signed in at the IdP, ``declined``. The screen goes to the sign-in screen."""
     declined = _renew(sso_client, "error=login_required")
     assert declined.headers["location"] == f"{_RENEWED}?result=declined"
     assert ACCESS_TOKEN_COOKIE not in sso_client.cookies
 
 
 def test_renewing_is_declined_when_someone_else_comes_back(sso_client: TestClient) -> None:
-    """IdP で別の人に入り直していたら続けない。開いている画面は前の人のものだから。"""
+    """If someone else has signed in at the IdP, do not continue: the open screen belongs to the previous person."""
     _sign_in_with_sso(sso_client)
-    # 枠を開いた画面のトークンは別の人のもの（宛名だけを書き換えて作る）
+    # The token of the screen that opened the frame belongs to someone else (made by rewriting only the subject)
     token = _claims(sso_client.cookies[ACCESS_TOKEN_COOKIE])
     token["sub"] = str(int(token["sub"]) + 1000)
     _replace_access_cookie(sso_client, token)
@@ -273,7 +274,7 @@ def test_other_responses_still_refuse_every_frame(sso_client: TestClient) -> Non
     assert response.headers["x-frame-options"] == "DENY"
     csp = response.headers["content-security-policy"]
     assert "frame-ancestors 'none'" in csp
-    # 画面の枠に入れてよいのは自分と IdP の親ドメインの名前だけ
+    # Only our own name and the IdP's parent domain may frame the screen
     assert "frame-src 'self' https://*.example.test" in csp
 
 
@@ -284,7 +285,7 @@ def test_an_expired_token_carries_the_session_only_within_the_window(sso_client:
     claims["exp"] = int(stale.timestamp())
     claims["sub"] = str(int(claims["sub"]) + 1000)
     _replace_access_cookie(sso_client, claims)
-    # 古すぎて読まない ——別の人のトークンでも、新しいログインとして入る（断らない）
+    # Too old to read: even another person's token goes in as a new sign-in (not refused)
     renewed = _renew(sso_client)
     assert renewed.headers["location"] == f"{_RENEWED}?result=renewed"
 

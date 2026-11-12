@@ -1,8 +1,7 @@
-"""example コンテキスト固有の SQLAlchemy モデル。
+"""SQLAlchemy models specific to the example context.
 
-コンテキスト固有のテーブルは shared ではなく各コンテキストの
-infrastructure に置く。Alembic が認識できるよう ``migrations/env.py`` へ
-import を追加すること。
+Context-specific tables live in each context's infrastructure, not in shared.
+Add an import to ``migrations/env.py`` so that Alembic picks them up.
 """
 
 from __future__ import annotations

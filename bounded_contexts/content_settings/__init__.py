@@ -1,5 +1,5 @@
-"""コンテンツ設定（テナントごとの中身の決まり。ADR-0084 §3・ADR-0085）。
+"""Content settings (per-tenant rules for content; ADR-0084 §3, ADR-0085).
 
-項目の定義はコード（``domain/definitions.py``）が持ち、値はテナントごとに DB が持つ。
-保存していない項目は定義の既定値で読む。
+The code (``domain/definitions.py``) holds the item definitions; the DB holds the values per tenant.
+Items not saved read as the definition's default.
 """

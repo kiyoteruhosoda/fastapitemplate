@@ -1,4 +1,4 @@
-/** 認証状態（ログイン中ユーザーと scope）。認可判定は hasScope で行う。 */
+/** Auth state (the signed-in user and scopes). Authorization checks go through hasScope. */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 import { clearSessionDrafts } from '../hooks/useSessionDraft'
@@ -14,29 +14,29 @@ export interface Me {
   user_id: number
   email: string
   username: string
-  /** いま有効な scope（アクティブロールで絞り込まれた後の権限）。 */
+  /** Currently effective scopes (permissions after narrowing by the active role). */
   scopes: string[]
-  /** 付与されている全ロール = 切り替えられる先（ADR-0078 §1）。 */
+  /** All granted roles = the roles one can switch to (ADR-0078 §1). */
   roles: string[]
-  /** null は「すべてのロール」（保有権限の和集合）。 */
+  /** null means "all roles" (the union of held permissions). */
   active_role: string | null
   /**
-   * パスワードという入り口を持っているか（ADR-0076 §6）。
-   * 偽 = SSO でしか入れない利用者。画面はパスワード変更の導線を出さない。
+   * Whether the user has a password as a way in (ADR-0076 §6).
+   * false = a user who can only sign in via SSO. The UI does not offer a password change.
    */
   has_password: boolean
   /**
-   * サインアウトを IdP まで通すか（サーバーの設定。既定は偽。ADR-0077 §2）。
-   * `/me` に載せてあるので、サインアウトのために問い合わせを増やさない。
+   * Whether sign-out goes through to the IdP (a server setting; false by default. ADR-0077 §2).
+   * It is carried on `/me`, so signing out needs no extra request.
    */
   rp_logout_enabled: boolean
-  /** IdP と結び付いている。名前とメールは IdP で直す（ADR-0094）。 */
+  /** Linked to the IdP. Name and email are edited at the IdP (ADR-0094). */
   profile_managed_by_idp?: boolean
-  /** 真のあいだ、二要素認証の登録の画面しか使えない（ADR-0093）。 */
+  /** While true, only the two-factor enrollment screen is usable (ADR-0093). */
   two_factor_setup_required?: boolean
 }
 
-/** ログインが成立したことと、アクセストークンの寿命（トークン本体は Cookie）。 */
+/** Login succeeded, plus the access token lifetime (the token itself is in a cookie). */
 interface SessionInfo {
   expires_in: number
 }
@@ -45,23 +45,24 @@ interface AuthValue {
   user: Me | null
   loading: boolean
   /**
-   * サーバーに届かない（5xx・通信の失敗）。新しい版を配っている最中など。
-   * ⚠ **このとき user を null にしない**——ログアウトしたのではないので、ログイン画面へ
-   * 送ると、戻ってきたあとも IdP の入口の無い画面に取り残される。つながるまで自動で聞き直す。
+   * The server is unreachable (5xx or a network failure), e.g. while a new version is rolling out.
+   * ⚠ **Do not set user to null here** — the user did not sign out. Sending them to the login
+   * screen would strand them, even after the server is back, on a screen with no IdP entrance.
+   * Re-ask automatically until the connection returns.
    */
   unreachable: boolean
-  /** 二要素認証が有効なアカウントでは totpCode が必要（未指定なら totp_required）。 */
+  /** Accounts with two-factor auth need totpCode (without it the result is totp_required). */
   login: (email: string, password: string, totpCode?: string, tenant?: string) => Promise<void>
   loginWithPasskey: () => Promise<void>
   /**
-   * SSO の引き換え券をトークンへ換えてログイン状態にする（ADR-0077 §1）。
-   * 戻り先（SSO を始めた画面）を返す。
+   * Exchange the SSO ticket for tokens and become signed in (ADR-0077 §1).
+   * Returns the return-to location (the screen that started SSO).
    */
   completeSsoLogin: (ticket: string) => Promise<string>
-  /** サインアウト。IdP まで通すかはサーバーの設定次第（既定は通さない）。 */
+  /** Sign out. Whether it reaches the IdP depends on the server setting (off by default). */
   logout: () => Promise<void>
   refreshMe: () => Promise<void>
-  /** アクティブロールを切り替える（null ですべてのロールへ戻す。ADR-0078 §1）。 */
+  /** Switch the active role (null returns to all roles. ADR-0078 §1). */
   switchRole: (role: string | null) => Promise<void>
   hasScope: (...codes: string[]) => boolean
 }
@@ -69,7 +70,7 @@ interface AuthValue {
 const AuthContext = createContext<AuthValue | null>(null)
 
 const SERVER_ERROR = 500
-/** サーバーに届かないとき、聞き直す間隔 */
+/** Interval for re-asking while the server is unreachable */
 export const RECONNECT_INTERVAL_MS = 5000
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -78,18 +79,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreachable, setUnreachable] = useState(false)
 
   /**
-   * ログイン済みかは **``/api/auth/me`` の成否で決める**（ADR-0076 §4）。
+   * Signed-in status is **decided by whether ``/api/auth/me`` succeeds** (ADR-0076 §4).
    *
-   * トークンは httpOnly Cookie にあり JavaScript からは見えないので、手元の値を
-   * 見て判断することはできない。「Cookie があるか」を推し量る代わりに、実際に
-   * 通るかを聞く。
+   * The token lives in an httpOnly cookie that JavaScript cannot see, so no local value can
+   * decide it. Instead of guessing whether a cookie exists, ask whether a request actually
+   * gets through.
    */
   const refreshMe = useCallback(async () => {
     try {
       setUser(await api.get<Me>('/api/auth/me'))
       setUnreachable(false)
     } catch (e) {
-      // 4xx（401 など）はサーバーが「ログインしていない」と答えたもの。それ以外は届いていない
+      // 4xx (401 etc.) means the server answered "not signed in". Anything else did not get through
       if (e instanceof ApiError && e.status < SERVER_ERROR) {
         setUser(null)
         setUnreachable(false)
@@ -102,7 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!unreachable) return
     const timer = window.setInterval(() => {
-      // 前段が閉じている間は聞き直さない。確かめ直すのはメンテナンスの画面（ADR-0080 §10）
+      // Do not re-ask while the front gate is closed; the maintenance screen re-checks
+      // (ADR-0080 §10)
       if (currentOutage()) return
       void refreshMe()
     }, RECONNECT_INTERVAL_MS)
@@ -111,7 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [unreachable, refreshMe])
 
-  // ログインを続けられなかった（ADR-0104）。画面はログイン画面へ移る（行き先と書きかけは残る）
+  // The session could not be continued (ADR-0104). The UI moves to the login screen (the
+  // destination and drafts are kept)
   useEffect(
     () =>
       subscribeSessionEnded(() => {
@@ -120,7 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  // 前段が開いたら、すぐに聞き直す（閉じている間に開いた画面は、まだ誰かを知らない）
+  // Re-ask as soon as the front gate opens (a page opened while it was closed does not yet know
+  // who the user is)
   useEffect(
     () =>
       subscribeOutage(() => {
@@ -140,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       totp_code: totpCode || null,
-      // 入口のテナント（`/t/<slug>/login`。ADR-0079 §4）
+      // The entrance tenant (`/t/<slug>/login`. ADR-0079 §4)
       tenant: tenant ?? null,
     })
     rememberTenant(tenant)
@@ -167,9 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * 切り替えはトークンの再発行で行う（サーバー側が scope を絞り直す）。
-   * 新しいトークンに差し替えてから /me を引き直すので、画面に出る scope と
-   * これから送るトークンの scope が食い違わない。
+   * Switching reissues the token (the server narrows the scopes again).
+   * /me is re-fetched after the new token is in place, so the scopes shown on screen never
+   * disagree with the scopes of the token sent from now on.
    */
   const switchRole = async (role: string | null) => {
     await api.post<SessionInfo>('/api/auth/switch-role', { role })
@@ -177,31 +181,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * サインアウト。
+   * Sign out.
    *
-   * **アプリのセッションは必ず終わらせる。** IdP まで通すかどうかは
-   * サーバーの設定（`OIDC_RP_LOGOUT_ENABLED`。既定は無効）で決まる。判断は
-   * `/me` に載って届いているので、**サインアウトのために問い合わせを増やさない**。
+   * **The app session is always ended.** Whether it goes through to the IdP is decided by the
+   * server setting (`OIDC_RP_LOGOUT_ENABLED`; disabled by default). That decision already
+   * arrives on `/me`, so **signing out needs no extra request**.
    *
-   * ⚠ **行き先は `setUser(null)` の前に読む。** あとで読むと `user` は既に null で、
-   * 有効な構成でも IdP へ行かなくなる。
+   * ⚠ **Read the destination before `setUser(null)`.** Read afterwards, `user` is already null
+   * and the IdP is never reached even when enabled.
    *
-   * ⚠ **手元の状態は往復を待たずに落とす。** `setUser(null)` を `POST /logout` の
-   * あとに置くと、回線が遅い・切れているときに**押しても画面が変わらない**
-   * （サインアウト済みに見えず、押し直しを誘う）。手元の控えを消すのに往復の
-   * 成否は要らない——Cookie を落とすのはどのみちサーバー側。
+   * ⚠ **Drop local state without waiting for the round trip.** If `setUser(null)` comes after
+   * `POST /logout`, then on a slow or broken connection **pressing the button changes nothing**
+   * (it does not look signed out and invites pressing again). Clearing local copies does not
+   * need the round trip to succeed — dropping the cookie is the server's job anyway.
    *
-   * ⚠ **IdP へ送り出す前に `POST /logout` の完了を待つ。** 送り出しは画面遷移で、
-   * 待たずに始めると Cookie を落とす往復が中断され、**アプリ側だけ入ったまま**に
-   * なりうる。無効なときは従来どおり画面遷移しない。
+   * ⚠ **Wait for `POST /logout` to finish before sending the user to the IdP.** That is a page
+   * navigation; starting it without waiting can abort the cookie-dropping round trip and leave
+   * **only the app side still signed in**. When disabled, there is no navigation, as before.
    */
   const logout = async () => {
     const toIdp = user?.rp_logout_enabled ?? false
     setUser(null)
-    // IdP の SSO は既定で残るので、ログイン画面を開いてもボタンを押さずに入り直さない（ADR-0077 §9）
+    // The IdP SSO session stays by default, so opening the login screen must not sign back in
+    // without a click (ADR-0077 §9)
     markSignedOut()
     clearSessionDrafts()
-    // Cookie を落とすのはサーバー側（httpOnly なのでこちらからは消せない）。
+    // The server drops the cookie (it is httpOnly, so it cannot be removed from here).
     await api.post('/api/auth/logout').catch(() => undefined)
     if (toIdp) startSsoLogout(rememberedTenant())
   }

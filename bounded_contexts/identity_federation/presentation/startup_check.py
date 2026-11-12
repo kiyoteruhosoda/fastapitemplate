@@ -1,11 +1,11 @@
-"""起動時に SSO の設定を一度だけ確かめてログへ出す。
+"""Check the SSO settings once at startup and log the outcome.
 
-⚠ **秘密鍵は署名のときになって初めて読まれる。** 権限が合っていなくても起動も
-設定画面の確認も通り、利用者が IdP から戻ってきた瞬間だけ失敗する——という形に
-なりやすい（ADR-0077 §1）。ここで一度読んでおくと、デプロイの直後に気付ける。
+⚠ **The private key is first read only when signing.** Even with wrong permissions, startup
+and the settings-screen check pass, and it fails only at the moment a user returns from the
+IdP (ADR-0077 §1). Reading it once here lets us notice right after a deploy.
 
-設定値そのものはログに出さない（CLAUDE.md「ログ」）。出すのは「使える／使えない」と、
-使えない場合の分類だけ。
+Setting values themselves are not logged (CLAUDE.md "Logging"). Only "usable / unusable"
+and, if unusable, the category.
 """
 
 from __future__ import annotations
@@ -27,13 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 def report_sso_configuration() -> None:
-    """SSO を使う設定になっているなら、実際に始められるかを確かめる。"""
+    """If configured to use SSO, check that it can actually start."""
     if not settings.oidc_enabled:
         return
-    # 連携先（発行者とクライアント ID）はテナントごとで、確かめるのはアプリ全体の資格情報だけ（ADR-0079 §4）
+    # The connection (issuer and client ID) is per tenant; only app-wide credentials are checked here (ADR-0079 §4)
     credential = client_credential()
     if not credential.is_complete or not settings.oidc_redirect_uri:
-        # 有効にしたつもりで無効、という食い違いはここでしか気付けない。
+        # A mismatch of "meant to enable it but it's disabled" can only be noticed here.
         logger.error("sso_disabled_by_configuration")
         return
     if not credential.uses_private_key:
@@ -42,16 +42,17 @@ def report_sso_configuration() -> None:
     try:
         read_private_key(credential)
     except SsoNotConfiguredError:
-        # 理由は read_private_key が既に書いている（例外の型だけ）。
+        # read_private_key has already logged the reason (exception type only).
         logger.error("sso_private_key_unreadable")
         return
     logger.info("sso_ready")
 
 
 def report_machine_entrance() -> None:
-    """機械の口が開いているかをログへ出す（ADR-0082 §2 決定 4・ADR-0087）。
+    """Log whether the machine endpoint is open (ADR-0082 §2 decision 4, ADR-0087).
 
-    ⚠ **許可簿があるのに宛名が空なら、口は閉じている。** 機械は全部 401 になるので、ここで気付けるようにする。
+    ⚠ **If the allowlist exists but the audience is empty, the endpoint is closed.** Machines all get 401,
+    so make it noticeable here.
     """
     if not settings.machine_clients:
         return

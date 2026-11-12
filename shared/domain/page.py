@@ -1,12 +1,13 @@
-"""一覧の 1 ページ（ADR-0095）。``limit`` と ``offset`` で指定し、全件数を添えて返す。"""
+"""One page of a list (ADR-0095). Requested with ``limit`` and ``offset``; returned with the total count."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-#: 指定が無いときの件数
+#: Page size when none is given
 DEFAULT_PAGE_SIZE = 50
-#: 一度に返す上限。超える指定は断る（丸めると、頼んだより少ないことに呼ぶ側が気付けない）
+#: Upper limit returned at once. Larger requests are refused (rounding down would hide from the
+#: caller that it got fewer than asked)
 MAX_PAGE_SIZE = 200
 
 
@@ -19,7 +20,7 @@ class PageRequest:
 @dataclass(frozen=True)
 class Page[T]:
     entries: list[T]
-    #: ページの件数ではなく、全体の件数
+    #: The total count, not the count on this page
     total: int
 
 

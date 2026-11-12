@@ -1,12 +1,12 @@
-"""認可要求の往復状態（``state`` / ``nonce`` / PKCE の ``code_verifier`` / 戻り先）。
+"""Round-trip state of an authorization request (``state`` / ``nonce`` / PKCE ``code_verifier`` / return target).
 
-IdP へリダイレクトで離れて戻ってくる**その間だけ**必要になる値をまとめたもの。
-サーバー側に控えを持たず、**改竄できない形でブラウザに預ける**（ADR-0077 §1）。
-署名と Cookie の出し入れは Presentation 層（``presentation.transaction_cookie``）が
-担い、ここは値と「戻りが同じ往復のものか」の判断だけを持つ。
+Bundles the values needed **only while** redirecting away to the IdP and coming back.
+No copy is kept server-side; it is **entrusted to the browser in a tamper-proof form** (ADR-0077 §1).
+Signing and cookie handling belong to the Presentation layer (``presentation.transaction_cookie``);
+this only holds the values and the judgement "is this return from the same round trip".
 
-⚠ **`code_verifier` を持つので、これは資格情報である。** Cookie は ``HttpOnly`` に
-する（JavaScript から読めてはならない）。
+⚠ **It holds `code_verifier`, so it is a credential.** The cookie is ``HttpOnly``
+(JavaScript must not be able to read it).
 """
 
 from __future__ import annotations
@@ -26,53 +26,54 @@ class LoginTransaction:
     nonce: str
     code_verifier: str
     redirect_to: str = "/"
-    #: この往復が何のために始まったか（ADR-0077 §5）。
+    #: What this round trip was started for (ADR-0077 §5).
     purpose: TransactionPurpose = TransactionPurpose.LOGIN
-    #: 連携の往復を始めた利用者。続ける往復では続けるログインの利用者（分からなければ ``None``）。
-    #: ログインの往復では ``None``。
+    #: The user who started the linking round trip. For a renewal round trip, the user of the continued
+    #: login (``None`` if unknown).
+    #: ``None`` for a login round trip.
     #:
-    #: ⚠ **戻ってきたときのセッションと突き合わせるためにある。** これが無いと、
-    #:   往復の途中で別の利用者に入れ替わったブラウザが、**その人の口座へ**
-    #:   結び付けてしまう。
+    #: ⚠ **Exists to be matched against the session on return.** Without it, a browser whose user
+    #:   switched mid-round-trip would bind **to that other person's account**.
     user_id: int | None = None
-    #: 送り出した先の発行者（＝テナント。ADR-0079 §1）。戻りはこの発行者のクライアントで受ける。
+    #: Issuer sent out to (= tenant. ADR-0079 §1). The return is received with this issuer's client.
     #:
-    #: ⚠ **戻りのときにクエリから決め直さない。** テナントを URL で選び直せると、あるテナントで
-    #:   始めた往復を別のテナントの利用者として完了させられる。
+    #: ⚠ **Don't re-decide from the query on return.** If the tenant could be re-chosen via URL, a round
+    #:   trip started in one tenant could be completed as a user of another tenant.
     issuer: str = ""
-    #: 画面を出さずに試した往復（``prompt=none``。ADR-0077 §9）。
+    #: A silent attempt round trip (``prompt=none``. ADR-0077 §9).
     #:
-    #: ⚠ **戻りで「入っていない」と言われたときの扱いを決めるためにある。** 試しただけなので
-    #:   失敗ではなく、エラーを出さずにログイン画面へ戻す。
+    #: ⚠ **Exists to decide how to handle "not signed in" on return.** It was only an attempt, so it's
+    #:   not a failure; return to the login screen without an error.
     silent: bool = False
-    #: 続けるログインのアクティブロール（続ける往復だけ。ADR-0104）。戻ったときに、まだ持っていれば引き継ぐ
+    #: Active role of the continued login (renewal round trip only. ADR-0104). Carried over on return if still held
     active_role: str | None = None
-    #: 続けるログインで本人が最後に実際にサインインした時刻（続ける往復だけ。ADR-0076 §10・ADR-0104）。
+    #: When the person last actually signed in, for the continued login (renewal round trip only.
+    #: ADR-0076 §10, ADR-0104).
     #:
-    #: ⚠ **続けるのは入り直しではない。** 引き継がないと、5 分ごとに「入り直したばかり」になる。
+    #: ⚠ **Continuing is not signing in again.** Without carrying it over, it becomes "just signed in" every 5 min.
     authenticated_at: datetime | None = None
-    #: 続けるログインがパスキーで入ったものか（続ける往復だけ。ADR-0093）
+    #: Whether the continued login used a passkey (renewal round trip only. ADR-0093)
     signed_in_with_passkey: bool = False
 
     def is_for(self, issuer: str) -> bool:
-        """この往復が、その発行者へ送り出したものか。"""
+        """Whether this round trip was sent out to that issuer."""
         return bool(self.issuer) and compare_digest(self.issuer, issuer)
 
     def matches(self, state: str) -> bool:
-        """戻ってきた ``state`` が、この往復で送り出したものか。
+        """Whether the returned ``state`` is the one sent out in this round trip.
 
-        **Cookie が無ければこの判断自体が成立しない**（呼び出し側で往復状態を
-        復元できない）。表に控えを置く形と違い、``state`` を知っているだけの
-        相手は戻りを完了できない ——攻撃者が始めた認可要求を踏まされても、
-        被害者のブラウザには対応する Cookie が無いため（ログイン CSRF）。
+        **Without the cookie this judgement can't even be made** (the caller can't restore the
+        round-trip state). Unlike keeping a copy in a table, a party that only knows ``state``
+        can't complete the return — even if a victim is tricked into an authorization request started
+        by an attacker, the victim's browser has no matching cookie (login CSRF).
 
-        照合は :func:`hmac.compare_digest` で行う（応答時間から一致した文字数を
-        推測されないようにする）。
+        Compared with :func:`hmac.compare_digest` (so the number of matching characters can't be
+        guessed from response time).
         """
         return bool(state) and compare_digest(self.state, state)
 
     def belongs_to(self, user_id: int) -> bool:
-        """連携の往復を始めたのが、いま入っているこの利用者か。"""
+        """Whether the user who started the linking round trip is this currently signed-in user."""
         return self.user_id is not None and self.user_id == user_id
 
 

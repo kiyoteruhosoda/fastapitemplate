@@ -1,7 +1,7 @@
-"""アカウントセキュリティ・コンテキストの SQLAlchemy モデル。
+"""SQLAlchemy models of the account security context.
 
-``migrations/env.py`` と ``tests/conftest.py`` がこのモジュールを import して
-メタデータへ登録する（コンテキスト固有モデルの扱い。CLAUDE.md「DDL 管理」）。
+``migrations/env.py`` and ``tests/conftest.py`` import this module to register it in the
+metadata (handling of context-specific models; see "DDL management" in CLAUDE.md).
 """
 
 from __future__ import annotations
@@ -19,21 +19,21 @@ from shared.kernel.database.db import Base
 
 
 class TotpSecretRecord(Base):
-    """TOTP 共有鍵（ユーザー 1 人につき 1 行）。"""
+    """TOTP shared key (one row per user)."""
 
     __tablename__ = "totp_secrets"
     __table_args__ = declared(Tenancy.PERSONAL)
 
     user_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     secret: Mapped[str] = mapped_column(sa.String(64), nullable=False)
-    # NULL のあいだは「登録手続き中」。二要素認証はまだ有効ではない。
+    # While NULL, enrollment is in progress. Two-factor authentication is not enabled yet.
     confirmed_at = mapped_column(sa.DateTime(), nullable=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
     updated_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 
 
 class PasskeyCredentialRecord(Base):
-    """WebAuthn 資格情報（パスキー）。"""
+    """WebAuthn credential (passkey)."""
 
     __tablename__ = "passkey_credentials"
     __table_args__ = declared(Tenancy.PERSONAL)
@@ -45,7 +45,7 @@ class PasskeyCredentialRecord(Base):
         nullable=False,
         index=True,
     )
-    # base64url 文字列。認証時はこの値で持ち主を引く。
+    # base64url string. The owner is looked up by this value at authentication.
     credential_id: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
     public_key: Mapped[str] = mapped_column(sa.Text(), nullable=False)
     sign_count: Mapped[int] = mapped_column(
@@ -67,10 +67,10 @@ class PasskeyCredentialRecord(Base):
 
 
 class WebAuthnChallengeRecord(Base):
-    """発行済みチャレンジ。
+    """Issued challenges.
 
-    Gunicorn は複数ワーカーで動くため、発行したプロセスと検証するプロセスが
-    一致しない。プロセスのメモリではなく DB に置く。
+    Gunicorn runs multiple workers, so the issuing process and the verifying process
+    may differ. Kept in the DB rather than process memory.
     """
 
     __tablename__ = "webauthn_challenges"
@@ -78,29 +78,29 @@ class WebAuthnChallengeRecord(Base):
 
     challenge_id: Mapped[str] = mapped_column(sa.String(32), primary_key=True)
     challenge: Mapped[str] = mapped_column(sa.String(255), nullable=False)
-    # DB ネイティブ ENUM は使わず、CHECK 付き VARCHAR にする（CLAUDE.md）
+    # No DB-native ENUM; use VARCHAR with a CHECK (CLAUDE.md)
     purpose: Mapped[str] = mapped_column(
         sa.Enum(*CHALLENGE_PURPOSES, name="webauthn_challenge_purpose", native_enum=False),
         nullable=False,
     )
-    # ログイン用チャレンジは発行時点で相手が分からないため NULL 可
+    # Nullable because the user is unknown when a login challenge is issued
     user_id: Mapped[int | None] = mapped_column(BigIntPk, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     expires_at = mapped_column(sa.DateTime(), nullable=False, index=True)
     created_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow)
 
 
 class LoginAttemptRecord(Base):
-    """宛名ごとの失敗の控え（ADR-0076 §9）。
+    """Failure records per submitted identifier (ADR-0076 §9).
 
-    宛名は**送られてきたメールアドレス**で、``users`` とは結ばない。実在する
-    アカウントだけを数えると、断られるかどうかで存在が分かってしまう。
-    期限切れの行は書き込みのたびに掃除する。
+    The identifier is **the email address that was submitted** and is not linked to ``users``.
+    Counting only existing accounts would reveal whether an account exists by whether it gets
+    refused. Expired rows are cleaned up on every write.
     """
 
     __tablename__ = "login_attempts"
     __table_args__ = (
         sa.CheckConstraint(f"purpose IN {ATTEMPT_PURPOSES}", name="ck_login_attempts_purpose"),
-        # 宛名は送られてきたメールアドレスで、利用者にもテナントにも結ばない
+        # The identifier is the submitted email address, linked to neither a user nor a tenant
         declared(Tenancy.GLOBAL),
     )
 

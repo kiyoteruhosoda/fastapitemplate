@@ -1,4 +1,4 @@
-"""再起動ウォッチャーの判定（DB もスレッドも使わない）。"""
+"""Restart watcher decisions (no DB, no threads)."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _request(token: str) -> RestartRequest:
 
 def _watcher(store: _StubStore, terminator: _RecordingTerminator) -> RestartWatcher:
     watcher = RestartWatcher(RestartScope.WEB, store=store, terminator=terminator)
-    # start() はスレッドを起こすため、基準値の確定だけを同じ手順で再現する
+    # start() spawns a thread, so reproduce only the baseline capture with the same steps
     watcher._baseline_token = store.request.token if store.request else None
     return watcher
 
@@ -48,7 +48,7 @@ def test_no_request_means_no_restart() -> None:
 
 
 def test_the_request_seen_at_startup_does_not_trigger_a_restart() -> None:
-    # 起動時にすでに存在した要求で再起動すると、起動のたびに落ち続ける
+    # Restarting on a request that already existed at startup would crash on every start
     store = _StubStore(_request("token-1"))
     terminator = _RecordingTerminator()
     watcher = _watcher(store, terminator)

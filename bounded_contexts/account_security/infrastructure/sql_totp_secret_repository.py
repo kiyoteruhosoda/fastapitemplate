@@ -1,4 +1,4 @@
-"""TOTP シークレットの SQLAlchemy 実装。"""
+"""SQLAlchemy implementation of TOTP secrets."""
 
 from __future__ import annotations
 

@@ -1,13 +1,13 @@
-"""失敗の控えの SQLAlchemy 実装。
+"""SQLAlchemy implementation of the failure records.
 
-⚠ **リクエストのセッションを使わない。** 失敗の記録は 401 と一緒に返る ——つまり
-例外で抜けるので、リクエストのセッションに書いても rollback で消える。監査ログが
-リクエストの外で書くのと同じ事情（ADR-0075 §1）で、こちらは**操作ごとに短い
-セッションを開いて commit する**。
+⚠ **Does not use the request's session.** Recording a failure goes back together with a 401 —
+i.e. it exits via an exception, so anything written to the request's session is lost on rollback.
+For the same reason the audit log is written outside the request (ADR-0075 §1), this **opens a
+short session per operation and commits it**.
 
-SQLite の書き込みロックと衝突しないのは、呼ばれる時点でリクエストのセッションが
-まだ何も書いていないため（照合の前・再設定の要求の前に呼ぶ）。順序を変えると
-ここが詰まる。
+It doesn't clash with SQLite's write lock because, when it is called, the request's session has
+not written anything yet (it is called before credential matching / before a reset request).
+Changing that order would make this block.
 """
 
 from __future__ import annotations
@@ -46,8 +46,8 @@ class SqlLoginAttemptRepository:
 
     def save(self, attempts: LoginAttempts, now: datetime, policy: ThrottlePolicy) -> None:
         with self.session_factory() as session:
-            # 未知の宛名の行がたまる（存在を漏らさないために数えている）ので、
-            # 書くたびに「窓も断りも過ぎた行」を掃除する。専用のジョブは持たない
+            # Rows for unknown identifiers pile up (they are counted so as not to leak existence),
+            # so each write cleans up "rows past both the window and the lockout". No dedicated job
             _sweep(session, now, policy)
             record = session.get(LoginAttemptRecord, (attempts.purpose, attempts.identifier))
             if record is None:

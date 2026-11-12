@@ -1,7 +1,7 @@
-"""DB マイグレーション適用（``alembic upgrade head``）。
+"""Apply DB migrations (``alembic upgrade head``).
 
-entrypoint.sh から使う。プロジェクトルートへ chdir してから実行するため、
-どこから呼んでも動く。
+Used from entrypoint.sh. It chdirs to the project root before running, so it works
+wherever it is called from.
 """
 
 from __future__ import annotations

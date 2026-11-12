@@ -1,4 +1,4 @@
-"""パスキーの SQLAlchemy 実装。"""
+"""SQLAlchemy implementation of passkeys."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class SqlPasskeyCredentialRepository:
         if existing is not None:
             if existing.user_id != credential.user_id:
                 raise PasskeyAlreadyRegisteredError
-            # 本人が同じ認証器を登録し直した場合は上書きする
+            # Overwrite when the same user re-registers the same authenticator
             record = existing
         else:
             record = PasskeyCredentialRecord(user_id=credential.user_id, credential_id=credential.credential_id)
@@ -76,7 +76,7 @@ class SqlPasskeyCredentialRepository:
     def delete(self, user_id: int, passkey_id: int) -> None:
         record = self.session.get(PasskeyCredentialRecord, passkey_id)
         if record is None or record.user_id != user_id:
-            # 他人のパスキーの存在を漏らさないため、権限違反も「存在しない」と扱う
+            # Treat a permission violation as "not found" too, so as not to leak someone else's passkey
             raise PasskeyNotFoundError
         self.session.delete(record)
         self.session.flush()

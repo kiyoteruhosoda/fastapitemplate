@@ -1,8 +1,9 @@
 /**
- * プロフィールの「この端末への通知」（ADR-0081 §3）。
+ * "Notifications on this device" on the profile page (ADR-0081 §3).
  *
- * 購読はブラウザ（端末）ごとなので、ここでの操作は**いま開いている端末だけ**に効く。
- * 扱えない・送れない設定のときは、押せないボタンを並べず理由だけ書く。
+ * Subscriptions are per browser (device), so actions here affect **only the device currently
+ * open**. When it is unsupported or sending is not configured, only the reason is shown
+ * instead of a row of disabled buttons.
  */
 import { useEffect, useState } from 'react'
 

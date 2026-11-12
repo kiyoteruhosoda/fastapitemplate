@@ -1,16 +1,16 @@
 """actors and roles
 
-権限とロールをアクターに合わせて組み直す（ADR-0084）。
+Rebuild permissions and roles around the actors (ADR-0084).
 
-- 改名（付与ごと引き継ぐ）: ``admin:system-settings`` → ``system-settings:write``、
-  ``item:manage`` → ``item:write``
-- 足す: ``system-settings:view`` / ``system:view`` / ``tenant:view`` / ``content-settings:view`` /
-  ``content-settings:write`` と、ロール ``system-support`` / ``content-admin``（``seed_master_data``）
-- 前にできたことは続けてできるようにする: 変えられた人には見るほうも付ける
-  （``system-settings:write`` → ``:view``、``system:manage`` → ``system:view``、``tenant:manage`` → ``tenant:view``）
-- 消す: ``permission:manage``（権限コードの一覧は ``role:manage`` で読む）
+- Rename (grants carried over): ``admin:system-settings`` -> ``system-settings:write``,
+  ``item:manage`` -> ``item:write``
+- Add: ``system-settings:view`` / ``system:view`` / ``tenant:view`` / ``content-settings:view`` /
+  ``content-settings:write`` and the roles ``system-support`` / ``content-admin`` (``seed_master_data``)
+- Keep what was possible before: those who could change something also get to view it
+  (``system-settings:write`` -> ``:view``, ``system:manage`` -> ``system:view``, ``tenant:manage`` -> ``tenant:view``)
+- Remove: ``permission:manage`` (the permission code list is read with ``role:manage``)
 
-初期管理者は据えない（ADR-0078 §3）。
+Does not seat the initial administrator (ADR-0078 §3).
 
 Revision ID: actors_and_roles
 Revises: notes
@@ -32,19 +32,19 @@ depends_on = None
 
 _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 
-#: 前の名前 → 新しい名前
+#: Old name -> new name
 _RENAMED = (
     ("admin:system-settings", "system-settings:write"),
     ("item:manage", "item:write"),
 )
-#: 変えられる権限 → それを持つ人に付ける見る権限
+#: Permission that changes something -> view permission given to its holders
 _VIEW_OF = (
     ("system-settings:write", "system-settings:view"),
     ("system:manage", "system:view"),
     ("tenant:manage", "tenant:view"),
 )
 _DROPPED = "permission:manage"
-#: この移行で足すもの（戻すときに消す）
+#: What this migration adds (removed on downgrade)
 _ADDED_PERMISSIONS = (
     "system-settings:view",
     "system:view",
@@ -72,7 +72,7 @@ def _holders(permission_id: int) -> set[int]:
 
 
 def _rename(old: str, new: str) -> None:
-    """``old`` を ``new`` に改名する。両方あれば ``old`` の付与を ``new`` へ移して ``old`` を消す。"""
+    """Rename ``old`` to ``new``. If both exist, move ``old``'s grants to ``new`` and delete ``old``."""
     bind = op.get_bind()
     old_id = _permission_id(old)
     if old_id is None:
@@ -133,7 +133,7 @@ def downgrade() -> None:
     for old, new in _RENAMED:
         _rename(new, old)
 
-    # permission:manage は owner に返す（この移行の前の付与）
+    # Give permission:manage back to owner (the grant before this migration)
     if _permission_id(_DROPPED) is None:
         bind.execute(_permissions.insert().values(code=_DROPPED))
     owner = bind.execute(sa.select(_roles.c.id).where(_roles.c.name == "owner")).scalar()

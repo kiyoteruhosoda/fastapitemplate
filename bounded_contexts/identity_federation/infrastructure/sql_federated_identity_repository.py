@@ -1,4 +1,4 @@
-"""IdP アカウントとの結び付きの SQLAlchemy 実装。"""
+"""SQLAlchemy implementation of IdP account bindings."""
 
 from __future__ import annotations
 
@@ -25,10 +25,10 @@ class SqlFederatedIdentityRepository:
         return _as_identity(self.session.get(FederatedIdentityRecord, (issuer, subject)))
 
     def find_for_user(self, issuer: str, user_id: int) -> FederatedIdentity | None:
-        """⚠ **同じ IdP の結び付きは 1 人につき 1 本**という前提で最初の 1 件を返す。
+        """⚠ Returns the first one, assuming **one binding per user per IdP**.
 
-        表には利用者側の一意制約が無い（1 人が複数の IdP を持てる形のため）ので、
-        同じ IdP で 2 本作らせないのは :class:`LinkFederatedIdentity` の仕事になる。
+        The table has no user-side uniqueness constraint (so one person can have multiple IdPs),
+        so preventing two bindings to the same IdP is the job of :class:`LinkFederatedIdentity`.
         """
         record = self.session.scalars(
             select(FederatedIdentityRecord)
@@ -40,7 +40,7 @@ class SqlFederatedIdentityRepository:
         return _as_identity(record)
 
     def is_linked(self, user_id: int) -> bool:
-        """どこかの IdP と結び付いているか（名前とメールは IdP が正。ADR-0094）。"""
+        """Whether bound to any IdP (name and email are owned by the IdP. ADR-0094)."""
         linked = select(FederatedIdentityRecord.user_id).where(FederatedIdentityRecord.user_id == user_id).limit(1)
         return self.session.scalar(linked) is not None
 
@@ -71,10 +71,10 @@ class SqlFederatedIdentityRepository:
         self.session.flush()
 
     def list_for_issuer(self, issuer: str) -> Sequence[FederatedIdentity]:
-        """その IdP と結び付いている利用者を全件（定期照合。ADR-0077 §7）。
+        """All users bound to that IdP (periodic reconciliation. ADR-0077 §7).
 
-        並びは ``subject`` の昇順に固定する。順番が実行計画しだいで変わると、
-        記録を突き合わせたときに毎回違って見える。
+        Ordered by ``subject`` ascending, fixed. If the order varied with the query plan,
+        matching against the records would look different each time.
         """
         records = self.session.scalars(
             select(FederatedIdentityRecord)

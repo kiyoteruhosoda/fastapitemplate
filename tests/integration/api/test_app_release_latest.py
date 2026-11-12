@@ -1,7 +1,7 @@
-"""``GET /api/app-release/latest`` の統合テスト（ADR-0081 §4）。
+"""Integration tests for ``GET /api/app-release/latest`` (ADR-0081 §4).
 
-スマホアプリが開くたびに叩く口。ログインしていれば権限が無くても答えること、
-配布面が読めなくても 5xx にしないことを固定する。
+The phone app calls this every time it opens. Pins that a signed-in user gets an answer even
+without permissions, and that an unreadable distribution store never yields a 5xx.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class _Source:
 
 @pytest.fixture
 def answer_with(client: TestClient) -> Iterator[Callable[[Answer], None]]:
-    """配布面の答えを差し替える（置き場へは行かない）。"""
+    """Replaces the distribution answer (does not go to the store)."""
 
     def install(answer: Answer) -> None:
         query = LatestAppReleaseQuery(lambda: _Source(answer))
@@ -69,7 +69,7 @@ def test_names_the_latest_release(
 def test_a_person_without_any_permission_is_told_too(
     client: TestClient, admin_headers: dict[str, str], answer_with: Callable[[Answer], None]
 ) -> None:
-    """権限をまだ持たないゲストのアプリにも届ける（権限が付いたとき古い版で取り残されない）。"""
+    """Reaches guest apps without permissions too (so they are not left on an old version once granted)."""
     client.post(
         "/api/admin/users",
         json={"email": "guest@example.com", "username": "guest", "password": "guest-password-1", "roles": []},
@@ -95,7 +95,7 @@ def test_signing_in_is_required(client: TestClient, answer_with: Callable[[Answe
 def test_an_unreadable_store_is_not_a_server_error(
     client: TestClient, admin_headers: dict[str, str], answer_with: Callable[[Answer], None]
 ) -> None:
-    """配布面の不調で、開いたばかりのアプリにエラーを見せない。"""
+    """A distribution failure does not show an error to an app that has just opened."""
     answer_with(AppReleaseUnavailableError("garage is down"))
 
     response = client.get(_PATH)
@@ -105,7 +105,7 @@ def test_an_unreadable_store_is_not_a_server_error(
 
 
 def test_the_default_is_off(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """設定が無い既定の状態では置き場へ行かず、何も知らせない。"""
+    """With the default (no settings), do not go to the store and announce nothing."""
     response = client.get(_PATH)
 
     assert response.status_code == 200

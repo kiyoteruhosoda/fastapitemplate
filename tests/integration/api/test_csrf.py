@@ -1,7 +1,7 @@
-"""Cookie で認証した更新系の CSRF 対策（二重送信トークン。ADR-0076 §4）。
+"""CSRF protection for cookie-authenticated writes (double-submit token; ADR-0076 §4).
 
-トークンを Cookie へ移すと、ブラウザは**こちらが送るつもりの無いリクエストにも
-Cookie を付ける**ようになる。更新系だけ、Cookie とヘッダーの両方に同じ値を求める。
+Once the token moves into a cookie, the browser **attaches the cookie even to requests we never
+meant to send**. Only writes require the same value in both the cookie and the header.
 """
 
 from __future__ import annotations
@@ -30,14 +30,14 @@ def test_a_wrong_token_is_refused(client: TestClient, admin_headers: dict[str, s
 
 
 def test_reading_never_needs_the_token(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """読み取りの CSRF は結果を攻撃者が読めないので、UI 全体に費用をかけない。"""
+    """With read CSRF the attacker cannot read the result, so the whole UI does not pay the cost."""
     assert client.get("/api/auth/me").status_code == 200
 
 
 def test_the_entrances_are_exempt(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """⚠ ここを塞ぐと、**別のアカウントでログインし直すだけで 403** になる。
+    """⚠ Blocking this would mean **403 just for signing in again with another account**.
 
-    入口はセッションを作る／捨てる操作で、既にあるセッションに対する操作ではない。
+    The entrance creates or discards a session; it is not an operation on an existing session.
     """
     from shared.domain.auth import master_data
 
@@ -50,11 +50,11 @@ def test_the_entrances_are_exempt(client: TestClient, admin_headers: dict[str, s
 
 
 def test_a_header_authenticated_caller_does_not_need_it(client: TestClient) -> None:
-    """``Authorization`` は自動では送られないので CSRF が成立しない。
+    """``Authorization`` is not sent automatically, so CSRF is not possible.
 
-    curl・CI・他アプリのために、ヘッダーで来た呼び出しには求めない（ADR-0076 §4 決定 4）。
+    For curl, CI and other apps, calls that come with the header are not required to have it (ADR-0076 §4 decision 4).
     """
-    # 正規の経路では本文にトークンが載らないので、検証だけを目的に自前で発行する。
+    # The legitimate path never puts the token in the body, so issue one ourselves just for verification.
     from presentation.fastapi.services.token_service import TokenService
     from shared.domain.auth import master_data
     from shared.infrastructure.models import User

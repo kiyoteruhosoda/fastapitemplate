@@ -1,13 +1,13 @@
-"""assay の名簿を引く窓口（ADR-0077 §7。実装は Infrastructure 層）。
+"""Gateway that fetches assay's roster (ADR-0077 §7. Implemented in Infrastructure).
 
-⚠ **引けなかったことを「空」で表さない。** 実装は失敗を
+⚠ **Don't represent "couldn't fetch" as "empty".** Implementations report failure with
 :class:`~bounded_contexts.identity_federation.domain.exceptions.IdentityProviderUnavailableError`
-で知らせ、呼び出し側は照合そのものを見送る ——空と区別が付かないと、assay が不調なだけで
-全員を止めることになる。
+and the caller skips the reconciliation itself — if it were indistinguishable from empty, everyone
+would be stopped just because assay is unwell.
 
-⚠ **このサービスアカウントがまだアプリの名乗りとして結び付いていない**ときは
+⚠ When **this service account is not yet bound as the app's identity**, it is reported separately
 :class:`~bounded_contexts.identity_federation.domain.exceptions.MachineNotBoundToApplicationError`
-で分けて知らせる（障害ではなく準備待ち）。こちらも何も変えない。
+(not a fault; waiting for setup). Nothing is changed in this case either.
 """
 
 from __future__ import annotations
@@ -19,10 +19,10 @@ from bounded_contexts.identity_federation.domain.value_objects.roster import Ros
 
 class RosterGateway(Protocol):
     def fetch(self, *, subjects: tuple[str, ...]) -> Roster:
-        """*subjects* それぞれの消息を引く（どのアプリの名簿かは、名乗ったサービスアカウントから assay が決める）。
+        """Fetch the status of each of *subjects* (assay decides whose roster from the calling service account).
 
-        ⚠ **名指しで聞く。** ``unknown``（＝向こうに居ない）が返るのはこの形だけで、
-        候補の一覧を引いても「消えた」は分からない。
+        ⚠ **Ask by name.** Only this form returns ``unknown`` (= not there); listing candidates
+        can't tell "deleted".
         """
 
 

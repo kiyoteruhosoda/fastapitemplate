@@ -1,4 +1,4 @@
-"""配布面から最新版を読む窓口（ADR-0081 §4。実装は Infrastructure 層）。"""
+"""Port for reading the latest release from the distribution store (ADR-0081 §4; implemented in Infrastructure)."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from bounded_contexts.app_release.domain.app_release import AppRelease
 
 class LatestReleaseSource(Protocol):
     def fetch(self) -> AppRelease | None:
-        """配布面が最新として指している版を返す。
+        """Return the release the distribution store points to as latest.
 
-        - ``None`` —— 読む先が設定されていない（機能を使っていない）
+        - ``None`` — nothing to read from is configured (the feature is not in use)
         - :class:`~bounded_contexts.app_release.domain.app_release.AppReleaseUnavailableError`
-          —— 設定はあるのに読めなかった
+          — it is configured but could not be read
         """
         ...
 

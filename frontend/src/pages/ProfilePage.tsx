@@ -1,11 +1,12 @@
 /**
- * プロフィール（本人のアカウント情報と表示設定。ADR-0080 §3）。
+ * Profile (the user's own account information and display settings. ADR-0080 §3).
  *
- * - メールアドレス・表示名はここから本人が変更できる（PUT /api/auth/me）。IdP と結び付いている人は
- *   次のログインで上書きされるので、入力欄を出さず IdP へ案内する（ADR-0094）。
- * - 言語・テーマの選択もここに置く（保存先はブラウザ。ADR-0080 §1）。
- * - サインインの手段（パスワード・二要素認証・パスキー）は別画面
- *   （`/profile/security`）。ここからは入口だけを出す（ADR-0080 §4）。
+ * - The user can change their email address and display name here (PUT /api/auth/me). For
+ *   users linked to an IdP they are overwritten at the next login, so no input is shown and
+ *   they are directed to the IdP (ADR-0094).
+ * - Language and theme selection is also here (stored in the browser. ADR-0080 §1).
+ * - Sign-in methods (password, two-factor authentication, passkeys) are on a separate page
+ *   (`/profile/security`). Only the entry point is shown here (ADR-0080 §4).
  */
 import { useState, type SubmitEvent } from 'react'
 import { Link } from 'react-router-dom'

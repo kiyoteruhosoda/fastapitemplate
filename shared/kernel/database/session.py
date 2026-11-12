@@ -1,4 +1,4 @@
-"""FastAPI の ``Depends()`` 用 DB セッション依存関数。"""
+"""DB session dependency for FastAPI's ``Depends()``."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from shared.kernel.database.db import get_session_factory
 
 
 def get_db() -> Generator[Session]:
-    """リクエスト単位のセッション。正常終了で commit、例外で rollback する。
+    """Per-request session. Commits on normal completion and rolls back on exception.
 
-    使用例::
+    Example::
 
         @router.get("/items")
         def list_items(db: Session = Depends(get_db)):

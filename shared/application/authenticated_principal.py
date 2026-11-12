@@ -1,10 +1,10 @@
-"""認証済み主体（Presentation 層へ渡る検証結果）。
+"""Authenticated principal (the verification result passed to the Presentation layer).
 
-認可の判定は :meth:`can`（scope ベース）のみで行う（CLAUDE.md「権限管理」参照）。
+Authorization decisions are made only by :meth:`can` (scope based; see "Permissions" in CLAUDE.md).
 
-``active_role`` は「いまどのロールで操作しているか」の表示・切り替えのためだけに
-持つ（ADR-0078 §1）。**認可の分岐には使わない** — アクティブロールは
-:attr:`permissions` を絞り込んだ結果として既に反映されている。
+``active_role`` is held only to show and switch "which role is in use now" (ADR-0078 §1).
+**Do not branch authorization on it**: the active role is already reflected in the narrowed
+:attr:`permissions`.
 """
 
 from __future__ import annotations
@@ -20,18 +20,19 @@ class AuthenticatedPrincipal:
     email: str
     username: str
     permissions: frozenset[str] = field(default_factory=frozenset)
-    # None = すべてのロール（保有権限の和集合）で操作している
+    # None = operating with all roles (the union of held permissions)
     active_role: str | None = None
-    #: 本人が最後に**実際に**サインインした時刻（UTC・aware。ADR-0076 §10）。更新やロールの
-    #: 切り替えでは新しくならない。``None`` は分からない（この仕組みより前のトークン）。
+    #: When the person last **actually** signed in (UTC, aware; ADR-0076 §10). Not renewed by
+    #: refreshes or role switches. ``None`` means unknown (tokens older than this mechanism).
     authenticated_at: datetime | None = None
-    #: 所属するテナント（ADR-0079 §1）。``None`` はテナントに属さない（システム管理者）。
-    #: ⚠ **``None`` を「全部のテナント」と読まない。** 中身はどのテナントのものも見えない。
+    #: The tenant the user belongs to (ADR-0079 §1). ``None`` means no tenant (system administrator).
+    #: ⚠ **Do not read ``None`` as "all tenants".** No tenant's content is visible.
     tenant_id: int | None = None
-    #: 機械の口から出したトークンなら、名乗った機械の ``client_id``（ADR-0087）。人のログインなら ``None``。
-    #: ⚠ 機械の主体は scope で守られた口でしか通らない（:func:`get_current_principal` は断る）。
+    #: For a token issued by the machine endpoint, the ``client_id`` of the machine (ADR-0087).
+    #: ``None`` for a human sign-in.
+    #: ⚠ Machine principals pass only scope-protected endpoints (:func:`get_current_principal` refuses).
     machine_client_id: str | None = None
-    #: 二要素認証の登録が済むまで、登録の口しか通らないログインか（ADR-0093）。
+    #: Whether this sign-in can only reach the enrollment endpoints until 2FA is set up (ADR-0093).
     two_factor_setup_required: bool = False
 
     @property
@@ -40,11 +41,11 @@ class AuthenticatedPrincipal:
 
     @property
     def id_hash(self) -> str:
-        """ログ用のユーザー識別子（PII を残さないためのハッシュ）。"""
+        """User identifier for logs (a hash, to keep PII out)."""
         return hashlib.sha256(str(self.user_id).encode()).hexdigest()[:16]
 
     def can(self, *codes: str) -> bool:
-        """指定された権限コードを **すべて** 保持しているか。"""
+        """Whether **all** the given permission codes are held."""
         return all(code in self.permissions for code in codes)
 
 

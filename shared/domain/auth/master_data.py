@@ -1,41 +1,40 @@
-"""認可マスタデータの正本（ユビキタス言語: ロール / 権限 / 権限付与）。
+"""Source of truth for authorization master data (ubiquitous language: role / permission / grant).
 
-ロール・権限コード・ロールへの権限付与・初期管理者は、アプリケーションが
-起動時から正しく動作するために必須の「マスタデータ」である。値の重複定義に
-よるドリフトを防ぐため、ここを唯一の出所（single source of truth）とし、
+Roles, permission codes, grants of permissions to roles and the initial administrator are
+"master data" the application needs to work correctly from startup. To prevent drift from
+duplicated definitions, this is the single source of truth, referenced by both
 
-- マイグレーション（``migrations/versions/*_seed_master_data.py``）
-- 投入スクリプト（``scripts/seed_master_data.py``）
+- the migrations (``migrations/versions/*_seed_master_data.py``)
+- the seed script (``scripts/seed_master_data.py``)
 
-の双方がこのモジュールを参照する。フレームワーク・DB に依存しない純データの
-ため、どこからでも安全に import できる。
+It is pure data with no framework or DB dependency, so it can be imported safely from anywhere.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-# --- ロール ------------------------------------------------------------------
-# id は外部参照（user_roles 等）の安定キーとして固定する。
+# --- Roles ---------------------------------------------------------------------
+# ids are fixed as stable keys for external references (user_roles etc.).
 #
-# ロールは「何を扱うか」の系統で分ける（ADR-0078 §4）。
+# Roles are split by the family of "what they handle" (ADR-0078 §4).
 #
-# 1 つのロールは 1 つのアクター（システムを使う人）に当たる（ADR-0084）。
+# One role corresponds to one actor (a person who uses the system) (ADR-0084).
 #
-# テナントの外側（ADR-0079 §1）。テナントに属さない利用者だけが持つ。
-# - 運用者:         system-admin（テナントの登録・停止・削除、全体の設定・再起動・アプリログ）
-# - サポート担当:   system-support（テナントの一覧と状態、システムの状態を見るだけ）
+# Outside the tenants (ADR-0079 §1). Held only by users who belong to no tenant.
+# - Operator:          system-admin (register/suspend/delete tenants, global settings, restart, app logs)
+# - Support staff:     system-support (only views the tenant list and status, and system status)
 #
-# テナントの内側。効くのは自分のテナントの中だけ。
-# - テナント管理者:   owner（内側の全権限。ADR-0078 §5）
-# - 利用者管理者:     user-admin（利用者・グループの管理と、自分の範囲内のロールの付け外し）
-# - コンテンツ管理者: content-admin（コンテンツ設定を決める。中身は読むだけ）
-# - 編集者:           manager（中身を作る・直す・消す）
-# - 閲覧者:           member（読む）/ guest（入れるだけ）
-# - 監査者:           auditor（監査ログとコンテンツ設定を見るだけ）
+# Inside a tenant. Effective only within one's own tenant.
+# - Tenant admin:      owner (all permissions inside; ADR-0078 §5)
+# - User admin:        user-admin (manages users and groups, and grants/revokes roles within own scope)
+# - Content admin:     content-admin (decides content settings; only reads the content itself)
+# - Editor:            manager (creates, edits and deletes content)
+# - Viewer:            member (reads) / guest (can only sign in)
+# - Auditor:           auditor (only views audit logs and content settings)
 #
-# 派生アプリでは、コンテンツの系統を自分の資源に合わせて組み替える
-# （例: editor / publisher / moderator）。系統をまたぐロールは作らない。
+# Derived apps rearrange the content family to fit their own resources
+# (e.g. editor / publisher / moderator). Do not create roles that span families.
 ROLES: Sequence[tuple[int, str]] = (
     (1, "owner"),
     (2, "manager"),
@@ -48,50 +47,50 @@ ROLES: Sequence[tuple[int, str]] = (
     (9, "content-admin"),
 )
 
-# --- 権限コード（scope） -----------------------------------------------------
-# 認可は scope（権限コード値）で行う。コードを安定キーとし、id は DB 採番に任せる。
+# --- Permission codes (scopes) ---------------------------------------------------
+# Authorization uses scopes (permission code values). The code is the stable key; ids are assigned by the DB.
 PERMISSION_CODES: Sequence[str] = (
-    # --- テナントの外側（SYSTEM_PERMISSIONS） ---
-    # システム設定（/api/admin/config）。見ると変えるを分ける（ADR-0084 §3）。
+    # --- Outside the tenants (SYSTEM_PERMISSIONS) ---
+    # System settings (/api/admin/config). Viewing and changing are separate (ADR-0084 §3).
     "system-settings:view",
     "system-settings:write",
-    # システムの状態を見る（/api/admin/system/status）。
+    # View system status (/api/admin/system/status).
     "system:view",
-    # 再起動と、テナントの外の人（運用者・サポート担当）の付け外し。
+    # Restart, and grant/revoke people outside the tenants (operators, support staff).
     "system:manage",
     "log:view",
-    # テナントの一覧と状態を見る。
+    # View the tenant list and status.
     "tenant:view",
-    # テナントの登録・停止・削除と、最初のテナント管理者の指名（ADR-0079 §1）。
+    # Register/suspend/delete tenants and appoint the first tenant admin (ADR-0079 §1).
     "tenant:manage",
-    # --- テナントの内側 ---
-    # コンテンツ設定（そのテナントの中身の決まり。ADR-0084 §3）。
+    # --- Inside a tenant ---
+    # Content settings (the rules for that tenant's content; ADR-0084 §3).
     "content-settings:view",
     "content-settings:write",
     "user:manage",
-    # ロールの定義。権限コードの一覧も、ロールを定義するためにこれで読む（ADR-0084 §3）。
+    # Role definitions. Also used to read the permission code list in order to define roles (ADR-0084 §3).
     "role:manage",
-    # 監査ログ（誰が何をしたか）の閲覧。アプリログ（log:view）とは別の scope に
-    # している。「誰が」を追える記録は運用ログより取り扱いが重いため（ADR-0075 §1）。
+    # Viewing audit logs (who did what). A separate scope from application logs (log:view),
+    # because records that trace "who" need heavier handling than operational logs (ADR-0075 §1).
     "audit:view",
     "dashboard:view",
     "gui:view",
     "item:view",
     "item:write",
-    # 共有メモ（bounded_contexts/notes。ADR-0078 §6 の見本）。scope が決めるのは「機能を使えるか」
-    # まで。どのメモを読めて変えられるかは、持ち主とグループの所属で DB が決める。
+    # Shared notes (bounded_contexts/notes; the example for ADR-0078 §6). The scope only decides
+    # "can use the feature". Which notes can be read or changed is decided in the DB by owner and group membership.
     "note:view",
     "note:write",
-    # グループ（利用者のまとまり）の作成・編集・所属の変更（ADR-0081 §3）。
+    # Create/edit groups (collections of users) and change membership (ADR-0081 §3).
     "group:manage",
-    # 管理画面からのお知らせの配信。宛先を選ぶためにグループと利用者の一覧も読める
-    # （ADR-0081 §3）。
+    # Sending announcements from the admin screen. Can also read the group and user lists to pick recipients
+    # (ADR-0081 §3).
     "notification:send",
 )
 
-# --- テナントの外側（ADR-0079 §1） ------------------------------------------------
-# アプリ全体に効く権限。テナントの中のロールには持たせない ——持たせると、ある
-# テナントの管理者がほかのテナントの設定や再起動まで動かせる。
+# --- Outside the tenants (ADR-0079 §1) ---------------------------------------------
+# Permissions that affect the whole app. Never give them to roles inside a tenant: otherwise
+# one tenant's admin could change other tenants' settings or even restart the app.
 SYSTEM_PERMISSIONS: Sequence[str] = (
     "system-settings:view",
     "system-settings:write",
@@ -102,21 +101,21 @@ SYSTEM_PERMISSIONS: Sequence[str] = (
     "tenant:manage",
 )
 
-# テナントに属さない利用者だけが持つロール。テナントの利用者には付けられず、
-# テナントに属さない利用者にはこれ以外を付けられない（兼ねない）。
+# Roles held only by users who belong to no tenant. They cannot be given to tenant users, and
+# users outside the tenants cannot be given any other role (no combining).
 SYSTEM_ROLES: Sequence[str] = ("system-admin", "system-support")
 
-# 運用者（システム管理者）のロール。テナントを管理できる人を 0 人にしない数え方と、
-# 据え付けの道具（scripts/create_system_admin.py）が使う。
+# The operator (system administrator) role. Used by the count that keeps at least one person able to
+# manage tenants, and by the setup tool (scripts/create_system_admin.py).
 SYSTEM_ADMIN_ROLE: str = "system-admin"
 
 _TENANT_PERMISSIONS = tuple(code for code in PERMISSION_CODES if code not in SYSTEM_PERMISSIONS)
 
-# --- ロールへの権限付与 ------------------------------------------------------
-# ロール名 -> 付与する権限コードの集合。有効 scope は所属ロールの和集合。
+# --- Grants of permissions to roles ----------------------------------------------
+# Role name -> set of granted permission codes. The effective scope is the union over the user's roles.
 ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
-    "owner": _TENANT_PERMISSIONS,  # テナントの内側の全権限（テナント管理者）
-    # 編集者。中身を作る・直す・消す。
+    "owner": _TENANT_PERMISSIONS,  # All permissions inside the tenant (tenant admin)
+    # Editor. Creates, edits and deletes content.
     "manager": (
         "item:view",
         "item:write",
@@ -135,25 +134,25 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
         "dashboard:view",
         "gui:view",
     ),
-    # 運用者（テナントの外側）。中身（item:*）にも、テナントの人（user:* / role:*）にも
-    # 触れない。監査ログは全体の操作の記録だけが見える（テナントの記録は見えない）。
+    # Operator (outside the tenants). Touches neither content (item:*) nor the tenants' people
+    # (user:* / role:*). Of the audit log, only records of global operations are visible (not tenant records).
     "system-admin": (
         *SYSTEM_PERMISSIONS,
         "audit:view",
         "dashboard:view",
         "gui:view",
     ),
-    # サポート担当（テナントの外側）。問い合わせに答えるために状態を見るだけ。
-    # 設定・アプリログ・監査ログは持たせない（利用者の情報が混じる。ADR-0084 §2）。
+    # Support staff (outside the tenants). Only views status to answer inquiries.
+    # No settings, app logs or audit logs (they contain user information; ADR-0084 §2).
     "system-support": (
         "system:view",
         "tenant:view",
         "dashboard:view",
         "gui:view",
     ),
-    # 人の系統。配れるのは自分が持つ権限の範囲のロールだけなので（ADR-0078 §4）、
-    # member と同じ閲覧の権限を持たせ、member・guest を割り当てられるようにしてある。
-    # manager・owner への引き上げは、それを持つ人の仕事。
+    # The people family. One can only hand out roles within one's own permissions (ADR-0078 §4),
+    # so it has the same view permissions as member, allowing it to assign member and guest.
+    # Raising someone to manager or owner is the job of those who hold them.
     "user-admin": (
         "user:manage",
         "group:manage",
@@ -162,8 +161,8 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
         "dashboard:view",
         "gui:view",
     ),
-    # コンテンツ管理者。コンテンツの決まりを変え、中身は読むだけ。中身も直す人には
-    # manager も付ける（系統をまたぐロールは作らない。ADR-0078 §4）。
+    # Content admin. Changes the content rules and only reads the content itself. Give people who
+    # also edit content manager as well (no roles spanning families; ADR-0078 §4).
     "content-admin": (
         "content-settings:view",
         "content-settings:write",
@@ -172,9 +171,9 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
         "dashboard:view",
         "gui:view",
     ),
-    # 監査の系統。読むだけ。変える権限は 1 つも持たせない（職務の分離）。
-    # アプリログ（log:view）はアプリ全体のものなので持たせない（ADR-0079 §1）。
-    # 中身も読ませない（確かめるのは記録と決まり。ADR-0084 §2）。
+    # The audit family. Read only. Not a single permission to change anything (separation of duties).
+    # App logs (log:view) cover the whole app, so they are not included (ADR-0079 §1).
+    # Content is not readable either (what is checked is records and rules; ADR-0084 §2).
     "auditor": (
         "audit:view",
         "content-settings:view",
@@ -183,14 +182,14 @@ ROLE_PERMISSIONS: Mapping[str, Sequence[str]] = {
     ),
 }
 
-# --- 初期管理者 --------------------------------------------------------------
-# パスワードは環境変数 ``ADMIN_INITIAL_PASSWORD`` で上書きできる（推奨）。
-# 未指定時はフォールバックハッシュ（平文 = ``DEFAULT_ADMIN_PASSWORD``）が使われる
-# ため、本番では初回ログイン後に必ず変更すること。
+# --- Initial administrator ---------------------------------------------------------
+# The password can be overridden with the ``ADMIN_INITIAL_PASSWORD`` environment variable
+# (recommended). If unset, the fallback hash (plaintext = ``DEFAULT_ADMIN_PASSWORD``) is used,
+# so in production always change it after the first sign-in.
 #
-# Domain 層は werkzeug に依存できない（``tests/unit/test_layer_dependencies.py``）
-# ため、ハッシュは事前計算値を置く。平文との対応は
-# ``tests/unit/test_master_data.py`` が検証する。
+# The Domain layer cannot depend on werkzeug (``tests/unit/test_layer_dependencies.py``), so a
+# precomputed hash is stored here. ``tests/unit/test_master_data.py`` verifies it matches the
+# plaintext.
 DEFAULT_ADMIN_ID: int = 1
 DEFAULT_ADMIN_EMAIL: str = "admin@example.com"
 DEFAULT_ADMIN_USERNAME: str = "admin"

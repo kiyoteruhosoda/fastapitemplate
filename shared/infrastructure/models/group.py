@@ -1,11 +1,11 @@
-"""グループ（利用者のまとまり）のモデル（ADR-0081 §3）。
+"""Model for groups (collections of users) (ADR-0081 §3).
 
-ロールが「何ができるか」を決めるのに対し、グループは「誰と誰か」を束ねるだけで
-権限を持たない。通知の宛先に使うのが最初の用途だが、通知の概念には閉じていない
-（派生アプリが共有範囲などにも使えるよう、ロールと同じく shared に置く）。
+Whereas roles decide "what one can do", groups only bundle "who and who" and hold no
+permissions. The first use is notification recipients, but they are not tied to the notification
+concept (they live in shared like roles, so derived apps can use them for sharing scopes etc.).
 
-⚠ **テーブル名は ``groups`` にしない。** MySQL 8 / MariaDB では ``GROUPS`` が予約語で、
-素の SQL で書くと引用符が要る。
+⚠ **Do not name the table ``groups``.** ``GROUPS`` is a reserved word in MySQL 8 / MariaDB and
+needs quoting in raw SQL.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ user_group_members = sa.Table(
 
 class UserGroup(Base):
     __tablename__ = "user_groups"
-    #: 名前はテナントの中で一意（別のテナントの名前とはぶつからない。ADR-0079 §1）
+    #: Names are unique within a tenant (no clash with another tenant's names; ADR-0079 §1)
     __table_args__ = (
         sa.UniqueConstraint("tenant_id", "name", name="uq_user_groups_tenant_name"),
         declared(Tenancy.TENANT),

@@ -8,8 +8,8 @@ from bounded_contexts.notification.domain.value_objects.audience import Audience
 class IRecipientDirectory(ABC):
     @abstractmethod
     def resolve(self, audience: Audience) -> list[int]:
-        """宛先を、いま配る相手（有効な利用者）の ID へ展開する。
+        """Expand the audience into the IDs of the users to deliver to now (active users).
 
-        グループ・利用者が無ければ :class:`AudienceNotFoundError`。止められた利用者
-        （``is_active`` が偽）には配らない。
+        Raises :class:`AudienceNotFoundError` if the group or user does not exist. Suspended users
+        (``is_active`` false) receive nothing.
         """

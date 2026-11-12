@@ -1,4 +1,4 @@
-"""メール送信ユースケース（送信可否の判定を含むトランザクション境界）。"""
+"""Send-email use case (transaction boundary, including the check whether sending is allowed)."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
-"""失敗の数え上げと断り方（ADR-0076 §9）。
+"""Counting failures and how sign-in is refused (ADR-0076 §9).
 
-いちばん確かめたいのは、**窓の外の失敗は数え直すこと**と、**断りは時間で解ける
-こと**、そして**正しく入れたら忘れること**。
+What matters most: **failures outside the window are counted afresh**, **a refusal lifts with
+time**, and **a successful sign-in forgets the failures**.
 """
 
 from __future__ import annotations
@@ -39,12 +39,12 @@ def test_reaching_the_limit_refuses_for_the_lock_duration() -> None:
 
     assert locked.retry_after(locked_at) == timedelta(minutes=10)
     assert locked.retry_after(locked_at + timedelta(minutes=9)) == timedelta(minutes=1)
-    # 時間で解ける。管理者の手は要らない
+    # It lifts with time. No administrator action needed
     assert locked.retry_after(locked_at + timedelta(minutes=10)) is None
 
 
 def test_failures_outside_the_window_are_counted_afresh() -> None:
-    # 2 回失敗して 20 分後に 1 回。窓（15 分）を過ぎているので 1 回目として数える
+    # Two failures, then one 20 minutes later. The window (15 min) has passed, so it counts as the first
     attempts = _fail(2).after_failure(NOW + timedelta(minutes=20), POLICY)
 
     assert attempts.failures == 1
@@ -67,10 +67,10 @@ def test_a_disabled_policy_never_counts() -> None:
 
 def test_stale_rows_are_those_past_both_the_window_and_the_lock() -> None:
     locked = _fail(3)
-    # 断っているあいだは消さない
+    # Not deleted while refusing
     assert locked.is_stale(NOW + timedelta(minutes=5), POLICY) is False
-    # 断りも窓も過ぎたら消してよい
+    # Deletable once both the refusal and the window have passed
     assert locked.is_stale(NOW + timedelta(minutes=30), POLICY) is True
-    # 窓の中の失敗は残す
+    # Failures inside the window are kept
     assert _fail(1).is_stale(NOW + timedelta(minutes=5), POLICY) is False
     assert _fresh().is_stale(NOW, POLICY) is True

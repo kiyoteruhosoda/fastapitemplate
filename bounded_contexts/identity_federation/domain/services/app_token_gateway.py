@@ -1,4 +1,4 @@
-"""アプリから来た assay のアクセストークンを読む口（ADR-0081 §1）。"""
+"""Endpoint for reading assay access tokens coming from apps (ADR-0081 §1)."""
 
 from __future__ import annotations
 
@@ -8,23 +8,24 @@ from typing import Any, Protocol
 
 class AppTokenGateway(Protocol):
     def verify_access_token(self, issuer: str, token: str) -> Mapping[str, Any]:
-        """署名・``typ``・発行者・宛先（``{issuer}/userinfo``）・期限を確かめてクレームを返す。
+        """Check signature, ``typ``, issuer, audience (``{issuer}/userinfo``) and expiry, and return the claims.
 
-        合わなければ ``AppAccessTokenRejectedError``、IdP に届かなければ
-        ``IdentityProviderUnavailableError``。
+        On mismatch ``AppAccessTokenRejectedError``; if the IdP is unreachable,
+        ``IdentityProviderUnavailableError``.
         """
         ...
 
     def verify_id_token(self, issuer: str, id_token: str, client_ids: frozenset[str]) -> Mapping[str, Any]:
-        """アプリが送った ID トークンの署名・発行者・宛先（``client_ids`` のどれか）・期限を確かめる（ADR-0103）。
+        """Check the signature, issuer, audience (any of ``client_ids``) and expiry of the ID token sent by
+        the app (ADR-0103).
 
-        結び付けたトークン（``cnf.jkt``）ではこちらから userinfo を引けないので、初めて来た人の
-        プロフィールはこちらから読む。合わなければ ``AppAccessTokenRejectedError``。
+        With a bound token (``cnf.jkt``) we can't fetch userinfo ourselves, so the profile of a first-time
+        person is read from here. On mismatch ``AppAccessTokenRejectedError``.
         """
         ...
 
     def userinfo(self, issuer: str, token: str) -> Mapping[str, Any]:
-        """そのトークンで userinfo を引く。``sub`` が食い違う応答は空として返す。"""
+        """Fetch userinfo with that token. A response with a mismatched ``sub`` is returned as empty."""
         ...
 
 

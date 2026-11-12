@@ -1,9 +1,9 @@
-"""OpenID Provider との往復のインターフェース（実装は Infrastructure 層）。
+"""Interface for round trips with the OpenID Provider (implemented in Infrastructure).
 
-プロトコルの細部（discovery・トークンエンドポイント・JWKS による署名検証）は
-実装側に閉じ込め、ドメインとアプリケーションは「認可 URL を作る」「認可コードを
-クレームへ換える」の 2 つだけを知る。返すのは**検証済みの**クレームで、素の
-``dict`` として扱う（HTTP・JWT ライブラリの型を内側へ持ち込まない）。
+Protocol details (discovery, token endpoint, JWKS signature verification) are kept in the
+implementation; domain and application only know two things: "build the authorization URL"
+and "exchange the authorization code for claims". The claims returned are **verified** and
+handled as plain ``dict`` (no HTTP / JWT library types leak inward).
 """
 
 from __future__ import annotations
@@ -19,36 +19,36 @@ from bounded_contexts.identity_federation.domain.value_objects.identity_provider
 
 @dataclass(frozen=True)
 class AuthorizationRequest:
-    """IdP へブラウザを送り出すための材料。"""
+    """Inputs for sending the browser to the IdP."""
 
     provider: IdentityProvider
     state: str
     nonce: str
     code_challenge: str
-    #: 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0076 §3 決定 1）。
+    #: Required authentication strength (``acr_values``). Empty = none required (ADR-0076 §3 decision 1).
     acr_values: tuple[str, ...] = ()
-    #: 画面を出さずに試す（``prompt=none``。ADR-0077 §9）。偽なら ``prompt`` を付けない。
+    #: Try silently (``prompt=none``. ADR-0077 §9). If false, ``prompt`` is not added.
     silent: bool = False
 
 
 @dataclass(frozen=True)
 class EndSessionRequest:
-    """サインアウトを IdP まで通すための材料（RP-Initiated Logout 1.0）。
+    """Inputs for carrying sign-out through to the IdP (RP-Initiated Logout 1.0).
 
-    ``id_token_hint`` は載せない。このテンプレートは検証したあとの ID トークンを
-    保持しないので、**手元に無いものを送れない**。代わりに ``client_id`` と
-    ``post_logout_redirect_uri`` の組で名乗る（OP はこの組で登録済みかを見る）。
-    保持するなら行を 1 本増やす話になるので、必要になったアプリで別途決める。
+    No ``id_token_hint``. This template doesn't keep the ID token after verifying it, so
+    **it can't send what it doesn't have**. Instead it identifies with the pair ``client_id`` and
+    ``post_logout_redirect_uri`` (the OP checks that this pair is registered).
+    Keeping it would mean adding a column, so apps that need it decide that separately.
     """
 
     provider: IdentityProvider
-    #: サインアウト後に戻ってくる先。空なら付けない（OP 自身の完了ページで止まる）。
+    #: Where to return after sign-out. Omitted if empty (stops at the OP's own completion page).
     post_logout_redirect_uri: str = ""
 
 
 @dataclass(frozen=True)
 class LogoutTokenVerification:
-    """IdP から届いた ``logout_token`` を確かめるための材料（ADR-0077 §3）。"""
+    """Inputs for verifying a ``logout_token`` received from the IdP (ADR-0077 §3)."""
 
     provider: IdentityProvider
     logout_token: str
@@ -56,7 +56,7 @@ class LogoutTokenVerification:
 
 @dataclass(frozen=True)
 class CodeExchange:
-    """戻ってきた認可コードを引き換えるための材料。"""
+    """Inputs for redeeming a returned authorization code."""
 
     provider: IdentityProvider
     code: str
@@ -66,33 +66,33 @@ class CodeExchange:
 
 class OidcProviderGateway(Protocol):
     def authorization_url(self, request: AuthorizationRequest) -> str:
-        """認可エンドポイントへの URL を組み立てる。
+        """Build the URL to the authorization endpoint.
 
-        IdP と話せない場合は
-        :class:`~bounded_contexts.identity_federation.domain.exceptions.IdentityProviderUnavailableError`。
+        If the IdP is unreachable,
+        :class:`~bounded_contexts.identity_federation.domain.exceptions.IdentityProviderUnavailableError`.
         """
 
     def end_session_url(self, request: EndSessionRequest) -> str | None:
-        """サインアウトのために送り出す URL。**IdP が対応していなければ ``None``。**
+        """URL to send to for sign-out. **``None`` if the IdP doesn't support it.**
 
-        discovery に ``end_session_endpoint`` が無い OP があるので、呼ぶ側は
-        ``None`` を「この IdP では通せない」として素直に扱うこと（失敗にしない）。
+        Some OPs lack ``end_session_endpoint`` in discovery, so callers should simply treat
+        ``None`` as "can't go through with this IdP" (not a failure).
         """
 
     def exchange_code(self, exchange: CodeExchange) -> Mapping[str, Any]:
-        """認可コードを検証済みのクレームへ換える。
+        """Exchange the authorization code for verified claims.
 
-        ID トークンの署名・発行者・対象者・``nonce`` まで確かめたうえで返す。
-        失敗は ``InvalidIdTokenError`` / ``IdentityProviderUnavailableError``。
+        Returns after checking the ID token's signature, issuer, audience and ``nonce``.
+        Failures are ``InvalidIdTokenError`` / ``IdentityProviderUnavailableError``.
         """
 
     def verify_logout_token(self, verification: LogoutTokenVerification) -> Mapping[str, Any]:
-        """``logout_token`` の署名・発行者・対象者・期限を確かめてクレームを返す。
+        """Verify the ``logout_token``'s signature, issuer, audience and expiry and return the claims.
 
-        ID トークンと同じ鍵・同じ発行者・同じ対象者なので、**JWT として確かめられる
-        ことはここまで**。「ログアウトの通知であること」の判断は
+        Same key, issuer and audience as the ID token, so **this is as far as JWT verification
+        can go**. Judging "this is a logout notice" is done by
         :class:`~bounded_contexts.identity_federation.domain.value_objects.logout_notice.LogoutNotice`
-        が行う。失敗は ``InvalidLogoutTokenError`` / ``IdentityProviderUnavailableError``。
+        Failures are ``InvalidLogoutTokenError`` / ``IdentityProviderUnavailableError``.
         """
 
 

@@ -1,4 +1,4 @@
-"""止めた記録を残す長さ（ADR-0102）。"""
+"""How long revocation records are kept (ADR-0102)."""
 
 from __future__ import annotations
 

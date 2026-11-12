@@ -1,4 +1,4 @@
-"""停止の記録の永続化インターフェース（実装は Infrastructure 層）。"""
+"""Persistence interface for logout records (implemented in Infrastructure)."""
 
 from __future__ import annotations
 
@@ -14,14 +14,14 @@ from bounded_contexts.identity_federation.domain.value_objects.federated_login i
 
 class SessionRevocationRepository(Protocol):
     def record(self, revocation: SessionRevocation) -> bool:
-        """記録を残す。**同じ ``jti`` が既にあれば何もせず ``False``**。
+        """Store the record. **If the same ``jti`` already exists, do nothing and return ``False``**.
 
-        ADR-0078 §3 の送り手は再送のたびに同じ ``jti`` を使うので、ここが重複配送の
-        受け止め口になる。期限切れの記録はこの機会に掃除する。
+        The sender in ADR-0078 §3 uses the same ``jti`` on every resend, so this is where duplicate
+        deliveries are absorbed. Expired records are cleaned up at this opportunity.
         """
 
     def is_revoked(self, login: FederatedLogin) -> bool:
-        """そのログインが、届いた停止のどれかに当たるかどうか。"""
+        """Whether that login is hit by any of the received logouts."""
 
 
 __all__ = ["SessionRevocationRepository"]
