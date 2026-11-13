@@ -440,7 +440,7 @@ def _continue_session(tools: _CallbackTools, handoff: SsoHandoffDto, transaction
 
 def _carry_of(transaction: LoginTransaction, login: FederatedLogin, user: User) -> SessionCarryOver:
     """What to carry over from the continued login.
-    
+
     Roles **only if still held** (otherwise all roles).
     """
     # Like the switch endpoint (``/api/auth/switch-role``), accept only held roles (no privilege gain)
@@ -456,7 +456,7 @@ def _carry_of(transaction: LoginTransaction, login: FederatedLogin, user: User) 
 
 def _renewal_result(result: renewal.RenewalResult) -> RedirectResponse:
     """Send to the result page.
-    
+
     Drops the round-trip cookie and marks the response as allowed only in our own frame.
     """
     response = _redirect(renewal.result_location(result))
@@ -536,7 +536,7 @@ def remove_link(
     db: DbDep,
 ) -> StatusResponse:
     """Remove the link.
-    
+
     ⚠ **Refuse users who could no longer sign in after removal** (ADR-0077 §5).
     """
     provider = dependencies.provider_of(db, user)

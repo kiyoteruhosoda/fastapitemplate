@@ -108,7 +108,7 @@ def test_settings_are_read_through_the_settings_object() -> None:
 
 def test_no_dynamic_dispatch() -> None:
     found = [f"{path}: {name}" for path, tree in _sources() for name in _called_names(tree) & _FORBIDDEN_DYNAMIC_CALLS]
-    assert not found, f"Dynamic calls are not allowed (CLAUDE.md \"Restrictions on dynamic calls\"): {found}"
+    assert not found, f'Dynamic calls are not allowed (CLAUDE.md "Restrictions on dynamic calls"): {found}'
 
 
 def test_getattr_only_where_a_reason_is_written() -> None:
@@ -143,7 +143,7 @@ def _native_enums(tree: ast.Module) -> Iterator[int]:
 
 def test_no_native_enum_columns() -> None:
     found = [f"{path}:{line}" for path, tree in _sources() for line in _native_enums(tree)]
-    assert not found, f"Add native_enum=False to sa.Enum (CLAUDE.md \"DB modelling\"): {found}"
+    assert not found, f'Add native_enum=False to sa.Enum (CLAUDE.md "DB modelling"): {found}'
 
 
 def _migrations() -> Iterator[tuple[str, ast.Module]]:
@@ -225,7 +225,7 @@ def test_schemas_are_named_request_or_response() -> None:
         for name in _schema_classes(tree)
         if not name.endswith(("Request", "Response"))
     ]
-    assert not found, f"Name schemas XxxRequest / XxxResponse (CLAUDE.md \"API design\"): {found}"
+    assert not found, f'Name schemas XxxRequest / XxxResponse (CLAUDE.md "API design"): {found}'
 
 
 def _role_name_comparisons(tree: ast.Module) -> Iterator[int]:
