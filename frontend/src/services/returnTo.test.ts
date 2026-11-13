@@ -1,12 +1,12 @@
 /**
- * サインインの往復で行き先を落とさない（ADR-0077 §8）。
+ * Keep the destination across the sign-in round trip (ADR-0077 §8).
  */
 import { describe, expect, it } from 'vitest'
 
 import { sanitizeRedirectTo, signInPathFor } from './returnTo'
 
 describe('sanitizeRedirectTo', () => {
-  it('自サイト内の絶対パスはクエリごと通す', () => {
+  it('passes absolute in-site paths through with their query', () => {
     expect(sanitizeRedirectTo('/items?q=a%2Fb')).toBe('/items?q=a%2Fb')
   })
 
@@ -19,19 +19,19 @@ describe('sanitizeRedirectTo', () => {
     ['/\\evil.example/'],
     ['/items\r\nSet-Cookie: x'],
     [`/${'a'.repeat(255)}`],
-  ])('外を指す・形の崩れた・長すぎる値（%j）は着地へ倒す', (candidate) => {
+  ])('falls back to landing for outside, malformed, or too-long values (%j)', (candidate) => {
     expect(sanitizeRedirectTo(candidate)).toBe('/')
   })
 })
 
 describe('signInPathFor', () => {
-  it('開こうとしていた経路とクエリを redirect_to に載せる', () => {
+  it('puts the path and query being opened into redirect_to', () => {
     expect(signInPathFor({ pathname: '/items', search: '?q=a&page=2' })).toBe(
       '/login?redirect_to=%2Fitems%3Fq%3Da%26page%3D2',
     )
   })
 
-  it('着地から来たときは行き先を付けない', () => {
+  it('adds no destination when coming from the landing page', () => {
     expect(signInPathFor({ pathname: '/', search: '' })).toBe('/login')
   })
 })

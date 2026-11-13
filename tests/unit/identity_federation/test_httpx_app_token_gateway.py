@@ -1,4 +1,4 @@
-"""アプリの assay のアクセストークンの検証（ADR-0081 §1）。鍵は試験の中で作る。"""
+"""Verifying the app's assay access tokens (ADR-0081 §1). Keys are created in the test."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class _Metadata(OidcMetadataCache):
         )
 
     def signing_key(self, jwks_uri: str, token: str) -> Any:
-        jwt.get_unverified_header(token)  # 壊れた入力はここで DecodeError（本物と同じ）
+        jwt.get_unverified_header(token)  # broken input raises DecodeError here (same as the real one)
         return _KEY.public_key()
 
 
@@ -58,7 +58,7 @@ def test_a_valid_access_token_is_read(gateway: HttpxAppTokenGateway) -> None:
 @pytest.mark.parametrize(
     "token",
     [
-        _token(typ="JWT"),  # ID トークンを持ち込ませない
+        _token(typ="JWT"),  # do not let ID tokens in
         _token(key=_OTHER_KEY),
         _token(iss="https://evil.example.test"),
         _token(aud="api://blobshare"),

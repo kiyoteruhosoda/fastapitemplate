@@ -1,17 +1,18 @@
-"""認可要求の往復状態を、署名付き Cookie で運ぶ（ADR-0077 §1）。
+"""Carry the authorization request's round-trip state in a signed cookie (ADR-0077 §1).
 
-``state`` / ``nonce`` / PKCE の ``code_verifier`` は、リダイレクトで IdP へ離れて
-戻ってくる**その間だけ**必要になる。サーバー側に控えを置くと、この短命な値のために
-表と掃除が要るうえ、控えは全員で 1 つの表を共有するので「``state`` を知っている
-だけの相手」でも戻りを完了できてしまう（ログイン CSRF）。**改竄できない形で
-ブラウザに預ける**ほうが、同じ防御を 1 つの仕組みで達成できる ——Cookie が無ければ
-照合対象そのものが存在しない。
+``state`` / ``nonce`` / PKCE ``code_verifier`` are needed **only while** the redirect leaves
+for the IdP and comes back. Keeping a copy server-side would need a table and cleanup for
+these short-lived values, and since everyone shares one table, "a party that merely knows
+``state``" could complete the return (login CSRF). **Entrusting it to the browser in a
+tamper-proof form** achieves the same defense with a single mechanism — without the cookie
+there is nothing to match against.
 
-- 署名は内蔵 JWT と同じ ``JWT_SECRET_KEY``（HS256）。中身は読めるが**書き換えられない**。
-- 有効期限は短く（``OIDC_LOGIN_TRANSACTION_TTL_SECONDS``）。
-- ``HttpOnly``。``code_verifier`` を持つので JavaScript から読めてはならない。
-- ``SameSite=Lax`` にするのは、IdP からの戻りが**別サイトからの GET の画面遷移**
-  だから（``Strict`` だと戻ってきた時点で送られず、正規のログインが必ず失敗する）。
+- Signed with ``JWT_SECRET_KEY`` (HS256), same as the built-in JWT. Readable but **not
+  modifiable**.
+- Short expiry (``OIDC_LOGIN_TRANSACTION_TTL_SECONDS``).
+- ``HttpOnly``. It holds the ``code_verifier``, so JavaScript must not read it.
+- ``SameSite=Lax`` because the return from the IdP is **a cross-site GET navigation**
+  (with ``Strict`` it isn't sent on return and legitimate logins always fail).
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ _ALGORITHM = "HS256"
 
 
 def issue(response: Response, transaction: LoginTransaction, *, path: str) -> None:
-    """往復状態を署名して Cookie へ載せる。"""
+    """Sign the round-trip state and put it in a cookie."""
     ttl = settings.oidc_login_transaction_ttl_seconds
     payload: dict[str, Any] = {
         "state": transaction.state,
@@ -64,11 +65,11 @@ def issue(response: Response, transaction: LoginTransaction, *, path: str) -> No
 
 
 def read(raw: str | None) -> LoginTransaction | None:
-    """Cookie から往復状態を復元する。**復元できないものは黙って `None`。**
+    """Restore the round-trip state from the cookie. **Anything unrestorable silently becomes `None`.**
 
-    署名が合わない・期限が切れた・そもそも無い、のいずれも呼び出し側から見れば
-    「この戻りは受け付けられない」という 1 つの結果になる（区別しても利用者に
-    返せる情報が増えるわけではなく、攻撃者に手掛かりを与えるだけ）。
+    Bad signature, expired, or simply missing all amount, from the caller's view, to one result:
+    "this return cannot be accepted" (distinguishing them gives the user no more useful
+    information, only clues to an attacker).
     """
     if not raw:
         return None
@@ -89,7 +90,7 @@ def read(raw: str | None) -> LoginTransaction | None:
         purpose=purpose,
         user_id=user_id if isinstance(user_id, int) else None,
         issuer=issuer if isinstance(issuer, str) else "",
-        # 試した往復（ADR-0077 §9）より前の Cookie には無い。ふつうの往復として読む
+        # Cookies from before the silent attempt (ADR-0077 §9) lack it. Read as a normal round trip
         silent=claims.get("silent") is True,
         **_continued_of(claims),
     )
@@ -106,7 +107,8 @@ class _Continued(TypedDict):
 
 
 def _continued_of(claims: dict[str, Any]) -> _Continued:
-    """続ける往復が引き継ぐもの（ADR-0104）。ほかの往復と、この仕組みより前の Cookie には無い。"""
+    """What the renewal round trip carries over (ADR-0104). Absent in other round trips and in
+    cookies older than this mechanism."""
     role, auth_time = claims.get("active_role"), claims.get("auth_time")
     return _Continued(
         active_role=role if isinstance(role, str) else None,
@@ -116,14 +118,14 @@ def _continued_of(claims: dict[str, Any]) -> _Continued:
 
 
 def _purpose_of(raw: object) -> TransactionPurpose | None:
-    """⚠ **知らない目的は受け取らない。**
+    """⚠ **Don't accept unknown purposes.**
 
-    署名は付いているので普通は書き換わらないが、鍵を使い回している古い Cookie が
-    残ることはある。既定へ落とすと「連携のつもりの往復がログインとして完了する」
-    ——落ちる先が安全側とは限らないので、復元できないものは断る。
+    It is signed, so normally it can't be altered, but old cookies may remain when keys are
+    reused. Falling back to the default would let "a round trip meant as a link complete as a
+    login" — the fallback isn't necessarily the safe side, so refuse what can't be restored.
     """
     if raw is None:
-        # 連携（ADR-0077 §5）より前に発行された Cookie。ログインの往復として読む。
+        # Cookie issued before linking (ADR-0077 §5). Read as a login round trip.
         return TransactionPurpose.LOGIN
     if isinstance(raw, str) and raw in tuple(TransactionPurpose):
         return TransactionPurpose(raw)
@@ -131,7 +133,7 @@ def _purpose_of(raw: object) -> TransactionPurpose | None:
 
 
 def clear(response: Response, *, path: str) -> None:
-    """往復が終わったので落とす（成功・失敗どちらでも）。"""
+    """The round trip is over, so drop it (on success or failure)."""
     response.delete_cookie(COOKIE_NAME, path=path)
 
 

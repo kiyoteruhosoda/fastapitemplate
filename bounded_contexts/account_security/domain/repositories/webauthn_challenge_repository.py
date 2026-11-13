@@ -1,4 +1,4 @@
-"""WebAuthn チャレンジの永続化インターフェース（実装は Infrastructure 層）。"""
+"""Persistence interface for WebAuthn challenges (implemented in Infrastructure)."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ from bounded_contexts.account_security.domain.entities.webauthn_challenge import
 
 class WebAuthnChallengeRepository(Protocol):
     def issue(self, challenge: WebAuthnChallenge) -> WebAuthnChallenge:
-        """チャレンジを保存する。期限切れのものはこの機会に掃除する。"""
+        """Save a challenge. Expired ones are cleaned up at the same time."""
 
     def consume(self, challenge_id: str, purpose: str) -> WebAuthnChallenge:
-        """チャレンジを取り出して破棄する（1 回限り）。
+        """Take out a challenge and discard it (one-time).
 
-        見つからない・用途が違う・期限切れの場合は
-        :class:`~bounded_contexts.account_security.domain.exceptions.ChallengeNotFoundError`。
+        Raises :class:`~bounded_contexts.account_security.domain.exceptions.ChallengeNotFoundError`
+        if it is not found, has a different purpose, or has expired.
         """
 
 

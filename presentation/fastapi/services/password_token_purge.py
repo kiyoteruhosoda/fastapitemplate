@@ -1,7 +1,8 @@
-"""期限切れ・使用済みのパスワード再設定トークンの掃除（ADR-0097）。
+"""Purge of expired or used password reset tokens (ADR-0097).
 
-ログの掃除（ADR-0075 §3）と同じ常駐スレッドの作りで回す。ログと違って設定は持たない。
-使えなくなった行を残す理由が無く、残すと発行の記録（誰がいつ再設定を頼んだか）が積もるだけである。
+Runs on the same kind of background thread as the log purge (ADR-0075 §3). Unlike logs, it has
+no settings: there is no reason to keep unusable rows, and keeping them only piles up a record of
+issuance (who asked for a reset and when).
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ PURGE_INTERVAL_SECONDS = 6 * 60 * 60
 
 
 def purge_spent_password_tokens_once() -> int:
-    """使えなくなった行を消し、消した行数を返す。何度流しても同じ結果になる（複数のプロセスが流す）。"""
+    """Delete unusable rows and return the count deleted. Idempotent (several processes run it)."""
     spent = sa.or_(PasswordResetToken.used_at.is_not(None), PasswordResetToken.expires_at < utcnow())
     with get_session_factory()() as session:
         deleted = cast("sa.CursorResult[Any]", session.execute(sa.delete(PasswordResetToken).where(spent))).rowcount

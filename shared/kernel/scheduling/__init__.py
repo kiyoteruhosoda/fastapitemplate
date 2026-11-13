@@ -1,9 +1,9 @@
-"""定期実行の入口。
+"""Entry point for periodic execution.
 
-プロセスの中で「一定間隔で繰り返す仕事」を動かしたいときに使う。スケジューラの
-ライブラリは足していない（依存を増やさずに済む範囲の要求しかないため。ADR-0075 §3）。
+Use it to run "a job repeated at a fixed interval" inside the process. No scheduler library is
+added (the requirements are within what can be met without more dependencies; ADR-0075 §3).
 
-呼び出し側はこのモジュールの公開名だけを使う::
+Callers use only this module's public names::
 
     start_interval_worker("log-retention", purge_expired_logs_once, 6 * 3600)
     ...
@@ -20,10 +20,10 @@ _workers: dict[str, IntervalWorker] = {}
 
 
 def start_interval_worker(name: str, job: Callable[[], None], interval_seconds: float) -> IntervalWorker | None:
-    """*name* の定期実行を開始する（既に動いていればそれを返す）。
+    """Start periodic execution of *name* (returns the running one if it already exists).
 
-    テスト実行時（``TESTING``）は何もしない。テストが知らないうちに DB を触る
-    スレッドを走らせないため。
+    Does nothing during tests (``TESTING``), so tests do not unknowingly run threads that touch
+    the DB.
     """
     from shared.kernel.settings.settings import settings
 
@@ -41,7 +41,7 @@ def start_interval_worker(name: str, job: Callable[[], None], interval_seconds: 
 
 
 def stop_interval_workers() -> None:
-    """起動済みのスレッドを止める（プロセス終了時・テスト後始末用）。"""
+    """Stop the started threads (on process exit and for test cleanup)."""
     for worker in _workers.values():
         worker.stop()
     _workers.clear()

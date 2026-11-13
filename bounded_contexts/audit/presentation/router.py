@@ -1,16 +1,16 @@
-"""ログ閲覧 API（監査ログ・アプリログ）。
+"""Log viewing API (audit logs and application logs).
 
-2 つのルーターに分けているのは必要な scope が違うため。
+Split into two routers because they need different scopes.
 
 ============= ============================= ===============
-記録           エンドポイント                 必要 scope
+Record        Endpoint                      Required scope
 ============= ============================= ===============
-監査ログ       ``/api/admin/audit-logs``     ``audit:view``
-アプリログ     ``/api/admin/logs``           ``log:view``
+Audit log     ``/api/admin/audit-logs``     ``audit:view``
+App log       ``/api/admin/logs``           ``log:view``
 ============= ============================= ===============
 
-``request_id`` はどちらの記録にも入るので、片方で見つけた ID をもう一方の
-絞り込みに入れれば「そのリクエストで何が起きたか」を突き合わせられる。
+``request_id`` is in both records, so an ID found in one can be put into the other's filter to
+match up "what happened in that request".
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ SearchApplicationLogsDep = Annotated[SearchApplicationLogs, Depends(dependencies
 
 
 # ---------------------------------------------------------------------------
-# 監査ログ（誰が何をしたか）
+# Audit logs (who did what)
 # ---------------------------------------------------------------------------
 
 
@@ -76,7 +76,7 @@ def search_audit_logs(
     query: Annotated[AuditLogSearchRequest, Query()],
     use_case: SearchAuditLogsDep,
 ) -> AuditLogSearchResponse:
-    """監査ログを条件で絞り込み、新しい順に 1 ページ返す。"""
+    """Filter audit logs by criteria and return one page, newest first."""
     criteria = AuditLogCriteria(
         event_type=query.event_type,
         result=query.result,
@@ -97,7 +97,7 @@ def search_audit_logs(
 
 @audit_log_router.get("/filters", response_model=AuditLogFilterOptionsResponse)
 async def audit_log_filter_options() -> AuditLogFilterOptionsResponse:
-    """絞り込みに使える監査イベント種別・結果・対象種別の一覧。"""
+    """Audit event types, results and target types available for filtering."""
     options = ListAuditLogFilterOptions().execute()
     return AuditLogFilterOptionsResponse(
         event_types=list(options.event_types),
@@ -107,7 +107,7 @@ async def audit_log_filter_options() -> AuditLogFilterOptionsResponse:
 
 
 # ---------------------------------------------------------------------------
-# アプリログ（システムが何をしたか）
+# Application logs (what the system did)
 # ---------------------------------------------------------------------------
 
 
@@ -116,7 +116,7 @@ def search_application_logs(
     query: Annotated[LogSearchRequest, Query()],
     use_case: SearchApplicationLogsDep,
 ) -> LogSearchResponse:
-    """アプリログを条件で絞り込み、新しい順に 1 ページ返す。"""
+    """Filter application logs by criteria and return one page, newest first."""
     criteria = ApplicationLogCriteria(
         level=query.level,
         logger_prefix=query.logger,
@@ -136,7 +136,7 @@ def search_application_logs(
 
 @application_log_router.get("/filters", response_model=LogFilterOptionsResponse)
 async def application_log_filter_options() -> LogFilterOptionsResponse:
-    """絞り込みに使えるログレベルの一覧。"""
+    """Log levels available for filtering."""
     return LogFilterOptionsResponse(levels=list(ListApplicationLogFilterOptions().execute().levels))
 
 

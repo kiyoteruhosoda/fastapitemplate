@@ -1,4 +1,4 @@
-"""二要素認証（TOTP）の登録・ログイン・解除。"""
+"""Two-factor authentication (TOTP) enrolment, sign-in and removal."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def _login(client: TestClient, **extra: object) -> httpx2.Response:
 
 @pytest.fixture
 def enrolled_secret(client: TestClient, admin_headers: dict[str, str]) -> str:
-    """管理者の二要素認証を有効化し、共有鍵を返す。"""
+    """Enables two-factor authentication for the administrator and returns the shared key."""
     enrollment = client.post("/api/account/security/two-factor/enrollment", headers=admin_headers)
     assert enrollment.status_code == 200, enrollment.text
     secret = str(enrollment.json()["secret"])
@@ -50,7 +50,7 @@ def test_enrollment_is_not_enabled_until_confirmed(client: TestClient, admin_hea
     status = client.get("/api/account/security/two-factor", headers=admin_headers)
     assert status.json() == {"enabled": False, "enrolling": True, "required": False}
 
-    # 確認前はログインにコードを要求しない（登録を中断しても締め出されない）
+    # Before confirmation, sign-in does not ask for a code (abandoning enrolment does not lock you out)
     assert _login(client).status_code == 200
 
 

@@ -1,4 +1,4 @@
-"""システム設定の永続化モデル（``settings`` の DB 上書き層が参照する）。"""
+"""Persistence model of system settings (referenced by the DB override layer of ``settings``)."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
-"""アプリログの検索インターフェース（実装は Infrastructure 層）。
+"""Search interface for application logs (implemented in the Infrastructure layer).
 
-書き込み側のインターフェースは持たない。``log`` テーブルへの書き込みは
-:mod:`shared.kernel.logging` のハンドラが担うため（本コンテキストは読むだけ）。
+There is no write interface: writing to the ``log`` table is the job of the handler in
+:mod:`shared.kernel.logging` (this context only reads).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from bounded_contexts.audit.domain.value_objects.log_search_criteria import (
 
 class ApplicationLogQuery(Protocol):
     def search(self, criteria: ApplicationLogCriteria) -> ApplicationLogPage:
-        """*criteria* に一致する行を新しい順に 1 ページ返す（総件数付き）。"""
+        """Return one page of rows matching *criteria*, newest first (with the total count)."""
 
 
 __all__ = ["ApplicationLogQuery"]

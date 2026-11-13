@@ -1,10 +1,10 @@
-# 秘密でない設定と、nginx の設定。
+# Non-secret settings and the nginx config.
 #
-# ⚠ **ここに並べていないキーはコンテナへ届かない。** アプリの設定キーの一覧と意味は
-#   `.env.example` と `shared/kernel/settings/system_settings_defaults.py`。
+# ⚠ **Keys not listed here never reach the container.** The app's setting keys and their meaning:
+#   `.env.example` and `shared/kernel/settings/system_settings_defaults.py`.
 #
-# ⚠ **画面（DB）に入れた値のほうが強い**（ADR-0074 §1）。ここを直したのに変わらない
-#   ときは、管理画面の設定に同じ鍵が入っていないかを先に見る。
+# ⚠ **Values saved on the admin screen (DB) win** (ADR-0074 §1). If a change here has no effect,
+#   first check whether the admin settings hold the same key.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -13,14 +13,14 @@ metadata:
   namespace: <app>-<env>
 data:
   TZ: "UTC"
-  APP_ENV: "production"        # stg なら staging
-  # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（ADR-0075 §1）。
+  APP_ENV: "production"        # staging for stg
+  # Trust only the one nginx hop in front to extract the client IP (ADR-0075 §1).
   TRUSTED_PROXY_HOPS: "1"
   APP_BASE_URL: "https://<host>"
   CORS_ALLOWED_ORIGINS: '["https://<host>"]'
   SESSION_COOKIE_SECURE: "true"
-  # ⚠ **パスキーはこの名前に結び付いている。** 変えると登録済みのものが全部
-  #   使えなくなる。**公開する名前を決めてから載せる。**
+  # ⚠ **Passkeys are bound to this name.** Changing it makes every registered passkey
+  #   unusable. **Decide the public name before setting it.**
   WEBAUTHN_RP_ID: "<host>"
   WEBAUTHN_ORIGIN: "https://<host>"
   WEBAUTHN_RP_NAME: "<App>"
@@ -28,29 +28,29 @@ data:
   ACCESS_TOKEN_ISSUER: "<app>-<env>"
   ACCESS_TOKEN_AUDIENCE: "<app>-<env>"
   LOG_LEVEL: "INFO"
-  # ── 外部 IdP を使うなら（ADR-0077 §1 / ADR-0076 §3）────────────────
-  # ⚠ **鍵そのものはここに書かない。** `private_key_jwt` の秘密鍵はホストの
-  #   `/srv/secrets/oidc` を Pod へ貸す（`40-app.yaml` のコメント）。
+  # ── When using an external IdP (ADR-0077 §1 / ADR-0076 §3) ────────────────
+  # ⚠ **Never write the key itself here.** The `private_key_jwt` private key is lent to the Pod
+  #   from the host's `/srv/secrets/oidc` (see the comment in `40-app.yaml`).
   # OIDC_ENABLED: "true"
-  # OIDC_ISSUER: "https://identity.nolumia.com/<テナント UUID>"
+  # OIDC_ISSUER: "https://identity.nolumia.com/<tenant UUID>"
   # OIDC_CLIENT_ID: "…"
   # OIDC_REDIRECT_URI: "https://<host>/api/auth/sso/callback"
   # OIDC_CLIENT_AUTH_METHOD: "private_key_jwt"
   # OIDC_PRIVATE_KEY_FILE: "/run/oidc/client.key"
   # OIDC_PRIVATE_KEY_KID: "…"
-  # ⚠ 既定は false。idp に口座があるだけでは入れない（管理画面から足す）
+  # ⚠ Defaults to false. Having an account at the idp is not enough to get in (add users from the admin screen)
   # OIDC_AUTO_PROVISION: "false"
 ---
-# nginx の設定。⚠ **ローカル開発の `docker/nginx/default.conf.template` とは別物。**
-# 共有していたのは compose で配っていた頃の話で、いまは bind mount が無い
-# （inode 固定で差し替えが届かない）。**片方を直したらもう片方も直す。**
+# nginx config. ⚠ **Separate from `docker/nginx/default.conf.template` used for local development.**
+# They were shared back when compose distributed it; now there is no bind mount
+# (inode pinning keeps replacements from arriving). **When you fix one, fix the other.**
 #
-# ⚠ **`resolver` は CoreDNS（10.43.0.10）。** イメージの既定は docker の
-#   `127.0.0.11` で、k8s には居ない。変数経由の `proxy_pass` と**セット**
-#   ——`upstream` ブロックに戻すと nginx が起動時に 1 度だけ解決してキャッシュし、
-#   app の Pod が入れ替わるたびに 502 を返し続ける。
-# ⚠ **上流は FQDN で書く。** nginx の resolver は `/etc/resolv.conf` の `search` を
-#   見ないので、短い `app` では同じ namespace でも引けない。
+# ⚠ **`resolver` is CoreDNS (10.43.0.10).** The image default is docker's
+#   `127.0.0.11`, which does not exist in k8s. It goes **together** with `proxy_pass` via a variable
+#   — reverting to an `upstream` block makes nginx resolve once at startup and cache it,
+#   returning 502 every time the app Pod is replaced.
+# ⚠ **Write upstreams as FQDNs.** nginx's resolver ignores `search` in `/etc/resolv.conf`,
+#   so the short `app` does not resolve even within the same namespace.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -64,13 +64,13 @@ data:
         listen 80;
         server_name _;
 
-        # ⚠ **公開するスタックだけ入れる。** 公開経路が無い（LAN 直叩きだけの）
-        #    スタックに書くと、書いた分がそのまま穴になる
-        #    ——前段が居ないので `X-Forwarded-For` は誰も付けていない。
-        # ⚠ 10.42.0.1 は cbr0。docker の前段（cloudflared / edge-*）から来る通信は
-        #    必ずこのアドレスに化ける（2026-09-06 実測）。
-        # ⚠ 10.201.0.0/24 は remote_addr には現れないが、**前段の edge-* が XFF に
-        #    自分のアドレスを書き足す**ので、読み飛ばす先として要る。
+        # ⚠ **Only for publicly exposed stacks.** On a stack with no public route (LAN-only),
+        #    whatever you list here becomes a hole as is
+        #    — with no proxy in front, nobody is setting `X-Forwarded-For`.
+        # ⚠ 10.42.0.1 is cbr0. Traffic from docker front proxies (cloudflared / edge-*) always
+        #    appears as this address (measured 2026-09-06).
+        # ⚠ 10.201.0.0/24 never shows up in remote_addr, but **the edge-* proxies append their
+        #    own address to XFF**, so it is needed as an address to skip.
         set_real_ip_from 10.42.0.1;
         set_real_ip_from 10.201.0.0/24;
         real_ip_header X-Forwarded-For;
@@ -78,7 +78,7 @@ data:
 
         client_max_body_size 100m;
 
-        # ⚠ 外へ出さない（未認証で読めるため）
+        # ⚠ Do not expose externally (readable without authentication)
         location = /metrics {
             return 404;
         }

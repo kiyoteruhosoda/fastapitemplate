@@ -1,16 +1,17 @@
 """split system authority
 
-全体の権限をテナントの中から外へ移す（ADR-0079 §1 決定 4・ADR-0079 §3）。
+Move global permissions from inside the tenants to outside (ADR-0079 §1 decision 4, ADR-0079 §3).
 
-- ``role_tenants`` を足す。いまある自作のロール（雛形の名前でないもの）は既定のテナントのものにする
-- 権限 ``tenant:manage`` を足し、``system-admin`` に持たせる（``seed_master_data``）
-- 全体の権限（``admin:system-settings`` / ``system:manage`` / ``log:view`` / ``tenant:manage``）を
-  ``system-admin`` 以外のロールから外す（``owner`` も ``manager`` も ``auditor`` も、自作のロールも）
-- テナントに居る ``system-admin`` の持ち主を座り直させる（兼ねない）:
-  ``system-admin`` だけを持つ人はテナントから出てシステム管理者になり、ほかのロールも持つ人は
-  ``system-admin`` を外される
+- Add ``role_tenants``. Existing self-made roles (not template names) go to the default tenant
+- Add the permission ``tenant:manage`` and give it to ``system-admin`` (``seed_master_data``)
+- Remove the global permissions (``admin:system-settings`` / ``system:manage`` / ``log:view`` /
+  ``tenant:manage``) from every role other than ``system-admin`` (``owner``, ``manager``,
+  ``auditor`` and self-made roles alike)
+- Reseat holders of ``system-admin`` who are inside a tenant (no combining):
+  people with only ``system-admin`` leave the tenant and become system administrators; people
+  who also hold other roles lose ``system-admin``
 
-初期管理者は据えない（ADR-0078 §3）。モデルは ``seed_master_data`` の中だけで使う。
+Does not seat the initial administrator (ADR-0078 §3). Models are used only inside ``seed_master_data``.
 
 Revision ID: split_system_authority
 Revises: tenants
@@ -33,9 +34,9 @@ depends_on = None
 _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 _SYSTEM_ROLE = "system-admin"
 _SYSTEM_PERMISSIONS = ("admin:system-settings", "system:manage", "log:view", "tenant:manage")
-#: この移行の時点の雛形の名前。これ以外のロールはテナントが自分で作ったもの。
+#: Template names at the time of this migration. Any other role was created by a tenant.
 _TEMPLATE_ROLES = ("owner", "manager", "member", "guest", "system-admin", "user-admin", "auditor", "admin")
-#: 戻すときに全体の権限を返すロール（この移行の前の付与）
+#: Roles that get the global permissions back on downgrade (the grants before this migration)
 _HELD_BEFORE = {
     "owner": _SYSTEM_PERMISSIONS[:3],
     "manager": ("log:view",),
@@ -85,7 +86,7 @@ def _strip_system_permissions(system_role: int | None) -> None:
 
 
 def _reseat_system_admins(system_role: int) -> None:
-    """テナントに居る system-admin の持ち主を、どちらか一方に座らせる（兼ねない）。"""
+    """Seat system-admin holders who are inside a tenant on one side only (no combining)."""
     bind = op.get_bind()
     holders = (
         bind.execute(

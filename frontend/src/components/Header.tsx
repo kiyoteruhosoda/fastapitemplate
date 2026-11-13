@@ -14,7 +14,7 @@ export function Header({
 }: {
   navOpen: boolean
   onToggleNav: () => void
-  /** ドロワーを閉じたときにフォーカスを戻す先（AppLayout が保持する）。 */
+  /** Where focus returns when the drawer closes (held by AppLayout). */
   toggleRef: RefObject<HTMLButtonElement | null>
 }) {
   const { t } = useI18n()
@@ -23,9 +23,9 @@ export function Header({
   return (
     <header className="header">
       <div className="header-brand">
-        {/* 狭い画面だけに出るナビゲーションの開閉ボタン（表示制御は index.css）。
-            開閉は aria-expanded で伝え、ラベル自体は変えない（同じボタンの名前が
-            操作のたびに変わると読み上げで追いにくいため）。 */}
+        {/* Navigation toggle shown only on narrow screens (visibility is in index.css).
+            Open/closed is conveyed via aria-expanded and the label stays the same (a button
+            whose name changes on each press is hard to follow with a screen reader). */}
         <button
           ref={toggleRef}
           type="button"
@@ -43,12 +43,12 @@ export function Header({
         </Link>
       </div>
       <div className="header-actions">
-        {/* 言語・テーマの切り替えはプロフィールページにある（ADR-0080 §3）。 */}
+        {/* Language and theme switching live on the profile page (ADR-0080 §3). */}
         {user && (
           <>
-            {/* ロールの切り替え（複数ロールを持つ利用者にだけ出る。ADR-0078 §1） */}
+            {/* Role switcher (shown only to users with several roles; ADR-0078 §1) */}
             <RoleSwitcher />
-            {/* お知らせ（ADR-0081 §3） */}
+            {/* Announcements (ADR-0081 §3) */}
             <NotificationBell />
             <Link to="/profile" className="header-user">
               <span aria-hidden="true" className="avatar">

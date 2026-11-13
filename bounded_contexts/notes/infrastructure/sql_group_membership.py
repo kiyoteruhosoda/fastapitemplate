@@ -1,7 +1,7 @@
-"""``IGroupMembership`` の SQLAlchemy 実装。
+"""SQLAlchemy implementation of ``IGroupMembership``.
 
-所属はトークンに載せず、**リクエストのたびにここで引く**（ADR-0078 §6）。グループから
-外されたら、次のリクエストからそのメモは読めなくなる（トークンの寿命を待たない）。
+Memberships are not put in the token; **they are looked up here on every request** (ADR-0078 §6).
+Once removed from a group, the user cannot read its notes from the next request on (no waiting for the token to expire).
 """
 
 from __future__ import annotations

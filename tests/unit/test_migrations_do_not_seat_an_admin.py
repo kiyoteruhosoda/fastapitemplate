@@ -1,18 +1,17 @@
-"""マイグレーションが初期管理者を据えないこと（ADR-0078 §3 の機械的な検証）。
+"""Migrations do not seat the initial administrator (mechanical check of ADR-0078 §3).
 
-ADR-0078 §3 は「``ensure_default_admin`` を呼ぶのは据え付けの ``0002`` と投入
-スクリプトだけ」と決めたが、それを守らせるものは規約とレビューしか無かった。
-``tests/integration/test_master_data_seeder.py`` が見張るのは
-``seed_master_data`` の**振る舞い**なので、新しいマイグレーションが
-``ensure_default_admin`` を自分で呼べば素通りする。
+ADR-0078 §3 decided that "only the installing ``0002`` and the seeding script call
+``ensure_default_admin``", but nothing enforced it except convention and review.
+``tests/integration/test_master_data_seeder.py`` watches the **behaviour** of
+``seed_master_data``, so a new migration that calls ``ensure_default_admin`` itself slips through.
 
-破れたときに起きることは実測済みで、**運用の途中で消した既定の管理者が、
-公開されている既定のパスワードのまま本番に復活する**（派生アプリ blobshare、
-2026-09-02、公開サイトで約 24 分）。落ちるのはマイグレーションを追加した
-時点であって、当てたあとではない。
+What happens when this is broken has been observed: **a default administrator deleted during
+operation comes back in production with the publicly known default password** (derived app
+blobshare, 2026-09-02, about 24 minutes on the public site). This fails at the point a migration
+is added, not after it has been applied.
 
-関数の呼び出しだけでなく、**既定の値を直に持ち出して自前で作る**形も同じ
-地雷なので併せて見る。値の出所は ``shared/domain/auth/master_data.py``。
+Besides calling the function, **pulling out the default values and building the admin yourself**
+is the same trap, so it is checked too. The values come from ``shared/domain/auth/master_data.py``.
 """
 
 from __future__ import annotations
@@ -26,11 +25,11 @@ import pytest
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _VERSIONS = _PROJECT_ROOT / "migrations" / "versions"
 
-# 初期管理者を据えてよい唯一のマイグレーション（据え付け。ADR-0078 §3）。
+# The only migration allowed to seat the initial administrator (installation; ADR-0078 §3).
 _SEATING_IS_ALLOWED_IN = frozenset({"0002_seed_master_data.py"})
 
-# 「初期管理者を据えている」ことを表す名前。``ensure_default_admin`` を呼ぶ形と、
-# 既定の値を持ち出して自分で ``User`` を組み立てる形の両方を拾う。
+# Names that indicate "seating the initial administrator". Catches both calling
+# ``ensure_default_admin`` and pulling out default values to build a ``User`` yourself.
 _SEATING_NAMES = frozenset(
     {
         "ensure_default_admin",
@@ -50,7 +49,7 @@ def _file_name(path: Path) -> str:
 
 def _migration_files() -> list[Path]:
     files = sorted(path for path in _VERSIONS.glob("*.py") if path.name != "__init__.py")
-    assert files, "マイグレーションが見つからない（_VERSIONS を確認）"
+    assert files, "No migrations found (check _VERSIONS)"
     return files
 
 
@@ -59,11 +58,11 @@ def _parse(path: Path) -> ast.Module:
 
 
 def _names_of(node: ast.AST) -> Iterator[str]:
-    """1 つのノードが持ち込む名前。
+    """Names that a single node brings in.
 
-    ``import`` の別名付け（``as``）で検査をすり抜けないよう、``ImportFrom`` は
-    別名ではなく**元の名前**を返す。属性参照（``master_data.DEFAULT_ADMIN_EMAIL``）も
-    末尾の名前で拾うので、どの経路で持ち込んでも同じ結果になる。
+    So that aliasing an ``import`` (``as``) cannot dodge the check, ``ImportFrom`` returns the
+    **original name**, not the alias. Attribute references (``master_data.DEFAULT_ADMIN_EMAIL``)
+    are caught by their last name too, so every route of bringing a name in gives the same result.
     """
     if isinstance(node, ast.Name):
         yield node.id
@@ -80,46 +79,46 @@ def _referenced_names(tree: ast.Module) -> set[str]:
 @pytest.mark.parametrize("path", _migration_files(), ids=_file_name)
 def test_migrations_do_not_seat_the_default_admin(path: Path) -> None:
     if path.name in _SEATING_IS_ALLOWED_IN:
-        pytest.skip("据え付けのマイグレーション。ADR-0078 §3 が初期管理者を許す唯一の場所")
+        pytest.skip("Installing migration: the only place ADR-0078 §3 allows the initial administrator")
 
     found = sorted(_referenced_names(_parse(path)) & _SEATING_NAMES)
 
     assert not found, (
-        f"{path.name} が初期管理者を据えようとしている: {found}。"
-        " 権限やロールを足すマイグレーションは seed_master_data だけを呼ぶ（ADR-0078 §3）。"
-        " 呼ぶと、運用の途中で消した管理者が既定のパスワードのまま復活する。"
+        f"{path.name} tries to seat the initial administrator: {found}."
+        " Migrations that add permissions or roles call only seed_master_data (ADR-0078 §3)."
+        " Otherwise an administrator deleted during operation comes back with the default password."
     )
 
 
 @pytest.mark.parametrize("name", sorted(_SEATING_IS_ALLOWED_IN))
 def test_the_installing_migration_still_seats_the_default_admin(name: str) -> None:
-    """許可リストが空振りしていないこと。
+    """The allow list does not match nothing.
 
-    ファイル名を変えたり据え付けの中身を移したりしたときに、許可リストだけが
-    残って**検査対象から外れた場所で管理者が据えられる**のを防ぐ。
+    Prevents the allow list from lingering after a file is renamed or the installation logic moves,
+    while **an administrator gets seated somewhere outside the check**.
     """
     path = _VERSIONS / name
-    assert path.exists(), f"許可リストのマイグレーションが無い: {name}"
+    assert path.exists(), f"Allow-listed migration does not exist: {name}"
     assert "ensure_default_admin" in _referenced_names(_parse(path)), (
-        f"{name} が初期管理者を据えていない。据え付けの経路が移ったなら _SEATING_IS_ALLOWED_IN も直す"
+        f"{name} does not seat the initial administrator. If installation moved, update _SEATING_IS_ALLOWED_IN"
     )
 
 
-# --- 検査そのものの検証 -------------------------------------------------------
-# 上の 2 つは「違反が無いこと」を確認する。検査側が壊れると黙って通ってしまうため、
-# 名前の集め方にもテストを当てる。
+# --- Verifying the check itself ---------------------------------------------------
+# The two tests above confirm "there are no violations". If the check breaks it silently
+# passes, so the way names are collected is tested as well.
 
 
 @pytest.mark.parametrize(
     "source",
     [
-        # 直接 import して呼ぶ
+        # Import directly and call
         "from shared.infrastructure.master_data_seeder import ensure_default_admin",
-        # 別名を付けて import する（別名ではなく元の名前を見る）
+        # Import under an alias (the original name is checked, not the alias)
         "from shared.infrastructure.master_data_seeder import ensure_default_admin as seat",
-        # モジュールごと import して属性で呼ぶ
+        # Import the module and call via attribute
         "master_data_seeder.ensure_default_admin(session)",
-        # 関数を呼ばず、既定の値を持ち出して自前で作る
+        # Do not call the function; pull out default values and build it yourself
         "from shared.domain.auth.master_data import DEFAULT_ADMIN_PASSWORD_HASH",
         "user.password_hash = master_data.DEFAULT_ADMIN_PASSWORD_HASH",
     ],
@@ -131,7 +130,7 @@ def test_seating_the_admin_is_detected(source: str) -> None:
 @pytest.mark.parametrize(
     "source",
     [
-        # ロールと権限を足すだけの再投入は、何度呼んでも構わない
+        # Re-seeding that only adds roles and permissions may be called any number of times
         "from shared.infrastructure.master_data_seeder import seed_master_data",
         "seed_master_data(session)",
         "from shared.domain.auth import master_data",

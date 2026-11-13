@@ -1,9 +1,9 @@
 /**
- * 画面の初期設定（言語・テーマ）。
+ * Initial UI settings (language, theme).
  *
- * 管理画面で運用者が決めた既定値をサーバーから受け取り、利用者がまだ何も
- * 選んでいないときの初期値として使う。ログイン前の画面でも必要なため、
- * 認証前に一度だけ取得する（`main.tsx`）。
+ * Receives the defaults the operator chose in the admin console from the server, and uses them as
+ * initial values while the user hasn't chosen anything. Needed on pre-sign-in screens too, so
+ * fetched once before authentication (`main.tsx`).
  */
 import { outageFrom, reportOutage } from './maintenance'
 
@@ -13,7 +13,7 @@ export interface UiSettings {
   default_theme: string
 }
 
-/** サーバーへ到達できない場合でも画面は出す。そのときの保険。 */
+/** Show the screen even if the server is unreachable. The fallback for that case. */
 export const FALLBACK_UI_SETTINGS: UiSettings = {
   languages: ['en', 'ja'],
   default_locale: 'en',
@@ -24,7 +24,7 @@ export async function loadUiSettings(): Promise<UiSettings> {
   try {
     const response = await fetch('/api/ui/settings')
     if (!response.ok) {
-      // 前段が閉じているなら、最初の画面からメンテナンスの画面にする（ADR-0080 §10）
+      // If the front tier is closed, start on the maintenance screen (ADR-0080 §10)
       const outage = outageFrom(response.status, await response.json().catch(() => null))
       if (outage) reportOutage(outage)
       return FALLBACK_UI_SETTINGS

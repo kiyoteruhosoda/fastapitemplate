@@ -1,18 +1,18 @@
-/* 画面全体のスタイル。プロダクトでは好みの UI ライブラリへ置き換えてよい。
+/* Styles for the whole UI. A product may replace this with any UI library it prefers.
  *
- * 見た目の値は CSS 変数に集約し、`<html data-theme>`（ThemeProvider が書き込む）で
- * 配色を切り替える。色・角丸・影・間隔を直に書かないことで、テーマの追加は
- * :root[data-theme=...] を 1 ブロック足すだけで済む。
+ * Visual values are gathered in CSS variables, and `<html data-theme>` (written by ThemeProvider)
+ * switches the palette. Because colors, radii, shadows and spacing are never written directly,
+ * adding a theme only takes one more :root[data-theme=...] block.
  *
- * 変数は 3 系統に分ける。
- *   1. 配色（--surface / --text / --accent …）— テーマごとに変わる
- *   2. 形（--radius-* / --shadow-*）— テーマ間で共通
- *   3. 間隔（--space-*）— テーマ間で共通
+ * The variables fall into three groups.
+ *   1. Palette (--surface / --text / --accent …) — varies per theme
+ *   2. Shape (--radius-* / --shadow-*) — shared across themes
+ *   3. Spacing (--space-*) — shared across themes
  */
 :root,
 :root[data-theme='light'] {
   --surface: #ffffff;
-  /* 画面の地。カード（--surface）を一段浮かせて見せるための背景 */
+  /* Page background, so cards (--surface) appear lifted one level */
   --surface-sunken: #f4f6fa;
   --surface-raised: #f2f4f8;
   --surface-hover: #eceff5;
@@ -23,7 +23,7 @@
   --accent: #4f46e5;
   --accent-hover: #4338ca;
   --accent-contrast: #ffffff;
-  /* アクセントの淡色（選択中の項目・強調の下地）。alpha 付きで重ねる */
+  /* Pale accent (selected items, emphasis backgrounds). Layered with alpha */
   --accent-soft: rgb(79 70 229 / 10%);
   --accent-ring: rgb(79 70 229 / 35%);
   --danger: #c62f2f;
@@ -65,8 +65,8 @@
   --radius-md: 0.6rem;
   --radius-lg: 0.9rem;
   --radius-pill: 999px;
-  /* 画面の左右の余白。ヘッダー・本文・フッターで同じ値を使い、端末の切り欠きは
-   * env(safe-area-inset-*) で避ける（`index.html` の viewport-fit=cover）。 */
+  /* Left/right page margin. The header, body and footer share this value, and device notches
+   * are avoided with env(safe-area-inset-*) (viewport-fit=cover in `index.html`). */
   --gutter: 1.5rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -82,7 +82,7 @@
     'Noto Sans JP',
     sans-serif;
   line-height: 1.55;
-  /* 見出しと本文の字面を揃える（既定のヒンティングだと太字がにじむ環境がある） */
+  /* Make headings and body text render alike (default hinting blurs bold text on some systems) */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -107,19 +107,19 @@ a {
   color: inherit;
 }
 
-/* キーボード操作の現在地は常に同じリングで示す（マウス操作では出さない）。 */
+/* Always show the keyboard focus position with the same ring (not for mouse interaction). */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* --- 操作要素 -------------------------------------------------------------
- * 既定は控えめな枠線ボタン。主要な操作は .button-primary、破壊的な操作は
- * .button-danger、装飾を落としたい場所は .button-ghost を足す。
+/* --- Controls -------------------------------------------------------------
+ * The default is a subtle outlined button. Add .button-primary for the main action,
+ * .button-danger for destructive actions, and .button-ghost where decoration should go.
  *
- * 遷移をボタンの見た目で見せたいときは `<a>`（`<Link>`）に .button-link を付ける。
- * 要素は `<a>` のままにする（別タブで開く・リンクをコピーするといった、
- * 遷移に対してブラウザが用意している操作を失わないため）。 */
+ * To show a navigation as a button, put .button-link on an `<a>` (`<Link>`).
+ * Keep the element an `<a>` (so the browser's own link actions, such as opening in a new tab
+ * or copying the link, are not lost). */
 button,
 .button-link {
   cursor: pointer;
@@ -163,9 +163,9 @@ button:disabled {
   box-shadow: none;
 }
 
-/* フォームの送信ボタンはその画面の主要な操作なので、既定でアクセント色にする
- * （新しい画面でクラスを付け忘れても主従が崩れない）。送信を伴わない主要操作には
- * .button-primary を付ける。 */
+/* A form's submit button is that screen's main action, so it gets the accent color by default
+ * (the hierarchy holds even if a new screen forgets the class). Put .button-primary on main
+ * actions that do not submit. */
 .button-primary,
 button[type='submit'] {
   background: var(--accent);
@@ -203,16 +203,16 @@ button[type='submit']:hover:not(:disabled) {
   color: var(--text);
 }
 
-/* 実行中の目印（ActionButton）。大きさは em 指定にしてラベルの字面に合わせる。 */
+/* Busy indicator (ActionButton). Sized in em to match the label text. */
 .spinner {
-  /* ボタンの外（表のセル等）にも単独で置くので、行の中に収まる指定にしておく。 */
+  /* It is also placed alone outside buttons (table cells etc.), so it must fit within a line. */
   display: inline-block;
   vertical-align: -0.1em;
   flex: none;
   width: 0.9em;
   height: 0.9em;
   border: 2px solid currentColor;
-  /* 一周のうち一箇所を抜いて、回っていることを見せる。 */
+  /* Leave one part of the ring open so the rotation is visible. */
   border-top-color: transparent;
   border-radius: 50%;
   animation: spinner-rotate 0.7s linear infinite;
@@ -224,14 +224,14 @@ button[type='submit']:hover:not(:disabled) {
   }
 }
 
-/* 表のセルでボタンと並べるときの間隔。 */
+/* Spacing when placed next to buttons in a table cell. */
 td > .spinner {
   margin-left: var(--space-2);
 }
 
-/* 実行中でもボタンの幅を変えない。スピナーを差し込むとその分だけ横に伸び、隣の
- * ボタンが動いて押し間違いの元になる。ラベルは場所を占めたまま隠し、スピナーを
- * その上に重ねる。 */
+/* Do not change the button width while busy. Inserting a spinner would widen it, moving the
+ * neighboring button and causing mis-taps. The label keeps its space but is hidden, and the
+ * spinner is overlaid on top. */
 .action-button {
   position: relative;
 }
@@ -244,11 +244,11 @@ td > .spinner {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* 自分の半分だけ戻して中央に置く（大きさは .spinner の 0.9em）。 */
+  /* Pull back by half its own size to center it (size is .spinner's 0.9em). */
   margin: -0.45em 0 0 -0.45em;
 }
 
-/* 画面には出さず読み上げにだけ残す文言。 */
+/* Text kept only for screen readers, not shown on screen. */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -288,9 +288,9 @@ input[type='radio'] {
   accent-color: var(--accent);
 }
 
-/* パスワード欄（PasswordInput）。入力欄と表示切り替えボタンを横に並べる。
- * 枠線は上の input / button の指定をそのまま使い、ここでは色を足さない
- * （欄ごとに枠色がずれないようにするため）。 */
+/* Password field (PasswordInput). The input and the show/hide button sit side by side.
+ * Borders come from the input / button rules above; no colors are added here
+ * (so the border color stays consistent across fields). */
 .password-field {
   display: flex;
   align-items: stretch;
@@ -298,7 +298,8 @@ input[type='radio'] {
 }
 
 .password-field input {
-  /* 親の幅に収める（min-width の既定 auto だと縮まずにはみ出す）。 */
+  /* Fit within the parent width (with the default min-width auto it would not shrink and
+   * would overflow). */
   flex: 1;
   min-width: 0;
 }
@@ -311,11 +312,11 @@ input[type='radio'] {
   color: var(--text-muted);
 }
 
-/* --- 外枠 ---------------------------------------------------------------- */
+/* --- Outer frame ---------------------------------------------------------- */
 .layout {
   min-height: 100vh;
-  /* アドレスバーの伸縮で表示領域が変わる端末では、いま見えている高さに合わせる
-   * （100vh のままだとフッターが常に画面外へはみ出す）。 */
+  /* On devices where the viewport changes as the address bar grows and shrinks, match the
+   * currently visible height (with 100vh the footer always overflows off screen). */
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -323,7 +324,7 @@ input[type='radio'] {
 
 .header {
   position: sticky;
-  /* 新しい版の知らせ（`.update-bar`）が出ている間は、その真下に貼り付く。 */
+  /* While the new-version notice (`.update-bar`) is shown, stick right below it. */
   top: var(--update-bar-height, 0px);
   z-index: 25;
   display: flex;
@@ -332,11 +333,11 @@ input[type='radio'] {
   gap: var(--space-3);
   flex-wrap: wrap;
   padding: var(--space-3) var(--gutter);
-  /* 横向きの端末で切り欠きに文字が隠れないよう、左右は安全域の分まで広げる。 */
+  /* On landscape devices, widen the sides by the safe area so text is not hidden by the notch. */
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
   background: color-mix(in srgb, var(--surface) 88%, transparent);
-  /* 本文がヘッダーの下を通り抜けるので、透けた背景をぼかして文字を読みやすくする */
+  /* Content scrolls under the header, so blur the translucent background to keep text readable */
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -345,7 +346,7 @@ input[type='radio'] {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  /* 長いタイトルでもメニューボタンを押し出さない。 */
+  /* Long titles must not push the menu button out. */
   min-width: 0;
 }
 
@@ -359,7 +360,8 @@ input[type='radio'] {
   text-decoration: none;
 }
 
-/* アプリの像（AppMark）。絵は favicon.svg で、角丸と地の色も絵の側に入っている。 */
+/* App mark (AppMark). The image is favicon.svg, which also carries the rounded corners and
+ * the background color. */
 .app-mark {
   display: block;
   flex-shrink: 0;
@@ -370,12 +372,12 @@ input[type='radio'] {
   gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
-  /* 収まらないときに中身（ロール名）を縮められるようにする（既定の auto だと
-   * 内容の幅より狭くならない）。 */
+  /* Let the content (the role name) shrink when it does not fit (with the default auto it
+   * cannot get narrower than its content). */
   min-width: 0;
 }
 
-/* ヘッダーのユーザー（頭文字のアバター + 表示名でプロフィールへ） */
+/* The header user (initial-letter avatar + display name, linking to the profile) */
 .header-user {
   display: inline-flex;
   align-items: center;
@@ -407,7 +409,7 @@ input[type='radio'] {
   font-weight: 500;
 }
 
-/* --- ロールの切り替え（ADR-0078 §1） ---------------------------------------- */
+/* --- Role switching (ADR-0078 §1) ------------------------------------------- */
 .role-switcher {
   position: relative;
   min-width: 0;
@@ -420,7 +422,7 @@ input[type='radio'] {
   background: var(--accent-soft);
   border-color: transparent;
   box-shadow: none;
-  /* 長いロール名でボタンが伸び続けないようにする（値の側を省略する）。 */
+  /* Keep long role names from stretching the button indefinitely (truncate the value). */
   min-width: 0;
   max-width: 16rem;
 }
@@ -439,7 +441,7 @@ input[type='radio'] {
 
 .role-switcher-value {
   font-weight: 600;
-  /* 収まらないロール名は省略する（ヘッダーを折り返させないため）。 */
+  /* Truncate role names that do not fit (so the header does not wrap). */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -449,7 +451,7 @@ input[type='radio'] {
 .role-switcher-caret {
   color: var(--text-muted);
   font-size: 0.7rem;
-  /* 値が省略されても記号は残す（押せる場所だと分かるように）。 */
+  /* Keep the indicator even when the value is truncated (to show it is clickable). */
   flex: none;
 }
 
@@ -462,7 +464,7 @@ input[type='radio'] {
   flex-direction: column;
   gap: 0.15rem;
   min-width: 14rem;
-  /* 画面より広くしない（切り替えボタンが右端に無い配置でもはみ出させない）。 */
+  /* No wider than the screen (no overflow even when the switch button is not at the right edge). */
   max-width: calc(100vw - 2 * var(--gutter));
   padding: var(--space-2);
   background: var(--surface);
@@ -504,8 +506,8 @@ input[type='radio'] {
   color: var(--accent);
 }
 
-/* 開閉ボタン・オーバーレイ・ドロワー内の閉じるボタンは狭い画面専用
- * （下のメディアクエリで出す。広い画面ではサイドバーが常に見えている）。 */
+/* The toggle button, overlay and in-drawer close button are for narrow screens only
+ * (shown by the media query below; on wide screens the sidebar is always visible). */
 .nav-toggle,
 .nav-overlay,
 .sidebar-close {
@@ -549,7 +551,7 @@ input[type='radio'] {
   font-weight: 600;
 }
 
-/* 選択中の項目は左端の縦線でも示す（色だけに頼らない）。 */
+/* Mark the selected item with a bar on its left edge too (not relying on color alone). */
 .sidebar a.active::before {
   content: '';
   position: absolute;
@@ -561,7 +563,7 @@ input[type='radio'] {
   background: var(--accent);
 }
 
-/* 階層メニュー。グループは見出し + 少し字下げしたリンクの束。 */
+/* Hierarchical menu. A group is a heading plus a bundle of slightly indented links. */
 .sidebar-group {
   display: flex;
   flex-direction: column;
@@ -588,8 +590,8 @@ input[type='radio'] {
   padding: var(--gutter);
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
-  /* flex 子要素の既定（min-width: auto）だと表の幅で本文が広がり、
-   * 画面全体が横スクロールしてしまう。縮めることを許して .table-scroll に任せる。 */
+  /* With the flex child default (min-width: auto), a table's width widens the content and
+   * the whole page scrolls horizontally. Allow shrinking and leave it to .table-scroll. */
   min-width: 0;
 }
 
@@ -597,14 +599,14 @@ input[type='radio'] {
   padding: var(--space-3) var(--gutter);
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
-  /* ホームバー（iOS）の下に文字が潜らないようにする。 */
+  /* Keep text from going under the iOS home bar. */
   padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
   font-size: 0.8rem;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
 }
 
-/* --- カード -------------------------------------------------------------- */
+/* --- Cards ---------------------------------------------------------------- */
 .card {
   max-width: 62rem;
   padding: var(--space-5);
@@ -627,8 +629,8 @@ input[type='radio'] {
   margin: var(--space-2) 0 0;
 }
 
-/* 見出しと、その画面の主要な操作（「追加」）を 1 行に置く。表の上にフォームを
- * 敷かず、画面を開いた人がまずデータを見られるようにする（ADR-0080 §6）。 */
+/* Put the heading and the screen's main action ("Add") on one line. No form is laid above
+ * the table, so whoever opens the screen sees the data first (ADR-0080 §6). */
 .card-head {
   display: flex;
   align-items: center;
@@ -652,7 +654,7 @@ input[type='radio'] {
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  /* サインイン前の画面だけ、アクセントを淡く敷いて他と区別する。 */
+  /* Only the pre-sign-in screens get a pale accent background to set them apart. */
   background:
     radial-gradient(60rem 30rem at 50% -10%, var(--accent-soft), transparent), var(--surface-sunken);
 }
@@ -676,9 +678,9 @@ input[type='radio'] {
   font-size: 0.95rem;
 }
 
-/* 入力欄を `<label>` で囲めない欄（見出しと `for` / `id` で結ぶ）。
- * 囲めないのは、表示切り替えボタンを持つパスワード欄のように labelable な要素が
- * 2 つ入る場合。見た目は上の `.card label` と同じ縦積みにする。 */
+/* Fields whose input cannot be wrapped in a `<label>` (heading tied via `for` / `id`).
+ * This happens when two labelable elements are inside, as in a password field with a show/hide
+ * button. They look like the stacked `.card label` above. */
 .card .field {
   display: flex;
   flex-direction: column;
@@ -696,7 +698,7 @@ input[type='radio'] {
   align-items: flex-end;
 }
 
-/* 見るだけの人には入力欄をまとめて止める（ADR-0084 §3）。枠は描かない。 */
+/* Disable all inputs at once for view-only users (ADR-0084 §3). No border is drawn. */
 .config-fields {
   border: 0;
   margin: 0;
@@ -717,9 +719,9 @@ input[type='radio'] {
   border-bottom: none;
 }
 
-/* 行の見出しは「設定名・環境変数名・注記」の 3 つを横に並べる
- * （`.card label` の縦積みを打ち消す）。行そのものは `<div>`（入力欄とは
- * `for` / `id` で結ぶ）。 */
+/* A row's heading lays out three things side by side: setting name, env var name, note
+ * (overriding the stacked `.card label`). The row itself is a `<div>` (tied to the input
+ * via `for` / `id`). */
 .config-row > label {
   display: flex;
   flex-wrap: wrap;
@@ -729,13 +731,13 @@ input[type='radio'] {
   font-size: 0.95rem;
 }
 
-/* 環境変数名は補助情報。設定名と同じ大きさで並べると 1 つの文に見える。 */
+/* The env var name is secondary. At the same size as the setting name it reads as one sentence. */
 .config-key {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
 
-/* 「環境変数で固定」「再起動後に反映」。件数が少ないので色ではなく囲みで示す。 */
+/* "Fixed by env var" and "Applied after restart". They are rare, so boxed rather than colored. */
 .config-note {
   padding: 0.05rem 0.45rem;
   border: 1px solid var(--border-strong);
@@ -766,24 +768,25 @@ input[type='radio'] {
 .qr-code {
   width: 12rem;
   height: 12rem;
-  /* QR は黒い線の SVG。ダークテーマでも読み取れるよう常に白地に載せる。 */
+  /* The QR code is a black-line SVG. Always put it on white so it scans in the dark theme too. */
   background: #ffffff;
   padding: var(--space-2);
   border-radius: var(--radius-sm);
 }
 
-/* --- 入力ダイアログ（ADR-0080 §6） ------------------------------------------
- * 一覧の画面から「追加」で開く。広い画面では中央に、狭い画面では画面の下から
- * **幅いっぱい**に出す。`<dialog>` を `showModal()` で開いているので top layer に
- * 載り、ヘッダー（`position: sticky`）やドロワーとの重ね順を調整する必要が無い。 */
+/* --- Input dialog (ADR-0080 §6) -------------------------------------------
+ * Opened with "Add" from a list screen. Centered on wide screens; on narrow screens it comes
+ * up from the bottom at **full width**. The `<dialog>` is opened with `showModal()`, so it sits
+ * in the top layer and needs no stacking-order tweaks against the header (`position: sticky`)
+ * or the drawer. */
 .form-dialog {
-  /* 枠と余白は panel に持たせる。ここを 0 にしておくと、背景（::backdrop）への
-   * クリックだけが `<dialog>` 自身へ届き、「外側を押して閉じる」を判定できる。 */
+  /* Border and padding belong to the panel. With 0 here, only clicks on the backdrop
+   * (::backdrop) reach the `<dialog>` itself, which lets "click outside to close" be detected. */
   padding: 0;
   border: none;
   background: transparent;
-  /* ブラウザ既定の上限（calc(100% - 6px - 2em)）を外す。狭い画面で幅いっぱいに
-   * 出すのに邪魔になる。 */
+  /* Remove the browser default cap (calc(100% - 6px - 2em)). It gets in the way of full width
+   * on narrow screens. */
   max-width: none;
   max-height: none;
   color: var(--text);
@@ -808,7 +811,7 @@ input[type='radio'] {
   }
 }
 
-/* 開いているあいだ背後を動かさない（シートの中だけが縦に流れる）。 */
+/* Keep the background still while open (only the sheet scrolls vertically). */
 body:has(dialog[open]) {
   overflow: hidden;
 }
@@ -845,8 +848,8 @@ body:has(dialog[open]) {
   line-height: 1;
 }
 
-/* ダイアログの中のフォームは幅が決まっているので、常に縦に積む
- * （`.inline-form` のように画面幅で折り返しを変えない）。 */
+/* Forms inside a dialog have a fixed width, so always stack vertically
+ * (unlike `.inline-form`, wrapping does not change with screen width). */
 .dialog-form {
   display: flex;
   flex-direction: column;
@@ -863,20 +866,20 @@ body:has(dialog[open]) {
   width: 100%;
 }
 
-/* チェックボックスのチップは横並びのまま（幅いっぱいにすると縦に伸びる）。 */
+/* Checkbox chips stay in a row (at full width they would stretch vertically). */
 .dialog-form .chip-option,
 .dialog-form .chip-option input {
   width: auto;
 }
 
-/* 決定と取り消しは最後にまとめる。狭い画面では横に等分する（下のメディアクエリ）。 */
+/* Confirm and cancel go last. On narrow screens they split the width evenly (media query below). */
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
 }
 
-/* --- チップ（ロール・scope のような短い値の並び） ------------------------- */
+/* --- Chips (rows of short values such as roles and scopes) ------------------ */
 .chip-list {
   display: flex;
   flex-wrap: wrap;
@@ -915,7 +918,7 @@ body:has(dialog[open]) {
   font-family: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 }
 
-/* 複数選択（チェックボックスをチップの形で並べる） */
+/* Multi-select (checkboxes laid out as chips) */
 .chip-choice {
   display: flex;
   flex-wrap: wrap;
@@ -933,7 +936,7 @@ body:has(dialog[open]) {
   color: var(--text-muted);
 }
 
-/* `.card label` の縦積みを打ち消すため、チップ側は 2 クラスで指定する。 */
+/* The chip side uses two classes to override the stacked `.card label`. */
 .chip-choice .chip-option {
   display: inline-flex;
   flex-direction: row;
@@ -957,8 +960,8 @@ body:has(dialog[open]) {
   font-weight: 600;
 }
 
-/* --- 表 -----------------------------------------------------------------
- * 罫線は行の区切りだけに絞り、見出しは地の色で示す（格子を描かない）。 */
+/* --- Tables ---------------------------------------------------------------
+ * Rules only separate rows, and headers are shown by background color (no grid). */
 .table-scroll {
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -996,33 +999,33 @@ tbody tr:hover {
   background: var(--surface-raised);
 }
 
-/* --- 対応表（ユーザー × ロール、ロール × 権限） --------------------------
- * 列が権限・ロールの数だけ増える表。列見出しに入るのは値そのもの（scope の
- * コード・ロール名）で、横に並べると 1 列で 12rem を超え、行の見出しが画面外へ
- * 流れて「どの行を触っているのか」が分からなくなる。
- * 列見出しを縦組みにして幅を詰め、行の見出しは左端に固定する。 */
+/* --- Matrix tables (users × roles, roles × permissions) ----------------------
+ * Tables that gain a column per permission or role. Column headers hold the values themselves
+ * (scope codes, role names); laid out horizontally, one column exceeds 12rem and the row
+ * headers scroll off screen, so it is unclear which row is being edited.
+ * Column headers are set vertically to save width, and row headers are pinned to the left. */
 .card:has(.matrix) {
-  /* 列が増えるので、広い画面ではカードの幅の上限（62rem）を外す。 */
+  /* Columns keep growing, so lift the card width cap (62rem) on wide screens. */
   max-width: none;
 }
 
 .matrix .vertical {
   writing-mode: vertical-rl;
-  /* vertical-rl は上から下へ読ませる。180 度回して下から上（左下始まり）にする。 */
+  /* vertical-rl reads top to bottom. Rotate 180deg to read bottom to top (from bottom-left). */
   transform: rotate(180deg);
-  /* いちばん長い scope（`content-settings:write` = 22 文字）が入る高さ。
-   * 足りないと末尾が黙って切れる。 */
+  /* Height that fits the longest scope (`content-settings:write` = 22 characters).
+   * If too short, the end is silently cut off. */
   height: 11rem;
   padding: var(--space-2) 0.3rem;
   text-align: left;
   vertical-align: bottom;
-  /* 見出しではなく値なので、大文字化も字間の調整もしない。 */
+  /* These are values, not headings, so no uppercasing or letter-spacing. */
   text-transform: none;
   letter-spacing: normal;
   font-weight: 500;
 }
 
-/* 行の見出し（ユーザー名・ロール名）は横に流れても左端に残す。 */
+/* Row headers (user names, role names) stay at the left edge when scrolled horizontally. */
 .matrix th[scope='row'] {
   position: sticky;
   left: 0;
@@ -1035,7 +1038,7 @@ tbody tr:hover {
 .matrix thead th:first-child {
   position: sticky;
   left: 0;
-  /* 縦組みの見出しが下を通るので、行の見出しより 1 段上に置く。 */
+  /* Vertical headers pass underneath, so place it one level above the row headers. */
   z-index: 2;
   background: var(--surface-raised);
 }
@@ -1044,14 +1047,14 @@ tbody tr:hover {
   background: var(--surface-raised);
 }
 
-/* チェックの列は縦組みの見出しの真下に来るよう中央に置く。 */
+/* Center the checkbox columns right under the vertical headers. */
 .matrix tbody td:has(input[type='checkbox']) {
   text-align: center;
 }
 
-/* --- ログの絞り込み（ADR-0080 §6） ------------------------------------------
- * 広い画面では常に開いた状態で、開閉ボタンを出さない（`display: none` にして
- * 支援技術からも外す。閉じる手段が無いのに `aria-expanded` を出さないため）。 */
+/* --- Log filters (ADR-0080 §6) ---------------------------------------------
+ * On wide screens they are always open with no toggle button (`display: none` also hides it
+ * from assistive technology, so no `aria-expanded` is exposed without a way to close). */
 .filter-panel {
   display: flex;
   flex-direction: column;
@@ -1062,7 +1065,7 @@ tbody tr:hover {
   display: none;
 }
 
-/* ログ検索の絞り込みフォーム（項目数が多いので折り返して並べる） */
+/* Log search filter form (many fields, so they wrap) */
 .filter-form {
   display: flex;
   flex-wrap: wrap;
@@ -1107,19 +1110,19 @@ tbody tr:hover {
   gap: var(--space-2);
 }
 
-/* ログの一覧は列が多いので、カードの上限（62rem）を外して広い画面を使い切る。
- * はみ出す分の横スクロールはカードではなく .table-scroll が受け持つ
- * （カードごと流れるとフォームとページャまで一緒に動いてしまうため）。 */
+/* The log list has many columns, so lift the card cap (62rem) and use the full wide screen.
+ * Horizontal scrolling for the overflow is handled by .table-scroll, not the card
+ * (if the whole card scrolled, the form and pager would move with it). */
 .card:has(.filter-form) {
   max-width: none;
 }
 
-/* 時刻は日付の途中で折り返させない（1 行に収める） */
+/* Do not wrap timestamps mid-date (keep them on one line) */
 .timestamp {
   white-space: nowrap;
 }
 
-/* 重大度・成否は色で拾えるようにする（文字だけだと一覧から見つけにくい） */
+/* Make severity and outcome noticeable by color (text alone is hard to spot in the list) */
 .level,
 .result {
   font-weight: 600;
@@ -1140,7 +1143,7 @@ tbody tr:hover {
   color: var(--success);
 }
 
-/* 例外のスタックトレース（既定では畳んでおき、必要なときだけ開く） */
+/* Exception stack traces (collapsed by default, opened only when needed) */
 .trace {
   margin: var(--space-2) 0 0;
   padding: var(--space-2);
@@ -1171,8 +1174,8 @@ tbody tr:hover {
   color: var(--accent-hover);
 }
 
-/* プロフィールの区画（アカウント・パスワード・二要素認証・パスキー・表示設定・
- * ロール・scope）。 */
+/* Profile sections (account, password, two-factor auth, passkeys, display settings,
+ * roles, scopes). */
 .settings-section {
   display: flex;
   flex-direction: column;
@@ -1180,13 +1183,13 @@ tbody tr:hover {
   align-items: flex-start;
 }
 
-/* 区切り線は「区画と区画のあいだ」だけに引く（先頭の区画には付けない）。 */
+/* Draw the divider only between sections (not on the first one). */
 .settings-section + .settings-section {
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
 }
 
-/* 区画の中のフォーム（見出しは区画側が持つ）。区画と同じ縦積みにする。 */
+/* Forms inside a section (the section holds the heading). Stacked like the section. */
 .settings-form {
   display: flex;
   flex-direction: column;
@@ -1194,16 +1197,16 @@ tbody tr:hover {
   align-items: flex-start;
 }
 
-/* 表・入れ子カードは区画の幅いっぱいに広げる（align-items: flex-start で
- * 内容の幅まで縮むと、表の横スクロールが効かなくなるため）。 */
+/* Stretch tables and nested cards to the section width (if align-items: flex-start shrinks
+ * them to their content, horizontal table scrolling stops working). */
 .settings-section > .table-scroll,
 .settings-section > .card-inset {
   align-self: stretch;
 }
 
-/* システムステータスの項目一覧（名前と値の 2 列）。
- * 値の列は minmax(0, 1fr)（= 内容より狭くなれる）。1fr のままだと ISO 形式の
- * 時刻のように分割できない値が列を押し広げ、カードの外へはみ出す。 */
+/* System status items (two columns: name and value).
+ * The value column is minmax(0, 1fr) (= may be narrower than its content). With plain 1fr,
+ * unbreakable values such as ISO timestamps push the column wider and overflow the card. */
 .status-list {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -1217,11 +1220,11 @@ tbody tr:hover {
 
 .status-list dd {
   margin: 0;
-  /* 区切りの無い長い値（コミットハッシュ・時刻）も枠の中で折り返す。 */
+  /* Wrap long unbroken values (commit hashes, timestamps) inside the box too. */
   overflow-wrap: anywhere;
 }
 
-/* 一覧の中の時刻は折り返してよい（表と違い、行の高さを揃える必要が無い）。 */
+/* Timestamps in a list may wrap (unlike tables, row heights need not line up). */
 .status-list .timestamp {
   white-space: normal;
 }
@@ -1236,8 +1239,8 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
-/* --- お知らせ（ADR-0081 §3） --------------------------------------------------- */
-/* ヘッダーのベル。開いた一覧はロールの切り替えと同じ作り（右寄せのパネル）。 */
+/* --- Notifications (ADR-0081 §3) --------------------------------------------- */
+/* The header bell. Its open list is built like the role switcher (a right-aligned panel). */
 .notification-bell {
   position: relative;
 }
@@ -1368,7 +1371,7 @@ tbody tr:hover {
   font-size: 0.75rem;
 }
 
-/* 画面の上部の知らせ。押すか閉じるまで残す（トーストにしない）。 */
+/* Banner at the top of the screen. Stays until clicked or dismissed (not a toast). */
 .notification-banner {
   display: flex;
   align-items: flex-start;
@@ -1432,9 +1435,10 @@ button.notification-banner-text:hover:not(:disabled) {
   gap: var(--space-2);
 }
 
-/* 新しい版の知らせ（ADR-0106）。どの画面でもいちばん上に帯で出し、押されるまで消さない。
-   下へ送っても上に残し、サインイン後の画面ではヘッダーがその真下に付く（`.header` の `top`）。
-   ドロワー（z-index: 30）は帯の上に開く——開いている間はドロワーだけを操作させるため。 */
+/* New-version notice (ADR-0106). Shown as a bar at the very top of every screen until clicked.
+   It stays at the top when scrolling, and on signed-in screens the header sits right below it
+   (`.header`'s `top`). The drawer (z-index: 30) opens above the bar — so only the drawer can be
+   used while it is open. */
 .update-bar {
   position: sticky;
   top: 0;
@@ -1453,7 +1457,7 @@ button.notification-banner-text:hover:not(:disabled) {
   text-align: center;
 }
 
-/* 帯と同じ色のボタンだと沈むので、色を反転させて押せる所だと分かるようにする。 */
+/* A button in the bar's own color would blend in, so invert the colors to show it is clickable. */
 .update-bar-button {
   background: var(--accent-contrast);
   color: var(--accent);
@@ -1497,18 +1501,19 @@ button.notification-banner-text:hover:not(:disabled) {
 }
 
 /* ===================================================================
- * スマートフォン・小さいタブレット（〜768px）
+ * Smartphones and small tablets (up to 768px)
  *
- * 変えるのは 3 点だけに絞る。
- *   1. サイドバーを画面外へ退避し、ヘッダーのボタンで開閉するドロワーにする
- *      （開閉状態は AppLayout が nav[data-open] に書き込む）
- *   2. 横幅に収まらない要素（表・フォーム・設定行）を縦に積む／横スクロールさせる
- *   3. 指で押せる大きさ（2.75rem）と、iOS が自動拡大しない文字サイズ（16px）にする
- *   4. 画面に重ねる面（入力ダイアログ・絞り込み）を**幅いっぱい**に出す（ADR-0080 §6）
+ * Changes are limited to these points.
+ *   1. Move the sidebar off screen and make it a drawer toggled by a header button
+ *      (AppLayout writes the open state to nav[data-open])
+ *   2. Stack vertically / scroll horizontally whatever does not fit the width (tables, forms,
+ *      setting rows)
+ *   3. Make targets finger-sized (2.75rem) and text 16px so iOS does not auto-zoom
+ *   4. Show overlay surfaces (input dialog, filters) at **full width** (ADR-0080 §6)
  * =================================================================== */
 @media (max-width: 48rem) {
   :root {
-    /* 左右の余白を詰める（本文に使える幅を優先する）。 */
+    /* Tighten the side margins (prioritize width for the content). */
     --gutter: 0.75rem;
   }
 
@@ -1536,12 +1541,12 @@ button.notification-banner-text:hover:not(:disabled) {
     background: var(--surface);
     box-shadow: var(--shadow-lg);
     overflow-y: auto;
-    /* 閉じているあいだは読み上げ・タブ移動の対象からも外す。 */
+    /* While closed, also exclude it from screen readers and tab navigation. */
     visibility: hidden;
     transform: translateX(-100%);
-    /* visibility は離散的に変わるため、遷移時間を持たせると値が切り替わるのが
-     * 遅れる（開いた直後はまだ hidden = フォーカス不可）。開くときは 0s で即座に
-     * 可視化し、閉じるときだけ滑り終わってから隠す（0.2s 後に切り替え）。 */
+    /* visibility changes discretely, so giving it a transition duration delays the switch
+     * (right after opening it is still hidden = not focusable). When opening, show it at
+     * once with 0s; only when closing, hide it after the slide finishes (switch after 0.2s). */
     transition:
       transform 0.2s ease,
       visibility 0s linear 0.2s;
@@ -1561,7 +1566,7 @@ button.notification-banner-text:hover:not(:disabled) {
     min-height: 2.75rem;
   }
 
-  /* ドロワーはヘッダーを覆うため、閉じる操作をドロワーの中にも置く。 */
+  /* The drawer covers the header, so put a close control inside the drawer too. */
   .sidebar-close {
     display: inline-flex;
     align-items: center;
@@ -1587,15 +1592,15 @@ button.notification-banner-text:hover:not(:disabled) {
     padding-bottom: var(--space-2);
   }
 
-  /* 狭い画面では、収まらない分をまずタイトルの省略で吸収する。 */
+  /* On narrow screens, absorb overflow first by truncating the title. */
   .header-brand {
     flex: 1 1 auto;
     overflow: hidden;
   }
 
   .header-title {
-    /* min-width の既定（auto）だと単語 1 つ分より狭くならず、ヘッダーが
-     * 折り返してしまう。縮めたうえで末尾を省略する（像は縮めない）。 */
+    /* With the default min-width (auto) it cannot get narrower than one word, so the header
+     * wraps. Let it shrink and truncate the end (the app mark does not shrink). */
     min-width: 0;
   }
 
@@ -1608,13 +1613,14 @@ button.notification-banner-text:hover:not(:disabled) {
 
   .header-actions {
     gap: var(--space-1);
-    /* 操作どうしは折り返さず、収まらないぶんはロール名の省略で吸収する。 */
+    /* Controls do not wrap among themselves; overflow is absorbed by truncating the role name. */
     flex-wrap: nowrap;
-    /* ヘッダーが折り返しても左端へ回り込ませない（右寄せのまま下の行へ）。 */
+    /* If the header wraps, do not flow back to the left edge (stay right-aligned on the next
+     * line). */
     margin-left: auto;
   }
 
-  /* 狭い画面では表示名を出さず、アバターだけにする（1 行に収めるため）。 */
+  /* On narrow screens show only the avatar, without the display name (to fit on one line). */
   .header-username {
     display: none;
   }
@@ -1623,13 +1629,13 @@ button.notification-banner-text:hover:not(:disabled) {
     padding: 0.3rem;
   }
 
-  /* ロールの切り替えは見出しを落として値だけにする。 */
+  /* The role switcher drops its label and shows only the value. */
   .role-switcher-label {
     display: none;
   }
 
-  /* 幅が足りないときに縮めるのはロールの切り替えだけにする。他を縮めると
-   * ボタンの文字が折り返してヘッダーの高さが伸びる。 */
+  /* Only the role switcher shrinks when width is short. Shrinking anything else wraps button
+   * text and makes the header taller. */
   .header-actions > * {
     flex: none;
   }
@@ -1646,16 +1652,16 @@ button.notification-banner-text:hover:not(:disabled) {
     max-width: 12rem;
   }
 
-  /* メニューの位置の基準をヘッダー（position: sticky）へ移す。切り替えボタンの
-   * 位置に関係なくヘッダーの下に開くので、ボタンが右端に無いとき（ヘッダーが
-   * 折り返したとき）でも画面の外へ出ない。 */
+  /* Make the header (position: sticky) the menu's positioning reference. It then opens below
+   * the header regardless of where the switch button is, so it stays on screen even when the
+   * button is not at the right edge (when the header wraps). */
   .role-switcher,
   .notification-bell {
     position: static;
   }
 
   .role-switcher-menu {
-    /* ヘッダーの左右の余白に合わせて画面幅いっぱいに開く。 */
+    /* Open across the full screen width, matching the header's side margins. */
     left: var(--space-3);
     right: var(--space-3);
     min-width: 0;
@@ -1667,17 +1673,17 @@ button.notification-banner-text:hover:not(:disabled) {
     border-radius: var(--radius-md);
   }
 
-  /* 見出しの右にボタンを置くと、どちらも収まらない。積んで幅いっぱいにする。 */
+  /* With a button to the right of the heading, neither fits. Stack them at full width. */
   .card-head {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-2);
   }
 
-  /* 指で押せる大きさを確保し、文字は 16px 以上にする
-   * （iOS Safari は 16px 未満の入力欄にフォーカスすると画面を自動拡大する）。
-   * チェックボックスは枠が伸びるだけで押しやすくならないので、対象から外して
-   * 目盛りそのものを大きくする。 */
+  /* Make targets finger-sized and text at least 16px
+   * (iOS Safari auto-zooms the page when focusing an input under 16px).
+   * Checkboxes only get a bigger box without becoming easier to tap, so they are excluded and
+   * the check itself is enlarged instead. */
   button,
   .button-link,
   input:not([type='checkbox'], [type='radio']),
@@ -1686,7 +1692,7 @@ button.notification-banner-text:hover:not(:disabled) {
     font-size: 1rem;
   }
 
-  /* ヘッダーの中の操作は行の高さを崩さない（1 行に収める）。 */
+  /* Controls in the header must not break the line height (keep them on one line). */
   .header .role-switcher-toggle,
   .header .button-ghost {
     min-height: 2.25rem;
@@ -1700,11 +1706,11 @@ button.notification-banner-text:hover:not(:disabled) {
   input[type='radio'] {
     width: 1.5rem;
     height: 1.5rem;
-    /* 縦積みの行（.config-row）で中央に伸びないよう左端に寄せる。 */
+    /* Align left so it does not stretch to the center in stacked rows (.config-row). */
     align-self: flex-start;
   }
 
-  /* 横並びのフォームは縦に積み、入力欄を画面幅いっぱいにする。 */
+  /* Stack inline forms vertically and make inputs full screen width. */
   .inline-form {
     flex-direction: column;
     align-items: stretch;
@@ -1719,13 +1725,13 @@ button.notification-banner-text:hover:not(:disabled) {
     width: 100%;
   }
 
-  /* チェックボックスのチップは横並びのまま（幅いっぱいにすると縦に伸びる）。 */
+  /* Checkbox chips stay in a row (at full width they would stretch vertically). */
   .inline-form .chip-option,
   .inline-form .chip-option input {
     width: auto;
   }
 
-  /* 表示切り替えボタンはアイコン 1 個分のまま（上の 100% を打ち消す）。 */
+  /* The show/hide button stays one icon wide (overriding the 100% above). */
   .password-field .password-toggle {
     flex: none;
     width: auto;
@@ -1737,8 +1743,8 @@ button.notification-banner-text:hover:not(:disabled) {
     gap: var(--space-2);
   }
 
-  /* ログの絞り込みも縦に積む。項目が 6〜8 個あるので、横並びのままだと
-   * 1 行に 1 個ずつ折り返って隙間だらけになり、かえって縦に長くなる。 */
+  /* Stack the log filters too. With 6–8 fields, keeping them in a row wraps them one per line
+   * with gaps everywhere, which ends up even taller. */
   .filter-form {
     flex-direction: column;
     align-items: stretch;
@@ -1750,7 +1756,7 @@ button.notification-banner-text:hover:not(:disabled) {
     width: 100%;
   }
 
-  /* 検索・クリア・ページ送りは指で押す前提の幅にする（横並びのまま等分）。 */
+  /* Search, clear and paging buttons get finger-friendly widths (still in a row, split evenly). */
   .filter-actions,
   .pager {
     display: flex;
@@ -1762,21 +1768,21 @@ button.notification-banner-text:hover:not(:disabled) {
     flex: 1;
   }
 
-  /* 表は横スクロールに任せ、狭い画面で列が潰れないように下限を持たせる。 */
+  /* Leave tables to horizontal scrolling, with a minimum width so columns do not collapse on
+   * narrow screens. */
   .table-scroll table {
     min-width: 34rem;
   }
 
-  /* 区切りの無い値（requestId・イベント名）は折り返さない。狭い画面では列が
-   * 60px 前後まで痩せるため、折り返すと 1 行のログが 4 行分の高さになり、
-   * 一覧としての密度が落ちる。読むには横になぞる（広い画面では折り返して
-   * 全体を見せる）。 */
+  /* Do not wrap unbroken values (requestId, event name). On narrow screens columns thin to
+   * about 60px, so wrapping would make a one-line log entry four lines tall and lower the
+   * list's density. Swipe sideways to read (wide screens wrap to show everything). */
   td > code {
     white-space: nowrap;
   }
 
-  /* 名前と値を縦に積む。2 列のままだと日本語のラベルが幅を取り、残った幅に
-   * 収まらない値（ISO 形式の時刻）が途中で折り返されて読みにくくなる。 */
+  /* Stack name and value. In two columns the Japanese labels take up width, and values that
+   * do not fit the rest (ISO timestamps) wrap midway and become hard to read. */
   .status-list {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);
@@ -1791,13 +1797,13 @@ button.notification-banner-text:hover:not(:disabled) {
     height: auto;
   }
 
-  /* --- 画面に重ねる面は幅いっぱいに出す（ADR-0080 §6） ---------------------
-   * 入力ダイアログは画面の下から迫り出すシートにする。指が届く下端に主要な操作が
-   * 来て、左右に逃げる余白も無くなる。 */
+  /* --- Overlay surfaces appear at full width (ADR-0080 §6) ---------------------
+   * The input dialog becomes a sheet sliding up from the bottom. The main actions land at the
+   * bottom edge within finger reach, and no side margins are left to slip into. */
   .form-dialog {
     width: 100%;
     max-width: none;
-    /* 上を auto にして下端へ寄せる（`<dialog>` の既定は margin: auto）。 */
+    /* Set top to auto to push it to the bottom (`<dialog>` defaults to margin: auto). */
     margin: auto 0 0;
     animation: sheet-in 0.22s ease-out;
   }
@@ -1812,13 +1818,13 @@ button.notification-banner-text:hover:not(:disabled) {
     width: 100%;
     max-height: 88dvh;
     padding: var(--space-4);
-    /* ホームバー（iOS）の上に決定ボタンが重ならないようにする。 */
+    /* Keep the confirm button from overlapping the iOS home bar. */
     padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
     border-width: 1px 0 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 
-  /* 決定と取り消しは横に等分する（右端に寄せると片手で届かない）。 */
+  /* Split confirm and cancel evenly (right-aligned they are out of one-handed reach). */
   .dialog-actions {
     justify-content: stretch;
   }
@@ -1827,7 +1833,7 @@ button.notification-banner-text:hover:not(:disabled) {
     flex: 1;
   }
 
-  /* 絞り込みは畳んでおき、「絞り込み」で開く。開くまでは結果が画面の先頭に来る。 */
+  /* Filters are collapsed and opened with the filter button. Until opened, results come first. */
   .filter-toggle {
     display: flex;
     justify-content: space-between;
@@ -1846,9 +1852,9 @@ button.notification-banner-text:hover:not(:disabled) {
     display: none;
   }
 
-  /* プロフィール・セキュリティの入力欄と操作を幅いっぱいにする。区画もフォームも
-   * `align-items: flex-start` で内容の幅まで縮むため、途中の入れ物から順に伸ばす
-   * （どれか 1 段でも縮んだままだと中の 100% がそこで頭打ちになる）。 */
+  /* Make profile/security inputs and actions full width. Sections and forms shrink to their
+   * content with `align-items: flex-start`, so stretch each container in between in turn
+   * (if any one level stays shrunk, the inner 100% is capped there). */
   .settings-section > label,
   .settings-section > .field,
   .settings-section > .settings-form,
@@ -1867,7 +1873,7 @@ button.notification-banner-text:hover:not(:disabled) {
     width: 100%;
   }
 
-  /* 環境変数名は設定名の下へ落とす（横に並べると 1 つの文に見える）。 */
+  /* Drop the env var name below the setting name (side by side it reads as one sentence). */
   .config-key {
     flex-basis: 100%;
   }
@@ -1879,8 +1885,8 @@ button.notification-banner-text:hover:not(:disabled) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* 開いた状態の指定（.sidebar[data-open='true']）の方が詳細度が高いので、
-   * 両方を上書きしないとアニメーションが残る。 */
+  /* The open-state rule (.sidebar[data-open='true']) is more specific, so both must be
+   * overridden or the animation remains. */
   .sidebar,
   .sidebar[data-open='true'] {
     transition: none;
@@ -1893,14 +1899,14 @@ button.notification-banner-text:hover:not(:disabled) {
     animation-duration: 0.01ms !important;
   }
 
-  /* スピナーは装飾ではなく「実行中」を伝える唯一の目印なので、止めずに遅くする
-   * （上の一括指定より後に書いて上書きする）。 */
+  /* The spinner is not decoration but the only sign of "busy", so slow it down instead of
+   * stopping it (written after the blanket rule above to override it). */
   .spinner {
     animation-duration: 1.6s !important;
   }
 }
 
-/* メンテナンス中・停止中の画面（ADR-0080 §10）。アプリの画面は隠したまま、これだけを出す。 */
+/* Maintenance / outage screen (ADR-0080 §10). The app UI stays hidden and only this is shown. */
 .maintenance-screen {
   min-height: 100vh;
   min-height: 100dvh;

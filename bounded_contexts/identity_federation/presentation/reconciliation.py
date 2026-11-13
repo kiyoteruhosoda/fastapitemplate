@@ -1,16 +1,17 @@
-"""定期照合の組み立て（ADR-0077 §7）。
+"""Wiring for the periodic reconciliation (ADR-0077 §7).
 
-ユースケース（Application）と実装（Infrastructure）を結び付ける配線。
-Infrastructure は Application を import できないため、組み立ては最も外側の層が行う。
+Connects the use case (Application) with the implementations (Infrastructure).
+Infrastructure can't import Application, so the outermost layer does the wiring.
 
-**設定は実行のたびに読む。** SSO を有効にし ``MACHINE_CLIENT_ID`` を入れたら、次の周回から効く。
+**Settings are read on every run.** Once SSO is enabled and ``MACHINE_CLIENT_ID`` is set, it takes effect
+from the next cycle.
 
-⚠ **走るかどうかをアプリの名乗りで決めない。** SSO が使えてサービスアカウントの `client_id` があれば
-毎周回聞きに行き、assay がこのサービスアカウントをアプリの名乗りとして結び付けるまでは 403 が返る
-——それを「未結び付け」として info で 1 行残し、何も変えずに終わる。
+⚠ **Don't decide whether to run by the app's identity.** If SSO is usable and the service account has a `client_id`,
+it asks every cycle; until assay binds this service account as the app's identity, a 403 comes back
+— that is logged as "not yet bound" in one info line, and it ends without changing anything.
 
-⚠ **専用のセッションを開く。** リクエストの流れの外で動くので、``get_db`` の
-セッション（リクエストごとに開いて閉じる）は使えない。
+⚠ **Opens its own session.** It runs outside the request flow, so the ``get_db`` session
+(opened and closed per request) can't be used.
 """
 
 from __future__ import annotations
@@ -50,30 +51,31 @@ logger = logging.getLogger(__name__)
 
 WORKER_NAME = "sso-reconciliation"
 
-# 照合の間隔。⚠ **設定値にしない。** 間隔は起動時に 1 回しか読まれないので、画面に出すと
-# 「変えても効かない設定」になる。止まった人を拾う速さの本線は受け口（ADR-0077 §3）で、
-# こちらは取りこぼしを拾う 2 段目なので、1 時間で足りる。
+# Reconciliation interval. ⚠ **Not a setting.** The interval is read only once at startup, so exposing it on
+# screen would make "a setting that has no effect when changed". The main path for catching suspended users
+# quickly is the receiver (ADR-0077 §3); this is the second tier that catches misses, so 1 hour is enough.
 RECONCILE_INTERVAL_SECONDS = 60 * 60
 
-#: プロセスで 1 つ。⚠ **トークンを周回をまたいで使い回す**ため、呼ぶたびに作らない。
+#: One per process. ⚠ **The token is reused across cycles**, so don't create one per call.
 _ROSTER: RosterGateway = HttpxRosterGateway()
 
-#: 見送っても何も変えていない失敗。⚠ **引けなかったことを「空」と読まない**（ADR-0077 §7 決定 2）。
+#: Failures where we skipped without changing anything. ⚠ **Don't read "could not fetch" as "empty"**
+#: (ADR-0077 §7 decision 2).
 _SKIPPABLE = (IdentityProviderUnavailableError, SsoNotConfiguredError)
 
 
 def reconcile_federated_users_once(roster: RosterGateway | None = None) -> None:
-    """現在の設定に従って 1 回だけ照合する。
+    """Reconcile once according to the current settings.
 
-    ⚠ **assay に聞けなかったら、何も変えずに終わる**（「空」と「引けない」を混ぜない）。
+    ⚠ **If assay can't be asked, end without changing anything** (don't mix "empty" and "unfetchable").
     """
     if not settings.machine_client_id or not settings.oidc_enabled:
-        # 照合しない設定なら、セッションも開かない。
+        # If configured not to reconcile, don't even open a session.
         return
     session = sessionmaker(bind=get_engine())()
     try:
-        # 照合するのは ``OIDC_ISSUER`` のテナントだけ（サービスアカウントは assay のテナントごとに
-        # 要るので、``MACHINE_CLIENT_ID`` 1 つで聞けるのは 1 テナント。ADR-0079 §4）
+        # Only the ``OIDC_ISSUER`` tenant is reconciled (a service account is needed per assay tenant,
+        # so the single ``MACHINE_CLIENT_ID`` can ask about one tenant. ADR-0079 §4)
         provider = dependencies.provider_issuing(session, settings.oidc_issuer)
         if provider is None or not provider.is_usable:
             return
@@ -93,11 +95,11 @@ def reconcile_federated_users_once(roster: RosterGateway | None = None) -> None:
 
 
 def _reconcile(session: Session, issuer: str, roster: RosterGateway) -> ReconciliationOutcome | None:
-    """照合して commit する。見送ったら巻き戻して ``None``。"""
+    """Reconcile and commit. If skipped, roll back and return ``None``."""
     try:
         outcome = ReconcileFederatedUsers(
-            # ⚠ 結び付けたときと**同じ出所**の発行者で引く。綴りが 1 文字ずれると
-            #   1 件も当たらず、何も確かめないまま「異常なし」で終わる。
+            # ⚠ Look up by the issuer from **the same source** as when binding. If the spelling is off
+            #   by one character, nothing matches and it ends as "all fine" without checking anything.
             issuer=issuer,
             identities=SqlFederatedIdentityRepository(session),
             revocations=SqlSessionRevocationRepository(session),
@@ -107,7 +109,7 @@ def _reconcile(session: Session, issuer: str, roster: RosterGateway) -> Reconcil
         session.commit()
     except MachineNotBoundToApplicationError:
         session.rollback()
-        # ⚠ 準備待ちであって障害ではない。結び付けるまで毎時来るので warning にしない。
+        # ⚠ Waiting for setup, not a fault. It comes hourly until bound, so not a warning.
         logger.info("sso_reconciliation_not_bound")
         return None
     except _SKIPPABLE as error:
@@ -115,7 +117,8 @@ def _reconcile(session: Session, issuer: str, roster: RosterGateway) -> Reconcil
         logger.warning("sso_reconciliation_skipped", extra={"reason": type(error).__name__})
         return None
     except IntegrityError:
-        # 別のワーカーが同じ周回で同じ失効を書いた（`jti` は決め打ちなので中身は同じ）。
+        # Another worker wrote the same revocation in the same cycle
+        # (`jti` is deterministic, so the content is the same).
         session.rollback()
         logger.info("sso_reconciliation_raced")
         return None
@@ -123,7 +126,7 @@ def _reconcile(session: Session, issuer: str, roster: RosterGateway) -> Reconcil
 
 
 def start_sso_reconciliation_worker() -> None:
-    """照合の定期実行を開始する（プロセスの起動処理から呼ぶ）。"""
+    """Start the periodic reconciliation (called from process startup)."""
     start_interval_worker(WORKER_NAME, reconcile_federated_users_once, RECONCILE_INTERVAL_SECONDS)
 
 

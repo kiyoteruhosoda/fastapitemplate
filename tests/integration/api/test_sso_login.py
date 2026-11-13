@@ -1,7 +1,7 @@
-"""SSO ログインの往復（ADR-0077 §1）。
+"""The SSO sign-in round trip (ADR-0077 §1).
 
-IdP との通信はゲートウェイを差し替えて止める。ここで確かめたいのは**往復状態を
-署名付き Cookie で運ぶこと**と、その Cookie が無ければ戻りを完了できないこと。
+Communication with the IdP is stopped by replacing the gateway. What we want to confirm is that
+**the round-trip state travels in a signed cookie**, and that the return cannot complete without it.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ _AUTHORIZE = f"{_ISSUER}/authorize"
 
 @dataclass
 class _StubGateway:
-    """認可 URL を組み立て、コードを固定のクレームへ換えるだけの IdP。"""
+    """An IdP that only builds the authorization URL and exchanges the code for fixed claims."""
 
     claims: dict[str, Any]
     seen: list[CodeExchange]
@@ -62,10 +62,10 @@ def sso_client(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[TestClient]:
-    """SSO を有効にしたアプリ（既存の利用者へ検証済みメールで寄せる構成）。
+    """An app with SSO enabled (configured to merge into existing users by verified email).
 
-    ⚠ **寄せるのは既定ではない**（ADR-0077 §4）。ここは往復そのものを見たいので、
-    明示的に開けている。
+    ⚠ **Merging is not the default** (ADR-0077 §4). We want to see the round trip itself here, so it
+    is explicitly enabled.
     """
     from presentation.fastapi.app import create_app
 
@@ -95,14 +95,14 @@ def test_the_button_appears_once_sso_is_configured(sso_client: TestClient) -> No
 
 
 def test_the_round_trip_state_is_carried_in_a_cookie(sso_client: TestClient) -> None:
-    """表に控えを置かない。往復状態は署名付き Cookie で運ぶ（ADR-0077 §1）。"""
+    """Nothing is stored in a table. The round-trip state travels in a signed cookie (ADR-0077 §1)."""
     _start(sso_client)
     assert transaction_cookie.COOKIE_NAME in sso_client.cookies
 
 
 def test_a_callback_without_the_cookie_is_refused(sso_client: TestClient) -> None:
-    """⚠ ログイン CSRF。攻撃者が始めた認可要求を踏まされても、被害者の
-    ブラウザには対応する Cookie が無いので完了できない。"""
+    """⚠ Login CSRF. Even if the victim is made to follow an authorization request started by the
+    attacker, their browser has no matching cookie, so it cannot complete."""
     state = _start(sso_client)
     sso_client.cookies.delete(transaction_cookie.COOKIE_NAME)
     response = sso_client.get(
@@ -133,20 +133,20 @@ def test_a_successful_round_trip_hands_a_ticket_to_the_spa(sso_client: TestClien
 
     exchanged = sso_client.post("/api/auth/sso/token", json={"ticket": ticket})
     assert exchanged.status_code == 200, exchanged.text
-    # トークンは Cookie で運ぶ（ADR-0076 §4）。本文は寿命と戻り先だけ。
+    # The token travels in a cookie (ADR-0076 §4). The body carries only the lifetime and the return URL.
     assert exchanged.json()["expires_in"] > 0
     assert sso_client.cookies[ACCESS_TOKEN_COOKIE]
 
-    # 券は 1 回限り。
+    # The ticket is single-use.
     assert sso_client.post("/api/auth/sso/token", json={"ticket": ticket}).status_code == 401
 
 
 def test_a_silent_attempt_asks_the_idp_not_to_show_a_screen(sso_client: TestClient) -> None:
-    """ログイン画面が開いたときの試し（ADR-0077 §9）は ``prompt=none`` で送り出す。"""
+    """The attempt made when the sign-in screen opens (ADR-0077 §9) is sent with ``prompt=none``."""
     response = sso_client.get("/api/auth/sso/login?prompt=none", follow_redirects=False)
     assert response.status_code == 303
     assert "prompt=none" in response.headers["location"]
-    # ふつうの往復には付けない
+    # Not added to ordinary round trips
     assert "prompt=" not in sso_client.get("/api/auth/sso/login", follow_redirects=False).headers["location"]
 
 
@@ -157,20 +157,20 @@ def test_a_silent_attempt_asks_the_idp_not_to_show_a_screen(sso_client: TestClie
 def test_a_declined_silent_attempt_returns_to_the_login_screen_without_an_error(
     sso_client: TestClient, error: str
 ) -> None:
-    """IdP で入っていなかった。失敗ではないので ``sso_error`` を付けず、行き先は持ち帰る。"""
+    """Not signed in at the IdP. Not a failure, so no ``sso_error``; the destination is carried back."""
     response = sso_client.get("/api/auth/sso/login?prompt=none&redirect_to=/items", follow_redirects=False)
     state = response.headers["location"].split("state=")[1].split("&")[0]
     back = sso_client.get(f"/api/auth/sso/callback?error={error}&state={state}", follow_redirects=False)
     assert back.status_code == 303
     location = back.headers["location"]
-    # 戻す先は往復を始めたテナントの入口（ADR-0079 §4）
+    # The return goes to the entrance of the tenant that started the round trip (ADR-0079 §4)
     assert location.endswith("/login?sso_silent=declined&redirect_to=%2Fitems")
     assert "sso_error" not in location
     assert transaction_cookie.COOKIE_NAME not in sso_client.cookies
 
 
 def test_a_declined_ordinary_attempt_is_still_an_error(sso_client: TestClient) -> None:
-    """ボタンで始めた往復の ``login_required`` は今までどおりエラーで返す。"""
+    """``login_required`` on a round trip started by the button is still returned as an error."""
     state = _start(sso_client)
     back = sso_client.get(f"/api/auth/sso/callback?error=login_required&state={state}", follow_redirects=False)
     assert "sso_error=login_required" in back.headers["location"]
@@ -188,10 +188,10 @@ def test_by_default_an_unknown_account_is_not_linked_to_a_local_one(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """⚠ 既定では、同じメールアドレスのローカル口座へ黙って寄せない（ADR-0077 §4）。
+    """⚠ By default, do not silently merge into a local account with the same email address (ADR-0077 §4).
 
-    ``email_verified`` の意味は IdP 側と RP 側で食い違い得る。assay のこの値は
-    「テナント管理者がそう主張している」であって本人の証明ではない。
+    The meaning of ``email_verified`` can differ between the IdP and the RP. In assay this value means
+    "the tenant administrator claims so", not proof by the person.
     """
     from presentation.fastapi.app import create_app
 
@@ -214,7 +214,7 @@ def test_a_requested_acr_is_sent_and_verified(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """要求したら確かめる。返ってこなければ断る（ADR-0076 §3 決定 1）。"""
+    """If requested, verify it. If it does not come back, refuse (ADR-0076 §3 decision 1)."""
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("OIDC_ENABLED", "true")
@@ -228,10 +228,10 @@ def test_a_requested_acr_is_sent_and_verified(
     app.dependency_overrides[dependencies.oidc_gateway] = lambda: gateway
     with TestClient(app) as client:
         redirect = client.get("/api/auth/sso/login", follow_redirects=False)
-        # 認可要求に載っている（スタブがそのまま URL へ写している）。
+        # It is in the authorization request (the stub copies it into the URL as is).
         assert "acr_values=urn:assay:ac:mfa" in redirect.headers["location"]
         state = redirect.headers["location"].split("state=")[1].split("&")[0]
-        # ID トークンに acr が無いので断る。**返ってこないものを満たしたと読まない。**
+        # The ID token has no acr, so refuse. **Do not read what did not come back as satisfied.**
         response = client.get(
             f"/api/auth/sso/callback?code=c&state={state}",
             follow_redirects=False,
@@ -240,10 +240,10 @@ def test_a_requested_acr_is_sent_and_verified(
 
 
 def test_the_profile_copy_follows_the_idp(sso_client: TestClient, gateway: _StubGateway, engine: sa.Engine) -> None:
-    """⚠ **写しは IdP を正とする**（ADR-0077 §6 / idp の ADR-0049 G4・I5）。
+    """⚠ **The copy treats the IdP as the source of truth** (ADR-0077 §6 / idp ADR-0049 G4, I5).
 
-    書き直さないと、向こうで改名・メール変更をしても**こちらの表示は永久に
-    古いまま**になる。
+    Without rewriting it, a rename or email change on the other side would leave **our display stale
+    forever**.
     """
     from sqlalchemy.orm import sessionmaker
 
@@ -264,7 +264,7 @@ def test_the_profile_copy_follows_the_idp(sso_client: TestClient, gateway: _Stub
 def test_a_name_another_user_already_has_is_not_copied(
     sso_client: TestClient, gateway: _StubGateway, engine: sa.Engine
 ) -> None:
-    """⚠ **写しの更新でログインを壊さない。** 一意の列がぶつかる項目だけ見送る。"""
+    """⚠ **Updating the copy never breaks sign-in.** Only fields that clash on a unique column are skipped."""
     from sqlalchemy.orm import sessionmaker
 
     from shared.infrastructure.models import User
@@ -279,6 +279,6 @@ def test_a_name_another_user_already_has_is_not_copied(
     gateway.claims = {**gateway.claims, "email": "taken@example.com"}
     state = _start(sso_client)
     response = sso_client.get(f"/api/auth/sso/callback?code=c&state={state}", follow_redirects=False)
-    # ⚠ ログインは通る（見送るのはぶつかった項目だけ）。
+    # ⚠ Sign-in passes (only the clashing field is skipped).
     assert response.status_code == 303
     assert "sso_error" not in response.headers["location"]

@@ -1,43 +1,44 @@
 /**
- * 前段（edge）が「閉じている」と答えたことの受け取り（ADR-0080 §10）。
+ * Receives the front tier (edge) saying it is "closed" (ADR-0080 §10).
  *
- * edge は計画メンテナンスの宣言があるホストへの要求すべてに 503 を返し、ブラウザ以外
- * （`fetch` の既定の Accept）には JSON を返す:
+ * edge returns 503 for every request to a host with a planned-maintenance declaration, and JSON
+ * to non-browsers (the default Accept of `fetch`):
  *
  *   {"error": "service_unavailable", "reason": "maintenance", "until": "…Z",
- *    "message": "<理由>", "title": "<見出し>", "body": "<本文>"}
+ *    "message": "<reason>", "title": "<heading>", "body": "<body text>"}
  *
- * 上流（このアプリ）が居ないだけのときは `reason: "stopped"`。
+ * When only the upstream (this app) is down, it is `reason: "stopped"`.
  *
- * ⚠ **画面の移動では edge のメンテナンス画面は見えない。** Service Worker が手元の
- * index.html を返すため（`navigateFallback`）。そこで API の応答でアプリ内の画面へ
- * 切り替える。ここはその状態（閉じているか・何と言われたか）だけを持つ。
+ * WARNING: **Navigating never shows edge's maintenance page**, because the Service Worker
+ * returns the local index.html (`navigateFallback`). So API responses switch to an in-app screen
+ * instead.
+ * This module only holds that state (whether closed, and what was said).
  *
- * ⚠ アプリ自身のエラーは `{"detail": {"error": …}}` で、上の形（最上位に `error` と
- * `reason`）とは混ざらない。上の形でない 503 は「閉じている」とは扱わない。
+ * WARNING: The app's own errors are `{"detail": {"error": …}}` and never mix with the shape above
+ * (`error` and `reason` at the top level). A 503 not in that shape is not treated as "closed".
  */
 
 export type OutageReason = 'maintenance' | 'stopped'
 
-/** edge が閉じていると答えた内容。文言の無い欄は null（古い edge には title・body が無い）。 */
+/** What edge said when closed. Fields without text are null (older edges have no title/body). */
 export interface Outage {
   reason: OutageReason
   title: string | null
   body: string | null
-  /** 閉じた理由（宣言の `--reason`）。 */
+  /** Why it closed (the declaration's `--reason`). */
   message: string | null
-  /** 戻りの見込み（ISO 8601、UTC）。 */
+  /** Expected return time (ISO 8601, UTC). */
   until: string | null
 }
 
-/** 確かめ直しの結果。`unknown` は届かない・別の失敗で、閉じているとも開いたとも言えない。 */
+/** Result of re-checking. `unknown` = unreachable or another failure; can't say closed or open. */
 export type ServiceState = 'open' | 'closed' | 'unknown'
 
 const SERVICE_UNAVAILABLE = 503
 
 /**
- * 確かめ直しに叩く口。認証が要らず軽い、起動時にも読む画面の設定。
- * ⚠ 道は何でもよい（edge は宣言のあるホストの道すべてを閉じる）。
+ * Endpoint hit to re-check. No auth needed and light: the UI settings also read at startup.
+ * Note: any path works (edge closes every path of a declared host).
  */
 export const PROBE_PATH = '/api/ui/settings'
 
@@ -49,7 +50,7 @@ function isOutageReason(value: unknown): value is OutageReason {
   return value === 'maintenance' || value === 'stopped'
 }
 
-/** 503 の応答の本文から、edge が閉じていると答えたものだけを取り出す。 */
+/** From a 503 response body, extract only what edge said about being closed. */
 export function outageFrom(status: number, payload: unknown): Outage | null {
   if (status !== SERVICE_UNAVAILABLE || !payload || typeof payload !== 'object') return null
   const body = payload as Record<string, unknown>
@@ -67,8 +68,8 @@ type Listener = () => void
 
 let current: Outage | null = null
 /**
- * 遅れて読み込む部品の失敗から閉じたと分かったとき、開いたら呼ぶ読み込み直し
- * （欠けた部品は読み込み直さないと戻らない）。
+ * Reload to run once it reopens, set when a lazily loaded chunk failure revealed it was closed
+ * (missing chunks don't come back without a reload).
  */
 let reloadOnReopen: (() => void) | null = null
 const listeners = new Set<Listener>()
@@ -85,7 +86,7 @@ function publish(next: Outage | null): void {
   })
 }
 
-/** いま閉じているか（閉じていなければ null）。 */
+/** Whether it is closed now (null if not). */
 export function currentOutage(): Outage | null {
   return current
 }
@@ -97,12 +98,12 @@ export function subscribeOutage(listener: Listener): () => void {
   }
 }
 
-/** edge が閉じていると答えた。 */
+/** edge said it is closed. */
 export function reportOutage(outage: Outage): void {
   publish(outage)
 }
 
-/** 開いたと分かった。部品が欠けたまま描かれている画面なら読み込み直す。 */
+/** Found to be open. Reload if the screen was rendered with missing chunks. */
 export function reportReopened(): void {
   const wasClosed = current !== null
   publish(null)
@@ -114,9 +115,9 @@ export function reportReopened(): void {
 }
 
 /**
- * 閉じているかを確かめ直す。答えは状態へ反映する（届かないときは変えない）。
+ * Re-check whether it is closed. The answer is applied to the state (unchanged if unreachable).
  *
- * ⚠ 保存された答えを使わない（edge も no-store を付けるが、念のため）。
+ * Note: don't use a cached answer (edge sets no-store too, but just in case).
  */
 export async function checkService(): Promise<ServiceState> {
   let response: Response
@@ -136,13 +137,13 @@ export async function checkService(): Promise<ServiceState> {
 }
 
 /**
- * 遅れて読み込む部品（動的 import の JS・CSS）が読めなかったとき、閉じているかを確かめる。
+ * When a lazily loaded chunk (dynamic-import JS/CSS) fails to load, check whether it is closed.
  *
- * edge は JS・CSS にも 503（JSON）を返すので、閉じている間に画面を移ると部品が欠ける。
- * 閉じているならメンテナンスの画面を出し、戻ったら読み込み直す。**ただの失敗なら
- * 何もしない**（エラーは今までどおり投げられる。`preventDefault` しない）。
+ * edge returns 503 (JSON) for JS/CSS too, so navigating while closed leaves chunks missing.
+ * If closed, show the maintenance screen and reload once it reopens. **If it was just a failure,
+ * do nothing** (the error is thrown as before; no `preventDefault`).
  *
- * Vite は読み込みの失敗を `vite:preloadError` で知らせる。
+ * Vite reports load failures via `vite:preloadError`.
  */
 export function watchLazyLoadFailures(
   target: Window = window,
@@ -161,7 +162,7 @@ export function watchLazyLoadFailures(
   }
 }
 
-/** 試験用: 状態を初めに戻す。 */
+/** For tests: reset the state. */
 export function resetOutageForTests(): void {
   current = null
   reloadOnReopen = null

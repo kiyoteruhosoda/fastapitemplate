@@ -1,4 +1,4 @@
-"""監査ログの検索インターフェース（実装は Infrastructure 層）。"""
+"""Search interface for audit logs (implemented in the Infrastructure layer)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from bounded_contexts.audit.domain.value_objects.log_search_criteria import (
 
 class AuditLogQuery(Protocol):
     def search(self, criteria: AuditLogCriteria) -> AuditLogPage:
-        """*criteria* に一致する行を新しい順に 1 ページ返す（総件数付き）。"""
+        """Return one page of rows matching *criteria*, newest first (with the total count)."""
 
 
 __all__ = ["AuditLogQuery"]

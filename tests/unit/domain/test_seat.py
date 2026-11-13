@@ -1,4 +1,4 @@
-"""システム管理者とテナント管理者を兼ねさせない規則（ADR-0079 §1 決定 4）。"""
+"""Rule that a system administrator cannot also be a tenant administrator (ADR-0079 §1 decision 4)."""
 
 from __future__ import annotations
 

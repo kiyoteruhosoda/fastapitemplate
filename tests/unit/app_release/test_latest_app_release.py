@@ -1,7 +1,8 @@
-"""配布している最新版を答える（ADR-0081 §4）。
+"""Answers the latest distributed version (ADR-0081 §4).
 
-⚠ **置き場が不調でも端末を道連れにしない。** 読めなければ「知らせることは無い」を
-返し、しばらくは置き場へ行かない。読めた答えも覚えて、端末が来るたびに行かない。
+⚠ **A failing store does not drag devices down with it.** If it cannot be read, answer "nothing
+to announce" and stay away from the store for a while. Answers that were read are cached too, so
+not every device visit goes to the store.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ class _Clock:
 
 
 class _Source:
-    """呼ばれた回数を数え、決め打ちの答え（または例外）を返す。"""
+    """Counts calls and returns a fixed answer (or exception)."""
 
     def __init__(self, answer: AppRelease | Exception | None) -> None:
         self.answer = answer
@@ -72,7 +73,7 @@ def test_an_answer_is_remembered_until_it_expires() -> None:
 
 
 def test_nothing_configured_is_an_answer_too() -> None:
-    """設定が無い（``None``）も覚える。機能を使っていないあいだ、毎回読み先を組み立てない。"""
+    """Also caches "not configured" (``None``). While unused, do not build the location every time."""
     source = _Source(None)
     clock = _Clock()
     query = _query(source, clock)
@@ -89,14 +90,14 @@ def test_an_unreadable_store_is_told_as_nothing_to_say(caplog: pytest.LogCapture
     with caplog.at_level(logging.WARNING):
         assert _query(source, _Clock()).execute() is None
 
-    # 端末には何も言わないが、運用には残す。
+    # Say nothing to the device, but leave a trace for operators.
     [record] = [r for r in caplog.records if r.getMessage() == "app_release_unavailable"]
     assert record.levelno == logging.WARNING
     assert record.__dict__["reason"] == "garage is down"
 
 
 def test_a_failure_is_remembered_only_briefly() -> None:
-    """落ちているあいだ端末が来るたびに待たせない。ただし戻ったらすぐ知らせる。"""
+    """While it is down, devices do not wait on every visit. But announce as soon as it recovers."""
     source = _Source(AppReleaseUnavailableError("garage is down"))
     clock = _Clock()
     query = _query(source, clock)
@@ -113,7 +114,7 @@ def test_a_failure_is_remembered_only_briefly() -> None:
 
 
 def test_the_source_is_built_afresh_after_expiry() -> None:
-    """設定を画面で変えたら、プロセスを作り直さなくても次の読みから新しい先へ行く。"""
+    """A setting changed on screen applies from the next read, without recreating the process."""
     built: list[_Source] = []
 
     def factory() -> _Source:

@@ -1,11 +1,11 @@
-"""機械の口（``POST /api/machine/token``。ADR-0082・ADR-0087）。
+"""Machine endpoint (``POST /api/machine/token``. ADR-0082, ADR-0087).
 
-assay の ``client_credentials`` で得たトークンを、このアプリのアクセストークンへ換える。以降、機械は
-**人と同じ API** を ``Authorization: Bearer`` で叩く。通るのは scope で守られた口だけで、scope は
-許可簿の操作と、振る舞う利用者の権限の重なりに絞ってある。
+Exchanges a token obtained with assay ``client_credentials`` for this app's access token. From then on, machines
+call **the same API as humans** with ``Authorization: Bearer``. Only scope-guarded endpoints pass, and the scope
+is narrowed to the overlap of the allowlist's operations and the acting user's permissions.
 
-⚠ **Cookie を読まない・載せない。** Cookie を受け付けると、ログイン中のブラウザが踏んだリンクから
-この口を叩けることになる。機械は Cookie を持たないので、本文で返すだけにする。
+⚠ **Never reads or sets cookies.** Accepting cookies would let a link clicked in a signed-in browser hit
+this endpoint. Machines have no cookies, so the result is returned only in the body.
 """
 
 from __future__ import annotations
@@ -51,14 +51,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/machine", tags=["machine"])
 
 DbDep = Annotated[Session, Depends(get_db)]
-#: ⚠ ヘッダーだけ読む（Cookie へ落ちない）。``auto_error=False`` は「無い」を 401 にするため。
+#: ⚠ Read only the header (never falls back to cookies). ``auto_error=False`` is to turn "missing" into 401.
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))]
 
-#: 理由を言わない 401 のコード。「口が閉じている」「登録が無い」「振る舞う相手が居ない」を区別して返すと、
-#: トークンを持たない相手が**登録の有無を探れる**。切り分けはこちらのログと監査で行う。
+#: Code for a 401 that gives no reason. Distinguishing "endpoint closed", "not registered" and "no user to act as"
+#: would let a tokenless party **probe registrations**. Diagnosis is done via our logs and audit.
 MACHINE_AUTHENTICATION_REQUIRED = "machine_authentication_required"
 
-#: discovery と JWKS の控え。⚠ プロセスで 1 つを使い回す（要求ごとに作ると控えも取り直しの抑えも効かない）
+#: Cache of discovery and JWKS. ⚠ One reused per process (creating one per request would defeat both the cache
+#: and the refetch throttling)
 _gateway = HttpxMachineTokenGateway()
 
 
@@ -70,15 +71,15 @@ MachineTokenGatewayDep = Annotated[MachineTokenGateway, Depends(machine_token_ga
 
 
 class MachineTokenResponse(BaseModel):
-    """換えた結果。⚠ ``refresh_token`` は返さない（機械は取り直せばよい）。"""
+    """Exchange result. ⚠ No ``refresh_token`` is returned (machines just fetch again)."""
 
     access_token: str
     token_type: str
     expires_in: int
-    #: 誰として振る舞っているか（人が確かめるため）
+    #: Who it is acting as (for humans to check)
     acts_as: str
     client_name: str
-    #: 実際に使える操作（許可簿と利用者の権限の重なり）
+    #: Operations actually available (overlap of the allowlist and the user's permissions)
     scopes: list[str]
 
 
@@ -91,10 +92,11 @@ def _unauthorized() -> HTTPException:
 
 
 def _exchange(db: Session, token: str, gateway: MachineTokenGateway) -> ExchangeMachineToken:
-    """トークンの発行者のテナントで受ける（ADR-0079 §4）。登録の無い・止めたテナントの発行者は受けない。
+    """Accept in the tenant of the token's issuer (ADR-0079 §4). Reject issuers that are unregistered or whose
+    tenant is suspended.
 
-    ⚠ 発行者は署名を確かめる前に読むが、**その値は鍵とテナントを選ぶのにしか使わない**。登録のある発行者を
-    名乗っても、署名はその発行者の鍵でしか通らない。
+    ⚠ The issuer is read before the signature is checked, but **that value is only used to pick the key and tenant**.
+    Claiming a registered issuer only passes with that issuer's signature.
     """
     tenant = tenant_issuing(db, _unverified_issuer_of(token))
     usable = tenant is not None and tenant.is_active and bool(tenant.issuer)
@@ -118,7 +120,7 @@ def _unverified_issuer_of(token: str) -> str:
 
 
 def _refused(audit: RecordAuditEvent, error: IdentityFederationError) -> HTTPException:
-    """断った理由を監査とログに残し、理由を言わない 401 を返す。"""
+    """Record the refusal reason in audit and logs, and return a 401 that gives no reason."""
     client_id = (
         error.client_id if isinstance(error, MachineClientNotRegisteredError | MachineActorNotFoundError) else None
     )
@@ -136,13 +138,13 @@ def _refused(audit: RecordAuditEvent, error: IdentityFederationError) -> HTTPExc
 def issue_machine_token(
     db: DbDep, audit: AuditRecorderDep, credentials: BearerDep, gateway: MachineTokenGatewayDep
 ) -> MachineTokenResponse:
-    """機械のトークンを、このアプリのアクセストークンへ換える。"""
+    """Exchange a machine token for this app's access token."""
     if credentials is None:
         raise _unauthorized()
     try:
         session = _exchange(db, credentials.credentials, gateway).execute(credentials.credentials)
     except IdentityProviderUnavailableError:
-        # ⚠ IdP と話せないことを 401 にしない（正しい呼び出し元が資格情報を疑う）。502 になる
+        # ⚠ Don't turn "IdP unreachable" into 401 (a legitimate caller would suspect its credentials). It becomes 502
         raise
     except IdentityFederationError as error:
         raise _refused(audit, error) from error
@@ -151,10 +153,10 @@ def issue_machine_token(
 
 def _issue(db: Session, audit: RecordAuditEvent, session: MachineSession) -> MachineTokenResponse:
     user = db.get(User, session.user_id)
-    if user is None:  # pragma: no cover - 同じセッションで引けている
+    if user is None:  # pragma: no cover - already looked up in the same session
         raise _unauthorized()
     issued = create_machine_access_token(user, client_id=session.client.client_id, operations=session.client.operations)
-    # 「誰が」は振る舞う利用者、「どの機械が」は対象に残す（ADR-0082 §1 決定 4）
+    # "Who" is the acting user; "which machine" is kept as the target (ADR-0082 §1 decision 4)
     audit.as_actor(user.id).execute(
         AuditEventType.MACHINE_TOKEN_ISSUED,
         target=AuditTarget.of(AuditTargetType.MACHINE_CLIENT, session.client.client_id),

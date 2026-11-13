@@ -1,4 +1,4 @@
-"""``IDeviceTokenRepository`` の SQLAlchemy 実装（ADR-0081 §5）。"""
+"""SQLAlchemy implementation of ``IDeviceTokenRepository`` (ADR-0081 §5)."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class SqlDeviceTokenRepository(IDeviceTokenRepository):
             self._session.add(row)
         row.user_id = device.user_id
         row.platform = device.platform
-        # 中身が同じでも登録し直した時刻は残す（onupdate は値が変わらないと動かない）。
+        # Record the re-registration time even if nothing changed (onupdate only fires when a value changes).
         row.updated_at = utcnow()
         self._session.flush()
 

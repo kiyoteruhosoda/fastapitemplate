@@ -1,4 +1,4 @@
-"""保持期間の境界（``0`` と負の日数は「削除しない」）。"""
+"""Retention-period boundaries (``0`` and negative days mean "do not delete")."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _NOW = datetime(2026, 8, 2, 12, 0, 0)
 
 
 def test_the_default_policy_deletes_nothing() -> None:
-    """既定値だけでは 1 行も消えないこと（テンプレートが勝手に消し始めない）。"""
+    """The defaults alone delete no rows (the template does not start deleting on its own)."""
     policy = LogRetentionPolicy()
 
     assert policy.purges_nothing
@@ -32,7 +32,7 @@ def test_a_positive_number_of_days_becomes_a_cutoff() -> None:
 
 @pytest.mark.parametrize("days", [0, -1, -365])
 def test_zero_or_negative_days_never_produce_a_cutoff(days: int) -> None:
-    """打ち間違いで直近の行まで消えないこと（負の日数は未来の境界になる）。"""
+    """A typo does not delete recent rows (negative days would put the boundary in the future)."""
     policy = LogRetentionPolicy(application_log_days=days, audit_log_days=days)
 
     assert policy.application_log_cutoff(_NOW) is None
@@ -40,7 +40,7 @@ def test_zero_or_negative_days_never_produce_a_cutoff(days: int) -> None:
 
 
 def test_the_two_tables_are_kept_independently() -> None:
-    """アプリログだけ消して監査ログは残す、という設定ができること。"""
+    """It is possible to delete only application logs and keep audit logs."""
     policy = LogRetentionPolicy(application_log_days=30)
 
     assert policy.application_log_cutoff(_NOW) == _NOW - timedelta(days=30)

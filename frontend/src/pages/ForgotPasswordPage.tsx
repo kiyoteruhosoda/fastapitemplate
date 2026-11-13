@@ -11,7 +11,7 @@ export function ForgotPasswordPage() {
   const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
-  // 入口と同じテナントで探す（ADR-0079 §4）
+  // Look up within the same tenant as the entry point (ADR-0079 §4)
   const { tenant } = useParams<{ tenant?: string }>()
 
   const [submit, submitting] = usePendingAction(async (e: SubmitEvent) => {

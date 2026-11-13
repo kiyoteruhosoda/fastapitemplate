@@ -1,11 +1,12 @@
-"""システムの状態（要 ``system:view``）とアプリケーション再起動（要 ``system:manage``）の API。
+"""API for system status (requires ``system:view``) and application restart (requires
+``system:manage``).
 
-起動時にしか読まれない設定（ログ・CORS 等）を管理画面から反映するための
-再起動要求を受け付ける。要求は DB に置かれ、各プロセスが自分宛かを判定して
-自らを終了させる。復帰はコンテナの restart policy に任せる
-（:mod:`shared.kernel.restart`）。
+Accepts restart requests so settings read only at startup (logging, CORS, etc.) can be applied
+from the admin console. A request is stored in the DB; each process checks whether it is the
+target and terminates itself. Recovery is left to the container's restart policy
+(:mod:`shared.kernel.restart`).
 
-稼働中の全リクエストを打ち切る操作なので、要求は必ず監査ログへ残す。
+This aborts all in-flight requests, so every request is recorded in the audit log.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ router = APIRouter(prefix="/api/admin/system", tags=["admin"])
 
 DbDep = Annotated[Session, Depends(get_db)]
 SystemManagerDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("system:manage"))]
-#: 状態を見るだけ。サポート担当も持つ（ADR-0084 §3）
+#: Viewing status only. Support staff have it too (ADR-0084 §3)
 SystemViewerDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("system:view"))]
 
 
@@ -66,10 +67,10 @@ def _to_response(request: RestartRequest) -> RestartRequestResponse:
 
 @router.get("/status", response_model=SystemStatusResponse)
 def system_status(request: Request, _principal: SystemViewerDep, db: DbDep) -> SystemStatusResponse:
-    """ビルド情報と各コンポーネント（API・DB）の状態を返す。
+    """Return build info and the status of each component (API, DB).
 
-    このハンドラーまで到達した時点で API 自体は応答できているため ``api`` は
-    常に ``ok``。DB は ``/readyz`` と同じ ``SELECT 1`` で確かめる。
+    Reaching this handler means the API itself is responding, so ``api`` is always ``ok``.
+    The DB is checked with the same ``SELECT 1`` as ``/readyz``.
     """
     now = utcnow_aware()
     build_info = request.app.state.build_info
@@ -92,7 +93,7 @@ def system_status(request: Request, _principal: SystemViewerDep, db: DbDep) -> S
 
 @router.get("/restart", response_model=RestartStatusResponse)
 async def restart_status(_principal: SystemManagerDep) -> RestartStatusResponse:
-    """スコープごとの直近の再起動要求と、指定できるスコープの一覧を返す。"""
+    """Return the latest restart request per scope and the list of selectable scopes."""
     stored = RestartRequestStore().load_all()
     return RestartStatusResponse(
         available_scopes=[scope.value for scope in ALL_RESTART_SCOPES],
@@ -111,10 +112,10 @@ def request_restart(
     db: DbDep,
     audit: AuditRecorderDep,
 ) -> RestartCommandResponse:
-    """再起動を要求する。
+    """Request a restart.
 
-    ``scopes`` を省略した場合は全サービスが対象。要求は監視スレッドが拾って
-    処理するため、応答が返った時点ではまだ再起動していない。
+    If ``scopes`` is omitted, all services are targeted. A watcher thread picks up and handles
+    the request, so the restart has not happened yet when the response returns.
     """
     if body.scopes is None:
         scopes: tuple[RestartScope, ...] = ALL_RESTART_SCOPES
@@ -137,12 +138,12 @@ def request_restart(
         requests = RestartRequestStore().save(
             db,
             scopes,
-            # 要求者はログにも残るため、PII を含まない主体識別子を記録する
+            # The requester also ends up in logs, so record a principal identifier without PII
             requested_by=f"user:{principal.user_id}",
             reason=reason,
         )
     except Exception:
-        logger.exception("再起動要求の保存に失敗しました")
+        logger.exception("Failed to save restart request")
         audit.execute(
             AuditEventType.SERVICE_RESTART_REQUESTED,
             AuditResult.FAILURE,

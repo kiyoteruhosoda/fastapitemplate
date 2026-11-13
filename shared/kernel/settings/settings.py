@@ -1,12 +1,12 @@
-"""アプリケーション設定の一元アクセス。
+"""Single point of access to application settings.
 
-設定値は必ずこのモジュールの :data:`settings`（:class:`ApplicationSettings`）の
-``@property`` 経由で取得する。``os.getenv`` や DB への直接アクセスは禁止
-（CLAUDE.md「設定管理」参照）。
+Always read setting values through the ``@property`` accessors of this module's
+:data:`settings` (:class:`ApplicationSettings`). Do not call ``os.getenv`` or read the DB directly
+(see "Settings" in CLAUDE.md).
 
-優先順位: **環境変数 > DB（system_settings テーブル）> デフォルト値**。
+Precedence: **environment variables > DB (system_settings table) > default values**.
 
-テストでは ``ApplicationSettings(env=...)`` を個別に生成して検証できる。
+Tests can build their own ``ApplicationSettings(env=...)`` to verify behaviour.
 """
 
 from __future__ import annotations
@@ -30,17 +30,17 @@ _logger = logging.getLogger(__name__)
 
 
 class _DatabaseOverrides:
-    """優先順位「環境変数 > DB > デフォルト値」の DB 層。
+    """The DB layer of the "environment variables > DB > defaults" precedence.
 
-    管理画面から保存される ``system_settings`` テーブルの ``app.config``
-    レコードを供給する。
+    Supplies the ``app.config`` record of the ``system_settings`` table that the admin
+    screen saves.
 
-    - DB 未接続・テーブル未作成（マイグレーション前）の場面では黙って値なしを
-      返し、環境変数とデフォルト値のみで動作を続ける。
-    - リクエスト毎の DB アクセスを避けるため TTL キャッシュを持つ。管理画面の
-      保存時は ``SystemSettingService`` が ``invalidate()`` を呼び即時反映する。
-    - 読み取りは専用の短命コネクションで行う（共有セッションの
-      トランザクション状態を汚さない）。
+    - When the DB is not reachable or the table does not exist yet (before migrations),
+      it silently returns no values and keeps running on env vars and defaults alone.
+    - Keeps a TTL cache to avoid a DB access per request. When the admin screen saves,
+      ``SystemSettingService`` calls ``invalidate()`` so the change applies immediately.
+    - Reads through a dedicated short-lived connection (so the transaction state of
+      the shared session is not disturbed).
     """
 
     _SETTING_KEY = "app.config"
@@ -59,8 +59,8 @@ class _DatabaseOverrides:
 
     def get(self, key: str) -> Any:
         if key not in DEFAULT_APPLICATION_SETTINGS:
-            # DB 上書き対象は管理画面で編集可能なキーのみ。DATABASE_URI 等の
-            # ブートストラップ用キーをここで解決すると再帰する。
+            # Only keys editable on the admin screen are overridden from the DB. Resolving
+            # bootstrap keys such as DATABASE_URI here would recurse.
             return None
         if getattr(self._loading, "active", False):
             return None
@@ -78,18 +78,18 @@ class _DatabaseOverrides:
                 self._payload = payload
             self._note_readable()
         except Exception:
-            # 直近の正常値を保持したまま、次の TTL まで再試行しない
+            # Keep the last good values and do not retry until the next TTL
             self._note_unreadable()
         finally:
             self._loading.active = False
             self._expires_at = time.monotonic() + self._TTL_SECONDS
 
     def _note_unreadable(self) -> None:
-        """DB から設定を読めなくなったことを知らせる。
+        """Report that settings can no longer be read from the DB.
 
-        黙って握り潰すと「管理画面で保存した値が効かない」という症状だけが残り、
-        原因（DB 未接続・マイグレーション前）がどこにも出ない。ただし TTL ごとに
-        出すとログが溢れるので、**状態が変わったときだけ** 1 行出す。
+        Swallowing it silently leaves only the symptom "a value saved on the admin screen
+        has no effect", with the cause (DB not reachable, before migrations) shown nowhere.
+        Logging every TTL would flood the log, so emit one line **only when the state changes**.
         """
         if self._unreadable:
             return
@@ -113,39 +113,40 @@ class _DatabaseOverrides:
         return value if isinstance(value, dict) else {}
 
 
-#: SSO のコールバック経路。``OIDC_REDIRECT_URI`` 未設定時の組み立てに使う
-#: （ルーターの ``prefix`` と対で合わせる）。
+#: SSO callback path. Used to build ``OIDC_REDIRECT_URI`` when it is not set
+#: (keep in sync with the router ``prefix``).
 OIDC_CALLBACK_PATH = "/api/auth/sso/callback"
 
-#: RP-Initiated Logout の着地点。``OIDC_POST_LOGOUT_REDIRECT_URI`` 未設定時の
-#: 組み立てに使う（ルーターの ``prefix`` と対で合わせる）。
+#: Landing path of RP-Initiated Logout. Used to build ``OIDC_POST_LOGOUT_REDIRECT_URI``
+#: when it is not set (keep in sync with the router ``prefix``).
 OIDC_SIGNED_OUT_PATH = "/api/auth/sso/signed-out"
 
 
 class ApplicationSettings:
-    """DB・環境変数・デフォルト値を統合して設定値を返す（この順に強い）。"""
+    """Merge DB, env vars and defaults into setting values (strongest first)."""
 
     def __init__(self, env: Mapping[str, str] | None = None) -> None:
         self._env: Mapping[str, str] = os.environ if env is None else env
         self._db = _DatabaseOverrides()
 
     # ------------------------------------------------------------------
-    # 解決ロジック
+    # Resolution logic
     # ------------------------------------------------------------------
 
     def _get(self, key: str, default: Any = None) -> Any:
-        """⚠ **DB（管理画面）が環境変数より強い。**
+        """⚠ **The DB (admin screen) beats environment variables.**
 
-        環境変数は「配るときの初期値」であって、**運用中に決め直す場所は画面**
-        である ——逆にすると、compose に 1 行書いた時点でその鍵は画面から
-        触れなくなり、**画面に出ているのに変えられない**状態になる。
+        Environment variables are "initial values at deploy time"; **the place to change a value
+        during operation is the screen**. The other way round, once someone writes a line in
+        compose, that key can no longer be changed from the screen: **it is shown on the screen
+        but cannot be changed**.
 
-        ⚠ **ブートストラップの鍵はこの順序の外**（`DATABASE_URI` など）。
-        解決に DB 接続が要る鍵を DB から読むと再帰するので、下の節では
-        `self._env` を直接読んでいる。
+        ⚠ **Bootstrap keys are outside this order** (`DATABASE_URI` etc.). Reading a key from
+        the DB that is needed to connect to the DB would recurse, so the section below reads
+        `self._env` directly.
 
-        ⚠ **通信先と鍵の場所（`ENV_ONLY_SETTINGS`）も順序の外**（ADR-0090）。DB に値が
-        残っていても読まない。
+        ⚠ **Outbound destinations and key locations (`ENV_ONLY_SETTINGS`) are also outside the
+        order** (ADR-0090). A value left in the DB is not read.
         """
         if key not in ENV_ONLY_SETTINGS:
             db_value = self._db.get(key)
@@ -157,9 +158,9 @@ class ApplicationSettings:
         return DEFAULT_APPLICATION_SETTINGS.get(key, default)
 
     def resolve(self, key: str, default: Any = None) -> Any:
-        """キーを優先順位どおりに解決する（管理画面の現在値表示用）。
+        """Resolve a key in precedence order (for showing current values on the admin screen).
 
-        通常のコードは型付きの ``@property`` を使うこと。
+        Regular code should use the typed ``@property`` accessors.
         """
         return self._get(key, default)
 
@@ -188,11 +189,11 @@ class ApplicationSettings:
         return list(value) if isinstance(value, (list, tuple)) else []
 
     def reload_db_overrides(self) -> None:
-        """DB 上書きキャッシュを破棄する（設定保存直後・テスト後始末用）。"""
+        """Discard the DB override cache (right after saving settings, and for test cleanup)."""
         self._db.invalidate()
 
     # ------------------------------------------------------------------
-    # ブートストラップ（環境変数のみ。DB 上書き対象外）
+    # Bootstrap (environment variables only; never overridden from the DB)
     # ------------------------------------------------------------------
 
     @property
@@ -209,20 +210,22 @@ class ApplicationSettings:
 
     @property
     def app_client_ids(self) -> frozenset[str]:
-        """assay のアクセストークンを受け取ってよいクライアント（アプリ）の ``client_id``（ADR-0081 §1）。
+        """``client_id`` of the clients (apps) whose assay access tokens may be accepted (ADR-0081 §1).
 
-        ⚠ **環境変数だけ。** 画面から足せると、別のクライアント宛てのトークンがこのアプリの
-        API を通る。空なら assay のトークンは一切受け取らない。
+        ⚠ **Environment variable only.** If it could be added from the screen, tokens issued for
+        another client would pass this app's API. When empty, no assay token is accepted at all.
         """
         return frozenset(_env_list(self._env.get("APP_CLIENT_IDS")))
 
     @property
     def machine_clients(self) -> list[object]:
-        """機械の口の許可簿（JSON の配列。ADR-0087）。1 行は
-        ``{"client_id", "name", "acts_as", "operations": ["<権限コード>", ...]}``。
+        """Allow list of the machine endpoints (a JSON array; ADR-0087). Each entry is
+        ``{"client_id", "name", "acts_as", "operations": ["<permission code>", ...]}``.
 
-        ⚠ **環境変数だけ。** 画面から足せると、設定を書ける人が機械に何でもさせられる。
-        ⚠ **JSON の配列でなければ空**（綴りを間違えた設定で誰かを通さない）。空なら機械の口は閉じる。
+        ⚠ **Environment variable only.** If it could be added from the screen, anyone who can
+        write settings could make a machine do anything.
+        ⚠ **Empty unless it is a JSON array** (a misspelled setting must not let anyone in).
+        When empty, the machine endpoints are closed.
         """
         raw = self._env.get("MACHINE_CLIENTS")
         if not raw:
@@ -236,24 +239,26 @@ class ApplicationSettings:
 
     @property
     def machine_audience(self) -> str:
-        """機械の口が受け取るトークンの宛名（``aud``。assay に登録した ``resources`` の名前。ADR-0082 §2 決定 4）。
+        """Audience (``aud``) of tokens accepted by the machine endpoints: the name of the
+        ``resources`` registered in assay (ADR-0082 §2 decision 4).
 
-        ⚠ **環境変数だけ。空なら機械の口は閉じる**（宛名を見ないと、別のアプリ宛てのトークンが通る）。
+        ⚠ **Environment variable only. When empty, the machine endpoints are closed** (without
+        checking the audience, tokens meant for another app would pass).
         """
         return (self._env.get("MACHINE_AUDIENCE") or "").strip()
 
     @property
     def android_app_package(self) -> str:
-        """App Links で戻す Android アプリのパッケージ名（``assetlinks.json``。ADR-0081 §1）。"""
+        """Package name of the Android app that App Links return to (``assetlinks.json``; ADR-0081 §1)."""
         return (self._env.get("ANDROID_APP_PACKAGE") or "").strip()
 
     @property
     def android_app_cert_fingerprints(self) -> tuple[str, ...]:
-        """そのアプリの署名証明書の SHA-256 指紋（``AA:BB:…`` 形式）。"""
+        """SHA-256 fingerprints of that app's signing certificate (``AA:BB:…`` format)."""
         return tuple(_env_list(self._env.get("ANDROID_APP_CERT_FINGERPRINTS")))
 
     # ------------------------------------------------------------------
-    # 認証
+    # Authentication
     # ------------------------------------------------------------------
 
     @property
@@ -274,13 +279,14 @@ class ApplicationSettings:
 
     @property
     def refresh_token_expires_seconds(self) -> int:
-        """⚠ 使えない値（0 以下・長すぎ）は既定へ戻す。環境変数は保存時の検査を通らない（ADR-0101）。"""
+        """⚠ Unusable values (0 or less, too long) fall back to the default. Env vars skip the
+        validation done on save (ADR-0101)."""
         value = self.get_int("REFRESH_TOKEN_EXPIRES_SECONDS", DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS)
         return value if 0 < value <= MAX_REFRESH_TOKEN_EXPIRES_SECONDS else DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS
 
     @property
     def refresh_token_sliding_enabled(self) -> bool:
-        """更新のたびに寿命を今から数え直すか。偽ならログインから数える（ADR-0101）。"""
+        """Whether each refresh restarts the lifetime from now. If false, count from sign-in (ADR-0101)."""
         return self.get_bool("REFRESH_TOKEN_SLIDING_ENABLED", True)
 
     @property
@@ -293,12 +299,14 @@ class ApplicationSettings:
 
     @property
     def recent_sign_in_seconds(self) -> int:
-        """入り口を作り替える操作を許す、サインインからの秒数（ADR-0076 §10）。"""
+        """Seconds since sign-in during which operations that rebuild sign-in methods are allowed
+        (ADR-0076 §10)."""
         return max(self.get_int("RECENT_SIGN_IN_SECONDS", 600), 1)
 
     @property
     def login_max_failures(self) -> int:
-        """窓の中で何回まで失敗を許すか。``0`` で数えない（本番で 0 にしない。ADR-0076 §9）。"""
+        """How many failures are allowed within the window. ``0`` disables counting (never 0 in
+        production; ADR-0076 §9)."""
         return max(self.get_int("LOGIN_MAX_FAILURES", 5), 0)
 
     @property
@@ -310,7 +318,7 @@ class ApplicationSettings:
         return max(self.get_int("LOGIN_LOCK_SECONDS", 900), 1)
 
     # ------------------------------------------------------------------
-    # 二要素認証（TOTP）
+    # Two-factor authentication (TOTP)
     # ------------------------------------------------------------------
 
     @property
@@ -322,7 +330,7 @@ class ApplicationSettings:
         return self.get_int("TOTP_VALID_WINDOW", 1)
 
     # ------------------------------------------------------------------
-    # パスキー（WebAuthn）
+    # Passkeys (WebAuthn)
     # ------------------------------------------------------------------
 
     @property
@@ -342,7 +350,7 @@ class ApplicationSettings:
         return self.get_int("WEBAUTHN_CHALLENGE_TTL_SECONDS", 300)
 
     # ------------------------------------------------------------------
-    # 一般
+    # General
     # ------------------------------------------------------------------
 
     @property
@@ -367,11 +375,11 @@ class ApplicationSettings:
 
     @property
     def trusted_proxy_hops(self) -> int:
-        """信頼できるリバースプロキシの段数（0 = ``X-Forwarded-For`` を信用しない）。"""
+        """Number of trusted reverse proxy hops (0 = do not trust ``X-Forwarded-For``)."""
         return max(self.get_int("TRUSTED_PROXY_HOPS", 0), 0)
 
     # ------------------------------------------------------------------
-    # メール
+    # Mail
     # ------------------------------------------------------------------
 
     @property
@@ -407,7 +415,7 @@ class ApplicationSettings:
         return str(self._get("MAIL_DEFAULT_SENDER") or "")
 
     # ------------------------------------------------------------------
-    # ログ
+    # Logging
     # ------------------------------------------------------------------
 
     @property
@@ -420,79 +428,84 @@ class ApplicationSettings:
 
     @property
     def log_db_min_level(self) -> str:
-        """DB（``log`` テーブル）へ書くレコードの下限レベル。"""
+        """Minimum level of records written to the DB (``log`` table)."""
         return str(self._get("LOG_DB_MIN_LEVEL"))
 
     @property
     def log_retention_days(self) -> int:
-        """``log`` を残す日数。``0`` は削除しない（ADR-0075 §3）。"""
+        """Days to keep ``log``. ``0`` never deletes (ADR-0075 §3)."""
         return self.get_int("LOG_RETENTION_DAYS", 0)
 
     @property
     def audit_log_retention_days(self) -> int:
-        """``audit_log`` を残す日数。``0`` は削除しない（ADR-0075 §3）。"""
+        """Days to keep ``audit_log``. ``0`` never deletes (ADR-0075 §3)."""
         return self.get_int("AUDIT_LOG_RETENTION_DAYS", 0)
 
     # ------------------------------------------------------------------
-    # 通知（ADR-0081 §3）
+    # Notifications (ADR-0081 §3)
     # ------------------------------------------------------------------
 
     @property
     def web_push_vapid_private_key_file(self) -> str:
-        """Web Push の VAPID 秘密鍵（PEM）のファイルの場所。空なら端末への通知を出さない。
+        """Location of the file holding the Web Push VAPID private key (PEM). When empty, no
+        device notifications are sent.
 
-        ⚠ **値ではなく場所で持つ。** 中身は送るたびにファイルから読むので、設定の一覧にも
-        バックアップにも載らない。
+        ⚠ **Held by location, not by value.** The content is read from the file on every send,
+        so it appears neither in the settings list nor in backups.
         """
         return self._text("WEB_PUSH_VAPID_PRIVATE_KEY_FILE")
 
     @property
     def web_push_subject(self) -> str:
-        """通知サービスへ名乗る連絡先（``mailto:`` / ``https:``）。"""
+        """Contact the app identifies itself with to the push service (``mailto:`` / ``https:``)."""
         return self._text("WEB_PUSH_SUBJECT")
 
     @property
     def fcm_service_account_file(self) -> str:
-        """Firebase のサービスアカウントの鍵（JSON）のファイルの場所。空ならアプリへ送らない（ADR-0081 §5）。"""
+        """Location of the Firebase service account key file (JSON). When empty, nothing is sent to
+        the apps (ADR-0081 §5)."""
         return self._text("FCM_SERVICE_ACCOUNT_FILE")
 
     # ------------------------------------------------------------------
-    # スマホアプリの最新版（ADR-0081 §4）
+    # Latest mobile app release (ADR-0081 §4)
     # ------------------------------------------------------------------
 
     @property
     def app_release_s3_endpoint_url(self) -> str:
-        """スマホアプリの配布面（S3 互換の置き場）の URL。空なら最新版を知らせない。"""
+        """URL of the mobile app distribution store (S3-compatible). When empty, no latest version
+        is announced."""
         return self._text("APP_RELEASE_S3_ENDPOINT_URL")
 
     @property
     def app_release_s3_region(self) -> str:
-        """配布面の region。Garage は ``garage``（置き場の ``s3_region`` と揃える）。"""
+        """Region of the distribution store. ``garage`` for Garage (match the store's ``s3_region``)."""
         return self._text("APP_RELEASE_S3_REGION")
 
     @property
     def app_release_s3_bucket(self) -> str:
-        """配布面のバケット（``artifacts``）。"""
+        """Bucket of the distribution store (``artifacts``)."""
         return self._text("APP_RELEASE_S3_BUCKET")
 
     @property
     def app_release_s3_object_key(self) -> str:
-        """配布手順が最新版を指して書くオブジェクト（``<アプリ名>/latest.json``）。"""
+        """Object the release procedure writes to point at the latest version
+        (``<app name>/latest.json``)."""
         return self._text("APP_RELEASE_S3_OBJECT_KEY")
 
     @property
     def app_release_s3_access_key_id(self) -> str:
-        """配布面を読む鍵の ID（秘密ではない。秘密は下のファイルの中）。"""
+        """ID of the key that reads the distribution store (not secret; the secret is in the file below)."""
         return self._text("APP_RELEASE_S3_ACCESS_KEY_ID")
 
     @property
     def app_release_s3_secret_access_key_file(self) -> str:
-        """配布面を読む鍵の秘密が入ったファイルのパス（⚠ 値ではなく場所で持つ）。"""
+        """Path of the file holding that key's secret (⚠ held by location, not by value)."""
         return self._text("APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE")
 
     @property
     def app_release_download_url(self) -> str:
-        """最新版の知らせを押したときにブラウザで開く先。空なら知らせに行き先を付けない。"""
+        """Where the browser goes when the latest-version notice is tapped. When empty, the notice
+        has no link."""
         return self._text("APP_RELEASE_DOWNLOAD_URL")
 
     def _text(self, key: str) -> str:
@@ -500,19 +513,20 @@ class ApplicationSettings:
         return str(value).strip() if value else ""
 
     # ------------------------------------------------------------------
-    # 外部 IdP との SSO（ADR-0077 §1 / ADR-0076 §3）
+    # SSO with an external IdP (ADR-0077 §1 / ADR-0076 §3)
     # ------------------------------------------------------------------
 
     @property
     def oidc_enabled(self) -> bool:
-        """SSO を使うか。**設定が揃っているかまでは見ない**（:attr:`oidc_configured`）。"""
+        """Whether SSO is used. **Does not check whether the configuration is complete**
+        (:attr:`oidc_configured`)."""
         return self.get_bool("OIDC_ENABLED", False)
 
     @property
     def oidc_configured(self) -> bool:
-        """有効かつ接続先が埋まっているか（ログイン画面にボタンを出す判断）。
+        """Enabled and the endpoint is filled in (decides whether the sign-in screen shows the button).
 
-        資格情報まで揃っているかは ``ClientCredential`` が方式ごとに見る。
+        Whether the credentials are complete is checked per method by ``ClientCredential``.
         """
         return self.oidc_enabled and bool(self.oidc_issuer and self.oidc_client_id)
 
@@ -534,17 +548,17 @@ class ApplicationSettings:
 
     @property
     def oidc_client_auth_method(self) -> str:
-        """トークンエンドポイントへの client 認証方式（ADR-0077 §1 決定 5）。
+        """Client authentication method for the token endpoint (ADR-0077 §1 decision 5).
 
-        知らない値は既定へ落とさない（``ClientCredential`` が「不備」と判断する）。
+        Unknown values do not fall back to the default (``ClientCredential`` treats them as invalid).
         """
         return str(self._get("OIDC_CLIENT_AUTH_METHOD") or "").strip()
 
     @property
     def oidc_private_key_file(self) -> str:
-        """``private_key_jwt`` で署名する秘密鍵（PEM）の在り処。
+        """Location of the private key (PEM) used to sign ``private_key_jwt``.
 
-        ⚠ **ファイルとディレクトリの両方**でコンテナの実行 gid が通ること。
+        ⚠ The container's runtime gid must be able to access **both the file and its directory**.
         """
         return str(self._get("OIDC_PRIVATE_KEY_FILE") or "")
 
@@ -554,11 +568,12 @@ class ApplicationSettings:
 
     @property
     def machine_client_id(self) -> str:
-        """このアプリが**機械として**名乗る ``client_id``（ADR-0077 §7）。
+        """``client_id`` this app uses when acting **as a machine** (ADR-0077 §7).
 
-        ⚠ 利用者のログイン用（``OIDC_CLIENT_ID``）とは**別の登録**。鍵だけを共有する。
-        ⚠ **用途の名前を付けない**（``RECONCILE_…`` にしない）。どのアプリのものかは
-        assay が決めることで、こちらが用途ごとに名乗りを使い分けて申告するものではない。
+        ⚠ A **separate registration** from the one for user sign-in (``OIDC_CLIENT_ID``); only the
+        key is shared.
+        ⚠ **Do not name it after a purpose** (not ``RECONCILE_…``). Which app it belongs to is
+        assay's decision; this side does not declare different identities per purpose.
         """
         return str(self._get("MACHINE_CLIENT_ID") or "")
 
@@ -568,7 +583,7 @@ class ApplicationSettings:
 
     @property
     def oidc_redirect_uri(self) -> str:
-        """IdP に登録した折り返し先。空なら ``APP_BASE_URL`` から組み立てる。"""
+        """Redirect URI registered at the IdP. When empty, built from ``APP_BASE_URL``."""
         configured = str(self._get("OIDC_REDIRECT_URI") or "")
         if configured:
             return configured
@@ -577,31 +592,30 @@ class ApplicationSettings:
 
     @property
     def oidc_rp_logout_enabled(self) -> bool:
-        """サインアウトを IdP まで通すか（RP-Initiated Logout 1.0）。**既定は無効**。
+        """Whether sign-out is passed through to the IdP (RP-Initiated Logout 1.0). **Off by default.**
 
-        **有効にすると副作用がある。** 消えるのは IdP の SSO セッションなので、
-        このアプリのサインアウトが**他のアプリの次回 SSO ログイン**にも効く
-        （名乗り直しが要るようになる）。他アプリの既存セッションは切れない——
-        あれは各アプリ自身の Cookie で、IdP は ``backchannel_logout_uri`` を
-        登録したクライアントにしか知らせないため。
+        **Turning it on has side effects.** What ends is the IdP's SSO session, so signing out of
+        this app also affects **the next SSO sign-in of other apps** (they will need to sign in
+        again). Existing sessions of other apps are not ended: those are each app's own cookies,
+        and the IdP only notifies clients that registered a ``backchannel_logout_uri``.
 
-        **ローカル口座を持つアプリでは既定のまま無効でよい。** ``/logout`` が既に
-        自分のセッションを終わらせており、そこへ他アプリへの副作用を足す理由が無い。
-        有効にする価値があるのは、**SSO でしか入れないアプリ**（IdP のセッションが
-        唯一のセッション）と、**共有の端末で開く操作盤**（サインアウト後に
-        ボタン 1 つで入り直せると困るもの）。
+        **Apps with local accounts can leave it off.** ``/logout`` already ends this app's own
+        session, and there is no reason to add side effects on other apps. It is worth turning on
+        for **apps that can only be entered via SSO** (the IdP session is the only session) and
+        **control panels opened on shared devices** (where re-entering with one button after
+        sign-out would be a problem).
 
-        なお「このアプリだけ毎回名乗り直させたい」だけなら、こちらではなく
-        認可要求の ``prompt=login`` のほうが副作用が無い。
+        If all you want is "make users sign in again every time for this app only", the
+        authorization request's ``prompt=login`` has no side effects and is the better choice.
         """
         return self.get_bool("OIDC_RP_LOGOUT_ENABLED", False)
 
     @property
     def oidc_post_logout_redirect_uri(self) -> str:
-        """サインアウト後に IdP から戻ってくる先。空なら ``APP_BASE_URL`` から組み立てる。
+        """Where the IdP returns after sign-out. When empty, built from ``APP_BASE_URL``.
 
-        ⚠ **IdP 側の登録と完全一致でなければ使われない。** 未登録でも失敗はせず、
-        IdP 自身の完了ページで止まる（サインアウトそのものは効く）。
+        ⚠ **Only used if it exactly matches the IdP-side registration.** If unregistered, it does
+        not fail but stops at the IdP's own completion page (the sign-out itself still works).
         """
         configured = str(self._get("OIDC_POST_LOGOUT_REDIRECT_URI") or "")
         if configured:
@@ -611,7 +625,7 @@ class ApplicationSettings:
 
     @property
     def oidc_acr_values(self) -> Sequence[str]:
-        """要求する認証の強度。空 = 要求しない（ADR-0076 §3 決定 1）。"""
+        """Requested authentication strength. Empty = none requested (ADR-0076 §3 decision 1)."""
         return self.get_list("OIDC_ACR_VALUES")
 
     @property
@@ -636,10 +650,10 @@ class ApplicationSettings:
 
     @property
     def oidc_link_by_email(self) -> bool:
-        """初回ログインで、同じメールアドレスの既存の利用者へ寄せるか（ADR-0077 §4）。
+        """On first sign-in, whether to link to an existing user with the same email (ADR-0077 §4).
 
-        ⚠ **既定は寄せない。** 条件の ``email_verified`` の意味が IdP 側と食い違って
-        いると、相手のアドレスを名乗るだけで他人のアカウントへ入れる経路になる。
+        ⚠ **Not linked by default.** If the meaning of ``email_verified`` differs on the IdP side,
+        merely claiming someone's address becomes a way into their account.
         """
         return self.get_bool("OIDC_LINK_BY_EMAIL", False)
 
@@ -649,7 +663,7 @@ class ApplicationSettings:
 
     @property
     def oidc_login_transaction_ttl_seconds(self) -> int:
-        """認可要求からコールバックまでに許す時間（署名付き Cookie の寿命）。"""
+        """Time allowed from the authorization request to the callback (lifetime of the signed cookie)."""
         return self.get_int("OIDC_LOGIN_TRANSACTION_TTL_SECONDS", 600)
 
     @property
@@ -657,30 +671,31 @@ class ApplicationSettings:
         return self.get_int("OIDC_LOGIN_TICKET_TTL_SECONDS", 60)
 
     # ------------------------------------------------------------------
-    # ローカルの入口（ADR-0076 §3 決定 2・3）
+    # Local sign-in (ADR-0076 §3 decisions 2 and 3)
     # ------------------------------------------------------------------
 
     @property
     def local_login_enabled(self) -> bool:
-        """パスワード・パスキーでのログインと、ローカル資格情報の登録を許すか。
+        """Whether sign-in with password or passkey and registering local credentials are allowed.
 
-        ⚠ **締め出しの経路がある。** ``false`` のまま IdP が落ちる・最後の管理者が
-        IdP 側で止まると誰も入れなくなる。復旧は環境変数で ``true`` へ戻して再起動
-        （環境変数は DB の設定より優先される）。
+        ⚠ **There is a lockout path.** With ``false``, if the IdP goes down or the last
+        administrator is suspended at the IdP, nobody can get in. To recover, set the environment
+        variable back to ``true`` and restart (env vars take precedence over the DB setting).
         """
         return self.get_bool("LOCAL_LOGIN_ENABLED", True)
 
     @property
     def local_two_factor_required(self) -> bool:
-        """パスワードで入る人に二要素認証を必須にするか（ADR-0093）。
+        """Whether two-factor authentication is required for password sign-in (ADR-0093).
 
-        ローカルの入口が閉じていれば効かない。閉じていると登録の口も断るので、効かせると行き止まりになる。
+        Has no effect while local sign-in is closed. When closed, registration is refused too, so
+        enforcing it would be a dead end.
         """
         return self.local_login_enabled and self.get_bool("LOCAL_TWO_FACTOR_REQUIRED", False)
 
 
 def _env_list(raw: str | None) -> list[str]:
-    """環境変数のリスト（JSON の配列か、カンマ区切り）。空の要素は捨てる。"""
+    """List from an environment variable (a JSON array or comma-separated). Empty items are dropped."""
     if not raw:
         return []
     try:

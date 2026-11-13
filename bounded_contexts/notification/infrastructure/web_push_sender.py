@@ -1,10 +1,10 @@
-"""端末への通知を Web Push（VAPID）で送る（ADR-0081 §3）。
+"""Send device notifications via Web Push (VAPID) (ADR-0081 §3).
 
-暗号化（RFC 8291）と VAPID の署名（RFC 8292）は ``pywebpush`` に任せる。
+Encryption (RFC 8291) and the VAPID signature (RFC 8292) are left to ``pywebpush``.
 
-⚠ **秘密鍵は値ではなく場所で持つ**（``WEB_PUSH_VAPID_PRIVATE_KEY_FILE``）。中身は使うたびに
-ファイルから読む。⚠ **鍵を替えると、いまある購読はすべて届かなくなる**（購読は公開鍵に
-結び付いている）。利用者が画面で購読し直すまで端末への通知は出ない。
+⚠ **The private key is held by location, not value** (``WEB_PUSH_VAPID_PRIVATE_KEY_FILE``). Its content is
+read from the file on each use. ⚠ **Changing the key breaks every existing subscription** (subscriptions are
+bound to the public key). Devices get no notifications until users resubscribe in the UI.
 """
 
 from __future__ import annotations
@@ -25,14 +25,14 @@ from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
 
-#: 端末が電源を切っているあいだ、通知サービスに預けておく時間（秒）。
-#: 1 日を過ぎたお知らせは端末に出しても遅い（ベルには残っている）。
+#: How long the push service holds a notification while the device is off (seconds).
+#: A notification older than a day is too late to show on the device (it is still in the bell).
 _TTL_SECONDS = 24 * 60 * 60
 
-#: 通知サービス 1 件あたりの待ち時間（秒）。
+#: Timeout per push service request (seconds).
 _TIMEOUT_SECONDS = 10
 
-#: 通知サービスが「その購読はもう無い」と答える状態。
+#: Statuses with which the push service says the subscription is gone.
 _GONE_STATUSES = frozenset({404, 410})
 
 
@@ -59,13 +59,13 @@ class WebPushSender(PushSender):
             return None
         if self._vapid is None:
             try:
-                # ⚠ ``Vapid.from_file`` を使わない。ファイルが無いと**黙って新しい鍵を作って
-                #   その場所へ書き出す**。書けた場合は、配った公開鍵と違う鍵で署名し始め、
-                #   すべての購読が静かに届かなくなる。
+                # ⚠ Don't use ``Vapid.from_file``. If the file is missing it **silently creates a new key
+                #   and writes it to that location**. If the write succeeds, it starts signing with a key that
+                #   differs from the published public key and every subscription silently stops receiving.
                 pem = Path(self._private_key_file).read_bytes()
                 self._vapid = Vapid.from_pem(pem)
             except Exception:
-                # パスは秘密ではないので出してよい（どこを直せばよいかが分かる）。
+                # The path is not secret, so it may be logged (it shows what to fix).
                 logger.warning(
                     "web_push_key_unreadable",
                     extra={"event": "notification.push.key_unreadable", "path": self._private_key_file},
@@ -99,8 +99,8 @@ class WebPushSender(PushSender):
                 },
                 data=json.dumps(payload, ensure_ascii=False),
                 vapid_private_key=vapid,
-                # ⚠ pywebpush はこの dict に aud / exp を書き足す。使い回すと別の通知サービスの
-                #   aud が残るので、毎回作る。
+                # ⚠ pywebpush adds aud / exp to this dict. Reusing it would leave another push service's
+                #   aud behind, so build it every time.
                 vapid_claims={"sub": self._subject},
                 ttl=_TTL_SECONDS,
                 timeout=_TIMEOUT_SECONDS,

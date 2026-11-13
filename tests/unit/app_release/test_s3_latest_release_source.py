@@ -1,6 +1,6 @@
-"""配布面（Garage）から ``latest.json`` を読む実装（ADR-0081 §4）。
+"""Implementation that reads ``latest.json`` from the distribution store (Garage) (ADR-0081 §4).
 
-置き場へは行かない。``boto3.client`` を差し替え、渡した資格情報と読んだ先を見る。
+Does not go to the store. Replaces ``boto3.client`` and checks the credentials passed and the location read.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class _Client:
         self.body = body
         self.asked: list[tuple[str, str]] = []
 
-    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803 — boto3 の引数名
+    def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:  # noqa: N803 — boto3 argument names
         self.asked.append((Bucket, Key))
         if isinstance(self.body, Exception):
             raise self.body
@@ -33,7 +33,7 @@ class _Client:
 
 
 class _Boto3:
-    """``boto3.client`` の代わり。作るときに渡された引数を覚える。"""
+    """Stand-in for ``boto3.client``. Remembers the arguments it was created with."""
 
     def __init__(self, client: _Client) -> None:
         self.client_instance = client
@@ -81,9 +81,9 @@ def test_reads_the_manifest_with_the_secret_from_the_file(monkeypatch: pytest.Mo
     assert fake.client_instance.asked == [("artifacts", "photonestapp/latest.json")]
     assert fake.kwargs["endpoint_url"] == "http://garage.blob-prod.svc.cluster.local:3900"
     assert fake.kwargs["aws_access_key_id"] == "GKexample"
-    # 末尾の改行は落として渡す（ファイルに書くとき付きがち）。
+    # Passed with the trailing newline dropped (files often end with one).
     assert fake.kwargs["aws_secret_access_key"] == _SECRET
-    # Garage はバケット名をホスト名に載せる形を引けない。
+    # Garage cannot resolve the bucket name placed in the host name.
     assert fake.kwargs["config"].s3 == {"addressing_style": "path"}
 
 
@@ -97,12 +97,12 @@ def test_anything_missing_means_the_feature_is_off(
     fake = _install(monkeypatch, b"{}")
 
     assert _source(secret_file, **{missing: ""}).fetch() is None
-    # 置き場へは行かない。
+    # Does not go to the store.
     assert fake.client_instance.asked == []
 
 
 def test_an_unreadable_secret_file_is_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """パスは設定にあるのに読めない ——運用で気付くべき異常なので「使っていない」と区別する。"""
+    """The path is configured but unreadable: an anomaly operators should notice, so distinguish it from "unused"."""
     _install(monkeypatch, b"{}")
 
     with pytest.raises(AppReleaseUnavailableError, match="secret access key file"):
@@ -132,7 +132,7 @@ def test_a_store_failure_is_unavailable(monkeypatch: pytest.MonkeyPatch, secret_
     with pytest.raises(AppReleaseUnavailableError) as raised:
         _source(secret_file).fetch()
 
-    # 秘密は例外の文言（＝記録）に載らない。
+    # Secrets do not appear in the exception text (= the record).
     assert _SECRET not in str(raised.value)
 
 

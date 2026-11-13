@@ -1,4 +1,4 @@
-"""使えなくなったパスワード再設定トークンの掃除（ADR-0097）。"""
+"""Cleaning up password-reset tokens that can no longer be used (ADR-0097)."""
 
 from __future__ import annotations
 

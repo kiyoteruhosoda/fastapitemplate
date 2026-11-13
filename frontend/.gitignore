@@ -1,9 +1,9 @@
 node_modules/
-# worktree では node_modules が**本体への symlink**として貸される。末尾 `/` の
-# パターンはディレクトリにしか当たらないので、symlink はこの行が無いと未追跡で残る。
+# In worktrees, node_modules is lent as a **symlink to the main checkout**. Patterns ending in
+# `/` only match directories, so without this line the symlink stays untracked.
 node_modules
 dist/
 *.local
-# E2E（Playwright）の結果
+# E2E (Playwright) results
 playwright-report/
 test-results/

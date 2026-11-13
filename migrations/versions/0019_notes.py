@@ -1,11 +1,11 @@
 """notes
 
-共有メモ（``bounded_contexts/notes``。ADR-0078 §6 の見本）の表 ``notes`` を足し、権限
-``note:view`` / ``note:write`` を投入する。定義の正本は
-``bounded_contexts/notes/infrastructure/note_model.py``、権限の正本は
-``shared/domain/auth/master_data.py``（ここへ直書きしない）。
+Add the ``notes`` table for shared notes (``bounded_contexts/notes``; the example for ADR-0078 §6)
+and seed the permissions ``note:view`` / ``note:write``. The definition lives in
+``bounded_contexts/notes/infrastructure/note_model.py``, the permissions in
+``shared/domain/auth/master_data.py`` (not hard-coded here).
 
-初期管理者は据えない（ADR-0078 §3）。
+Does not seat the initial administrator (ADR-0078 §3).
 
 Revision ID: notes
 Revises: password_token_purpose
@@ -50,7 +50,7 @@ def upgrade() -> None:
     op.create_index("ix_notes_owner_user_id", "notes", ["owner_user_id"])
     op.create_index("ix_notes_shared_group_id", "notes", ["shared_group_id"])
 
-    # 権限の投入は seed_master_data の再実行で行う（冪等。0005 と同じ）。
+    # Permissions are seeded by re-running seed_master_data (idempotent; same as 0005).
     from shared.infrastructure.master_data_seeder import seed_master_data
 
     session = Session(bind=op.get_bind())

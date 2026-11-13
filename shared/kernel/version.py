@@ -1,11 +1,11 @@
-"""アプリ自身の名前と、ビルド・バージョン情報。
+"""The app's own name, and build/version information.
 
-Docker ビルド時に ``scripts/generate_version.sh`` が ``shared/kernel/version.json``
-を生成し、ここで読み込む。ローカル開発では環境変数フォールバックのみで動く。
+At Docker build time ``scripts/generate_version.sh`` generates ``shared/kernel/version.json``,
+which is read here. In local development it runs on environment variable fallbacks only.
 
-**名前の正本は ``pyproject.toml`` の ``[project].name``**（ADR-0073 §2）。ここから
-FastAPI の題と、外へ出るときに名乗る User-Agent が導かれる。テンプレートから
-起こしたアプリは名前を変える約束なので、変えた時点でどちらも追随する。
+**The name's source of truth is ``[project].name`` in ``pyproject.toml``** (ADR-0073 §2). The
+FastAPI title and the User-Agent used for outbound requests are derived from it. Apps created
+from the template promise to change the name, and both follow as soon as it is changed.
 """
 
 from __future__ import annotations
@@ -19,20 +19,20 @@ from pathlib import Path
 
 _VERSION_FILE = Path(__file__).with_name("version.json")
 
-#: 名前の正本。``shared/kernel/`` から見てリポジトリの根。
+#: Source of the name. The repository root as seen from ``shared/kernel/``.
 _PYPROJECT_FILE = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
-#: 名前が読めなかったときに名乗るもの。**テンプレート名を既定にしない**
-#: （読めていないことに気付けなくなる）。
+#: Name used when the name cannot be read. **Do not default to the template name**
+#: (it would hide the fact that reading failed).
 _FALLBACK_NAME = "app"
 
 
 @lru_cache(maxsize=1)
 def project_name() -> str:
-    """このアプリ自身の名前（``pyproject.toml`` の ``[project].name``）。
+    """This app's own name (``[project].name`` in ``pyproject.toml``).
 
-    ⚠ **1 度読んだら覚える。** 名前はプロセスの一生のあいだ変わらないので、
-    要求のたびにファイルを開く理由が無い。
+    ⚠ **Remembered once read.** The name never changes during the process's lifetime, so there is
+    no reason to open the file on every request.
     """
     try:
         with _PYPROJECT_FILE.open("rb") as handle:

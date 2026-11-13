@@ -1,12 +1,12 @@
-"""notes コンテキストの API（共有メモ。ADR-0078 §6 の見本）。
+"""notes context API (shared notes; sample for ADR-0078 §6).
 
-認可は 2 段で掛ける。
+Authorization is applied in two stages.
 
-1. **機能を使えるか** —— トークンの scope（``note:view`` / ``note:write``）。依存関数が
-   DB を引かずに確かめる（ADR-0076 §5）。
-2. **この 1 件を扱えるか** —— 持ち主とグループの所属。ユースケースが DB を引いて確かめる。
+1. **May the feature be used** -- the token's scope (``note:view`` / ``note:write``). The dependency
+   checks it without hitting the DB (ADR-0076 §5).
+2. **May this particular note be handled** -- owner and group membership. The use case checks them in the DB.
 
-scope に資源の ID（``note:42:edit`` のようなもの）は載せない。
+Resource IDs (like ``note:42:edit``) are not put in scopes.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 class NoteRequest(BaseModel):
     title: str = Field(min_length=1, max_length=TITLE_MAX_LENGTH, pattern=r"\S")
     body: str = Field(default="", max_length=BODY_MAX_LENGTH)
-    #: 共有先のグループ。``null`` は自分だけ
+    #: Group shared with. ``null`` means private
     shared_group_id: int | None = None
 
     def to_input(self) -> NoteInput:
@@ -48,7 +48,7 @@ class NoteResponse(BaseModel):
     body: str
     shared_group_id: int | None
     mine: bool
-    #: この 1 件を書き換え・削除できるか（持ち主か）。画面は scope の note:write と合わせて出し分ける
+    #: Whether the caller may modify/delete this note (is the owner). The UI combines it with the note:write scope
     can_change: bool
 
     @classmethod
@@ -79,7 +79,7 @@ WriterDep = Annotated[AuthenticatedPrincipal, Depends(require_permission("note:w
 
 @router.get("", response_model=list[NoteResponse])
 def list_notes(principal: ReaderDep, book: NoteBookDep) -> list[NoteResponse]:
-    """自分のメモと、自分が入っているグループに共有されたメモ。"""
+    """The caller's own notes and notes shared with groups the caller belongs to."""
     return [NoteResponse.of(dto) for dto in book.list_readable(principal.user_id)]
 
 
@@ -92,7 +92,7 @@ def create_note(body: NoteRequest, principal: WriterDep, book: NoteBookDep) -> N
 
 @router.get("/share-targets", response_model=list[ShareTargetResponse])
 def list_share_targets(principal: WriterDep, book: NoteBookDep) -> list[ShareTargetResponse]:
-    """共有先に選べるグループ（自分が入っているものだけ）。"""
+    """Groups that may be chosen as the share target (only those the caller belongs to)."""
     return [ShareTargetResponse(id=t.id, name=t.name) for t in book.share_targets(principal.user_id)]
 
 

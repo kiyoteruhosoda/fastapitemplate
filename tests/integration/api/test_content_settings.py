@@ -1,4 +1,4 @@
-"""コンテンツ設定の API（ADR-0085）と、それを読む見本（アイテムの一覧の並び順）。"""
+"""Content-settings API (ADR-0085) and the sample that reads it (item list order)."""
 
 from __future__ import annotations
 

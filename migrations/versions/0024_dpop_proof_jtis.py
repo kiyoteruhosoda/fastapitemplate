@@ -1,7 +1,8 @@
 """dpop proof jtis
 
-受けた DPoP の証明を鍵ごとに 1 回だけにする記録 ``dpop_proof_jtis`` を足す（ADR-0103）。定義の正本は
-``bounded_contexts/identity_federation/infrastructure/identity_federation_models.py``。
+Add ``dpop_proof_jtis``, the record that accepts each received DPoP proof only once per key
+(ADR-0103). The definition lives in
+``bounded_contexts/identity_federation/infrastructure/identity_federation_models.py``.
 
 Revision ID: dpop_proof_jtis
 Revises: item_timestamps

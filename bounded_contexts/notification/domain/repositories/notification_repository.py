@@ -13,27 +13,27 @@ from bounded_contexts.notification.domain.entities.notification import (
 class INotificationRepository(ABC):
     @abstractmethod
     def add(self, notification: Notification, recipient_user_ids: list[int]) -> Notification:
-        """お知らせを保存し、宛先の 1 人ずつに配る（ID を振ったものを返す）。"""
+        """Save the notification and deliver it to each member of the audience (returns it with its ID)."""
 
     @abstractmethod
     def inbox(self, user_id: int, *, limit: int) -> list[InboxEntry]:
-        """その利用者に配られたもの（新しい順）。"""
+        """What was delivered to that user (newest first)."""
 
     @abstractmethod
     def unread_count(self, user_id: int) -> int:
-        """ベルに出る数（``bell`` を含み、まだ読んでいないもの）。"""
+        """Count shown on the bell (includes ``bell`` and not yet read)."""
 
     @abstractmethod
     def mark_read(self, user_id: int, notification_id: int, at: datetime) -> bool:
-        """既読にする。その人宛てでなければ ``False``。"""
+        """Mark as read. ``False`` if it is not addressed to that user."""
 
     @abstractmethod
     def mark_all_read(self, user_id: int, at: datetime) -> None: ...
 
     @abstractmethod
     def dismiss(self, user_id: int, notification_id: int, at: datetime) -> bool:
-        """画面上部から閉じる（既読にもする）。その人宛てでなければ ``False``。"""
+        """Dismiss from the top of the screen (also marks as read). ``False`` if it is not addressed to that user."""
 
     @abstractmethod
     def sent(self, *, limit: int) -> list[SentNotification]:
-        """送った記録（新しい順）。"""
+        """Sent records (newest first)."""

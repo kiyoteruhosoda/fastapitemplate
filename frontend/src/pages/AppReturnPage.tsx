@@ -1,13 +1,14 @@
 /**
- * アプリのログインの戻り先（S16。`/app/oauth2redirect`。ADR-0081 §1 / ADR-0081 §2）。
+ * Return target of the app's login (S16. `/app/oauth2redirect`. ADR-0081 §1 / ADR-0081 §2).
  *
- * ふだんは Android が App Links でアプリへ渡すので、この画面は出ない。出るのは
- * PC で開いた・アプリが入っていない・結び付けの確認（assetlinks.json）が済んでいない
- * ときと、⚠ **アプリの中のタブ（Custom Tab）が自動の移動ではアプリを開かなかったとき**である
- * （Chrome は利用者のタップの直後でない移動では、ほかのアプリを開かない。ADR-0081 §2）。
- * 後者のために、認可コードが付いているときは**同じ URL をもう一度開くボタン**を出す。
- * タップで開き直せば、Chrome がアプリへ渡す。**ここではログインを続けない**
- * （認可コードはアプリしか引き換えられない。PC で押しても同じ画面に戻るだけ）。
+ * Normally Android hands it to the app via App Links, so this page does not appear. It appears
+ * when opened on a PC, when the app is not installed, when the link verification
+ * (assetlinks.json) is not done, and note: **when the in-app tab (Custom Tab) did not open the
+ * app on an automatic navigation** (Chrome does not open another app on a navigation that does
+ * not directly follow a user tap. ADR-0081 §2).
+ * For the latter, when an authorization code is present, a **button that reopens the same URL**
+ * is shown. Reopening with a tap makes Chrome hand it to the app. **Login does not continue here**
+ * (only the app can redeem the authorization code; pressing it on a PC just returns to this page).
  */
 import { Link, useLocation } from 'react-router-dom'
 

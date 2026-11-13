@@ -1,4 +1,4 @@
-"""ログインの控えとリフレッシュトークンの振り替え（ADR-0091）。"""
+"""Sign-in records and refresh-token rotation (ADR-0091)."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def _refresh_cookie(client: TestClient) -> str:
 
 
 def _present(client: TestClient, token: str) -> int:
-    """手元に控えたトークンを更新の口へ出す。"""
+    """Presents a token kept in hand to the refresh entrance."""
     client.cookies.delete(REFRESH_TOKEN_COOKIE)
     client.cookies.set(REFRESH_TOKEN_COOKIE, token, path=REFRESH_COOKIE_PATH)
     return client.post(_REFRESH, headers=_headers(client)).status_code
@@ -90,7 +90,7 @@ def test_a_used_token_is_refused_and_ends_only_that_sign_in(
 
     with patch("presentation.fastapi.services.refresh_sessions.utcnow", return_value=_after_the_grace()):
         assert _present(client, used) == 401
-    # 盗まれた 1 本で、今の 1 本も止まる（どちらが本人か分からない）
+    # One stolen token also stops the current one (we cannot tell which is the real user)
     assert _present(client, latest) == 401
     assert other_client.post(_REFRESH, headers=_headers(other_client)).status_code == 200
 
@@ -104,7 +104,7 @@ def test_a_used_token_is_refused_and_ends_only_that_sign_in(
 
 
 def test_a_refresh_racing_from_another_tab_does_not_sign_out(client: TestClient) -> None:
-    """負けた側はアクセストークンだけを受け取り、Cookie は勝った側のものが残る。"""
+    """The losing side gets only an access token; the winning side's cookie remains."""
     sign_in(client, _EMAIL, _PASSWORD)
     first = _refresh_cookie(client)
     assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
@@ -123,13 +123,13 @@ def test_a_refresh_racing_from_another_tab_does_not_sign_out(client: TestClient)
 
 
 def test_a_chain_of_refreshes_from_several_tabs_does_not_sign_out(client: TestClient) -> None:
-    """1 つ目のタブが振り替えた直後に 2 つ目が新しい 1 本で更新しても、3 つ目の古い 1 本は使い回しにならない。"""
+    """Right after tab 1 rotates, tab 2 refreshing with the new token does not make tab 3's old token count as reuse."""
     sign_in(client, _EMAIL, _PASSWORD)
     first = _refresh_cookie(client)
     assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
     second = _refresh_cookie(client)
 
-    # 振り替えたばかりなので、今の 1 本でも振り替えない
+    # Just rotated, so even the current token is not rotated
     assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
     assert _refresh_cookie(client) == second
 
@@ -148,7 +148,7 @@ def test_the_current_token_rotates_again_after_the_grace(client: TestClient) -> 
 
 
 def test_the_rotation_is_committed_before_the_response(db_session: Session) -> None:
-    """行のロックを応答まで持ち越すと、同じプロセスの次の更新がイベントループごと止まる（MariaDB）。"""
+    """Holding the row lock until the response stalls the next refresh in the process, event loop and all (MariaDB)."""
     user = db_session.scalars(sa.select(User).where(User.email == _EMAIL)).one()
     establish_session(Response(), user)
     db_session.commit()
@@ -161,7 +161,7 @@ def test_the_rotation_is_committed_before_the_response(db_session: Session) -> N
 
 
 def test_the_rotation_sets_the_previous_token_first(client: TestClient, engine: sa.Engine) -> None:
-    """MariaDB は SET を左から評価する。current_jti が先だと previous_jti に新しい値が入る（SQLite では起きない）。"""
+    """MariaDB evaluates SET left to right. With current_jti first, previous_jti gets the new value (not on SQLite)."""
     sign_in(client, _EMAIL, _PASSWORD)
     statements: list[str] = []
 
@@ -205,7 +205,7 @@ def test_a_signed_out_session_cannot_reissue_with_the_access_token_it_kept(clien
 
 
 def test_a_token_without_a_session_is_refused(client: TestClient) -> None:
-    """控えの仕組みより前に出したトークン。使い回しを見分けられないので通さない。"""
+    """A token issued before the record mechanism. Reuse cannot be detected, so it is refused."""
     sign_in(client, _EMAIL, _PASSWORD)
     now = datetime.now(UTC)
     old = jwt.encode(

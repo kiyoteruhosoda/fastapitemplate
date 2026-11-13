@@ -1,7 +1,7 @@
-"""アプリ自身の名前の出どころ（ADR-0073 §2）。
+"""Where the app's own name comes from (ADR-0073 §2).
 
-**名前を直に書かない**という決めごとを、書いてしまったときに気付けるようにする。
-テンプレートから起こしたアプリが別のアプリの名前で名乗り続けた実績がある。
+Makes it noticeable when someone breaks the rule **do not hard-code the name**. An app created
+from the template has in fact kept introducing itself under another app's name.
 """
 
 from __future__ import annotations
@@ -29,12 +29,12 @@ def test_build_info_carries_the_name() -> None:
 
 
 def test_the_user_agent_names_this_app() -> None:
-    """IdP へ出ていく要求は、このアプリの名前で名乗る。"""
+    """Requests to the IdP identify themselves with this app's name."""
     assert USER_AGENT.startswith(f"{_name_in_pyproject()}/")
 
 
 def test_the_swagger_title_is_the_name() -> None:
-    """Swagger の題も同じ出どころから来る（直書きに戻っていないこと）。"""
+    """The Swagger title comes from the same source (has not reverted to a hard-coded name)."""
     from presentation.fastapi.app import create_app
 
     assert create_app().title == _name_in_pyproject()

@@ -1,9 +1,9 @@
 /**
- * IdP との連携の区画（ADR-0077 §5）。
+ * IdP linking section (ADR-0077 §5).
  *
- * 確かめるのは 4 つ ——押すと IdP へ遷移すること、⚠ **遷移するのは画面自身**
- * （サーバーは 303 を返さない）、外すと入れなくなる相手には解除を出さないこと、
- * 戻りに付いたエラーを文言に直すこと。
+ * Checks four things: pressing navigates to the IdP; note: **the page itself navigates**
+ * (the server does not return 303); no unlink is offered for a link whose removal would lock
+ * the user out; and an error on the return is turned into a message.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -44,8 +44,8 @@ const NOT_LINKED: Link = {
 }
 
 async function renderControls(link: Link, entry = '/profile/security') {
-  // ⚠ 応答は描く前に決めておく。あとから差し替えると、最初の問い合わせが
-  //   既定の値で返ってしまい、見たい状態が描かれない。
+  // Note: set up responses before rendering. Replacing them later makes the first request
+  //   return the default value, and the state we want to see is not rendered.
   apiGet.mockResolvedValue(link)
   render(
     <MemoryRouter initialEntries={[entry]}>
@@ -68,7 +68,7 @@ describe('FederatedIdentityControls', () => {
     vi.stubGlobal('location', { assign })
   })
 
-  it('SSO が使えない環境では区画そのものを出さない', async () => {
+  it('does not render the section at all when SSO is unavailable', async () => {
     apiGet.mockResolvedValue({ ...NOT_LINKED, available: false })
     const { container } = render(
       <MemoryRouter>
@@ -85,7 +85,7 @@ describe('FederatedIdentityControls', () => {
     expect(container.querySelector('button')).toBeNull()
   })
 
-  it('押すと往復の入口を取り、画面が自分で IdP へ遷移する', async () => {
+  it('on press fetches the round-trip entry and the page navigates to the IdP itself', async () => {
     await renderControls(NOT_LINKED)
     apiPost.mockResolvedValue({ authorization_url: 'https://idp.example.test/authorize?state=s' })
 
@@ -97,7 +97,7 @@ describe('FederatedIdentityControls', () => {
     expect(assign).toHaveBeenCalledWith('https://idp.example.test/authorize?state=s')
   })
 
-  it('連携済みなら解除のボタンを出す', async () => {
+  it('shows an unlink button when linked', async () => {
     await renderControls({
       ...NOT_LINKED,
       linked: true,
@@ -112,7 +112,7 @@ describe('FederatedIdentityControls', () => {
     })
   })
 
-  it('外すと入れなくなる相手には、解除ではなく理由を出す', async () => {
+  it('shows the reason instead of unlink when unlinking would lock the user out', async () => {
     await renderControls({ ...NOT_LINKED, linked: true, can_unlink: false })
 
     expect(
@@ -123,7 +123,7 @@ describe('FederatedIdentityControls', () => {
     expect(screen.queryByRole('button', { name: 'Unlink' })).toBeNull()
   })
 
-  it('戻りに付いたエラーを文言へ直す', async () => {
+  it('turns an error on the return into a message', async () => {
     await renderControls(NOT_LINKED, '/profile/security?sso_link_error=sso_identity_taken')
 
     expect(

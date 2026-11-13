@@ -1,4 +1,4 @@
-/** アイテムの画面（ページ送り ADR-0095・編集・削除）。 */
+/** Items page (pagination ADR-0095, edit, delete). */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,7 +58,7 @@ describe('ItemsPage', () => {
     )
   })
 
-  it('次のページへ進むと、その範囲を読み直す', async () => {
+  it('reloads that range when moving to the next page', async () => {
     renderPage()
     expect(await screen.findByText('item 1')).toBeInTheDocument()
     expect(screen.getByText('1–20 of 21')).toBeInTheDocument()
@@ -74,7 +74,7 @@ describe('ItemsPage', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 
-  it('編集すると PUT が飛び、読み直す', async () => {
+  it('sends PUT on edit and reloads', async () => {
     apiPut.mockResolvedValue({})
     renderPage()
     expect(await screen.findByText('item 1')).toBeInTheDocument()
@@ -93,7 +93,7 @@ describe('ItemsPage', () => {
     })
   })
 
-  it('削除すると DELETE が飛び、読み直す', async () => {
+  it('sends DELETE on delete and reloads', async () => {
     apiDelete.mockResolvedValue(undefined)
     renderPage()
     expect(await screen.findByText('item 1')).toBeInTheDocument()

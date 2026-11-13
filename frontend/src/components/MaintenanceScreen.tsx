@@ -1,13 +1,13 @@
 /**
- * メンテナンス中・停止中の画面（ADR-0080 §10）。
+ * Maintenance / outage screen (ADR-0080 §10).
  *
- * 前段（edge）が閉じていると答えている間、アプリの画面の代わりに出す。見出しと本文は
- * edge の宣言の文言を出し、無ければ（古い edge）既定の文にする。戻りの見込みは
- * 閲覧者の時間帯で描く。
+ * Shown instead of the app while the front tier (edge) reports that it is closed. The heading
+ * and body use the text from edge's declaration, falling back to default text when absent
+ * (older edge). The expected return time is rendered in the viewer's time zone.
  *
- * 1 分ごとと、タブが手前へ戻ったときに確かめ直す。開いたと分かれば状態が外れ、
- * 呼んだ側（`main.tsx`）がアプリの画面へ戻す。確かめ方は引数で受け取る（試験で偽物を
- * 渡すため）。
+ * Rechecks every minute and when the tab comes back to the foreground. Once it is known to be
+ * open the state clears and the caller (`main.tsx`) switches back to the app. The check is
+ * passed in as an argument (so tests can pass a fake).
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
 
@@ -16,12 +16,12 @@ import { formatMediumWithLocalZone } from '../services/localTime'
 import { currentOutage, subscribeOutage, type Outage } from '../services/maintenance'
 import { ActionButton } from './ActionButton'
 
-/** 確かめ直す間隔。 */
+/** Recheck interval. */
 export const RECHECK_INTERVAL_MS = 60 * 1000
 
 type Check = () => Promise<unknown>
 
-/** 戻りの見込みを閲覧者の時間帯で（時間帯も添える）。読めない値なら出さない。 */
+/** Expected return time in the viewer's time zone (with the zone). Omitted if unparsable. */
 function formatUntil(until: string | null, locale: string): string | null {
   if (!until) return null
   const at = new Date(until)
@@ -82,7 +82,7 @@ export function MaintenanceScreen({ outage, check }: { outage: Outage; check: Ch
   )
 }
 
-/** 閉じている間だけ画面を出す。 */
+/** Renders the screen only while closed. */
 export function MaintenanceGate({ check }: { check: Check }) {
   const outage = useSyncExternalStore(subscribeOutage, currentOutage)
   if (!outage) return null

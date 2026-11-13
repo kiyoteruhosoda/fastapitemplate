@@ -1,8 +1,8 @@
-"""``INotificationRepository`` の SQLAlchemy 実装。
+"""SQLAlchemy implementation of ``INotificationRepository``.
 
-お知らせ（``notifications``）はテナントの中身で、送る・送った記録を読むのはテナントの
-管理画面だけ（ADR-0079 §1）。本人の手元（配られたもの）は利用者に付くので、テナントを
-持たずに組み立てても扱える。
+Notifications (``notifications``) are tenant content; only the tenant's admin console sends them
+and reads sent records (ADR-0079 §1). A user's own inbox (what was delivered) belongs to the
+user, so it can be handled even when built without a tenant.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def _to_entity(row: NotificationModel) -> Notification:
 
 class SqlNotificationRepository(INotificationRepository):
     def __init__(self, session: Session, tenant_id: int | None = None) -> None:
-        """``tenant_id`` を省くと、本人の手元（``inbox`` など）だけを扱える。"""
+        """Omitting ``tenant_id`` allows handling only the user's own inbox (``inbox`` etc.)."""
         self._session = session
         self._tenant_id = tenant_id
 
@@ -83,7 +83,7 @@ class SqlNotificationRepository(INotificationRepository):
             sa.select(NotificationModel, NotificationDeliveryModel.read_at, NotificationDeliveryModel.dismissed_at)
             .join(NotificationDeliveryModel, NotificationDeliveryModel.notification_id == NotificationModel.id)
             .where(NotificationDeliveryModel.user_id == user_id)
-            # 端末への通知だけのものは手元の一覧に出す場所が無い（ベルにも上部にも出さない）。
+            # Push-only notifications have no place in the inbox list (shown neither in the bell nor at the top).
             .where(sa.or_(NotificationModel.in_bell, NotificationModel.in_banner))
             .order_by(NotificationModel.sent_at.desc(), NotificationModel.id.desc())
             .limit(limit)
@@ -135,8 +135,8 @@ class SqlNotificationRepository(INotificationRepository):
         return True
 
     def sent(self, *, limit: int) -> list[SentNotification]:
-        # 数えるのは副問い合わせで行う。⚠ ``GROUP BY notifications.id`` で全列を選ぶ形は
-        # MariaDB の ``ONLY_FULL_GROUP_BY`` で断られる（主キーからの関数従属を見ないため）。
+        # Counting is done in a subquery. ⚠ Selecting all columns with ``GROUP BY notifications.id``
+        # is refused by MariaDB's ``ONLY_FULL_GROUP_BY`` (it ignores functional dependency on the primary key).
         counts = (
             sa.select(
                 NotificationDeliveryModel.notification_id.label("notification_id"),

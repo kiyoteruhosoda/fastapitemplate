@@ -1,34 +1,39 @@
 /**
- * サインインの往復で行き先を落とさない（ADR-0077 §8）。
+ * Keep the destination across the sign-in round trip (ADR-0077 §8).
  *
- * 未サインインで深いリンク（`/items?q=…` など）を開くと、ログイン画面へ送られる。
- * 行き先を持たずに送ると、サインインした先は着地（`/`）になり、**開こうとしていた画面には
- * 二度と戻れない**。経路だけでなくクエリも行き先の一部として持ち回す。
+ * Opening a deep link (`/items?q=…` etc.) while signed out sends the user to the sign-in screen.
+ * Sending them without the destination lands them on the landing page (`/`) after sign-in, and
+ * **they can never get back to the screen they were opening**. Carry the query too, not just the
+ * path.
  *
- * ⚠ **外部 URL へ戻さない。** 正本の検証はサーバ側（`RedirectTarget.parse`）で、
- * ここは同じ形に絞ってから渡すだけ。
+ * WARNING: **Never return to an external URL.** The authoritative validation is server-side
+ * (`RedirectTarget.parse`); this only narrows to the same shape before passing it on.
  */
 import { loginPathOf, rememberedTenant } from './tenantEntrance'
 
-/** ログイン画面と SSO の入口で使うクエリの名前（両側で同じ綴りを使う）。 */
+/** Query name used by the sign-in screen and the SSO entry point (same spelling on both sides). */
 export const REDIRECT_TO_PARAM = 'redirect_to'
 
-/** 行き先が無い（または外を指している）ときの戻り先。 */
+/** Where to return when there is no destination (or it points outside). */
 const LANDING = '/'
 
 /**
- * サーバが受け取る長さの上限（`/api/auth/sso/login` の `redirect_to` と、往復の記録の列）。
- * 超えた値を渡すと入口が 422 で止まるので、着地へ倒す。
+ * Length limit the server accepts (`redirect_to` of `/api/auth/sso/login`, and the round-trip
+ * record column).
+ * A longer value would stop the entry point with 422, so fall back to the landing page.
  */
 const MAX_LENGTH = 255
 
-/** 自サイト内の絶対パスだけを通す。⚠ サーバ側と同じ規則。片方だけ緩めない。 */
+/**
+ * Allow only absolute paths within this site. WARNING: same rule as the server; never loosen only
+ * one side.
+ */
 export function sanitizeRedirectTo(candidate: string | null | undefined): string {
   if (!candidate) return LANDING
   if (!candidate.startsWith('/')) return LANDING
-  // `//evil.example` はプロトコル相対 URL。ブラウザは外部として解決する。
+  // `//evil.example` is a protocol-relative URL; browsers resolve it as external.
   if (candidate.startsWith('//')) return LANDING
-  // `/\evil.example` を外部として解決するブラウザがある。
+  // Some browsers resolve `/\evil.example` as external.
   if (candidate.startsWith('/\\')) return LANDING
   if (candidate.includes('\r') || candidate.includes('\n')) return LANDING
   if (candidate.length > MAX_LENGTH) return LANDING
@@ -36,13 +41,13 @@ export function sanitizeRedirectTo(candidate: string | null | undefined): string
 }
 
 /**
- * 未サインインのときに送るログイン画面の URL。
+ * Sign-in screen URL to send a signed-out user to.
  *
- * 着地（`/`）から来たときは行き先を付けない（サインイン後に着地へ送るのは既定の振る舞い）。
+ * Coming from the landing page (`/`) adds no destination (landing after sign-in is the default).
  */
 export function signInPathFor(location: { pathname: string; search?: string }): string {
   const here = sanitizeRedirectTo(`${location.pathname}${location.search ?? ''}`)
-  // 前に入った入口（テナント）へ戻す（ADR-0079 §4）
+  // Return to the entry point (tenant) used last time (ADR-0079 §4)
   const login = loginPathOf(rememberedTenant())
   if (here === LANDING) return login
   return `${login}?${REDIRECT_TO_PARAM}=${encodeURIComponent(here)}`

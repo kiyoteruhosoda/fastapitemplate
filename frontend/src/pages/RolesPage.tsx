@@ -12,7 +12,7 @@ interface Role {
   id: number
   name: string
   permissions: string[]
-  /** 全テナントが共有する雛形。中身は変えられない（ADR-0079 §3）。 */
+  /** Template shared by all tenants. Its content cannot be changed (ADR-0079 §3). */
   shared: boolean
 }
 
@@ -21,7 +21,7 @@ interface Permission {
   code: string
 }
 
-/** 行の中で実行しうる操作（実行中の目印をどこに出すかが変わる）。 */
+/** Operations that can run within a row (decides where the running marker shows). */
 type RowAction = 'update' | 'removal'
 
 export function RolesPage() {
@@ -58,7 +58,7 @@ export function RolesPage() {
     }
   })
 
-  /** 1 行分の更新。終わるまでその行の次の操作を受け付けない。 */
+  /** Update one row. Further operations on that row are not accepted until it finishes. */
   const runExclusively = (roleId: number, action: RowAction, request: () => Promise<unknown>) =>
     runForRow(roleId, action, async () => {
       try {
@@ -135,7 +135,7 @@ export function RolesPage() {
           <thead>
             <tr>
               <th>{t('roles.name')}</th>
-              {/* 権限コードは長いので縦組みにする（`.matrix` の指定を参照）。 */}
+              {/* Permission codes are long, so write them vertically (see the `.matrix` rules). */}
               {permissions.map((p) => (
                 <th key={p.id} className="vertical">
                   <code>{p.code}</code>
@@ -150,7 +150,7 @@ export function RolesPage() {
               const busy = rowAction !== null
               return (
                 <tr key={role.id}>
-                  {/* 横スクロールしても残す列（`.matrix` が固定する）。 */}
+                  {/* Column that stays during horizontal scroll (fixed by `.matrix`). */}
                   <th scope="row">
                     {role.name}
                     {role.shared && <span className="hint"> {t('roles.shared')}</span>}
@@ -182,7 +182,7 @@ export function RolesPage() {
                         {t('common.delete')}
                       </ActionButton>
                     )}
-                    {/* チェックの付け外しは押しても表示が変わらないので、行に目印を出す。 */}
+                    {/* Toggling a checkbox shows no change on press, so mark the row. */}
                     {rowAction === 'update' && (
                       <span className="spinner" role="status" aria-label={t('common.processing')} />
                     )}

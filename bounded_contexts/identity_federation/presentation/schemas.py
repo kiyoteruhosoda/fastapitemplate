@@ -1,4 +1,4 @@
-"""SSO ログインの Pydantic スキーマ。"""
+"""Pydantic schemas for SSO login."""
 
 from __future__ import annotations
 
@@ -8,31 +8,31 @@ from presentation.fastapi.schemas.types import UtcDatetime
 
 
 class SsoProviderResponse(BaseModel):
-    """ログイン画面が「SSO で入る」ボタンを出すかどうかの判断材料。
+    """Input for whether the login screen shows the "Sign in with SSO" button.
 
-    未認証で読めるため、接続先の URL やクライアント ID は載せない。
+    Readable unauthenticated, so it carries no connection URL or client ID.
     """
 
     enabled: bool
     display_name: str
-    #: パスワード・パスキーの入口が開いているか（ADR-0076 §3 決定 2）。ログイン画面は
-    #: これが偽ならパスワード欄とパスキーのボタンを出さない。
+    #: Whether the password / passkey entrances are open (ADR-0076 §3 decision 2). If false,
+    #: the login screen hides the password fields and the passkey button.
     local_login_enabled: bool = True
-    #: サインアウトを IdP まで通すか。画面はこれが真のときだけ、アプリの
-    #: サインアウトを済ませたあと ``/api/auth/sso/logout`` へ遷移する。
+    #: Whether sign-out is carried through to the IdP. Only when true does the screen navigate
+    #: to ``/api/auth/sso/logout`` after finishing the app sign-out.
     rp_logout_enabled: bool = False
 
 
 class SsoTicketRequest(BaseModel):
-    """コールバックが渡した引き換え券。"""
+    """Redemption ticket handed over by the callback."""
 
     ticket: str = Field(min_length=1, max_length=255)
 
 
 class SsoSessionResponse(BaseModel):
-    """引き換えの結果。``redirect_to`` は SSO を始めた画面（SPA 内の経路）。
+    """Redemption result. ``redirect_to`` is the screen where SSO started (an SPA route).
 
-    ⚠ **トークンは載せない**（ADR-0076 §4）。Cookie で運ぶ。
+    ⚠ **No tokens in it** (ADR-0076 §4). They are carried in cookies.
     """
 
     expires_in: int
@@ -40,26 +40,27 @@ class SsoSessionResponse(BaseModel):
 
 
 class FederatedLinkResponse(BaseModel):
-    """設定画面に出す「自分の連携の状態」（ADR-0077 §5）。
+    """The caller's own link status shown on the settings screen (ADR-0077 §5).
 
-    ⚠ **相手の ``subject`` は載せない。** 画面に出す意味が無く、載せると
-    IdP 側の内部の識別子がブラウザの履歴やログへ漏れていく。
+    ⚠ **The peer's ``subject`` is not included.** There's no point showing it, and including it
+    would leak the IdP's internal identifier into browser history and logs.
     """
 
-    #: SSO そのものが使えるか。偽なら画面はこの区画を出さない。
+    #: Whether SSO itself is usable. If false, the screen hides this section.
     available: bool
     display_name: str = ""
     linked: bool = False
     linked_at: UtcDatetime | None = None
-    #: 外しても入り口が残るか（ADR-0077 §5）。偽なら画面は解除のボタンを出さない。
+    #: Whether a way in remains after removing the link (ADR-0077 §5). If false, the screen hides
+    #: the unlink button.
     can_unlink: bool = False
 
 
 class SsoLinkStartResponse(BaseModel):
-    """連携の往復の入口。画面はこの URL へ**自分で**遷移する。
+    """Entrance to the linking round trip. The screen navigates to this URL **itself**.
 
-    往復状態の Cookie はこの応答で載る。サーバーが 303 で返さないのは、
-    ここが XHR だから ——認証が切れていれば 401 を返せて、画面がやり直しを出せる。
+    The round-trip state cookie is set by this response. The server doesn't return 303 because
+    this is XHR — if authentication has expired it can return 401 and the screen can offer a retry.
     """
 
     authorization_url: str

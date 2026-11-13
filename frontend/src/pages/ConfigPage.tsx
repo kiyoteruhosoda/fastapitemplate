@@ -1,4 +1,4 @@
-/** システム設定画面（環境変数 > DB > デフォルトの解決結果を編集する）。 */
+/** System settings page (edits the resolved value of environment variable > DB > default). */
 import { useEffect, useState } from 'react'
 
 import { ActionButton } from '../components/ActionButton'
@@ -16,9 +16,9 @@ interface SettingItem {
   value_type: 'string' | 'integer' | 'boolean' | 'list'
   secret?: boolean
   choices?: [value: string, label: string][]
-  /** 空でなければ、反映にそのサービスの再起動が必要。 */
+  /** If not empty, that service must be restarted for it to take effect. */
   restart_scopes: string[]
-  /** 環境変数だけで決める設定。見るだけ（ADR-0090）。 */
+  /** A setting decided only by environment variables. View only (ADR-0090). */
   env_only?: boolean
   value: unknown
   default: unknown
@@ -40,7 +40,8 @@ export function ConfigPage() {
   const { t } = useI18n()
   const { notify } = useToast()
   const { hasScope } = useAuth()
-  // 見るだけの人（system-settings:view だけ）には入力欄を止め、保存ボタンを出さない（ADR-0084 §3）
+  // For view-only users (only system-settings:view), disable inputs and hide the save button
+  // (ADR-0084 §3)
   const canWrite = hasScope('system-settings:write')
   const [items, setItems] = useState<SettingItem[]>([])
   const [edits, setEdits] = useState<Record<string, unknown>>({})
@@ -63,7 +64,7 @@ export function ConfigPage() {
       notify('success', t('common.saved'))
       setPendingRestart(result.restart_required)
     } catch (error) {
-      // 断られた値は編集中のまま残す（直して押し直せるように）
+      // Keep rejected values in edit (so they can be fixed and submitted again)
       notify('error', t(errorMessageKey(error)))
     }
   })
@@ -83,8 +84,8 @@ export function ConfigPage() {
 
   const currentValue = (item: SettingItem) => (item.key in edits ? edits[item.key] : item.value)
 
-  // 辞書に訳があればそれを使い、無ければサーバーが返した英語をそのまま出す。
-  // 設定キーを追加したときに、訳を足すまでのあいだ画面が壊れないようにする。
+  // Use the dictionary translation if there is one; otherwise show the English returned by the server.
+  // Keeps the page from breaking between adding a setting key and adding its translation.
   const translateOr = (key: string, fallback: string) => {
     const translated = t(key)
     return translated === key ? fallback : translated
@@ -95,7 +96,7 @@ export function ConfigPage() {
   const choiceLabelFor = (item: SettingItem, value: string, label: string) =>
     translateOr(`config.choice.${item.key}.${value}`, label)
 
-  /** 任意の設定値を表示用の文字列にする（`[object Object]` を出さない）。 */
+  /** Turns any setting value into a display string (never shows `[object Object]`). */
   const asText = (value: unknown): string => {
     if (value === null || value === undefined) return ''
     if (typeof value === 'string') return value
@@ -142,11 +143,12 @@ export function ConfigPage() {
               .filter((item) => item.category === category)
               .map((item) => (
                 <div key={item.key} className="config-row">
-                  {/* 見出しと入力欄は `for` / `id` で結ぶ。パスワード欄は入力欄に加えて
-                   * 表示切り替えボタンを持ち、`<label>` で囲むと labelable な要素が
-                   * 2 つ入って対応付けが曖昧になるため（HTML の label の内容モデル）。 */}
-                  {/* 設定名・環境変数名・注記は別の要素にする。1 行に流すと
-                   * 「名前 KEY (再起動後に反映)」がひと続きの文に見える。 */}
+                  {/* The heading and input are tied with `for` / `id`. A password field has a
+                   * visibility toggle in addition to the input, and wrapping it in `<label>` would
+                   * put two labelable elements inside and make the association ambiguous (HTML
+                   * label content model). */}
+                  {/* Setting name, env var name and note are separate elements. On one line,
+                   * "Name KEY (applies after restart)" reads as a single sentence. */}
                   <label htmlFor={`config-${item.key}`}>
                     <span className="config-label">{labelFor(item)}</span>
                     <code className="config-key">{item.key}</code>

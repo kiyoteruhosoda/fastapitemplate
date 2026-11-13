@@ -1,7 +1,7 @@
-"""監査ログ閲覧の DTO（Application → Presentation）。
+"""DTOs for viewing audit logs (Application -> Presentation).
 
-時刻は ISO 8601（UTC）の文字列へ揃える。Presentation が日時整形の判断をしない
-ようにするため。
+Times are normalized to ISO 8601 (UTC) strings so that Presentation does not make date
+formatting decisions.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ class AuditLogPageDto:
 
 @dataclass(frozen=True)
 class AuditLogFilterOptionsDto:
-    """絞り込みの選択肢（画面のセレクトボックスを組む材料）。"""
+    """Filter choices (material for building the screen's select boxes)."""
 
     event_types: tuple[str, ...] = field(default_factory=tuple)
     results: tuple[str, ...] = field(default_factory=tuple)

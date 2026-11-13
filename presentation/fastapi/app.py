@@ -1,4 +1,4 @@
-"""FastAPI アプリケーションファクトリ。"""
+"""FastAPI application factory."""
 
 from __future__ import annotations
 
@@ -99,17 +99,18 @@ from shared.kernel.version import load_build_info
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # 管理画面からの再起動要求を拾う（起動時にしか読まれない設定の反映用）
+    # Pick up restart requests from the admin console (to apply settings read only at startup)
     start_restart_watcher(RestartScope.WEB)
-    # 保持期間を過ぎたログを定期的に消す（既定は削除しない。ADR-0075 §3）
+    # Periodically delete logs past their retention (no deletion by default; ADR-0075 §3)
     start_log_retention_worker()
-    # 使えなくなったパスワード再設定トークンを消す（ADR-0097）
+    # Delete unusable password reset tokens (ADR-0097)
     start_password_token_purge_worker()
-    # IdP で止まった人の SSO のセッションを、毎時聞き直して止める
-    # （MACHINE_CLIENT_ID が空なら何もしない。ADR-0077 §7）
+    # Re-check hourly and end SSO sessions of people suspended at the IdP
+    # (does nothing if MACHINE_CLIENT_ID is empty; ADR-0077 §7)
     start_sso_reconciliation_worker()
-    # SSO の設定が実際に使えるかを一度だけ確かめる（秘密鍵は署名のときまで読まれない
-    # ため、権限の食い違いが利用者の戻りでしか出ない。ADR-0077 §1）
+    # Check once that the SSO configuration actually works (the private key isn't read until
+    # signing, so a permission mismatch would otherwise only surface on a user's return;
+    # ADR-0077 §1)
     report_sso_configuration()
     report_machine_entrance()
     try:
@@ -120,7 +121,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def _include_routers(app: FastAPI) -> None:
-    """ルーターの登録。**SPA より前**に並べる（SPA は catch-all のため）。"""
+    """Register routers. They go **before the SPA** (the SPA is a catch-all)."""
     for router in (
         health_router,
         app_links_router,
@@ -158,12 +159,12 @@ def create_app() -> FastAPI:
     )
 
     build_info = load_build_info()
-    # 本番で既定の署名鍵なら、ここで起動を止める（ADR-0073 §4）
+    # Abort startup here if production uses the default signing key (ADR-0073 §4)
     require_usable_secret(settings.jwt_secret_key, build_info.environment)
     app = FastAPI(
-        # ⚠ 名前を直に書かない。`pyproject.toml` の `[project].name` から導く
-        #   （ADR-0073 §2）。書くと、テンプレートから起こしたアプリの Swagger が
-        #   テンプレートの名前を名乗り続ける。
+        # ⚠ Don't hard-code the name. Derive it from `[project].name` in `pyproject.toml`
+        #   (ADR-0073 §2). Otherwise Swagger of apps built from the template keeps showing
+        #   the template's name.
         title=build_info.name,
         version=build_info.version,
         description="FastAPI + DDD template (photonest-based).",
@@ -175,17 +176,17 @@ def create_app() -> FastAPI:
     # Prometheus metrics at /metrics
     Instrumentator(excluded_handlers=["/metrics"]).instrument(app).expose(app, include_in_schema=False)
 
-    # ログ・監査の DB 書き込みは、リクエストの DB セッションが閉じた後に行う
-    # （途中で書くと SQLite でロックが競合する。ADR-0075 §1）。
+    # Log and audit DB writes happen after the request's DB session is closed
+    # (writing midway causes lock contention on SQLite; ADR-0075 §1).
     #
-    # 後から追加したものが外側になる。外側から
-    # DeferredLogWrite → RequestLogging → AuditRecording → InternalError の順で、
-    # アクセスログ（RequestLogging が出す）もログのまとめ書きに載る
-    # ＝ 1 リクエストあたりの INSERT は 2 回（log と audit_log）に収まる。
+    # Middleware added later is outer. From the outside the order is
+    # DeferredLogWrite -> RequestLogging -> AuditRecording -> InternalError, so the access log
+    # (emitted by RequestLogging) also goes into the batched write
+    # = at most 2 INSERTs per request (log and audit_log).
     #
-    # 想定外の例外を応答へ変える層は最も内側に置く。ここで受け止めないと例外は
-    # 全ミドルウェアを飛び越え、アクセスログの 500 の行も、そのリクエストで出た
-    # ログ行のまとめ書きも失われる。
+    # The layer that turns unexpected exceptions into responses goes innermost. Otherwise the
+    # exception skips all middleware, and both the access log's 500 line and the batched log
+    # rows from that request are lost.
     app.add_middleware(InternalErrorMiddleware)
     app.add_middleware(AuditRecordingMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
@@ -199,17 +200,17 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
-    # Cookie で認証した更新系に CSRF の二重送信トークンを求める（ADR-0076 §4）。
-    # ``Authorization`` ヘッダーで来たリクエストには求めない（ヘッダーは自動では
-    # 送られないので CSRF が成立しない）。
+    # Require the CSRF double-submit token for cookie-authenticated state-changing requests
+    # (ADR-0076 §4). Not required for requests with an ``Authorization`` header (headers are not
+    # sent automatically, so CSRF is not possible).
     app.add_middleware(CsrfMiddleware)
 
-    # 守りのヘッダ（CSP・枠への埋め込み禁止など。ADR-0073 §5）。いちばん外側に置き、
-    # CSRF で断った応答にも付ける。
+    # Protective headers (CSP, no framing, etc.; ADR-0073 §5). Outermost, so responses rejected
+    # by CSRF get them too.
     app.add_middleware(SecurityHeadersMiddleware)
 
-    # 失敗の記録（4xx・入力検証）と、ミドルウェアより外側で落ちたとき用の保険。
-    # 個別のドメイン例外ハンドラが優先される。
+    # Records failures (4xx, input validation) and is a safety net for errors outside the
+    # middleware. Specific domain exception handlers take precedence.
     register_error_handling(app)
     register_account_security_error_handler(app)
     register_identity_federation_error_handler(app)
@@ -219,7 +220,7 @@ def create_app() -> FastAPI:
 
     _include_routers(app)
 
-    # SPA は最後（catch-all のため）。ビルド済みの場合のみ配信する。
+    # SPA goes last (it is a catch-all). Served only if built.
     if spa.dist_available():
         app.include_router(spa.router)
 

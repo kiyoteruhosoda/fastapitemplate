@@ -19,7 +19,7 @@ dependencies = [
     "pyotp>=2.9.0",
     "webauthn>=2.5.0",
     "qrcode>=8.0",
-    # SSO（discovery・トークン交換・UserInfo）。ADR-0077 §1
+    # SSO (discovery, token exchange, UserInfo). ADR-0077 §1
     "httpx>=0.28.1",
     "boto3>=1.40",
     "pywebpush>=2.0",
@@ -38,7 +38,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths  = ["tests"]
-# importlib: 同名テストファイルの衝突回避 / smtp: 外部リソース要のため既定除外
+# importlib: avoid clashes between same-named test files / smtp: excluded by default (needs an external resource)
 addopts = "--import-mode=importlib -m 'not smtp'"
 markers = [
     "smtp: requires a real SMTP server (excluded by default)",
@@ -47,8 +47,8 @@ markers = [
 [tool.mypy]
 python_version = "3.15"
 
-# 検査対象。この構成に "src/" は無いため、実際のパッケージルートを列挙する
-# （引数なしの `uv run mypy` がそのまま品質ゲートになる）。
+# What to check. This layout has no "src/", so list the actual package roots
+# (so a bare `uv run mypy` is the quality gate as is).
 files = [
     "asgi.py",
     "main.py",
@@ -81,7 +81,7 @@ warn_unreachable = true
 
 implicit_reexport = false
 
-# pywebpush / py_vapid は型情報（py.typed）を持たない（ADR-0081 §3）。
+# pywebpush / py_vapid ship no type information (py.typed) (ADR-0081 §3).
 [[tool.mypy.overrides]]
 module = ["pywebpush", "py_vapid"]
 ignore_missing_imports = true
@@ -95,49 +95,49 @@ quote-style = "double"
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle: PEP8 準拠
-    "F",    # Pyflakes: 未使用変数・import
-    "I",    # isort: import 順
-    "B",    # flake8-bugbear: バグになりやすい記述
-    "UP",   # pyupgrade: 古い Python 構文の検出
-    "SIM",  # flake8-simplify: 不要な分岐の簡略化
-    "C4",   # flake8-comprehensions: comprehension 改善
-    "ARG",  # flake8-unused-arguments: 未使用引数
-    "N",    # pep8-naming: 命名規則
-    "RET",  # flake8-return: return 改善
-    "PTH",  # flake8-use-pathlib: pathlib 利用推奨
-    "RUF",  # Ruff 独自ルール
-    # 設計品質の定量基準（ADR-0072 §4）。閾値は下の mccabe / pylint セクション。
-    "C901",    # mccabe: 循環複雑度
-    "PLR0912", # 分岐の数
-    "PLR0913", # 引数の数
-    "PLR0915", # 文の数（関数の長さ）
+    "E",    # pycodestyle: PEP 8 compliance
+    "F",    # Pyflakes: unused variables / imports
+    "I",    # isort: import order
+    "B",    # flake8-bugbear: bug-prone patterns
+    "UP",   # pyupgrade: detect outdated Python syntax
+    "SIM",  # flake8-simplify: simplify needless branches
+    "C4",   # flake8-comprehensions: better comprehensions
+    "ARG",  # flake8-unused-arguments: unused arguments
+    "N",    # pep8-naming: naming conventions
+    "RET",  # flake8-return: better returns
+    "PTH",  # flake8-use-pathlib: prefer pathlib
+    "RUF",  # Ruff-specific rules
+    # Quantitative design-quality limits (ADR-0072 §4). Thresholds are in the mccabe / pylint sections below.
+    "C901",    # mccabe: cyclomatic complexity
+    "PLR0912", # number of branches
+    "PLR0913", # number of arguments
+    "PLR0915", # number of statements (function length)
 ]
 
 ignore = [
-    # FastAPI の Depends()/Cookie()/Query() は引数デフォルトでの呼び出しが正しい用法
+    # Calling FastAPI's Depends()/Cookie()/Query() in argument defaults is the correct usage
     "B008",
-    # 本プロジェクトのコメント・docstring は日本語であり、全角括弧・読点は意図的な表記。
-    # RUF001-003（ambiguous-unicode-character）は誤検知にしかならないため除外する。
+    # This project contains Japanese text; full-width brackets and commas are intentional.
+    # RUF001-003 (ambiguous-unicode-character) only produce false positives, so they are excluded.
     "RUF001",
     "RUF002",
     "RUF003",
 ]
 
 [tool.ruff.lint.mccabe]
-# 開発標準どおり 10（推奨は 5 だが、それを下回るかはレビューで見る。ADR-0072 §4）
+# 10 per the development standard (5 is recommended, but that is checked in review. ADR-0072 §4)
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
-# 引数 3 個以下という標準に対し、機械検証は 4 で行う。Ruff は `Depends()` による
-# 依存注入とキーワード専用の任意引数も 1 個として数えるため（ADR-0072 §4）。
+# The standard is 3 arguments or fewer, but the machine check uses 4, because Ruff also counts
+# `Depends()` injections and optional keyword-only arguments (ADR-0072 §4).
 max-args = 4
 max-branches = 8
-# 関数の長さは行数ではなく文の数で見る（30 行以下 ≒ 文 30 個以下。ADR-0072 §4）
+# Function length is measured in statements, not lines (30 lines ≈ 30 statements. ADR-0072 §4)
 max-statements = 30
 
 [tool.ruff.lint.per-file-ignores]
-# ARG001: pytest フィクスチャは引数として受け取るだけで参照しないことがある
-# ARG002: テストダブルはインターフェースを満たすために使わない引数も宣言する
-# PLR0913: テスト関数の引数はフィクスチャの注入であり、設計上の引数の多さではない
+# ARG001: pytest fixtures are sometimes received as arguments without being referenced
+# ARG002: test doubles declare unused arguments to satisfy the interface
+# PLR0913: test function arguments are fixture injections, not a design-level argument count
 "tests/*" = ["ARG001", "ARG002", "PLR0913"]

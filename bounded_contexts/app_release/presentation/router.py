@@ -1,13 +1,14 @@
-"""配布しているアプリの最新版を返す口（ADR-0081 §4）。
+"""Endpoint returning the latest release of the apps we distribute (ADR-0081 §4).
 
-``GET /api/app-release/latest`` —— スマホアプリが開いたとき・前面に戻ったときに
-呼び、自分のビルド番号より新しければ画面の上に知らせを出す。
+``GET /api/app-release/latest`` — the mobile app calls it when opened or brought to the
+foreground, and shows a notice at the top of the screen if the release is newer than its own build.
 
-⚠ **scope は要求しない（認証だけ）。** 権限をまだ持たない利用者（ゲスト）でも
-アプリは入っている。版の知らせを受け取れないと、権限が付いたときに古い版のまま
-取り残される。返すのは版番号と取りに行く先だけで、利用者ごとの情報は含まない。
+⚠ **No scope is required (authentication only).** Users without permissions yet (guests)
+still have the app installed. If they could not receive release notices, they would be left on
+an old version once granted permissions. Only the version and download location are returned;
+nothing per-user.
 
-アプリは assay のトークンで叩くので、関門は :data:`AppOrWebPrincipalDep`（ADR-0081 §1）。
+The app calls it with an assay token, so the gate is :data:`AppOrWebPrincipalDep` (ADR-0081 §1).
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(prefix="/api/app-release", tags=["app-release"])
 
-# 答えの覚えはプロセスで 1 つ持つ（リクエストごとに作ると毎回置き場へ行く）。
+# Keep one answer cache per process (creating it per request would hit the store every time).
 _query = LatestAppReleaseQuery(S3LatestReleaseSource.from_settings)
 
 
@@ -41,10 +42,10 @@ def latest_app_release(
     _principal: AppOrWebPrincipalDep,
     query: Annotated[LatestAppReleaseQuery, Depends(get_latest_app_release_query)],
 ) -> LatestAppReleaseResponse:
-    """配布面が最新として指している版を返す（無ければ ``latest`` が ``null``）。
+    """Return the release the distribution store points to as latest (``latest`` is ``null`` if none).
 
-    ⚠ ``async def`` にしない。置き場の読みは同期（boto3）で最大数秒かかるので、
-    イベントループの上で走らせると他のリクエストまで止まる。
+    ⚠ Do not make this ``async def``. Reading the store is synchronous (boto3) and can take
+    seconds; running it on the event loop would block other requests too.
     """
     release = query.execute()
     if release is None:

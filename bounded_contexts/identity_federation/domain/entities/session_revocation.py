@@ -1,12 +1,12 @@
-"""「このセッションはもう使わせない」という記録（ADR-0077 §3）。
+"""A record saying "this session may no longer be used" (ADR-0077 §3).
 
-このテンプレートのセッションは**サーバーに控えの無い JWT** なので、届いた停止を
-即座に反映する場所が無い。そこで「いつ止まったか」を行として残し、
-**その時刻より前に発行されたトークンを無効**として扱う。
+This template's sessions are **JWTs with no server-side copy**, so there's no place to apply
+an incoming logout immediately. Instead, "when it was stopped" is kept as a row, and
+**tokens issued before that time are treated as invalid**.
 
-``expires_at`` は掃除のためだけにある。リフレッシュトークンの寿命を過ぎれば、
-その時刻より前に発行されたトークンは自力で期限切れになるので、行を残す意味が無くなる。
-ここで決めるのは最低限の長さで、今あるログインがもっと長く続くなら保存のときに延ばす（ADR-0102）。
+``expires_at`` exists only for cleanup. Past the refresh token lifetime, tokens issued
+before that time expire on their own, so keeping the row no longer serves any purpose.
+This sets the minimum length; if current logins last longer, it is extended on save (ADR-0102).
 """
 
 from __future__ import annotations
@@ -38,11 +38,11 @@ class SessionRevocation:
 
     @classmethod
     def of(cls, notice: LogoutNotice, *, now: datetime, keep_for_seconds: int) -> SessionRevocation:
-        """通知を記録へ落とす。
+        """Turn a notice into a record.
 
-        ``revoked_at`` は**受け取った時刻**で、``logout_token`` の ``iat`` ではない。
-        再送された古い通知で、いま生きているセッションを巻き添えにしないため
-        （再送そのものは ``jti`` で弾くが、時刻の出所は分けておく）。
+        ``revoked_at`` is **the time it was received**, not the ``logout_token``'s ``iat``.
+        This keeps a resent old notice from taking down sessions alive now
+        (resends themselves are rejected by ``jti``, but the time source is kept separate).
         """
         return cls(
             jti=notice.jti,
@@ -59,18 +59,19 @@ class SessionRevocation:
         now: datetime,
         keep_for_seconds: int,
     ) -> SessionRevocation:
-        """定期照合で assay が「もう使えない」と答えた人の、**すべての** SSO セッションを止める（ADR-0077 §7）。
+        """Stop **all** SSO sessions of a person assay reported as "no longer usable" in the periodic
+        reconciliation (ADR-0077 §7).
 
-        ⚠ **``jti`` を ``(issuer, sub, 最後に SSO で入った時刻)`` から決める。**
+        ⚠ **``jti`` is derived from ``(issuer, sub, time of last SSO sign-in)``.**
 
-        - 同じログインに対しては、毎時・ワーカーの数だけ走っても**行は 1 本**で済む
-          （2 本目は ``jti`` の重複として :meth:`SessionRevocationRepository.record` が弾く）
-        - assay で戻って入り直し、また止められたときは時刻が変わるので**新しい行**になる。
-          ⚠ 同じ ``jti`` のままだと古い行が残って新しい行が書かれず、入り直した
-          セッションを取りこぼす（記録は「その時刻より前に始まったもの」にしか効かない）
+        - For the same login, **one row** suffices even if it runs hourly on every worker
+          (the second is rejected by :meth:`SessionRevocationRepository.record` as a duplicate ``jti``)
+        - If restored in assay, signed in again, and stopped again, the time differs, so it is **a new row**.
+          ⚠ With the same ``jti`` the old row would remain, the new one wouldn't be written, and the
+          re-signed-in session would be missed (a record only affects sessions started before its time)
 
-        ``jti`` の列は 64 文字なので、材料はハッシュにして収める。IdP が発行する ``jti`` とは
-        材料に前置きを混ぜて空間を分けてある。
+        The ``jti`` column is 64 characters, so the inputs are hashed to fit. A prefix is mixed into
+        the inputs to keep a separate space from ``jti`` values issued by the IdP.
         """
         generation = identity.last_login_at or identity.linked_at
         material = "|".join(
@@ -84,11 +85,11 @@ class SessionRevocation:
         )
 
     def covers(self, login: FederatedLogin) -> bool:
-        """このログインを、この記録が無効にするか。
+        """Whether this record invalidates this login.
 
-        ``session_id`` が ``None`` の記録は**その利用者のすべてのセッション**に効く。
-        比べるのは**セッションが始まった時刻**で、止めたあとに入り直した利用者は
-        巻き添えにしない。
+        A record with ``session_id`` ``None`` applies to **all sessions of that user**.
+        What's compared is **the time the session started**, so users who signed in again after
+        the stop are not caught up in it.
         """
         target = login.session
         if (self.session.issuer, self.session.subject) != (target.issuer, target.subject):

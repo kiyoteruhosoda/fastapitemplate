@@ -1,4 +1,4 @@
-"""``MachineTokenGateway`` の実装（assay の discovery と JWKS を使う）。"""
+"""Implementation of ``MachineTokenGateway`` (uses assay's discovery and JWKS)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from bounded_contexts.identity_federation.infrastructure.oidc_metadata import Oi
 
 logger = logging.getLogger(__name__)
 
-#: 非対称鍵の署名だけ。対称鍵と ``none`` は入れない。
+#: Asymmetric key signatures only. No symmetric keys and no ``none``.
 _ALGORITHMS = ["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"]
 
 
@@ -23,11 +23,11 @@ class HttpxMachineTokenGateway:
 
     def verify_machine_token(self, issuer: str, audience: str, token: str) -> Mapping[str, Any]:
         if not audience:
-            # ⚠ 宛名を見ない検証はしない（別のアプリ宛てのトークンが通る。ADR-0082 §2 決定 4）
+            # ⚠ Never verify without checking the audience (tokens for other apps would pass. ADR-0082 §2 decision 4)
             raise InvalidMachineTokenError
         metadata = self._metadata.metadata(issuer)
         try:
-            # ⚠ 鍵の取得も try の中（壊れた入力が 500 に化けないように）
+            # ⚠ Key fetching is inside the try too (so broken input doesn't turn into a 500)
             key = self._metadata.signing_key(metadata.jwks_uri, token)
             claims: dict[str, Any] = jwt.decode(
                 token,

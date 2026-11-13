@@ -1,18 +1,19 @@
-"""アプリ（assay に直接ログインした Android アプリ）からの呼び出しを受ける関門（ADR-0081 §1）。
+"""Gate for calls from apps (Android apps signed in directly to assay) (ADR-0081 §1).
 
-⚠ **アプリのトークンで通るのは、この依存関数を付けたルータだけ**（「アプリから叩いてよい」と
-宣言したもの）。管理・アカウント・トークンの出し直しの口は、これまでどおり
-:func:`presentation.fastapi.dependencies.auth.get_current_principal`（このアプリのトークンだけ）。
-⚠ **``APP_CLIENT_IDS`` が空なら、assay のトークンは 1 本も受けない**（1 と同じ振る舞いになる）。
+⚠ **App tokens only pass on routers that use this dependency** (ones declared "callable from
+apps"). Admin, account and token reissue endpoints still use
+:func:`presentation.fastapi.dependencies.auth.get_current_principal` (this app's tokens only).
+⚠ **If ``APP_CLIENT_IDS`` is empty, no assay token is accepted at all** (behaves the same as 1).
 
-順に、
+In order:
 
-1. このアプリが発行したトークン（Web の Cookie / ヘッダー）ならそのまま通す
-2. ``Authorization: Bearer`` で来た assay のアクセストークンなら、受け取れるか確かめて利用者へ落とす
-   ——権限は**毎回 DB から**引く（assay のトークンには載っていない）
-3. ``Authorization: DPoP`` で来たら、``DPoP`` ヘッダーの証明と一緒に確かめる（ADR-0103）。
-   ``cnf.jkt`` のある（端末の鍵に結び付けた）トークンは、この形でしか通らない
-4. どちらでもなければ、1 と同じ 401
+1. A token issued by this app (web cookie / header) passes as is
+2. An assay access token sent as ``Authorization: Bearer`` is checked for acceptance and
+   resolved to a user
+   — permissions are looked up **from the DB every time** (they are not in assay tokens)
+3. ``Authorization: DPoP`` is checked together with the proof in the ``DPoP`` header (ADR-0103).
+   Tokens with ``cnf.jkt`` (bound to a device key) only pass this way
+4. Otherwise, the same 401 as 1
 """
 
 from __future__ import annotations
@@ -67,7 +68,8 @@ logger = logging.getLogger(__name__)
 
 _app_token_gateway = HttpxAppTokenGateway()
 _dpop_proof_verifier = PyJwtDpopProofVerifier()
-#: ``Authorization: DPoP <token>``（RFC 9449 §7.1）。``HTTPBearer`` は ``Bearer`` しか読まないので自分で読む。
+#: ``Authorization: DPoP <token>`` (RFC 9449 §7.1). ``HTTPBearer`` only reads ``Bearer``,
+#: so we read it ourselves.
 _DPOP_SCHEME = "dpop "
 
 
@@ -80,10 +82,10 @@ BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_schem
 
 
 def authenticate_app_access_token(db: Session, gateway: AppTokenGateway, token: str) -> AuthenticateAppAccessToken:
-    """トークンの発行者のテナントで受ける（ADR-0079 §4）。登録の無い発行者なら受けない。
+    """Accept in the tenant of the token's issuer (ADR-0079 §4). Reject unregistered issuers.
 
-    ⚠ 発行者は署名を確かめる前に読むが、**その値は鍵を選ぶのにしか使わない**。登録のある
-    発行者を名乗っても、署名はその発行者の鍵でしか通らない。
+    ⚠ The issuer is read before the signature is checked, but **that value is only used to pick
+    the key**. Claiming a registered issuer only passes with that issuer's signature.
     """
     tenant = tenant_issuing(db, _unverified_issuer_of(token))
     issuer = tenant.issuer or "" if tenant is not None and tenant.is_active else ""
@@ -135,17 +137,19 @@ def _principal_of_app_token(
 
 
 def _dpop_token(authorization: str | None) -> str | None:
-    """``Authorization: DPoP <token>`` のトークン。``DPoP`` の方式でなければ ``None``。"""
+    """Token from ``Authorization: DPoP <token>``. ``None`` if the scheme is not ``DPoP``."""
     if authorization is None or not authorization.lower().startswith(_DPOP_SCHEME):
         return None
     return authorization[len(_DPOP_SCHEME) :].strip() or None
 
 
 def _endpoint_uri(request: Request) -> str:
-    """このサーバーが外へ名乗る、この口の URL（証明の ``htu`` と比べる。ADR-0103）。
+    """This endpoint's URL as this server presents it externally (compared with the proof's ``htu``.
+    ADR-0103).
 
-    ⚠ ``APP_BASE_URL`` から組み立てる。前段の proxy（cloudflared・nginx）の後ろでは、要求の
-    ``Host``・スキームはアプリが署名した URL と食い違う。未設定（手元の開発）のときだけ要求から作る。
+    ⚠ Built from ``APP_BASE_URL``. Behind the front proxy (cloudflared, nginx) the request's
+    ``Host`` and scheme differ from the URL the app signed. Only built from the request when
+    unset (local development).
     """
     base = settings.app_base_url.rstrip("/") or str(request.base_url).rstrip("/")
     return f"{base}{request.url.path}"
@@ -153,10 +157,10 @@ def _endpoint_uri(request: Request) -> str:
 
 @dataclass(frozen=True)
 class _AppRequest:
-    """アプリ向けの口に来た要求の、認証に関わる部分（ヘッダーと宛先）。"""
+    """Auth-relevant parts of a request to the app-facing endpoints (headers and target)."""
 
     credentials: HTTPAuthorizationCredentials | None
-    #: ``Authorization: DPoP <token>`` のトークン（``Bearer`` なら ``None``）。
+    #: Token from ``Authorization: DPoP <token>`` (``None`` for ``Bearer``).
     dpop_token: str | None
     proof: str | None
     id_token: str | None
@@ -181,7 +185,8 @@ class _AppRequest:
 
 
 def _app_request(request: Request, credentials: BearerDep) -> _AppRequest:
-    """``Authorization``（``Bearer`` / ``DPoP``）・``DPoP``・``X-ID-Token`` と宛先を読む（ADR-0103）。"""
+    """Read ``Authorization`` (``Bearer`` / ``DPoP``), ``DPoP``, ``X-ID-Token`` and the target
+    (ADR-0103)."""
     headers = request.headers
     return _AppRequest(
         credentials=credentials,
@@ -204,12 +209,12 @@ async def get_app_or_web_principal(
     if app_token is None or is_ours or not settings.app_client_ids:
         principal = await get_operation_principal(app_request.credentials, access_token_cookie)
         if principal.is_machine:
-            # scope で守られていない口なので、機械のトークンはここでも断る（ADR-0087 決定 4）
+            # Not a scope-guarded endpoint, so machine tokens are refused here too (ADR-0087 decision 4)
             refuse_machine(principal, "app_or_web")
         refuse_during_two_factor_setup(principal)
         return principal
-    # ⚠ **DB と HTTP はスレッドへ逃がし、ログの文脈はここで置く。** スレッドの中で置いた ``ContextVar`` は
-    #   ミドルウェアへ戻らない（ADR-0100 決定 3）。
+    # ⚠ **Offload DB and HTTP to a thread and set the log context here.** A ``ContextVar`` set
+    #   inside the thread does not propagate back to the middleware (ADR-0100 decision 3).
     principal = await run_in_threadpool(_principal_of_app_token, db, gateway, app_request.presented(app_token))
     user_id_hash_var.set(principal.id_hash)
     actor_user_id_var.set(principal.user_id)

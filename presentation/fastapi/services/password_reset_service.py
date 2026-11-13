@@ -1,10 +1,10 @@
-"""パスワードリセット（トークン発行・メール送信・再設定）。
+"""Password reset (token issuance, email sending, resetting).
 
-トークンは平文を保存せず SHA-256 ハッシュのみを保存する。
-ユーザーの存在有無は API 応答から判別できないようにする（列挙攻撃対策）。
+Tokens are never stored in plaintext; only the SHA-256 hash is stored.
+Whether a user exists cannot be told from the API response (against enumeration attacks).
 
-⚠ **パスワードを持たない利用者には発行しない**（ADR-0076 §6）。リセットを通すと、
-「この利用者は SSO でしか入れない」が黙って崩れる。応答は不在のときと同じ。
+⚠ **Not issued to users without a password** (ADR-0076 §6). Allowing a reset would silently
+break "this user can only sign in via SSO". The response is the same as for a missing user.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from shared.kernel.settings.settings import settings
 logger = logging.getLogger(__name__)
 
 INVITATION = "invitation"
-#: 招待の有効期限。⚠ 設定にしない（運用で決め直す値ではない）。
+#: Invitation validity period. ⚠ Not a setting (not a value operators should revisit).
 INVITATION_TTL = timedelta(days=7)
 
 
@@ -47,20 +47,20 @@ class PasswordResetService:
         self._sender = sender or SmtpEmailSender()
 
     def request_reset(self, session: Session, email: str, tenant: str | None = None) -> int | None:
-        """リセットトークンを発行しメールを送る。ユーザー不在でも黙って成功する。
+        """Issue a reset token and send the email. Silently succeeds even if the user doesn't exist.
 
-        監査ログへ「誰の」要求かを残せるよう、トークンを発行した利用者の ID を
-        返す（宛先不明のときは ``None``）。API 応答はどちらの場合も同じで、
-        存在の有無は呼び出し側から漏らさない。
+        Returns the ID of the user the token was issued for, so the audit log can record
+        "whose" request it was (``None`` if no recipient). The API response is the same either
+        way, so existence is not leaked to the caller.
         """
         user = account_signing_in(session, email, tenant)
         if user is None or not user.is_active:
             logger.info("password_reset_requested_unknown_email")
             return None
         if not user.has_local_password:
-            # ⚠ **リセットでローカル認証を生やさない**（ADR-0076 §6）。パスワードを
-            # 持たない利用者にここで新しい値を設定させると、「この利用者は SSO でしか
-            # 入れない」が黙って崩れる。持たせるなら管理者が明示的に設定する。
+            # ⚠ **A reset must not create local authentication** (ADR-0076 §6). Letting a user
+            # without a password set one here would silently break "this user can only sign in
+            # via SSO". If they should have one, an administrator sets it explicitly.
             logger.info("password_reset_requested_without_local_password")
             return None
 
@@ -93,12 +93,13 @@ class PasswordResetService:
         return user.id
 
     def invite(self, session: Session, user: User, *, place: str) -> bool:
-        """招待のメールを送る（ADR-0079 §5）。本人が自分でパスワードを決める。送れたら真。
+        """Send the invitation email (ADR-0079 §5). The person sets their own password. True if sent.
 
-        ⚠ **招待した人はパスワードを知らない。** システム管理者が最初のテナント管理者を
-        指名するとき、初期パスワードを決めて渡すと、システム管理者がその人として入れて
-        しまう（中身を見ない約束が崩れる。ADR-0079 §1）。
-        ⚠ **リンクを応答に載せない。** 載せると、招待した人がそのまま使える。
+        ⚠ **The inviter never knows the password.** If a system administrator appointing the
+        first tenant administrator chose and handed over an initial password, the system
+        administrator could sign in as that person (breaking the promise not to look at tenant
+        data; ADR-0079 §1).
+        ⚠ **The link is not included in the response.** Otherwise the inviter could use it.
         """
         token = secrets.token_urlsafe(32)
         session.add(
@@ -129,9 +130,10 @@ class PasswordResetService:
         return True
 
     def reset(self, session: Session, token: str, new_password: str) -> int | None:
-        """トークンを検証してパスワードを更新する。
+        """Verify the token and update the password.
 
-        成功したら対象利用者の ID（監査ログの「誰が」に使う）、失敗なら ``None``。
+        Returns the target user's ID on success (used as "who" in the audit log), ``None`` on
+        failure.
         """
         from werkzeug.security import generate_password_hash
 
@@ -142,11 +144,11 @@ class PasswordResetService:
         if user is None or not user.is_active:
             return None
         if not user.has_local_password and row.purpose != INVITATION:
-            # 発行のあとでパスワードを取り上げられた場合（ADR-0076 §6）。券が残っていても
-            # 通さない。招待（ADR-0079 §5）だけは、最初のパスワードを決めるためのもの。
+            # The password was taken away after issuance (ADR-0076 §6). Reject even if the token
+            # remains. Only invitations (ADR-0079 §5) exist to set the first password.
             return None
         user.password_hash = generate_password_hash(new_password)
-        # 再設定の前に始まったログインは、次の更新で終わる（ADR-0076 §8）
+        # Logins started before the reset end at their next refresh (ADR-0076 §8)
         user.end_sessions()
         row.used_at = utcnow()
         session.flush()

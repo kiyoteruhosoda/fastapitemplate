@@ -1,21 +1,21 @@
 /**
- * 入力フォームを載せるダイアログ（ADR-0080 §6）。
+ * Dialog that holds an input form (ADR-0080 §6).
  *
- * 一覧の画面で「追加」を押したときに開く。狭い画面では画面の下から幅いっぱいに、
- * 広い画面では中央に出る。**どちらの形で出すかは `index.css` が決める**ので、
- * このコンポーネントは画面幅を判定しない（ADR-0080 §2）。
+ * Opened when "Add" is pressed on a list page. On narrow screens it appears full width from
+ * the bottom; on wide screens in the center. **Which form it takes is decided by `index.css`**,
+ * so this component does not check the screen width (ADR-0080 §2).
  *
- * 素の `<dialog>` を `showModal()` で開く。フォーカスの閉じ込め・Esc での取り消し・
- * 背後の不活性化・重ね順（top layer）はブラウザ側の実装をそのまま使う。
- * 自前で組むと、ヘッダー（`position: sticky`）との重ね順やフォーカスの戻し先を
- * 画面ごとに間違える。
+ * Opens a plain `<dialog>` with `showModal()`. Focus trapping, Esc to cancel, making the
+ * background inert and stacking (top layer) all use the browser's implementation. Hand-rolled
+ * versions get the stacking against the header (`position: sticky`) or the focus return
+ * target wrong page by page.
  *
- * 開いているあいだだけ描画する（`{open && <FormDialog …>}` の形で使う）。閉じた
- * `<dialog>` を残しておくと、中の入力欄が読み上げ・テストの検索対象として
- * 一覧側の同名の項目と二重に見つかる。
+ * Rendered only while open (use as `{open && <FormDialog …>}`). A closed `<dialog>` left
+ * in the DOM makes its inputs show up twice for screen readers and test queries, alongside
+ * same-named items on the list page.
  *
- * jsdom は `<dialog>` の開閉メソッドを持たないため、テストでは `vitest.setup.ts`
- * が `open` 属性の付け外しだけを肩代わりする。
+ * jsdom has no `<dialog>` open/close methods, so in tests `vitest.setup.ts` only toggles
+ * the `open` attribute.
  */
 import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from 'react'
 
@@ -26,9 +26,9 @@ export function FormDialog({
   onClose,
   children,
 }: {
-  /** 見出し。何を追加するのかを示す（引き金のボタンと同じ言い回しにする）。 */
+  /** Heading. Says what is being added (use the same wording as the triggering button). */
   title: string
-  /** 閉じる操作（✕・Esc・背景のタップ）。呼び出し側が描画をやめる。 */
+  /** Close action (✕, Esc, tapping the backdrop). The caller stops rendering. */
   onClose: () => void
   children: ReactNode
 }) {
@@ -36,12 +36,12 @@ export function FormDialog({
   const dialogRef = useRef<HTMLDialogElement>(null)
   const headingId = useId()
 
-  // 描かれたら開く。閉じるのは呼び出し側が描画をやめたとき（後片付けで close）。
-  // StrictMode の二度目の実行でも、片付けで閉じてから開き直すので破綻しない
-  // （開いている `<dialog>` に `showModal()` を呼ぶと例外になる）。
+  // Open once rendered. It closes when the caller stops rendering (close in the cleanup).
+  // StrictMode's second run also works, since the cleanup closes before reopening
+  // (calling `showModal()` on an open `<dialog>` throws).
   //
-  // 開いたら最初の入力欄へフォーカスを移す。既定では DOM の先頭にある閉じるボタン
-  // （✕）へ入り、キーボードと読み上げでは「閉じる」から始まることになる。
+  // Once open, move focus to the first input. By default it lands on the close button (✕)
+  // first in the DOM, so keyboard and screen reader users would start at "Close".
   useEffect(() => {
     const dialog = dialogRef.current
     if (dialog === null) return
@@ -52,7 +52,7 @@ export function FormDialog({
     }
   }, [])
 
-  /** 背景（`::backdrop`）のクリックは `<dialog>` 自身に届く。中身は panel が受ける。 */
+  /** Clicks on the backdrop (`::backdrop`) reach the `<dialog>` itself; content clicks reach the panel. */
   const closeOnBackdrop = (event: MouseEvent<HTMLDialogElement>) => {
     if (event.target === event.currentTarget) onClose()
   }
@@ -64,7 +64,7 @@ export function FormDialog({
       aria-labelledby={headingId}
       onClick={closeOnBackdrop}
       onCancel={(event) => {
-        // Esc は既定だと `<dialog>` だけを閉じ、呼び出し側の状態が開いたまま残る。
+        // By default Esc closes only the `<dialog>`, leaving the caller's state open.
         event.preventDefault()
         onClose()
       }}

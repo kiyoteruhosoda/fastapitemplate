@@ -1,21 +1,21 @@
-# 置き場。**2 つ**（DB とアプリのデータ）。
+# Storage. **Two** volumes (the DB and the app data).
 #
-# ⚠ **ディレクトリと持ち主は人が先に作る。** PV は作るだけで掘らない。
+# ⚠ **A person creates the directories and their owners first.** PVs only declare; they don't create.
 #
 #     ssh nolumialab 'sudo mkdir -p /srv/k8s-local/<app>-<env>-db /srv/k8s-local/<app>-<env>-data'
 #     ssh nolumialab 'sudo chown 999:999 /srv/k8s-local/<app>-<env>-db \
 #       && sudo chmod 770 /srv/k8s-local/<app>-<env>-db'
 #     ssh nolumialab 'sudo chown 5678:5678 /srv/k8s-local/<app>-<env>-data'
 #
-#   999 は MariaDB のイメージの `mysql`、5678 はこのイメージの `appuser`
-#   （`Dockerfile` の `ARG APP_UID`）。**片方だけ変えるとアプリが書けなくなる。**
+#   999 is `mysql` in the MariaDB image, 5678 is `appuser` in this image
+#   (`ARG APP_UID` in the `Dockerfile`). **Change only one and the app can no longer write.**
 #
-# ⚠ **`local.path` は後から変えられない。** 置き場を移すときは PV と PVC を
-#   作り直す。`reclaimPolicy: Retain` なので中身は残る（既定の `Delete` だと消える）。
+# ⚠ **`local.path` cannot be changed later.** To move the storage, recreate the PV and
+#   PVC. With `reclaimPolicy: Retain` the data stays (the default `Delete` would erase it).
 #
-# ⚠ **本番の DB は iSCSI LUN に置くことがある**（NAS 側で 1 本切る）。
-#   宣言の形は変わらない ——`local.path` が `/srv/lun/<app>-<env>-db/db` になるだけ。
-#   手順は deploy-repo の `k8s/lun/`。
+# ⚠ **The production DB may live on an iSCSI LUN** (one carved out on the NAS).
+#   The declaration keeps its shape — `local.path` just becomes `/srv/lun/<app>-<env>-db/db`.
+#   Procedure: `k8s/lun/` in deploy-repo.
 ---
 apiVersion: v1
 kind: PersistentVolume

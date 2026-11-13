@@ -1,10 +1,11 @@
-"""機械の口の許可簿 1 行（ADR-0082・ADR-0087）。
+"""One row of the machine endpoint allowlist (ADR-0082, ADR-0087).
 
-1 行が「この ``client_id`` は、この利用者として振る舞い、この操作だけをしてよい」を表す。
+A row means "this ``client_id`` may act as this user and perform only these operations".
 
-⚠ **操作は権限コード（scope）で書く**（``item:view`` / ``note:write`` など。ADR-0087 決定 2）。
-機械に出すトークンの scope は「振る舞う利用者の権限」と「許可簿の操作」の**両方にあるものだけ**になる。
-書いていない操作は通らない（既定は拒否）。``operations`` が空の行は、どの操作もできない。
+⚠ **Operations are written as permission codes (scopes)** (``item:view`` / ``note:write`` etc. ADR-0087 decision 2).
+The scope of a token issued to a machine is **only what is in both** "the acting user's permissions" and
+"the allowlist's operations".
+Operations not listed don't pass (deny by default). A row with empty ``operations`` can do nothing.
 """
 
 from __future__ import annotations
@@ -15,15 +16,15 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class MachineClient:
-    """許可簿の 1 行。"""
+    """One allowlist row."""
 
-    #: assay が発行した ``client_id``（機械トークンの ``client_id`` クレームと突き合わせる）
+    #: ``client_id`` issued by assay (matched against the machine token's ``client_id`` claim)
     client_id: str
-    #: 画面・ログに出す名前（``client_id`` は人が読んでも何のアプリか分からない）
+    #: Name shown on screens and in logs (a ``client_id`` doesn't tell a human which app it is)
     name: str
-    #: 振る舞う相手の利用者のメールアドレス（トークンの発行者のテナントの中で引く）
+    #: Email of the user to act as (looked up within the token issuer's tenant)
     acts_as: str
-    #: 使ってよい操作（権限コード）
+    #: Allowed operations (permission codes)
     operations: frozenset[str]
 
     def allows(self, operation: str) -> bool:
@@ -43,10 +44,10 @@ def _operations(entry: Mapping[str, object]) -> frozenset[str]:
 
 
 def parse_machine_clients(raw: Sequence[object]) -> tuple[MachineClient, ...]:
-    """設定（JSON の配列）を許可簿にする。
+    """Turn the setting (a JSON array) into the allowlist.
 
-    ⚠ **``client_id`` か ``acts_as`` の無い行は捨てる。** 「誰でもない誰か」として通すことはしない。
-    捨てた行の機械は、名乗っても登録が無いのと同じ 401 になる。
+    ⚠ **Rows without ``client_id`` or ``acts_as`` are dropped.** Nothing passes as "someone who is nobody".
+    Machines of dropped rows get the same 401 as an unregistered one.
     """
     clients: list[MachineClient] = []
     for entry in raw:

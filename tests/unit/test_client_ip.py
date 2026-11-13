@@ -1,9 +1,9 @@
-"""接続元 IP の判定（監査ログに残る値なので、詐称できる経路を作らない）。
+"""Determining the client IP (it is stored in audit logs, so no path may allow spoofing).
 
-``X-Forwarded-For`` は送信元が自由に付けられるヘッダーで、同梱の nginx が使う
-``$proxy_add_x_forwarded_for`` は受け取った値の**後ろ**に実際の接続元を足す。
-つまり左端は攻撃者が置いた値になり得る。信頼するのは ``TRUSTED_PROXY_HOPS`` で
-宣言した段数だけ、という判定をここで固定する。
+``X-Forwarded-For`` is a header the sender can set freely, and ``$proxy_add_x_forwarded_for`` used
+by the bundled nginx appends the actual peer **after** the received value. So the leftmost entry
+can be attacker-supplied. This pins the rule that only as many hops as declared in
+``TRUSTED_PROXY_HOPS`` are trusted.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from shared.kernel.settings.settings import ApplicationSettings
 
 _PEER = "10.0.0.9"
 
-# 信頼するプロキシ段数を差し替えるフィクスチャの型
+# Type of the fixture that replaces the number of trusted proxy hops
 TrustedHops = Callable[[int], None]
 
 
@@ -38,7 +38,7 @@ def _request(forwarded_for: str | None) -> Request:
 
 @pytest.fixture
 def trusted_hops(monkeypatch: pytest.MonkeyPatch) -> TrustedHops:
-    """``TRUSTED_PROXY_HOPS`` を差し替えるためのフィクスチャ。"""
+    """Fixture for replacing ``TRUSTED_PROXY_HOPS``."""
 
     def apply(hops: int) -> None:
         monkeypatch.setattr(
@@ -50,28 +50,28 @@ def trusted_hops(monkeypatch: pytest.MonkeyPatch) -> TrustedHops:
 
 
 def test_ignores_the_forwarded_header_by_default(trusted_hops: TrustedHops) -> None:
-    """既定（0 段）ではヘッダーを一切見ない。直接公開しても詐称されない。"""
+    """By default (0 hops) the header is ignored entirely. Exposed directly, it cannot be spoofed."""
     trusted_hops(0)
 
     assert _client_ip(_request("1.2.3.4")) == _PEER
 
 
 def test_takes_the_address_appended_by_the_trusted_proxy(trusted_hops: TrustedHops) -> None:
-    """1 段なら右端（プロキシが自分で足した値）を採る。左端の詐称値は無視する。"""
+    """With 1 hop, take the rightmost value (added by the proxy itself). Spoofed leftmost values are ignored."""
     trusted_hops(1)
 
     assert _client_ip(_request("1.2.3.4, 203.0.113.7")) == "203.0.113.7"
 
 
 def test_counts_hops_from_the_right(trusted_hops: TrustedHops) -> None:
-    """2 段構成では外側のプロキシが記録した値まで遡る。"""
+    """With 2 hops, go back to the value recorded by the outer proxy."""
     trusted_hops(2)
 
     assert _client_ip(_request("1.2.3.4, 203.0.113.7, 10.0.0.2")) == "203.0.113.7"
 
 
 def test_falls_back_when_the_header_is_shorter_than_declared(trusted_hops: TrustedHops) -> None:
-    """宣言した段数に足りない = 想定した経路を通っていない。ヘッダーを信じない。"""
+    """Fewer entries than the declared hops = the expected path was not taken. Do not trust the header."""
     trusted_hops(2)
 
     assert _client_ip(_request("203.0.113.7")) == _PEER

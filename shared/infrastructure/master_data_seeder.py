@@ -1,11 +1,12 @@
-"""マスタデータ投入（冪等）。
+"""Seeding master data (idempotent).
 
-値の正本は ``shared/domain/auth/master_data.py``。ここには投入ロジックのみを
-置き、``scripts/seed_master_data.py``・マイグレーション・テストから共用する。
+The values live in ``shared/domain/auth/master_data.py``. Only the seeding logic is here, shared
+by ``scripts/seed_master_data.py``, migrations and tests.
 
-⚠ **「ロール・権限を足す」と「初期管理者を据える」は別の操作**（ADR-0078 §3）。
-権限を足すマイグレーションは前者だけを呼ぶ。混ぜると、**運用の途中で消した
-既定の管理者が、権限を 1 つ足すたびに既定のパスワードのまま復活する**。
+⚠ **"Adding roles/permissions" and "seating the initial administrator" are separate operations**
+(ADR-0078 §3). Migrations that add permissions call only the former. Mixing them means **a default
+administrator deleted during operation comes back, with the default password, every time a
+permission is added**.
 """
 
 from __future__ import annotations
@@ -19,18 +20,18 @@ from shared.infrastructure.models import Permission, Role, User
 
 
 def seed_master_data(session: Session) -> None:
-    """ロール・権限を投入する。既存の行は変更しない（冪等）。
+    """Seed roles and permissions. Existing rows are not changed (idempotent).
 
-    **初期管理者は作らない**（``ensure_default_admin`` が担う。ADR-0078 §3）。
-    権限やロールを足すたびに呼ばれる関数なので、ここで利用者を作ると
-    「消したはずの管理者が権限追加のたびに戻る」ことになる。
+    **Does not create the initial administrator** (``ensure_default_admin`` does; ADR-0078 §3).
+    This function is called every time permissions or roles are added, so creating users here
+    would mean "an administrator that was deleted comes back with every permission addition".
     """
     roles: dict[str, Role] = {}
     for role_id, name in master_data.ROLES:
         role = session.scalar(select(Role).where(Role.name == name))
         if role is None:
-            # 固定の id が、運用中に足したロールで既に埋まっていることがある。
-            # そのときは採番に任せる（名前が安定キーで、id は参照の都合でしかない）。
+            # The fixed id may already be taken by a role added during operation.
+            # Then let the DB assign one (the name is the stable key; the id is only for references).
             taken = session.get(Role, role_id) is not None
             role = Role(name=name) if taken else Role(id=role_id, name=name)
             session.add(role)
@@ -56,15 +57,15 @@ def seed_master_data(session: Session) -> None:
 
 
 def ensure_default_admin(session: Session, *, password: str | None = None) -> None:
-    """初期管理者が居なければ据える（冪等）。
+    """Seat the initial administrator if there is none (idempotent).
 
-    **据え付けと、鍵を失ったときの復旧でだけ呼ぶ**（ADR-0078 §3）。呼ぶのは
-    最初のマイグレーション（``0002_seed_master_data``）と
-    ``scripts/seed_master_data.py`` の 2 か所。
+    **Call only at setup and for recovery after losing the key** (ADR-0078 §3). It is called
+    from two places: the first migration (``0002_seed_master_data``) and
+    ``scripts/seed_master_data.py``.
 
-    ⚠ **``password`` を渡さないと、公開されている既定のハッシュで作る**
-    （平文は ``master_data.DEFAULT_ADMIN_PASSWORD``）。据え付け直後に変える前提の
-    値なので、**動いている環境から呼ばない**こと。
+    ⚠ **Without ``password``, it is created with the published default hash**
+    (plaintext ``master_data.DEFAULT_ADMIN_PASSWORD``). That value is meant to be changed right
+    after setup, so **never call this from a running environment**.
     """
     if session.scalar(select(User).where(User.email == master_data.DEFAULT_ADMIN_EMAIL)) is not None:
         return

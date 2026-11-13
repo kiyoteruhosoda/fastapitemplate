@@ -1,8 +1,8 @@
-"""連携先の外部 IdP（OpenID Provider）1 つ分の設定。
+"""Settings for one external IdP (OpenID Provider) connection.
 
-このアプリが持つ IdP は 1 つだけで、値は設定（``settings`` の ``OIDC_*``）から
-組み立てる（ADR-0077 §1）。ここは組み立て済みの値を受け取り、「使える設定か」と
-「認可要求に載せる scope」だけを判断する。
+This app has only one IdP, and values are built from settings (``OIDC_*`` in ``settings``)
+(ADR-0077 §1). This receives the built values and only judges "are the settings usable" and
+"which scope goes into the authorization request".
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from bounded_contexts.identity_federation.domain.value_objects.client_credential
     ClientCredential,
 )
 
-# OpenID Connect は ``openid`` scope が無いと ID トークンを返さない。設定から
-# 抜け落ちていても必ず要求する。
+# OpenID Connect returns no ID token without the ``openid`` scope. Always request it,
+# even if it is missing from the settings.
 REQUIRED_SCOPE = "openid"
 
 
@@ -32,25 +32,25 @@ class IdentityProvider:
 
     @property
     def is_usable(self) -> bool:
-        """認可要求を始められるか（接続先と資格情報が揃っているか）。
+        """Whether an authorization request can be started (connection and credentials complete).
 
-        資格情報が揃っているかの判断は方式ごとに違うので
-        :class:`ClientCredential` に任せる（ADR-0077 §1）。
+        Whether credentials are complete differs per method, so it is left to
+        :class:`ClientCredential` (ADR-0077 §1).
         """
         return bool(self.issuer and self.client_id and self.redirect_uri and self.credential.is_complete)
 
     @property
     def scope_parameter(self) -> str:
-        """``scope`` パラメータの値。``openid`` を必ず先頭に置き、重複は畳む。"""
+        """Value of the ``scope`` parameter. ``openid`` always first, duplicates collapsed."""
         requested = (REQUIRED_SCOPE, *(scope for scope in self.scopes if scope))
         return " ".join(dict.fromkeys(requested))
 
 
 def require_usable(provider: IdentityProvider | None) -> IdentityProvider:
-    """使える設定であることを確かめて返す。駄目なら :class:`SsoNotConfiguredError`。
+    """Check the settings are usable and return them. Otherwise :class:`SsoNotConfiguredError`.
 
-    「無効」と「設定が埋まっていない」を呼び出し側から区別する必要はない
-    （どちらも SSO を始められない、という 1 つの結果になる）。
+    The caller needn't distinguish "disabled" from "settings not filled in"
+    (both lead to the single result that SSO can't start).
     """
     if provider is None or not provider.is_usable:
         raise SsoNotConfiguredError

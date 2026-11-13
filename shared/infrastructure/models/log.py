@@ -1,12 +1,12 @@
-"""アプリログの永続化モデル（``requestId`` でリクエスト単位に追跡する）。
+"""Persistence model of application logs (tracked per request by ``requestId``).
 
-書き込みは :mod:`shared.kernel.logging` の ``DbLogHandler``（ログ出力は全レイヤー
-横断の関心事）。閲覧のための検索は audit コンテキストが行う。
+Written by ``DbLogHandler`` in :mod:`shared.kernel.logging` (logging is a concern across all
+layers). Searching for viewing is done by the audit context.
 
-PII を含めない。ユーザー識別子は ``user_id_hash`` のみ。traceback は例外時のみ。
+No PII. The only user identifier is ``user_id_hash``. traceback only on exceptions.
 
-``level`` / ``logger`` / ``user_id_hash`` に索引を張っているのは、管理画面が
-これらで絞り込むため（レベル・ロガー前方一致・利用者での検索）。
+``level`` / ``logger`` / ``user_id_hash`` are indexed because the admin screen filters by them
+(level, logger prefix match, and search by user).
 """
 
 from __future__ import annotations

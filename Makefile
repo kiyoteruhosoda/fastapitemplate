@@ -9,10 +9,10 @@
 	lint-frontend typecheck-frontend test-frontend test-e2e
 
 # --------------------------------
-# イメージ（手元での確認用）
+# Image (for local checks)
 # --------------------------------
-# 本番の成果物は LAN の中の build が焼いてレジストリへ push する（ADR-0073 §1）。
-# ここで作るのは Dockerfile が壊れていないかを手元で確かめるためのもの。
+# The production artifact is built by build inside the LAN and pushed to the registry
+# (ADR-0073 §1). This one is only for checking locally that the Dockerfile isn't broken.
 IMAGE ?= fastapitemplate:dev
 
 image:
@@ -20,7 +20,7 @@ image:
 	docker build -t $(IMAGE) .
 
 # --------------------------------
-# 品質ゲート（CI と同じ順序・同じコマンドを流す）
+# Quality gates (same order and commands as CI)
 # --------------------------------
 
 check: check-backend check-frontend
@@ -37,7 +37,7 @@ check-frontend:
 	cd frontend && npm run type-check
 	cd frontend && npm run test
 
-# 個別に回したいとき
+# To run them individually
 lint:
 	uv run ruff check .
 
@@ -56,12 +56,12 @@ typecheck-frontend:
 test-frontend:
 	cd frontend && npm run test
 
-# 実ブラウザの E2E（ADR-0072 §6）。重いので check には入れない
+# Real-browser E2E (ADR-0072 §6). Heavy, so not part of check
 test-e2e:
 	cd frontend && npm run test:e2e
 
 # --------------------------------
-# 自動整形（コミット前に流す）
+# Auto-format (run before committing)
 # --------------------------------
 
 format: format-backend format-frontend

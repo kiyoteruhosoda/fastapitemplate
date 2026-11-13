@@ -1,8 +1,8 @@
-"""ユースケースの組み立て（``Depends()`` 用のファクトリ）。
+"""Wiring of the use cases (factories for ``Depends()``).
 
-依存の生成をここへ集約し、ルーターは完成したユースケースだけを受け取る
-（CLAUDE.md「設計方針」の依存注入）。設定値は ``settings`` の ``@property``
-経由でのみ読む。
+Dependency construction is gathered here so that routers receive only finished use cases
+(dependency injection per "Design policy" in CLAUDE.md). Settings are read only through
+``@property`` on ``settings``.
 """
 
 from __future__ import annotations
@@ -79,8 +79,8 @@ def build_relying_party() -> WebAuthnRelyingParty:
     )
 
 
-# 外部要素（TOTP 実装・WebAuthn ライブラリ）は依存として差し込む。テストでは
-# ``app.dependency_overrides`` で偽物へ差し替えられる。
+# External pieces (the TOTP implementation, the WebAuthn library) are injected as dependencies.
+# Tests can swap them for fakes via ``app.dependency_overrides``.
 TotpAuthenticatorDep = Annotated[TotpAuthenticator, Depends(build_totp_authenticator)]
 RelyingPartyDep = Annotated[WebAuthnRelyingParty, Depends(build_relying_party)]
 
@@ -109,7 +109,7 @@ def verify_second_factor(db: DbDep, authenticator: TotpAuthenticatorDep) -> Veri
 
 
 def throttle_policy() -> ThrottlePolicy:
-    """窓・上限・断る長さ。**設定は呼ばれるたびに読む**（再起動を要らなくする）。"""
+    """Window, limit and lockout length. **Settings are read on every call** (so no restart is needed)."""
     return ThrottlePolicy(
         max_failures=settings.login_max_failures,
         window=timedelta(seconds=settings.login_failure_window_seconds),
@@ -118,13 +118,13 @@ def throttle_policy() -> ThrottlePolicy:
 
 
 def throttle_login() -> ThrottleLogin:
-    # ⚠ リクエストのセッションは渡さない。失敗の記録は 401 と一緒に返る（例外で
-    # 抜ける）ので、リクエストのセッションでは rollback で消える。控えは自前の
-    # 短いセッションで commit する（ADR-0076 §9）
+    # ⚠ Don't pass the request's session. Recording a failure goes back together with a 401 (it exits
+    # via an exception), so in the request's session it would be lost on rollback. The records are
+    # committed in their own short session (ADR-0076 §9)
     return ThrottleLogin(SqlLoginAttemptRepository(get_session_factory()), throttle_policy())
 
 
-# --- パスキー -----------------------------------------------------------
+# --- Passkeys -----------------------------------------------------------
 
 
 def list_passkeys(db: DbDep) -> ListPasskeys:

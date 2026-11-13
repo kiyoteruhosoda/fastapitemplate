@@ -1,7 +1,7 @@
-"""パスキーによるログイン API（未認証で呼べる）。
+"""Passkey login API (callable unauthenticated).
 
-パスワードの代わりに認証器の署名で本人確認を行う。検証に成功したら通常の
-ログインと同じトークン対を発行する。
+Verifies identity with the authenticator's signature instead of a password. On successful
+verification, issues the same token pair as a normal login.
 """
 
 from __future__ import annotations
@@ -41,10 +41,10 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 @dataclass(frozen=True)
 class _LoginRecording:
-    """ログインの成立を記録するのに要るもの（DB と監査）。
+    """What is needed to record a successful login (DB and audit).
 
-    束ねているのは、ルーターの引数を設計上の数（4 個）に収めるため。どちらも
-    ``Depends()`` の注入で、業務上の入力ではない。
+    Bundled to keep the router's arguments within the designed count (4). Both are injected via
+    ``Depends()`` and are not business inputs.
     """
 
     db: Session
@@ -59,10 +59,10 @@ def login_recording(db: DbDep, audit: AuditRecorderDep) -> _LoginRecording:
 def create_login_challenge(
     use_case: Annotated[StartPasskeyAuthentication, Depends(dependencies.start_passkey_authentication)],
 ) -> PasskeyChallengeResponse:
-    """ログイン用のチャレンジを発行する（``navigator.credentials.get`` 用）。
+    """Issue a login challenge (for ``navigator.credentials.get``).
 
-    誰がログインするかは指定しない。認証器に登録済みの資格情報を選ばせることで、
-    メールアドレスの入力なしにログインできる。
+    Who is logging in is not specified. Letting the authenticator pick a registered credential
+    allows login without entering an email address.
     """
     challenge = use_case.execute()
     return PasskeyChallengeResponse(challenge_id=challenge.challenge_id, public_key=challenge.public_key)
@@ -88,7 +88,7 @@ def login_with_passkey(
         )
 
     session = establish_session(response, user, SessionCarryOver(signed_in_with_passkey=True))
-    # どの入口で入ったかを残す（ADR-0076 §3 決定 1）。
+    # Record which entry point was used (ADR-0076 §3 decision 1).
     recording.audit.as_actor(user.id).execute(AuditEventType.LOGIN_SUCCEEDED, reason="method=passkey")
     logger.info("passkey_login_succeeded")
     return session

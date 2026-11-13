@@ -1,8 +1,8 @@
-"""保持期間を過ぎた行の削除インターフェース（実装は Infrastructure 層）。
+"""Interface for deleting rows past their retention period (implemented in the Infrastructure layer).
 
-検索（``ApplicationLogQuery`` / ``AuditLogQuery``）とは別のインターフェースにする。
-読み取りはリクエストのセッションで行うが、削除は独立したトランザクションで小分けに
-実行するもので、寿命も呼び出し元も違うため（ADR-0075 §3）。
+Kept separate from the search interfaces (``ApplicationLogQuery`` / ``AuditLogQuery``). Reads use
+the request's session, whereas deletion runs in independent transactions in small batches, with a
+different lifetime and caller (ADR-0075 §3).
 """
 
 from __future__ import annotations
@@ -13,10 +13,10 @@ from typing import Protocol
 
 class ExpiredLogRemover(Protocol):
     def delete_application_logs_before(self, cutoff: datetime) -> int:
-        """*cutoff* より古いアプリログを削除し、削除した行数を返す。"""
+        """Delete application logs older than *cutoff* and return the number of rows deleted."""
 
     def delete_audit_logs_before(self, cutoff: datetime) -> int:
-        """*cutoff* より古い監査ログを削除し、削除した行数を返す。"""
+        """Delete audit logs older than *cutoff* and return the number of rows deleted."""
 
 
 __all__ = ["ExpiredLogRemover"]

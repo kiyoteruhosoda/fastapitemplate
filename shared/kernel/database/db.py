@@ -1,7 +1,7 @@
-"""SQLAlchemy 基盤（DeclarativeBase とエンジン管理）。
+"""SQLAlchemy foundation (DeclarativeBase and engine management).
 
-モデルは :class:`Base` を継承する。エンジンは ``settings.database_uri`` から
-遅延生成し、テストでは :func:`set_engine` で SQLite in-memory へ差し替える。
+Models inherit from :class:`Base`. The engine is created lazily from ``settings.database_uri``,
+and tests replace it with in-memory SQLite via :func:`set_engine`.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
-    """全 SQLAlchemy モデルの基底クラス。"""
+    """Base class of all SQLAlchemy models."""
 
 
 _engine: sa.Engine | None = None
@@ -25,7 +25,7 @@ def get_engine() -> sa.Engine:
 
         url = settings.database_uri
         if not url:
-            raise RuntimeError("DATABASE_URI が設定されていません。環境変数を確認してください。")
+            raise RuntimeError("DATABASE_URI is not set. Check the environment variables.")
         kwargs: dict[str, object] = {}
         if not url.startswith("sqlite"):
             kwargs = {"pool_pre_ping": True, "pool_recycle": 3600}
@@ -34,7 +34,7 @@ def get_engine() -> sa.Engine:
 
 
 def set_engine(engine: sa.Engine | None) -> None:
-    """エンジンを差し替える（テスト用）。``None`` でリセット。"""
+    """Replace the engine (for tests). ``None`` resets it."""
     global _engine, _session_factory
     _engine = engine
     _session_factory = None

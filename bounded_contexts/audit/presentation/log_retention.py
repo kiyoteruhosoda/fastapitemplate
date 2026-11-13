@@ -1,10 +1,10 @@
-"""保持期間を過ぎたログの掃除（定期実行の組み立て）。
+"""Cleanup of logs past their retention period (assembling the periodic execution).
 
-ユースケース（Application）と削除の実装（Infrastructure）を結び付ける配線。
-Infrastructure は Application を import できないため、組み立ては最も外側の層が行う。
+Wiring that connects the use case (Application) with the deletion implementation (Infrastructure).
+Infrastructure cannot import Application, so the outermost layer does the assembly.
 
-**設定は実行のたびに読む。** 管理画面で保持日数を変えたら次の周回から効く
-（再起動は要らない ＝ 設定定義に ``restart_scopes`` を付けていない）。
+**Settings are read on every run.** Changing the retention days on the admin screen takes effect
+from the next round (no restart needed = the setting definition has no ``restart_scopes``).
 """
 
 from __future__ import annotations
@@ -23,13 +23,13 @@ from shared.kernel.timestamps import utcnow
 
 WORKER_NAME = "log-retention"
 
-# 掃除の間隔。保持期間は日単位なので、1 日に数回見れば十分（設定値にはしない。
-# 運用者が決めるのは「何日残すか」であって「何秒ごとに見るか」ではない）。
+# Cleanup interval. Retention is in days, so checking a few times a day is enough (not a setting:
+# operators decide "how many days to keep", not "how many seconds between checks").
 PURGE_INTERVAL_SECONDS = 6 * 60 * 60
 
 
 def purge_expired_logs_once() -> None:
-    """現在の設定に従って 1 回だけ掃除する。"""
+    """Run one cleanup according to the current settings."""
     from shared.kernel.settings.settings import settings
 
     policy = LogRetentionPolicy(
@@ -40,7 +40,7 @@ def purge_expired_logs_once() -> None:
 
 
 def start_log_retention_worker() -> None:
-    """掃除の定期実行を開始する（プロセスの起動処理から呼ぶ）。"""
+    """Start periodic cleanup (call from the process's startup)."""
     start_interval_worker(WORKER_NAME, purge_expired_logs_once, PURGE_INTERVAL_SECONDS)
 
 

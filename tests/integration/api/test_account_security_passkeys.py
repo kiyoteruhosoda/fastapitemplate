@@ -1,8 +1,8 @@
-"""パスキー（WebAuthn）の登録・一覧・削除・ログイン。
+"""Passkey (WebAuthn) registration, listing, deletion and sign-in.
 
-実際の認証器は使えないため、``WebAuthnRelyingParty`` を偽の実装へ差し替えて
-アプリケーション側の流れ（チャレンジの発行・消費、資格情報の保存、トークン
-発行）を検証する。署名検証そのものはライブラリの責務。
+Real authenticators are not available, so ``WebAuthnRelyingParty`` is replaced with a fake to test
+the application-side flow (issuing and consuming challenges, storing credentials, issuing tokens).
+Signature verification itself is the library's responsibility.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from presentation.fastapi.dependencies.auth import ACCESS_TOKEN_COOKIE
 
 @dataclass
 class FakeRelyingParty:
-    """チャレンジを固定し、``credential`` の中身をそのまま信じる偽 RP。"""
+    """A fake RP with a fixed challenge that trusts the ``credential`` contents as is."""
 
     challenge: str = "Y2hhbGxlbmdl"
     accepted_challenges: list[str] = field(default_factory=list)
@@ -122,7 +122,7 @@ def test_passkey_list_requires_authentication(client: TestClient, relying_party:
 
 
 def test_real_relying_party_produces_browser_ready_options(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """偽物を挟まず、設定値から実際の WebAuthn オプションが組み立てられること。"""
+    """Without the fake, real WebAuthn options are built from the settings."""
     response = client.post("/api/account/security/passkeys/registration", headers=admin_headers)
     assert response.status_code == 200, response.text
     public_key = response.json()["public_key"]
@@ -132,7 +132,7 @@ def test_real_relying_party_produces_browser_ready_options(client: TestClient, a
     assert public_key["pubKeyCredParams"]
 
     login_options = client.post("/api/auth/passkey/challenge").json()["public_key"]
-    # ログインは資格情報を指定しない（メールアドレスの入力が不要になる）
+    # Sign-in does not specify credentials (no need to enter an email address)
     assert login_options["allowCredentials"] == []
 
 
@@ -175,10 +175,10 @@ def test_registration_excludes_already_registered_credentials(
 def test_registration_rejects_another_users_challenge(
     client: TestClient, admin_headers: dict[str, str], relying_party: FakeRelyingParty, db_session: Session
 ) -> None:
-    """他人宛に発行されたチャレンジでは登録できない。
+    """A challenge issued for someone else cannot be used to register.
 
-    ここを見ないと、A の challenge_id を握った B が「A 向けに発行された
-    資格情報」を B のアカウントへ保存でき、以後それで B としてログインできる。
+    Without this check, B holding A's challenge_id could save "a credential issued for A" to B's
+    account and from then on sign in as B with it.
     """
     from bounded_contexts.account_security.infrastructure.account_security_models import (
         WebAuthnChallengeRecord,
@@ -186,7 +186,7 @@ def test_registration_rejects_another_users_challenge(
 
     challenge = client.post("/api/account/security/passkeys/registration", headers=admin_headers).json()
 
-    # 発行後に持ち主だけを別ユーザーへ書き換える（他人のチャレンジを掴んだ状態）
+    # After issuing, rewrite only the owner to another user (as if holding someone else's challenge)
     record = db_session.get(WebAuthnChallengeRecord, challenge["challenge_id"])
     assert record is not None
     record.user_id = None
@@ -244,7 +244,7 @@ def test_login_with_a_registered_passkey(
         },
     )
     assert response.status_code == 200, response.text
-    # トークンは Cookie に載る（ADR-0076 §4）。本文は寿命だけ。
+    # The token travels in a cookie (ADR-0076 §4). The body carries only the lifetime.
     assert response.json()["expires_in"] > 0
     assert client.cookies[ACCESS_TOKEN_COOKIE]
 
@@ -268,5 +268,5 @@ def test_failed_verification_is_reported_as_unauthorized(
     response = _register(client, admin_headers, "reject")
     assert response.status_code == 401
     assert response.json()["detail"]["error"] == "passkey_verification_failed"
-    # 検証に失敗した資格情報は保存されない
+    # Credentials that fail verification are not stored
     assert client.get("/api/account/security/passkeys", headers=admin_headers).json() == []

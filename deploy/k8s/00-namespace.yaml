@@ -1,19 +1,19 @@
-# <app>-<env> を k3s に載せる（ADR-0073 §1）。
+# Put <app>-<env> on k3s (ADR-0073 §1).
 #
-# ⚠ **置き先は deploy-repo の `k8s/<app>-<env>/`。** このディレクトリはその雛形で、
-#   `<app>` / `<env>` / 番号 / digest を置き換えてから複製する。
-#   実物の見本は deploy-repo の `k8s/fastapitemplate-stg/`。
+# ⚠ **The real location is deploy-repo's `k8s/<app>-<env>/`.** This directory is its template;
+#   replace `<app>` / `<env>` / port numbers / digests before copying it.
+#   A real example is deploy-repo's `k8s/fastapitemplate-stg/`.
 #
-# ⚠ **apply する単位はディレクトリ**（`k8s/<app>-<env>/` の `.yaml` 全部。
-#   再帰はしない）。ファイル名の番号が当たる順序になる。
+# ⚠ **The unit of apply is the directory** (all `.yaml` in `k8s/<app>-<env>/`,
+#   non-recursive). The number in the file name sets the apply order.
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: <app>-<env>
   labels:
-    # ⚠ **この 3 つは deck が環境を並べるための印。** 落とすと画面に出てこない
-    #   （＝起動も停止も版上げもできない）。
+    # ⚠ **These 3 labels are how deck lists environments.** Drop them and it does not show up
+    #   (= cannot start, stop, or bump the version).
     nolumia.dev/managed-by: nolumiadeck
     nolumia.dev/project: <app>
     nolumia.dev/environment: <env>

@@ -1,24 +1,26 @@
-"""リクエスト単位の構造化ログ（``requestId`` の採番と伝播）。
+"""Per-request structured logging (assigning and propagating ``requestId``).
 
-採番した ``requestId`` はレスポンスヘッダー（``X-Request-Id``）にも載せる。
-アプリログ（``log``）と監査ログ（``audit_log``）の双方に同じ値が入るため、
-利用者から受け取った ID で「そのリクエストで何が起きたか」を両側から追える。
+The assigned ``requestId`` is also put in the response header (``X-Request-Id``). Both app logs
+(``log``) and audit logs (``audit_log``) carry the same value, so an ID received from a user lets
+you trace "what happened in that request" from both sides.
 
-接続元（IP・User-Agent）も併せて伝播する。監査ログが記録する値であり、
-ハンドラの引数として引き回すと全ルーターに波及するため
-（:mod:`shared.kernel.logging.request_context`）。
+The client (IP, User-Agent) is propagated as well. Audit logs record these values, and passing
+them around as handler arguments would spread to every router
+(:mod:`shared.kernel.logging.request_context`).
 
-ログのレベルは応答のステータスコードで決める（:func:`~presentation.fastapi.error_handling.log_level_for_status`）。
-成功だけを INFO で並べても異常は見つからないので、4xx は WARNING、5xx は ERROR
-として、レベルで絞り込めば失敗だけが残るようにする。
+The log level follows the response status code
+(:func:`~presentation.fastapi.error_handling.log_level_for_status`). Listing only successes at
+INFO hides anomalies, so 4xx is WARNING and 5xx is ERROR; filtering by level leaves only
+failures.
 
-**素の ASGI ミドルウェアとして書いている**（``BaseHTTPMiddleware`` を使わない）。
-``BaseHTTPMiddleware`` は下流を**別のタスク**で走らせるため、認証依存関数が設定した
-``user_id_hash`` がログを出す側へ戻らず、``http_request`` の行だけ「誰のリクエストか」
-が空になる（:mod:`presentation.fastapi.middleware.internal_error` と同じ事情）。
+**Written as a plain ASGI middleware** (not ``BaseHTTPMiddleware``). ``BaseHTTPMiddleware`` runs
+the downstream in **a separate task**, so ``user_id_hash`` set by the auth dependency doesn't
+come back to the logging side, and only the ``http_request`` line lacks "whose request it was"
+(same reason as :mod:`presentation.fastapi.middleware.internal_error`).
 
-行を出すのは**応答の先頭を送るとき**で、下流が終わるのを待たない。大きなファイルの
-流し読みでも ``duration_ms`` は先頭までの時間のままで、途中で接続が切れても行は残る。
+The line is emitted **when the start of the response is sent**, without waiting for the
+downstream to finish. Even when streaming a large file, ``duration_ms`` is the time to the first
+byte, and the line survives a dropped connection.
 """
 
 from __future__ import annotations
@@ -46,11 +48,11 @@ access_logger = logging.getLogger("app.request")
 
 _FORWARDED_FOR_HEADER = "x-forwarded-for"
 
-# 死活監視・メトリクス収集の定期アクセス。Docker の healthcheck は数十秒おきに
-# 叩くため、成功した分まで残すとアプリログがこれで埋まり、本当に見たい行が
-# 押し流される（1 件ずつは「異常が無かった」以上の情報を持たない）。
-# **失敗（4xx/5xx）は残す。** プローブが落ちていること自体が知りたい情報で、
-# ここで捨てると監視の対象が監視できなくなる。
+# Periodic liveness and metrics scraping. Docker's healthcheck hits every few tens of seconds,
+# so keeping successes would flood the app log and push out the lines that matter (each one
+# carries no information beyond "nothing was wrong").
+# **Failures (4xx/5xx) are kept.** A failing probe is exactly what we want to know, and
+# dropping it here would leave the monitored thing unmonitored.
 _PROBE_PATHS = frozenset({"/api/health", "/healthz", "/readyz", "/metrics"})
 
 
@@ -59,15 +61,16 @@ def _should_log(path: str, status_code: int) -> bool:
 
 
 def _client_ip(request: Request) -> str | None:
-    """接続元 IP を返す。監査ログに残る値なので、詐称できる経路を作らない。
+    """Return the client IP. It ends up in the audit log, so leave no path for spoofing.
 
-    ``X-Forwarded-For`` は**送信元が自由に付けられるヘッダー**で、同梱の nginx が
-    使う ``$proxy_add_x_forwarded_for`` は受け取った値の後ろに実際の接続元を足す。
-    左端を採ると ``X-Forwarded-For: 1.2.3.4`` を送るだけで任意の IP を記録させられる。
+    ``X-Forwarded-For`` is **a header the sender can set freely**, and the bundled nginx's
+    ``$proxy_add_x_forwarded_for`` appends the actual client after the received value. Taking the
+    leftmost value would let anyone record an arbitrary IP just by sending
+    ``X-Forwarded-For: 1.2.3.4``.
 
-    そこで信頼するのは ``TRUSTED_PROXY_HOPS`` で宣言した段数だけとし、右から数えて
-    その位置の値を採る（プロキシが自分で足した値 = 詐称できない）。既定は 0 で、
-    ヘッダーを一切見ずに TCP の接続元を使う。
+    So only the number of hops declared in ``TRUSTED_PROXY_HOPS`` is trusted, taking the value at
+    that position counted from the right (a value the proxy appended itself = cannot be spoofed).
+    The default is 0, which ignores the header entirely and uses the TCP peer.
     """
     client_host = request.client.host if request.client else None
 
@@ -80,7 +83,7 @@ def _client_ip(request: Request) -> str | None:
         return client_host
     addresses = [part.strip() for part in forwarded.split(",") if part.strip()]
     if len(addresses) < hops:
-        # 宣言した段数に足りない = 想定した経路を通っていない。ヘッダーを信じない。
+        # Fewer than the declared hops = not the expected path. Don't trust the header.
         return client_host
     return addresses[-hops]
 
@@ -97,7 +100,7 @@ class RequestLoggingMiddleware:
         request = Request(scope)
         request_id = str(uuid.uuid4())
         request_id_var.set(request_id)
-        # 前のリクエストの値が残らないよう、リクエストごとに明示的に初期化する
+        # Explicitly reset per request so values from the previous request don't linger
         user_id_hash_var.set(None)
         actor_user_id_var.set(None)
         ip_address_var.set(_client_ip(request))

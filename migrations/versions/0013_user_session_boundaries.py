@@ -1,11 +1,11 @@
 """user session boundaries
 
-``user_session_boundaries`` を足す（ADR-0076 §8）。1 人 1 行で、その時刻より前に出した
-トークンでは更新・出し直しをさせない。パスワードを変えたときに入る。
+Add ``user_session_boundaries`` (ADR-0076 §8). One row per user; tokens issued before that time
+cannot refresh or be reissued. Set when the password changes.
 
-**表を足すだけ**で、既存の表には触れない。``users`` の列にしないのは、古い移行
-（据え付けの ``0002``）が ``User`` のモデルで ``users`` を書くため（列を足すと、
-この移行より前の段で「列が無い」で落ちる）。
+**Only adds a table**; existing tables are untouched. It is not a ``users`` column because an old
+migration (the setup ``0002``) writes ``users`` through the ``User`` model (adding a column would
+make a step before this migration fail with "no such column").
 
 Revision ID: user_session_boundaries
 Revises: rename_admin_role_to_owner

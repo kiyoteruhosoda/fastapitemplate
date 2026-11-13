@@ -1,9 +1,10 @@
 /**
- * 「もう一度サインインしてください」で断られたときの手当て（ADR-0076 §10）。
+ * Handling for requests refused with "please sign in again" (ADR-0076 §10).
  *
- * パスキーの追加・削除とメールアドレスの変更は、サインインしてから少し経つと
- * サーバが `reauthentication_required` で断る。断られたら、そのことを知らせて
- * ログイン画面へ送る。行き先（いまの画面）を持たせるので、入り直すと戻ってくる（ADR-0077 §8）。
+ * Adding/removing a passkey and changing the email address are refused by the server with
+ * `reauthentication_required` once some time has passed since sign-in. When refused, tell the
+ * user and send them to the sign-in screen. The destination (the current screen) is carried
+ * along, so signing in again brings them back (ADR-0077 §8).
  */
 import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -14,12 +15,15 @@ import { signInPathFor } from '../services/returnTo'
 
 export const REAUTHENTICATION_REQUIRED = 'reauthentication_required'
 
-/** 失敗のエラーコード（`ApiError` の `code`）。形で見る（試験の偽物の `api` でも同じに動く）。 */
+/**
+ * Error code of a failure (`ApiError`'s `code`). Checked by shape, so it also works with the
+ * fake `api` in tests.
+ */
 function codeOf(error: unknown): unknown {
   return typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
 }
 
-/** 入り直しが要る失敗なら、知らせてログイン画面へ送り `true` を返す。 */
+/** If the failure requires signing in again, notify, send to the sign-in screen and return `true`. */
 export function useReauthentication(): (error: unknown) => boolean {
   const { t } = useI18n()
   const { notify } = useToast()

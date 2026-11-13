@@ -1,8 +1,8 @@
 /**
- * システムステータス（要 `system:manage`）。
+ * System status (requires `system:manage`).
  *
- * バージョンなどのビルド情報と、API・DB の状態を表示する。
- * データは GET /api/admin/system/status から取得する。
+ * Shows build information such as the version, and the API and DB state.
+ * Data comes from GET /api/admin/system/status.
  */
 import { useCallback, useEffect, useState } from 'react'
 
@@ -22,7 +22,7 @@ interface SystemStatus {
   timestamp_utc: string
 }
 
-/** 稼働時間を「1d 2h 3m」の形へ。1 分未満は秒で示す。 */
+/** Formats uptime as "1d 2h 3m". Under a minute is shown in seconds. */
 function formatUptime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   if (minutes < 1) return `${Math.floor(totalSeconds)}s`

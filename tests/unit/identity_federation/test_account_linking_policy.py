@@ -1,4 +1,4 @@
-"""受け入れてよい相手か・寄せてよいか（ADR-0077 §1 決定 4 / ADR-0077 §4）。"""
+"""Whether a counterpart may be accepted, and whether it may be merged (ADR-0077 §1 decision 4 / ADR-0077 §4)."""
 
 from __future__ import annotations
 
@@ -30,17 +30,17 @@ def test_a_domain_outside_the_list_is_refused() -> None:
 
 
 def test_by_default_nothing_is_linked() -> None:
-    """⚠ 既定は寄せない（ADR-0077 §4）。
+    """⚠ Merging is off by default (ADR-0077 §4).
 
-    条件の ``email_verified`` は、自前 idp (assay) では「テナント管理者がそう
-    主張している」であって本人の証明ではない。既定で開けておくと、意味の食い違いが
-    そのまま乗っ取りの経路になる。
+    The condition ``email_verified``, with our own idp (assay), means "the tenant administrator claims
+    so", not proof by the person. Leaving it open by default would turn that difference in meaning
+    directly into a takeover path.
     """
     assert not AccountLinkingPolicy().may_link(_user())
 
 
 def test_an_unverified_address_is_never_linked() -> None:
-    """開けていても、検証していないアドレスでは寄せない。"""
+    """Even when enabled, unverified addresses are not merged."""
     assert not AccountLinkingPolicy(link_by_email=True).may_link(_user(verified=False))
 
 

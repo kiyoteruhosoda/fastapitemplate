@@ -1,4 +1,4 @@
-"""管理 API の Pydantic スキーマ。"""
+"""Pydantic schemas for the admin API."""
 
 from __future__ import annotations
 
@@ -6,20 +6,20 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class SignInEntrancesResponse(BaseModel):
-    """この利用者が**このアプリへ入れる手段**の一覧（ADR-0076 §7）。
+    """The ways this user can **sign in to this app** (ADR-0076 §7).
 
-    ⚠ **認証系が 2 つあることを前提にした棚卸しのための値である。** IdP 側で
-    多要素を必須にしても、こちらのパスワード・パスキーには掛からない。何本の口が
-    開いているのかは、並べて見ないと分からない。
+    ⚠ **An inventory value that assumes two authentication systems.** Requiring MFA on the IdP
+    side does not apply to this app's password or passkeys. How many entrances are open is only
+    visible side by side.
     """
 
-    #: パスワードで入れるか（``users.password_hash`` が NULL でない。ADR-0076 §6）。
+    #: Whether password sign-in is possible (``users.password_hash`` is not NULL; ADR-0076 §6).
     password: bool = False
-    #: このアプリ側の二要素認証（TOTP）が有効か。**IdP 側の多要素とは別物。**
+    #: Whether this app's two-factor auth (TOTP) is enabled. **Separate from IdP-side MFA.**
     totp: bool = False
-    #: このアプリ側に登録されたパスキーの本数。**IdP 側のパスキーとは別物。**
+    #: Number of passkeys registered in this app. **Separate from IdP-side passkeys.**
     passkeys: int = 0
-    #: 結び付いている IdP の issuer。空 = SSO では入れない。
+    #: Issuers of linked IdPs. Empty = cannot sign in via SSO.
     identity_providers: list[str] = []
 
 
@@ -29,7 +29,7 @@ class UserResponse(BaseModel):
     username: str
     is_active: bool
     roles: list[str]
-    #: 入れる手段の一覧（ADR-0076 §7）。一覧・作成・更新のどれでも同じ形で返す。
+    #: Sign-in methods (ADR-0076 §7). Same shape for list, create and update.
     entrances: SignInEntrancesResponse = SignInEntrancesResponse()
 
 
@@ -51,7 +51,7 @@ class RoleResponse(BaseModel):
     id: int
     name: str
     permissions: list[str]
-    #: 全テナントが共有する雛形（中身は変えられない。ADR-0079 §3）
+    #: Template shared by all tenants (cannot be modified; ADR-0079 §3)
     shared: bool = False
 
 
@@ -68,7 +68,7 @@ class RoleUpdateRequest(BaseModel):
 class GroupMemberResponse(BaseModel):
     id: int
     username: str
-    #: ``group:manage`` を持たない読み手には返さない（nolumiatask #785）
+    #: Not returned to readers without ``group:manage`` (nolumiatask #785)
     email: str | None
 
 
@@ -102,7 +102,7 @@ class SystemStatusResponse(BaseModel):
     branch: str
     build_time: str
     environment: str
-    # key = コンポーネント名（api / database）, value = "ok" | "ng"
+    # key = component name (api / database), value = "ok" | "ng"
     components: dict[str, str]
     uptime_seconds: float
     timestamp_utc: str
@@ -114,11 +114,11 @@ class SystemSettingItemResponse(BaseModel):
     label: str
     value_type: str
     secret: bool = False
-    # 選択肢を持つ項目のみ。[値, 表示ラベル] の並び。
+    # Only for items with options. A list of [value, display label].
     choices: list[list[str]] | None = None
-    # 反映に再起動が必要なサービス（空 = 保存と同時に反映）
+    # Services that need a restart to apply (empty = applied on save)
     restart_scopes: list[str] = []
-    # 環境変数だけで決める設定（見るだけ。ADR-0090）
+    # Set only by environment variables (read-only; ADR-0090)
     env_only: bool = False
     value: object = None
     default: object = None
@@ -127,12 +127,12 @@ class SystemSettingItemResponse(BaseModel):
 
 
 class SystemSettingsUpdateRequest(BaseModel):
-    # key -> 新しい値（null でその key の DB 上書きを削除しデフォルトへ戻す）
+    # key -> new value (null deletes that key's DB override and reverts to the default)
     values: dict[str, object]
 
 
 class RestartRequirementResponse(BaseModel):
-    """保存した設定のうち、反映に再起動が必要なもの。"""
+    """Saved settings that need a restart to take effect."""
 
     scopes: list[str] = []
     keys: list[str] = []
@@ -157,7 +157,7 @@ class RestartStatusResponse(BaseModel):
 
 
 class RestartCommandRequest(BaseModel):
-    # 省略時は全サービスが対象
+    # If omitted, all services are targeted
     scopes: list[str] | None = None
     reason: str | None = None
 

@@ -1,7 +1,7 @@
-"""監査イベントの列挙値と操作対象の組み立て。
+"""Audit event enum values and building the operation target.
 
-保存済みの行を読めなくしないため、``AuditEventType`` / ``AuditTargetType`` の値は
-一度使ったら変えない。ここで値そのものを固定して、うっかりした改名を落とす。
+So stored rows stay readable, ``AuditEventType`` / ``AuditTargetType`` values never change once
+used. The values themselves are pinned here to catch accidental renames.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from bounded_contexts.audit.domain.value_objects.audit_target import (
     AuditTargetType,
 )
 
-# 記録済みの行と対応が崩れると過去の監査ログが引けなくなる値
+# Values whose mismatch with recorded rows would make past audit logs unsearchable
 _EXPECTED_EVENT_TYPES = {
     "login.succeeded",
     "login.failed",
@@ -70,7 +70,7 @@ def test_results_are_success_and_failure() -> None:
 
 
 def test_target_identifier_is_stored_as_text() -> None:
-    """内部 ID を ``int`` のまま渡せる（呼び出し側で毎回 str() しない）。"""
+    """Internal IDs can be passed as ``int`` (callers do not have to str() them every time)."""
     target = AuditTarget.of(AuditTargetType.USER, 42)
 
     assert target.type is AuditTargetType.USER
@@ -78,5 +78,5 @@ def test_target_identifier_is_stored_as_text() -> None:
 
 
 def test_target_without_an_identifier() -> None:
-    """設定変更のように「対象が 1 つしかない」操作は識別子を持たない。"""
+    """Operations with "only one target", like a settings change, have no identifier."""
     assert AuditTarget.of(AuditTargetType.SYSTEM_SETTINGS).identifier is None

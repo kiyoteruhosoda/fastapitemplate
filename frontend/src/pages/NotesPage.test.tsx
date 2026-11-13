@@ -1,8 +1,9 @@
 /**
- * 共有メモ（ADR-0078 §6）。出し分けの 2 段を見る。
+ * Shared notes (ADR-0078 §6). Checks the two stages of visibility.
  *
- * - 「メモを書く」は scope（`note:write`）で出す
- * - 行ごとの「編集」「削除」はサーバーの `can_change` で出す（scope を持っていても、人のメモには出さない）
+ * - "Write a note" is shown by scope (`note:write`)
+ * - Per-row "Edit" / "Delete" are shown by the server's `can_change` (not on other people's notes,
+ *   even with the scope)
  */
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,7 +57,7 @@ async function renderPage() {
 
 function rowOf(title: string): HTMLElement {
   const row = screen.getByRole('rowheader', { name: title }).closest('tr')
-  if (!row) throw new Error(`${title} の行が無い`)
+  if (!row) throw new Error(`no row for ${title}`)
   return row
 }
 
@@ -65,7 +66,7 @@ describe('NotesPage', () => {
     apiGet.mockReset()
   })
 
-  it('編集と削除は can_change の行にだけ出る（note:write を持っていても人のメモには出ない）', async () => {
+  it('shows edit and delete only on can_change rows (not on notes of others even with note:write)', async () => {
     scopes.granted = ['note:view', 'note:write']
     await renderPage()
 
@@ -78,12 +79,12 @@ describe('NotesPage', () => {
     })
   })
 
-  it('note:write が無ければ書く・編集のボタンを出さず、共有先も読まない', async () => {
+  it('without note:write hides the write and edit buttons and does not load share targets', async () => {
     scopes.granted = ['note:view']
     await renderPage()
 
     expect(screen.queryByRole('button', { name: 'Write a note' })).not.toBeInTheDocument()
-    // 自分のメモでも、書く機能が無ければ編集できない（API も scope で断る）
+    // Even your own note cannot be edited without the write feature (the API also refuses by scope)
     expect(within(rowOf('Mine')).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
     expect(apiGet).not.toHaveBeenCalledWith('/api/notes/share-targets')
   })

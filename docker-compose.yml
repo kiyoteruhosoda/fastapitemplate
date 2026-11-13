@@ -1,14 +1,14 @@
-# ローカル開発用の compose。**デプロイには使わない。**
+# compose for local development. **Not used for deployment.**
 #
-# デプロイ先は k3s で、compose は無い（宣言は deploy-repo の k8s/<app>-<env>/。
-# 雛形は deploy/k8s/。ADR-0073 §1）。サービス名（app / front）・上流の引き方・
-# 前段 1 段だけを信用する形は、デプロイ側と同じになるよう揃えてある
-# ——「手元では動くのにデプロイすると 502」を避けるため。
-# ⚠ **nginx の設定だけは共有していない**（resolver が docker と k8s で違う）。
-#   片方を直したらもう片方も直す。
+# Deployment targets k3s and has no compose (declarations: deploy-repo's k8s/<app>-<env>/,
+# template: deploy/k8s/; ADR-0073 §1). Service names (app / front), how the upstream is resolved,
+# and trusting only the one proxy hop in front are kept identical to the deployment
+# — to avoid "works locally, 502 once deployed".
+# ⚠ **Only the nginx config is not shared** (the resolver differs between docker and k8s).
+#   When you fix one, fix the other.
 #
-# 使い方:
-#   docker build -t fastapitemplate:dev .   （または make image）
+# Usage:
+#   docker build -t fastapitemplate:dev .   (or make image)
 #   cp .env.example .env
 #   docker compose up -d                    → http://127.0.0.1:8080
 
@@ -31,18 +31,18 @@ services:
     restart: "no"
 
   db:
-    # 素の MariaDB。タイムゾーンの固定だけを compose 側で与える。
+    # Plain MariaDB. compose only pins the time zone.
     image: ${DB_IMAGE:-mariadb:10.11}
     environment:
       - TZ=UTC
-      # 初期設定のみ（.env 未作成／項目未記入）でも DB が初期化されるようデフォルト値を
-      # 持つ。既定の資格情報は開発向け。デプロイ先では封印した Secret から渡す。
+      # Defaults let the DB initialize even with initial setup only (no .env / unset entries).
+      # The default credentials are for development. Deployments pass them from a sealed Secret.
       - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:-template123}
       - MARIADB_USER=${MARIADB_USER:-web_user}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD:-template123}
       - MARIADB_DATABASE=${MARIADB_DATABASE:-appdb}
-    # DB はホストへ公開しない。到達できるのは Docker ネットワーク内部だけで、
-    # 保守も `docker compose exec db mariadb ...` とコンテナ内で完結させる（ADR-0071 §2）。
+    # The DB is not exposed to the host. It is reachable only inside the Docker network, and
+    # maintenance stays inside the container via `docker compose exec db mariadb ...` (ADR-0071 §2).
     expose:
       - "3306"
     volumes:
@@ -53,37 +53,37 @@ services:
       init-paths:
         condition: service_completed_successfully
     healthcheck:
-      # $$ でエスケープし、compose にパスワードを展開させずコンテナ内シェルの環境変数
-      # 参照のまま渡す。--protocol=tcp を明示: ソケット経由だと初回初期化時の一時
-      # ブートストラップサーバーにも ping が通り、healthy と誤判定されるのを防ぐ。
+      # Escaped with $$ so compose does not expand the password and the container shell's env var
+      # reference is passed as is. --protocol=tcp is explicit: over the socket, ping also reaches the
+      # temporary bootstrap server during first initialization and is wrongly judged healthy.
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --protocol=tcp -u root -p\"$$MARIADB_ROOT_PASSWORD\" --silent"]
       interval: 10s
       timeout: 10s
-      # 初回起動（空 db_data）はシステムテーブル初期化に数分かかることがある。
-      # start_period 中も probe は interval ごとに走り、成功すれば即 healthy になる
-      # ので、長めに取っても2回目以降の起動は遅くならない。
+      # First start (empty db_data) can take minutes to initialize the system tables.
+      # The probe still runs every interval during start_period and turns healthy on success,
+      # so a long value does not slow down later starts.
       retries: 30
       start_period: 600s
 
   app:
     image: ${WEB_IMAGE:-fastapitemplate:dev}
     networks:
-      # front はこの別名で引く（デプロイ側では namespace の中の Service 名 `app`）。
+      # front resolves this alias (in the deployment, the Service name `app` inside the namespace).
       default:
         aliases:
           - ${APP_WEB_ALIAS:-fastapitemplate-app}
     init: true
     stop_grace_period: 60s
     command: web
-    # 公開ポートは front（nginx）が受け持つ。app はネットワーク内部からのみ到達可能にする。
+    # front (nginx) owns the public port. app is reachable only from inside the network.
     expose:
       - "8000"
     environment:
       - TZ=UTC
       - DATABASE_URI=mysql+pymysql://${MARIADB_USER:-web_user}:${MARIADB_PASSWORD:-template123}@db:3306/${MARIADB_DATABASE:-appdb}?charset=utf8mb4
-      # 前段の nginx 1 段だけを信頼して接続元 IP を取り出す（それ以外の
-      # X-Forwarded-For は詐称できるので無視する）。app は expose のみで
-      # front 以外から到達できない。
+      # Trust only the one nginx hop in front to extract the client IP (any other
+      # X-Forwarded-For can be spoofed, so it is ignored). app only uses expose and
+      # cannot be reached from anything but front.
       - TRUSTED_PROXY_HOPS=1
     env_file:
       - .env
@@ -97,19 +97,19 @@ services:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
       interval: 30s
       timeout: 10s
-      # app は db が healthy になった後も DB 接続待ち + alembic upgrade head を
-      # こなしてから起動する。初回（空 DB）はスキーマ構築まで含むため長めに取る。
+      # Even after db is healthy, app waits for the DB connection and runs alembic upgrade head
+      # before starting. The first run (empty DB) includes building the schema, so allow plenty of time.
       retries: 5
       start_period: 300s
 
   front:
     image: nginx:1.30-alpine
-    # 公開フロント。外部リバースプロキシからはこのポートへ接続する。
+    # Public front. An external reverse proxy connects to this port.
     ports:
       - "${WEB_BIND_ADDR:-127.0.0.1}:${WEB_HOST_PORT:-8080}:80"
     environment:
       - TZ=UTC
-      # default.conf.template の ${APP_WEB_ALIAS} をこの値で埋める（envsubst）。
+      # Fills ${APP_WEB_ALIAS} in default.conf.template with this value (envsubst).
       - APP_WEB_ALIAS=${APP_WEB_ALIAS:-fastapitemplate-app}
     volumes:
       - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro

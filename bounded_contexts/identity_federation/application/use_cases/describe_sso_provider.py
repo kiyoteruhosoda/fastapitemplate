@@ -1,7 +1,7 @@
-"""ログイン画面へ「SSO で入る」ボタンを出すかどうかを答える。
+"""Answer whether the login screen shows the "Sign in with SSO" button.
 
-未認証で呼ばれるため、**接続先の URL やクライアント ID は返さない**。返すのは
-「使えるか」と「ボタンに出す名前」だけ。
+Called unauthenticated, so **no connection URL or client ID is returned**. Only
+"is it usable" and "the name shown on the button".
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from bounded_contexts.identity_federation.domain.value_objects.identity_provider
 @dataclass(frozen=True)
 class DescribeSsoProvider:
     provider: IdentityProvider | None
-    #: サインアウトを IdP まで通す設定になっているか。**SSO が使えないなら意味が無い**
-    #: ので、ここでは設定をそのまま返さず ``enabled`` と併せて畳む。
+    #: Whether sign-out is configured to go through to the IdP. **Meaningless if SSO is unusable**,
+    #: so the setting isn't returned as is but folded together with ``enabled``.
     rp_logout_enabled: bool = False
 
     def execute(self) -> SsoProviderDto:

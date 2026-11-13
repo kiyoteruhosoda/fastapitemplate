@@ -1,4 +1,4 @@
-"""notification の API スキーマ（ADR-0081 §3）。"""
+"""notification API schemas (ADR-0081 §3)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ AudienceKindName = Literal["all", "group", "user"]
 
 class AudienceRequest(BaseModel):
     kind: AudienceKindName
-    #: ``group`` / ``user`` のときの相手の ID。``all`` では空。
+    #: Target ID for ``group`` / ``user``. Empty for ``all``.
     target_id: int | None = None
 
 
@@ -63,16 +63,17 @@ class InboxItemResponse(NotificationResponse):
 
 class InboxResponse(BaseModel):
     items: list[InboxItemResponse]
-    #: ベルに出す数（``bell`` を含み、まだ読んでいないもの）。
+    #: Count shown on the bell (includes ``bell`` and not yet read).
     unread_count: int
 
 
 class PushConfigResponse(BaseModel):
-    #: 端末への通知を出せる設定になっているか。偽なら画面は購読の操作を出さない。
+    #: Whether device notifications are configured. If false, the UI hides the subscribe controls.
     enabled: bool
-    #: ブラウザの ``pushManager.subscribe`` に渡す公開鍵（base64url）。
+    #: Public key (base64url) passed to the browser's ``pushManager.subscribe``.
     public_key: str | None
-    #: スマホアプリへの通知（FCM）を出せる設定か（ADR-0081 §5）。偽ならアプリはトークンを登録しない。
+    #: Whether mobile app notifications (FCM) are configured (ADR-0081 §5).
+    #: If false, the app does not register a token.
     device_enabled: bool = False
 
 
@@ -82,7 +83,7 @@ class PushKeysRequest(BaseModel):
 
 
 class PushSubscribeRequest(BaseModel):
-    """ブラウザの ``PushSubscription.toJSON()`` の形をそのまま受ける。"""
+    """Accepts the shape of the browser's ``PushSubscription.toJSON()`` as is."""
 
     endpoint: str = Field(min_length=1, max_length=1000)
     keys: PushKeysRequest
@@ -93,7 +94,7 @@ class PushEndpointRequest(BaseModel):
 
 
 class DeviceRegisterRequest(BaseModel):
-    """アプリが起動・サインインのたびに送る FCM の登録トークン（ADR-0081 §5）。"""
+    """FCM registration token the app sends on every launch and sign-in (ADR-0081 §5)."""
 
     token: str = Field(min_length=1, max_length=4096)
     platform: str = Field(default="android", max_length=16)
@@ -104,7 +105,7 @@ class DeviceUnregisterRequest(BaseModel):
 
 
 class PushStatusResponse(BaseModel):
-    #: この端末の購読が、いまの利用者のものとして登録されているか。
+    #: Whether this device's subscription is registered to the current user.
     subscribed: bool
 
 
@@ -151,12 +152,12 @@ class AudienceGroupResponse(BaseModel):
 class AudienceUserResponse(BaseModel):
     id: int
     username: str
-    #: ``user:manage`` を持たない送り手には返さない（nolumiatask #785）
+    #: Not returned to senders without ``user:manage`` (nolumiatask #785)
     email: str | None
 
 
 class AudienceOptionsResponse(BaseModel):
-    """宛先に選べる相手（グループと、有効な利用者）。"""
+    """Possible audience targets (groups and active users)."""
 
     groups: list[AudienceGroupResponse]
     users: list[AudienceUserResponse]

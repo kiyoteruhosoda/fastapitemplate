@@ -1,15 +1,15 @@
-"""表ごとの「誰のものか」の宣言（ADR-0079 §1 決定 6・ADR-0079 §2）。
+"""Per-table declaration of "whose it is" (ADR-0079 §1 decision 6, ADR-0079 §2).
 
-全部の表が、次の 3 つのどれかを ``info`` に宣言する。宣言の無い表と、宣言と列が
-食い違う表は ``tests/integration/test_table_tenancy.py`` が落とす。
+Every table declares one of the following three in ``info``. Tables without a declaration, or
+whose columns contradict it, fail ``tests/integration/test_table_tenancy.py``.
 
-- :attr:`Tenancy.TENANT` —— テナントの中身。``tenant_id`` を持ち、読み書きは必ず主体の
-  テナントで絞る（絞るのはリポジトリの入口）
-- :attr:`Tenancy.PERSONAL` —— 利用者 1 人に付くもの。``user_id`` で利用者に従い、
-  利用者を通してテナントが決まる（利用者そのもの ``users`` もここ）
-- :attr:`Tenancy.GLOBAL` —— アプリ全体のもの（テナント・ロールの雛形・設定・アプリログ）
+- :attr:`Tenancy.TENANT` -- tenant content. Has ``tenant_id``; reads and writes are always
+  filtered by the principal's tenant (the filtering is done at the repository entry)
+- :attr:`Tenancy.PERSONAL` -- belongs to one user. Follows the user via ``user_id``, and the
+  tenant is determined through the user (the users table ``users`` itself is here too)
+- :attr:`Tenancy.GLOBAL` -- app-wide (tenants, role templates, settings, application logs)
 
-派生アプリが表を足すときも、どれかを宣言する。迷ったら ``TENANT``。
+Derived apps adding tables declare one of these too. When in doubt, ``TENANT``.
 """
 
 from __future__ import annotations
@@ -26,12 +26,12 @@ class Tenancy(StrEnum):
 
 
 def tenancy_info(kind: Tenancy) -> dict[str, Tenancy]:
-    """``sa.Table(..., info=...)`` に渡す宣言。"""
+    """Declaration to pass to ``sa.Table(..., info=...)``."""
     return {TENANCY_KEY: kind}
 
 
 def declared(kind: Tenancy) -> dict[str, dict[str, Tenancy]]:
-    """``__table_args__`` に渡す宣言。"""
+    """Declaration to pass to ``__table_args__``."""
     return {"info": tenancy_info(kind)}
 
 

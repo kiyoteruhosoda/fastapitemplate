@@ -1,9 +1,9 @@
-"""ログイン後に戻す画面（SPA の経路）。
+"""Screen to return to after login (an SPA route).
 
-**外部の URL へは戻さない。** ``?redirect_to=`` は攻撃者が自由に付けられる
-パラメータで、そのまま使うとログインの直後に別のサイトへ飛ばせてしまう
-（オープンリダイレクト）。受け付けるのは自サイト内の絶対パスだけとし、外れた
-ものは黙って既定の入口へ倒す。
+**Never return to an external URL.** ``?redirect_to=`` is a parameter an attacker can set
+freely; used as is, it could send the user to another site right after login
+(open redirect). Only absolute paths within our own site are accepted; anything else
+silently falls back to the default entrance.
 """
 
 from __future__ import annotations
@@ -19,10 +19,10 @@ class RedirectTarget:
 
     @classmethod
     def parse(cls, value: str | None) -> RedirectTarget:
-        """安全な経路だけを通す。判断できないものは既定の入口。
+        """Pass only safe routes. Anything undecidable goes to the default entrance.
 
-        ``//example.com`` は「スキーム相対の URL」で外部へ出るため弾く。
-        ``\\`` は一部のブラウザが ``/`` として扱うため同じく弾く。
+        ``//example.com`` is a "scheme-relative URL" that leaves the site, so it is rejected.
+        ``\\`` is treated as ``/`` by some browsers, so it is rejected as well.
         """
         candidate = (value or "").strip()
         if not candidate.startswith(DEFAULT_TARGET):

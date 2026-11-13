@@ -1,11 +1,11 @@
 /**
- * 二要素認証（TOTP）の有効化・無効化。プロフィールページの「二要素認証」区画に
- * 出す（ADR-0080 §4）。
+ * Enabling / disabling two-factor authentication (TOTP). Shown in the "Two-factor
+ * authentication" section of the profile page (ADR-0080 §4).
  *
- * 有効化は「登録の開始（QR の取得）→ 確認コードの入力」の 2 段階。無効にするときも
- * 現在のコードを求める（開いたままの画面から勝手に外せないようにするため）。
+ * Enabling takes two steps: "start enrollment (get the QR)" -> "enter the confirmation code".
+ * Disabling also asks for the current code (so it cannot be removed from a page left open).
  *
- * 見出しと区画の枠は呼び出し側（ProfilePage）が持ち、ここは中身だけを描く。
+ * The heading and section frame belong to the caller (ProfilePage); this renders only the content.
  */
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
@@ -18,7 +18,7 @@ import { useToast } from './ToastNotification'
 interface TwoFactorStatus {
   enabled: boolean
   enrolling: boolean
-  /** アプリの設定で必須か（ADR-0093）。真のとき外す導線を出さない。 */
+  /** Whether the app settings require it (ADR-0093). When true, no way to disable it is shown. */
   required: boolean
 }
 
@@ -30,7 +30,7 @@ interface TotpEnrollment {
 
 const CONFIRMATION_PATH = '/api/account/security/two-factor/confirmation'
 
-/** 確認コードの入力欄（有効化の確認・無効化の双方で使う）。 */
+/** Confirmation code field (used both to confirm enabling and to disable). */
 function CodeField({
   value,
   onChange,
@@ -92,8 +92,8 @@ export function TwoFactorControls({ onEnabled }: { onEnabled?: () => Promise<voi
   })
 
   /**
-   * 有効化の確認・無効化はどちらも「コードを送って状態を引き直す」だけ違う。
-   * 画面には一度に片方しか出ないので、実行中かどうかも 1 つで足りる。
+   * Confirming enablement and disabling both just "send the code and reload the state".
+   * Only one of them is on screen at a time, so a single running flag is enough.
    */
   const [submitCode, submitting] = usePendingAction(
     async (e: SubmitEvent, path: string, successKey: string) => {

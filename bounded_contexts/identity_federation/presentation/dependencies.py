@@ -1,21 +1,22 @@
-"""ユースケースの組み立て（``Depends()`` 用のファクトリ）。
+"""Use case wiring (factories for ``Depends()``).
 
-設定（``settings`` の ``OIDC_*``）から値オブジェクトを起こすのはここだけ。
-ユースケースは組み立て済みの :class:`IdentityProvider` などを受け取る。
+This is the only place that builds value objects from settings (``OIDC_*`` in ``settings``).
+Use cases receive already-built objects such as :class:`IdentityProvider`.
 
-**連携先はテナントごと**（ADR-0079 §1・§4）。発行者とクライアント ID はテナントの行
-（``tenants``）から、ほかの設定（クライアントの鍵・戻り先・要求する強度など）はアプリ全体の
-設定から取る。どのテナントかは経路ごとに決まり方が違う:
+**The connection is per tenant** (ADR-0079 §1, §4). Issuer and client ID come from the
+tenant row (``tenants``); other settings (client key, redirect URI, required strength, etc.)
+come from app-wide settings.
+Which tenant is determined differently per route:
 
-- 入口（``/login``・``/provider``・``/logout``）: URL の ``?tenant=<slug>``。無ければ、テナントが
-  1 つだけの環境ではそれ
-- 戻り（``/callback``）: 送り出したときに往復状態へ書いた発行者（URL から決め直さない）
-- 連携: 入っている利用者のテナント
-- 停止の通知・アプリのトークン: トークンの発行者
+- Entrance (``/login``, ``/provider``, ``/logout``): ``?tenant=<slug>`` in the URL. If absent,
+  the only tenant in single-tenant environments
+- Return (``/callback``): the issuer written into the round-trip state when sending out
+  (not re-derived from the URL)
+- Linking: the signed-in user's tenant
+- Logout notices / app tokens: the token's issuer
 
-IdP のメタデータ（discovery・JWKS）はプロセス内でキャッシュするため、ゲートウェイは
-**1 つを使い回す**。テストは ``app.dependency_overrides[dependencies.oidc_gateway]``
-で差し替える。
+IdP metadata (discovery, JWKS) is cached in-process, so **a single gateway is reused**.
+Tests replace it via ``app.dependency_overrides[dependencies.oidc_gateway]``.
 """
 
 from __future__ import annotations
@@ -117,7 +118,7 @@ GatewayDep = Annotated[OidcProviderGateway, Depends(oidc_gateway)]
 
 
 def client_credential() -> ClientCredential:
-    """トークンエンドポイントへ名乗る手段を設定から起こす（ADR-0077 §1）。"""
+    """Build from settings the means of authenticating to the token endpoint (ADR-0077 §1)."""
     return ClientCredential(
         method=settings.oidc_client_auth_method,
         secret=settings.oidc_client_secret,
@@ -127,7 +128,8 @@ def client_credential() -> ClientCredential:
 
 
 def identity_provider(tenant: Tenant | None) -> IdentityProvider | None:
-    """テナントの連携先を起こす。SSO が無効・テナントが無い・止めた・SSO を持たないなら ``None``。"""
+    """Build the tenant's connection. ``None`` if SSO is disabled, or the tenant is missing,
+    suspended, or has no SSO."""
     if not settings.oidc_enabled or tenant is None or not tenant.is_active:
         return None
     if not tenant.issuer or not tenant.client_id:
@@ -143,12 +145,12 @@ def identity_provider(tenant: Tenant | None) -> IdentityProvider | None:
 
 
 def provider_issuing(db: Session, issuer: str) -> IdentityProvider | None:
-    """発行者のテナントの連携先。登録の無い発行者なら ``None``。"""
+    """The connection of the issuer's tenant. ``None`` for an unregistered issuer."""
     return identity_provider(tenant_issuing(db, issuer))
 
 
 def provider_of(db: Session, user: User) -> IdentityProvider | None:
-    """利用者のテナントの連携先（連携の往復は、入っている人のテナントで行う）。"""
+    """The connection of the user's tenant (linking runs in the signed-in user's tenant)."""
     return identity_provider(db.get(Tenant, user.tenant_id) if user.tenant_id is not None else None)
 
 
@@ -156,7 +158,7 @@ def entrance(
     db: DbDep,
     tenant: Annotated[str | None, Query(max_length=50, pattern=r"^[a-z0-9-]+$")] = None,
 ) -> Tenant | None:
-    """入口で選ばれたテナント（``?tenant=<slug>``。ADR-0079 §1 決定 8）。"""
+    """Tenant chosen at the entrance (``?tenant=<slug>``. ADR-0079 §1 decision 8)."""
     return entrance_tenant(db, tenant)
 
 
@@ -172,7 +174,7 @@ def claims_mapping() -> ClaimsMapping:
 
 
 def account_linking_policy() -> AccountLinkingPolicy:
-    """受け入れてよい相手か・既存の利用者へ寄せてよいか（ADR-0077 §1 決定 4）。"""
+    """Whether to accept the party / whether to merge into an existing user (ADR-0077 §1 decision 4)."""
     return AccountLinkingPolicy(
         link_by_email=settings.oidc_link_by_email,
         allowed_email_domains=tuple(settings.oidc_allowed_email_domains),
@@ -198,7 +200,7 @@ def describe_sso_provider(tenant: EntranceDep) -> DescribeSsoProvider:
 
 
 def requested_authentication_context() -> RequestedAuthenticationContext:
-    """要求する認証の強度（ADR-0076 §3 決定 1）。空 = 要求しない。"""
+    """Required authentication strength (ADR-0076 §3 decision 1). Empty = none required."""
     return RequestedAuthenticationContext(values=tuple(settings.oidc_acr_values))
 
 
@@ -220,7 +222,7 @@ def start_sso_login(gateway: GatewayDep, tenant: EntranceDep) -> StartSsoLogin:
 
 
 def start_sso_link(gateway: GatewayDep, db: DbDep, user: SignedInUserDep) -> StartSsoLink:
-    """連携の往復の開始（ADR-0077 §5）。要求する認証の強度はログインと同じ。"""
+    """Start of the linking round trip (ADR-0077 §5). Required strength is the same as for login."""
     return StartSsoLink(
         provider=provider_of(db, user),
         gateway=gateway,
@@ -230,8 +232,8 @@ def start_sso_link(gateway: GatewayDep, db: DbDep, user: SignedInUserDep) -> Sta
 
 @dataclass(frozen=True)
 class SsoCompletion:
-    """IdP からの戻りの後始末。**どの連携先で受けるかは往復状態の発行者で決まる**ので、
-    戻りを読んでから組み立てる。"""
+    """Follow-up of the IdP return. **The connection is decided by the issuer in the round-trip
+    state**, so it is built after reading the return."""
 
     db: Session
     gateway: OidcProviderGateway
@@ -273,7 +275,7 @@ def unlink_federated_identity(db: DbDep) -> UnlinkFederatedIdentity:
 
 
 def resolve_federated_account(db: Session, issuer: str) -> ResolveFederatedAccount:
-    """発行者のテナントの利用者を決める（寄せる・作るのも、そのテナントの中だけ）。"""
+    """Resolve the user in the issuer's tenant (merging and creating happen only within that tenant)."""
     return ResolveFederatedAccount(
         identities=SqlFederatedIdentityRepository(db),
         directory=SqlFederatedUserDirectory(db, tenant_of_issuer(db, issuer)),
@@ -289,11 +291,12 @@ def exchange_sso_ticket(db: DbDep) -> ExchangeSsoTicket:
 
 @dataclass(frozen=True)
 class BackchannelLogout:
-    """停止の伝播の受け口（ADR-0077 §3）。連携先は通知の発行者のテナントで決まる。
+    """Receiver for logout propagation (ADR-0077 §3). The connection is the notice issuer's tenant.
 
-    記録を残す期間は**リフレッシュトークンの寿命**を最低限にする。これを過ぎれば
-    停止より前に発行されたトークンは自力で期限切れになる（古いログインが残っている間は ADR-0102）。
-    SSO で入ったログインは更新の札を持たないので（ADR-0104）、**アクセストークンの寿命**より短くはしない。
+    Records are kept for at least **the refresh token lifetime**. After that, tokens issued before
+    the logout expire on their own (while old logins remain, see ADR-0102).
+    SSO logins carry no refresh credential (ADR-0104), so it is never shorter than
+    **the access token lifetime**.
     """
 
     db: Session

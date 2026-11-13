@@ -1,14 +1,14 @@
-"""OpenID Provider のメタデータ（エンドポイントと署名鍵）の取得とキャッシュ。
+"""Fetching and caching OpenID Provider metadata (endpoints and signing keys).
 
-- **エンドポイントは discovery で引く**（``<issuer>/.well-known/openid-configuration``）。
-  URL を 1 つずつ設定させると IdP 側の変更に追随できず、設定項目も増える。
-- **署名鍵は JWKS から引く**。鍵は入れ替わるため、こちらも都度取りに行ける形で
-  持つ（``PyJWKClient`` が内部でキャッシュと再取得を行う）。
-- **外へ出る要求は名前を名乗る**（``USER_AGENT``）。既定のままだと IdP の前段に
-  落とされることがある（下記）。
+- **Endpoints come from discovery** (``<issuer>/.well-known/openid-configuration``).
+    Configuring each URL separately couldn't follow IdP-side changes and adds more settings.
+- **Signing keys come from JWKS**. Keys rotate, so they are also held in a form that can be
+    refetched as needed (``PyJWKClient`` caches and refetches internally).
+- **Outgoing requests identify themselves by name** (``USER_AGENT``). With the default, the
+    IdP's front end may drop them (see below).
 
-どちらもログインのたびに取りに行くと IdP への往復が 2 回増えるので、短い TTL の
-キャッシュを挟む。プロセスごとのキャッシュで、値が古くなっても TTL のあいだだけ。
+Fetching both on every login would add two round trips to the IdP, so a short-TTL cache sits
+in between. It is per process; stale values last only for the TTL.
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ from bounded_contexts.identity_federation.domain.exceptions import (
 )
 from shared.kernel.version import load_build_info, project_name
 
-# 受け入れる ID トークンの署名アルゴリズム。**対称鍵（HS*）と ``none`` は入れない**
-# ——クライアントシークレットを鍵に使う HS* は IdP 以外も署名を作れてしまう。
+# Accepted ID token signature algorithms. **No symmetric keys (HS*) and no ``none``**
+# — HS* uses the client secret as the key, so parties other than the IdP could sign.
 ALLOWED_SIGNING_ALGORITHMS: tuple[str, ...] = (
     "RS256",
     "RS384",
@@ -43,19 +43,19 @@ ALLOWED_SIGNING_ALGORITHMS: tuple[str, ...] = (
 _DISCOVERY_PATH = "/.well-known/openid-configuration"
 _CACHE_TTL_SECONDS = 300.0
 
-# 手元の鍵に無い ``kid`` が来たとき、JWKS を取り直してよい間隔（発行者ごと）。
-# 短くしてあるのは、鍵の入れ替え直後に**新しい鍵を拒み続けない**ため。
+# Interval (per issuer) at which JWKS may be refetched when a ``kid`` not in the local keys arrives.
+# Kept short so that right after a key rotation we **don't keep rejecting the new key**.
 _JWKS_REFRESH_INTERVAL_SECONDS = 60.0
 
-# IdP へ出ていく要求が名乗る名前。**既定の UA に任せない。**
-# JWKS だけは PyJWT (``PyJWKClient``) が内部の urllib で取りに行くため、既定では
-# ``Python-urllib/3.x`` を名乗る。IdP の前段に居る CDN・WAF はこの UA を落とすことが
-# あり（実際に Cloudflare が 403 を返し、ログインの折り返しだけが失敗した）、
-# discovery とトークン交換は通るのに ID トークンの検証だけが落ちる形になる。
+# Name that requests to the IdP identify themselves with. **Don't leave it to the default UA.**
+# Only JWKS is fetched by PyJWT (``PyJWKClient``) via its internal urllib, so by default it
+# identifies as ``Python-urllib/3.x``. CDNs / WAFs in front of the IdP may drop this UA
+# (Cloudflare actually returned 403 and only the login callback failed): discovery and token
+# exchange pass but only ID token verification fails.
 #
-# ⚠ **名前を直に書かない。** アプリ自身の名前（``pyproject.toml`` の
-# ``[project].name``）から導く（ADR-0073 §2）。直に書くと、テンプレートから起こした
-# アプリが**別のアプリの名前で名乗り続ける**——実際に長らくそうなっていた。
+# ⚠ **Don't hard-code the name.** Derive it from the app's own name (``[project].name`` in
+# ``pyproject.toml``) (ADR-0073 §2). Hard-coded, apps created from the template
+# **keep identifying as another app** — which is actually what happened for a long time.
 USER_AGENT = f"{project_name()}/{load_build_info().version}"
 
 
@@ -66,18 +66,18 @@ class ProviderMetadata:
     token_endpoint: str
     jwks_uri: str
     userinfo_endpoint: str = ""
-    #: RP-Initiated Logout の窓口。**任意**——出さない IdP があるので、
-    #: 欠けていても discovery は成立させる（サインアウトの機能だけが使えない）。
+    #: RP-Initiated Logout endpoint. **Optional** — some IdPs don't publish it, so discovery
+    #: still succeeds without it (only the sign-out feature becomes unavailable).
     end_session_endpoint: str = ""
     signing_algorithms: tuple[str, ...] = ()
     token_auth_methods: tuple[str, ...] = ()
 
     @classmethod
     def of(cls, document: dict[str, Any]) -> ProviderMetadata:
-        """discovery 文書から必要な項目だけを取り出す。
+        """Extract only the needed fields from the discovery document.
 
-        認可・トークン・JWKS のどれかが欠けている応答は OpenID Provider として
-        成立していない（IdP の URL の書き間違いで HTML が返る場合もここで落ちる）。
+        A response missing any of authorization, token or JWKS is not a valid OpenID Provider
+        (this also catches HTML returned because of a mistyped IdP URL).
         """
         metadata = cls(
             issuer=_text(document.get("issuer")),
@@ -95,14 +95,14 @@ class ProviderMetadata:
 
 
 class OidcMetadataCache:
-    """discovery 文書と JWKS クライアントの TTL キャッシュ（プロセス内）。"""
+    """TTL cache of discovery documents and JWKS clients (in-process)."""
 
     def __init__(self, *, timeout_seconds: float = 10.0) -> None:
         self._timeout = timeout_seconds
         self._lock = threading.Lock()
         self._documents: dict[str, tuple[float, ProviderMetadata]] = {}
         self._jwks: dict[str, jwt.PyJWKClient] = {}
-        #: jwks_uri -> 最後に JWKS を取り直した時刻。下の ``signing_key`` を参照。
+        #: jwks_uri -> time JWKS was last refetched. See ``signing_key`` below.
         self._jwks_refreshed_at: dict[str, float] = {}
 
     def metadata(self, issuer: str) -> ProviderMetadata:
@@ -117,28 +117,28 @@ class OidcMetadataCache:
         return metadata
 
     def signing_key(self, jwks_uri: str, token: str) -> Any:
-        """トークンの ``kid`` に対応する公開鍵を返す。
+        """Return the public key matching the token's ``kid``.
 
-        ⚠ **呼ぶのは ``jwt.InvalidTokenError`` を捕まえる try の中から。** JWT として
-        壊れた入力はここで ``jwt.DecodeError`` になる。外で呼ぶと、その例外が
-        検証の網から漏れて 500 に化ける（``Bearer ごみ`` を投げるだけで起こせる）。
+        ⚠ **Call this only from inside a try that catches ``jwt.InvalidTokenError``.** Input that
+        is broken as a JWT becomes ``jwt.DecodeError`` here. Called outside, that exception escapes
+        the verification net and turns into a 500 (triggerable just by sending ``Bearer garbage``).
 
-        ⚠ **JWKS の取り直しは発行者ごとに間隔を空ける。** ``PyJWKClient`` に任せると
-        ``kid`` が見つからないたびに取り直す。機械の口（ADR-0076 §10）は未認証の相手が
-        **好きな ``kid`` のトークンを投げ込める**場所なので、「1 要求 = idp への 1 往復」に
-        なり増幅の踏み台になる。``kid`` ごとに覚える形にしないのは、``kid`` を変え続ける
-        相手には効かない（覚え書きも埋められる）ため。取り直しの回数を**発行者ごとに**
-        抑えれば、``kid`` が何種類来ても往復は間隔あたり 1 回で済む。
+        ⚠ **JWKS refetches are spaced per issuer.** Left to ``PyJWKClient``, it refetches every time
+        a ``kid`` is not found. The machine endpoint (ADR-0076 §10) is where an unauthenticated party
+        **can throw in tokens with any ``kid``**, making "1 request = 1 round trip to idp" and an
+        amplification springboard. Not remembering per ``kid`` because that doesn't work against a
+        party that keeps changing ``kid`` (the memo can be flooded too). Throttling refetches
+        **per issuer** keeps it to one round trip per interval no matter how many ``kid`` values come.
 
-        ⚠ **鍵が無いことと、JWKS が使えないことを分ける。** 前者はトークンが違う
-        （呼び手が 401 にする）、後者は上流の不調（502）——届かないだけでなく、
-        JSON でない・鍵が 1 本も無い・読めない鍵が入っている、も後者に入れる。
-        トークンの誤りに見せると、正しい呼び出し元が自分の資格情報を疑う。
+        ⚠ **Separate "no such key" from "JWKS unusable".** The former is a wrong token (the caller
+        returns 401); the latter is an upstream fault (502) — not only unreachable, but also non-JSON,
+        no keys at all, or unreadable keys count as the latter.
+        Making it look like a token error makes legitimate callers doubt their own credentials.
         """
         kid = _unverified_kid(token)
         if kid is None:
-            # ``PyJWKClient`` は ``kid`` を持つ鍵しか候補にしないので、``kid`` の無い
-            # トークンはどのみち照合できない。取りに行かずに断る。
+            # ``PyJWKClient`` only considers keys that have a ``kid``, so a token without ``kid``
+            # can't be matched anyway. Refuse without fetching.
             raise jwt.DecodeError("token has no kid")
         client = self._jwks_client(jwks_uri)
         try:
@@ -146,8 +146,8 @@ class OidcMetadataCache:
             if key is None and self._may_refresh(jwks_uri):
                 key = jwt.PyJWKClient.match_kid(client.get_signing_keys(refresh=True), kid)
         except (jwt.PyJWTError, ValueError) as error:
-            # 届かない（``PyJWKClientConnectionError``）も、届いたが使えない
-            # （``PyJWKClientError`` / ``PyJWKSetError`` / JSON でない）も上流の不調。
+            # Unreachable (``PyJWKClientConnectionError``) and reachable-but-unusable
+            # (``PyJWKClientError`` / ``PyJWKSetError`` / not JSON) are both upstream faults.
             raise IdentityProviderUnavailableError from error
         if key is None:
             raise jwt.DecodeError(f"no signing key for kid {kid}")
@@ -169,11 +169,12 @@ class OidcMetadataCache:
                 timeout=self._timeout,
             )
         except jwt.PyJWKClientError as error:
-            # discovery 文書が http(s) でない ``jwks_uri`` を名乗っている（IdP 側の不良）。
+            # The discovery document claims a ``jwks_uri`` that is not http(s) (IdP-side defect).
             raise IdentityProviderUnavailableError from error
 
     def _may_refresh(self, jwks_uri: str) -> bool:
-        """取り直してよければ枠を取って真を返す（取りに行く前に取るので、同時に来た要求が重ならない）。"""
+        """If a refetch is allowed, take the slot and return true (taken before fetching, so
+        concurrent requests don't overlap)."""
         with self._lock:
             now = time.monotonic()
             last = self._jwks_refreshed_at.get(jwks_uri)
@@ -188,7 +189,7 @@ class OidcMetadataCache:
                 url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=self._timeout,
-                # ⚠ 転送を追わない（ADR-0090）。発行者の確かめは最初の URL にしか効かない。
+                # ⚠ Don't follow redirects (ADR-0090). The issuer check only applies to the first URL.
                 follow_redirects=False,
             )
             response.raise_for_status()
@@ -201,19 +202,19 @@ class OidcMetadataCache:
 
 
 def _unverified_kid(token: str) -> str | None:
-    """署名を検証せずヘッダーの ``kid`` だけを読む。無い・文字列でないなら ``None``。"""
+    """Read only the header's ``kid`` without verifying the signature. ``None`` if missing or not a string."""
     header = jwt.get_unverified_header(token)
     kid = header.get("kid")
     return kid if isinstance(kid, str) and kid else None
 
 
 def _require_same_issuer(metadata: ProviderMetadata, issuer: str) -> None:
-    """discovery 文書が名乗る ``issuer`` が、引きに行った先と同じことを確かめる。
+    """Check that the ``issuer`` claimed by the discovery document equals where we fetched it from.
 
-    OpenID Connect Discovery は両者の一致を要求している。取得は転送を追う
-    （``follow_redirects``）ため、確かめないと別の発行者の文書を掴まされたときに
-    その発行者が署名した ID トークンをそのまま受け入れてしまう。
-    末尾の ``/`` の有無だけは許す（設定側で落としているため）。
+    OpenID Connect Discovery requires them to match. Fetching follows redirects
+    (``follow_redirects``), so without this check, if handed another issuer's document we would
+    accept ID tokens signed by that issuer as is.
+    Only a trailing ``/`` difference is tolerated (the settings side strips it).
     """
     if metadata.issuer.rstrip("/") != issuer.rstrip("/"):
         raise IdentityProviderUnavailableError
@@ -230,9 +231,9 @@ def _texts(value: object) -> tuple[str, ...]:
 
 
 def _supported_algorithms(value: object) -> tuple[str, ...]:
-    """IdP が名乗ったアルゴリズムのうち、こちらが受け入れるものだけを残す。
+    """Keep only the algorithms the IdP advertises that we accept.
 
-    名乗りが無ければ OpenID Connect の必須である ``RS256`` を使う。
+    If none are advertised, use ``RS256``, which OpenID Connect makes mandatory.
     """
     advertised = _texts(value)
     allowed = tuple(algorithm for algorithm in advertised if algorithm in ALLOWED_SIGNING_ALGORITHMS)

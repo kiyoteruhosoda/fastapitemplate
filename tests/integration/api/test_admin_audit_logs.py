@@ -1,8 +1,8 @@
-"""監査ログ（``audit_log``）の記録と閲覧 API。
+"""Recording and browsing audit logs (``audit_log``).
 
-「操作すると記録される」ことと「記録を絞り込める」ことの両方を見る。記録側の
-テストを操作経由で書いているのは、ルーターにフックを足し忘れたら落ちてほしい
-ため（リポジトリ単体では検出できない）。
+Checks both "operations get recorded" and "records can be filtered". The recording tests go
+through operations so that forgetting to add the hook to a router fails (the repository alone cannot
+detect it).
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def _event_types(payload: dict[str, Any]) -> list[str]:
 def _insert_event(engine: sa.Engine, **overrides: object) -> None:
     session = sessionmaker(bind=engine)()
     defaults = {
-        # 既定のテナントの記録（初期管理者が読める）
+        # Records of the default tenant (readable by the initial administrator)
         "tenant_id": tenant_of_slug(session, DEFAULT_TENANT_SLUG),
         "occurred_at": utcnow(),
         "event_type": "login.succeeded",
@@ -59,7 +59,7 @@ def test_log_view_alone_does_not_grant_audit_access(
     admin_headers: dict[str, str],
     engine: sa.Engine,
 ) -> None:
-    """アプリログを見られる利用者が、そのまま監査ログを見られてはいけない。"""
+    """A user who can see app logs must not automatically see audit logs."""
     session = sessionmaker(bind=engine, expire_on_commit=False)()
     operator_role = Role(name="log-operator")
     operator_role.permissions = list(session.scalars(sa.select(Permission).where(Permission.code == "log:view")).all())
@@ -75,7 +75,7 @@ def test_log_view_alone_does_not_grant_audit_access(
     session.commit()
     session.close()
 
-    # セッションは Cookie で持つので、別の利用者は別のクライアントで（ADR-0076 §4）。
+    # The session is held in a cookie, so another user uses another client (ADR-0076 §4).
     sign_in(other_client, "operator@example.com", "operator-password")
 
     assert other_client.get("/api/admin/logs").status_code == 200
@@ -89,17 +89,17 @@ def test_successful_login_is_recorded(client: TestClient, admin_headers: dict[st
     entry = payload["entries"][0]
     assert entry["result"] == "success"
     assert entry["actor_user_id"] == master_data.DEFAULT_ADMIN_ID
-    # リクエスト単位の追跡キーが入っており、アプリログと突き合わせられる
+    # The per-request tracking key is present, so it can be matched with app logs
     assert entry["request_id"]
 
 
 def test_failed_login_is_recorded_against_the_account_not_the_actor(
     client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """401 でリクエストがロールバックされても記録は残る。
+    """Records remain even when the request is rolled back with 401.
 
-    相手のアカウントは**対象**として記録する。認証に失敗した時点で「誰が試したか」は
-    分かっておらず、実行者に据えると持ち主が自分でやったように読めてしまう。
+    The other account is recorded as the **target**. At the point authentication fails, "who tried"
+    is unknown, and putting the owner as the actor would read as if they did it themselves.
     """
     response = client.post(
         "/api/auth/login",
@@ -121,7 +121,7 @@ def test_unknown_email_is_recorded_without_an_actor_or_target(
     response = other_client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "whatever"})
     assert response.status_code == 401
 
-    # 宛先の分からない失敗はどのテナントのものでもない（ADR-0079 §2）。テナントの管理者には見えない
+    # Failures with an unknown target belong to no tenant (ADR-0079 §2). Tenant administrators cannot see them
     assert _search(client, admin_headers, "?event_type=login.failed")["total"] == 0
 
 
@@ -139,7 +139,7 @@ def test_unknown_email_is_visible_as_a_whole_app_record(
 def test_password_reset_request_is_not_attributed_to_the_account_owner(
     client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """未認証で叩けるので、持ち主を実行者にはしない（対象として記録する）。"""
+    """It can be called unauthenticated, so the owner is not made the actor (recorded as the target)."""
     response = client.post("/api/auth/forgot-password", json={"email": master_data.DEFAULT_ADMIN_EMAIL})
     assert response.status_code == 200
 
@@ -164,7 +164,7 @@ def test_user_management_records_the_actor_and_the_target(client: TestClient, ad
     assert _event_types(payload) == ["user.updated", "user.created"]
     assert {entry["target_id"] for entry in payload["entries"]} == {str(user_id)}
     assert {entry["actor_user_id"] for entry in payload["entries"]} == {master_data.DEFAULT_ADMIN_ID}
-    # 変更した項目名だけを残す（値そのものは残さない）
+    # Only the names of changed fields are kept (not the values themselves)
     assert payload["entries"][0]["reason"] == "fields=is_active"
 
 
@@ -184,7 +184,7 @@ def test_password_change_does_not_record_the_password(client: TestClient, admin_
 def test_settings_update_records_only_the_changed_keys(
     client: TestClient, system_admin_headers: dict[str, str]
 ) -> None:
-    """設定はシステム管理者が変え、全体の記録として残る（ADR-0079 §1）。"""
+    """Settings are changed by the system administrator and recorded system-wide (ADR-0079 §1)."""
     response = client.put(
         "/api/admin/config",
         json={"values": {"LOG_DB_MIN_LEVEL": "WARNING"}},

@@ -1,14 +1,14 @@
-"""再起動要求を受けたプロセスの終了方法。
+"""How a process that received a restart request terminates.
 
-コンテナは ``restart: unless-stopped`` で動いているため、「アプリを再起動する」
-＝「メインプロセスを綺麗に終わらせる」で足りる。終了後に Docker がコンテナを
-起動し直し、entrypoint がマイグレーションから通常どおり走る。
+The container runs with ``restart: unless-stopped``, so "restart the app" just means "end the
+main process cleanly". After it exits, Docker starts the container again and the entrypoint runs
+as usual, starting with migrations.
 
-終わらせる相手はプロセス構成によって変わる:
+What to terminate depends on the process layout:
 
-- Gunicorn（本番）: ワーカーではなくアービター（親）を終わらせる。ワーカーだけを
-  落としてもアービターが同じ環境で作り直すため、コンテナは再起動しない。
-- 単体 Uvicorn（開発）: 監視スレッドが動いているメインプロセス自身。
+- Gunicorn (production): terminate the arbiter (parent), not the workers. Killing only a worker
+  makes the arbiter recreate it in the same environment, so the container does not restart.
+- Standalone Uvicorn (development): the main process itself, where the watcher thread runs.
 """
 
 from __future__ import annotations
@@ -22,19 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessTerminator(Protocol):
-    """再起動のためにプロセスへ終了シグナルを送る。"""
+    """Send a termination signal to a process in order to restart."""
 
     def terminate(self, reason: str) -> None:
-        """graceful shutdown を開始する。"""
+        """Start a graceful shutdown."""
 
 
 class SelfProcessTerminator:
-    """自プロセスへ SIGTERM を送る（単体 Uvicorn・ワーカープロセス）。"""
+    """Send SIGTERM to the own process (standalone Uvicorn, worker process)."""
 
     def terminate(self, reason: str) -> None:
         pid = os.getpid()
         logger.warning(
-            "再起動要求により自プロセスを終了します: pid=%s reason=%s",
+            "Terminating own process due to restart request: pid=%s reason=%s",
             pid,
             reason,
             extra={"event": "restart.terminate.self"},
@@ -43,12 +43,12 @@ class SelfProcessTerminator:
 
 
 class SupervisorProcessTerminator:
-    """親プロセス（Gunicorn アービター）へ SIGTERM を送る。"""
+    """Send SIGTERM to the parent process (Gunicorn arbiter)."""
 
     def terminate(self, reason: str) -> None:
         pid = os.getppid()
         logger.warning(
-            "再起動要求により親プロセスを終了します: ppid=%s reason=%s",
+            "Terminating parent process due to restart request: ppid=%s reason=%s",
             pid,
             reason,
             extra={"event": "restart.terminate.supervisor"},
@@ -57,10 +57,10 @@ class SupervisorProcessTerminator:
 
 
 def build_process_terminator() -> ProcessTerminator:
-    """実行中のプロセス構成に合った終了方法を選ぶ。
+    """Choose the termination method that fits the running process layout.
 
-    Gunicorn はアービターで ``SERVER_SOFTWARE`` を設定し、ワーカーはそれを
-    継承する。この環境変数があるときだけ親（アービター）を終了対象にする。
+    Gunicorn sets ``SERVER_SOFTWARE`` in the arbiter and the workers inherit it. Only when this
+    environment variable is present is the parent (arbiter) terminated.
     """
     if os.environ.get("SERVER_SOFTWARE", "").lower().startswith("gunicorn"):
         return SupervisorProcessTerminator()

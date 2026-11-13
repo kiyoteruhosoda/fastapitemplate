@@ -1,10 +1,10 @@
 /**
- * 狭い画面向けナビゲーション（ドロワー）の開閉。
+ * Opening and closing of the narrow-screen navigation (drawer).
  *
- * 画面幅による見た目の切り替えは CSS（`index.css` のメディアクエリ）が担い、
- * jsdom はメディアクエリを適用しない。ここで検証するのは、メディアクエリが
- * 解釈する状態 — メニューボタンの `aria-expanded` と `nav[data-open]` — が
- * 操作どおりに変わることと、閉じる操作が揃っていることに絞る。
+ * Switching the look by screen width is done by CSS (media queries in `index.css`), and jsdom
+ * does not apply media queries. This only verifies that the state the media queries read -
+ * the menu button's `aria-expanded` and `nav[data-open]` - changes as operated, and that all
+ * the close actions work.
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -47,8 +47,8 @@ function renderLayout() {
       <I18nProvider settings={SETTINGS}>
         <ThemeProvider settings={SETTINGS}>
           <AuthProvider>
-            {/* ヘッダーのロール切り替えが切り替え結果をトーストで知らせる。
-                main.tsx と同じく AppLayout の外側に置く。 */}
+            {/* The header role switcher reports the result with a toast.
+                Placed outside AppLayout, as in main.tsx. */}
             <ToastProvider>
               <AppLayout>
                 <p>content</p>
@@ -61,7 +61,7 @@ function renderLayout() {
   )
 }
 
-/** ドロワーが開くのはサインイン後なので、`/me` の解決を待ってから操作する。 */
+/** The drawer opens only after sign-in, so wait for `/me` to resolve before operating. */
 async function renderSignedIn() {
   renderLayout()
   await waitFor(() => {
@@ -84,29 +84,29 @@ function click(element: HTMLElement) {
   })
 }
 
-describe('AppLayout のナビゲーション', () => {
+describe('AppLayout navigation', () => {
   beforeEach(() => {
-    // Footer が /info を読む。ネットワークへ出さない。
+    // Footer reads /info. Keep it off the network.
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve({ ok: false } as Response)),
     )
-    // jsdom は matchMedia を持たない（ThemeProvider が OS の配色を見る）。
+    // jsdom has no matchMedia (ThemeProvider looks at the OS color scheme).
     vi.stubGlobal(
       'matchMedia',
       vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
     )
   })
 
-  it('既定では閉じている', async () => {
+  it('is closed by default', async () => {
     const { nav } = await renderSignedIn()
     expect(nav()).toHaveAttribute('data-open', 'false')
     expect(toggle()).toHaveAttribute('aria-expanded', 'false')
-    // 開いていないあいだはオーバーレイを描かない（本文を触れる）。
+    // No overlay while closed (the content can be used).
     expect(screen.queryByTestId('nav-overlay')).not.toBeInTheDocument()
   })
 
-  it('メニューボタンで開き、もう一度押すと閉じる', async () => {
+  it('opens with the menu button and closes on a second press', async () => {
     const { nav } = await renderSignedIn()
 
     click(toggle())
@@ -117,7 +117,7 @@ describe('AppLayout のナビゲーション', () => {
     expect(nav()).toHaveAttribute('data-open', 'false')
   })
 
-  it('オーバーレイをタップすると閉じる', async () => {
+  it('closes when the overlay is tapped', async () => {
     const { nav } = await renderSignedIn()
 
     click(toggle())
@@ -125,7 +125,7 @@ describe('AppLayout のナビゲーション', () => {
     expect(nav()).toHaveAttribute('data-open', 'false')
   })
 
-  it('ドロワー内の閉じるボタンで閉じる', async () => {
+  it('closes with the close button inside the drawer', async () => {
     const { nav } = await renderSignedIn()
 
     click(toggle())
@@ -133,7 +133,7 @@ describe('AppLayout のナビゲーション', () => {
     expect(nav()).toHaveAttribute('data-open', 'false')
   })
 
-  it('Esc で閉じる', async () => {
+  it('closes on Esc', async () => {
     const { nav } = await renderSignedIn()
 
     click(toggle())
@@ -143,7 +143,7 @@ describe('AppLayout のナビゲーション', () => {
     expect(nav()).toHaveAttribute('data-open', 'false')
   })
 
-  it('ナビゲーションのリンクを選ぶと閉じる', async () => {
+  it('closes when a navigation link is chosen', async () => {
     const { nav } = await renderSignedIn()
 
     click(toggle())
@@ -151,19 +151,19 @@ describe('AppLayout のナビゲーション', () => {
     expect(nav()).toHaveAttribute('data-open', 'false')
   })
 
-  it('開くとドロワーの先頭の操作にフォーカスが移る', async () => {
+  it('moves focus to the first control in the drawer when opened', async () => {
     await renderSignedIn()
 
     click(toggle())
-    // ドロワー内の先頭は閉じるボタン（オーバーレイの下に隠れたヘッダーへ
-    // フォーカスが残らないようにする）。フォーカスの移動は描画後の
-    // 1 フレームを待つため（実装のコメント参照）、待ってから確認する。
+    // The first item in the drawer is the close button (so focus does not stay on the header
+    // hidden under the overlay). Focus moves after waiting one frame past the render (see the
+    // comment in the implementation), so wait before checking.
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close menu' }))
     })
   })
 
-  it('Tab がドロワーの外へ出ない', async () => {
+  it('keeps Tab from leaving the drawer', async () => {
     const { nav } = await renderSignedIn()
 
     click(toggle())
@@ -173,21 +173,21 @@ describe('AppLayout のナビゲーション', () => {
     expect(first).toBeDefined()
     expect(last).toBeDefined()
 
-    // 末尾から Tab → 先頭へ折り返す（ヘッダー・本文へ抜けない）。
+    // Tab from the last wraps to the first (does not escape to the header or content).
     act(() => {
       last?.focus()
       fireEvent.keyDown(window, { key: 'Tab' })
     })
     expect(document.activeElement).toBe(first)
 
-    // 先頭から Shift+Tab → 末尾へ折り返す。
+    // Shift+Tab from the first wraps to the last.
     act(() => {
       fireEvent.keyDown(window, { key: 'Tab', shiftKey: true })
     })
     expect(document.activeElement).toBe(last)
   })
 
-  it('閉じるとメニューボタンへフォーカスが戻る', async () => {
+  it('returns focus to the menu button when closed', async () => {
     await renderSignedIn()
 
     click(toggle())
@@ -197,7 +197,7 @@ describe('AppLayout のナビゲーション', () => {
     expect(document.activeElement).toBe(toggle())
   })
 
-  it('開いていないあいだはフォーカスを動かさない', async () => {
+  it('does not move focus while closed', async () => {
     await renderSignedIn()
 
     const logout = screen.getByRole('button', { name: 'Logout' })
@@ -207,7 +207,7 @@ describe('AppLayout のナビゲーション', () => {
     expect(document.activeElement).toBe(logout)
   })
 
-  it('保有していない scope の項目は出さない', async () => {
+  it('hides items for scopes the user does not hold', async () => {
     const { nav } = await renderSignedIn()
     expect(nav()).toHaveAttribute('data-open', 'false')
     expect(screen.getByRole('link', { name: 'Items' })).toBeInTheDocument()

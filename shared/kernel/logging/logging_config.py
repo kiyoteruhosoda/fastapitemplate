@@ -1,7 +1,7 @@
-"""構造化ログ設定（JSON を stdout へ、同時に DB へ書き込み）。
+"""Structured logging configuration (JSON to stdout, and written to the DB at the same time).
 
-ログには PII を含めない。ユーザー識別子は ``user.id_hash`` のみ
-（CLAUDE.md「ログ」参照）。
+Logs contain no PII. The only user identifier is ``user.id_hash``
+(see "Logging" in CLAUDE.md).
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ _STDLIB_ATTRS = frozenset(
 
 
 class RequestContextFilter(logging.Filter):
-    """全レコードへ ``requestId``・``user.id_hash`` を付与する。"""
+    """Attach ``requestId`` and ``user.id_hash`` to every record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         if not hasattr(record, "request_id"):
@@ -57,7 +57,7 @@ class RequestContextFilter(logging.Filter):
 
 
 class StructuredFormatter(logging.Formatter):
-    """レコードを1行 JSON に整形する。extra はそのままフィールドになる。"""
+    """Format a record as one line of JSON. extra becomes fields as is."""
 
     def format(self, record: logging.LogRecord) -> str:
         record.message = record.getMessage()
@@ -76,7 +76,7 @@ class StructuredFormatter(logging.Formatter):
 
 
 def setup_logging(level: str = "INFO", database: bool = True) -> None:
-    """ルートロガーへ JSON コンソール出力と DB 書き込みを設定する。"""
+    """Configure the root logger with JSON console output and DB writes."""
     from shared.kernel.logging.db_log_handler import DbLogHandler
 
     context_filter = RequestContextFilter()
@@ -95,7 +95,7 @@ def setup_logging(level: str = "INFO", database: bool = True) -> None:
         db_handler.addFilter(context_filter)
         root.addHandler(db_handler)
 
-    # uvicorn の標準アクセスログは抑止する（ミドルウェアで記録する）
+    # Suppress uvicorn's standard access log (the middleware records requests)
     logging.getLogger("uvicorn.access").handlers = []
     logging.getLogger("uvicorn.access").propagate = False
 

@@ -1,10 +1,10 @@
 /**
- * アプリの像（ヘッダー・サインイン前の画面の見出しに出す）。
+ * App mark (shown in the header and the heading of the pre-sign-in screens).
  *
- * 絵は持たず、タブのアイコンと同じ `favicon.svg` をそのまま読む。正本は
- * `scripts/generate_pwa_icons.py` の 1 本だけで、図柄や色を変えるとタブ・
- * ホーム画面のアイコンとこの像がいっしょに変わる。像を足す場所でも絵を
- * 書き起こさず、この部品を使う。
+ * Has no artwork of its own; it loads the same `favicon.svg` as the tab icon. The single
+ * source is `scripts/generate_pwa_icons.py`, so changing the design or colors changes the
+ * tab icon, the home screen icon and this mark together. Places that need the mark should
+ * use this component instead of redrawing it.
  */
 export function AppMark({ size }: { size: number }) {
   return (

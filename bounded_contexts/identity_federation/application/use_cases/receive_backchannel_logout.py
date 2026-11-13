@@ -1,11 +1,11 @@
-"""IdP からの停止の通知を受け取る（OpenID Connect Back-Channel Logout 1.0。ADR-0077 §3）。
+"""Receive logout notices from the IdP (OpenID Connect Back-Channel Logout 1.0. ADR-0077 §3).
 
-この口が呼ばれるのは**利用者のブラウザからではない**。IdP のサーバーが直接叩く
-サーバー間の経路で、届いた ``logout_token`` の署名だけが相手の証明になる。
+This endpoint is **not called from the user's browser**. It's a server-to-server path hit
+directly by the IdP's server; the received ``logout_token``'s signature is the only proof of the sender.
 
-やることは 1 つだけ ——「このセッションはもう使わせない」を記録する。
-セッションの実体はサーバーに控えの無い JWT なので、ここで落とせるものが無い
-（無効かどうかは、次にトークンが提示された時点で照合する）。
+It does just one thing — record "this session may no longer be used".
+The session itself is a JWT with no server-side copy, so there's nothing to drop here
+(validity is checked the next time the token is presented).
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ class ReceiveBackchannelLogout:
     provider: IdentityProvider | None
     gateway: OidcProviderGateway
     revocations: SessionRevocationRepository
-    #: 記録を残しておく最低限の秒数。**リフレッシュトークンの寿命**を渡す ——それを過ぎれば
-    #: 記録より前に発行されたトークンは自力で期限切れになり、行を持つ意味が無くなる。
-    #: 期間を短くした後で古いログインがもっと長く続くなら、保存のときに延ばす（ADR-0102）。
+    #: Minimum seconds to keep records. Pass **the refresh token lifetime** — past that, tokens
+    #: issued before the record expire on their own, and the row serves no purpose.
+    #: If old logins last longer after the period was shortened, it is extended on save (ADR-0102).
     keep_for_seconds: int
 
     def execute(self, *, logout_token: str) -> LogoutNotice:

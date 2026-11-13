@@ -1,9 +1,8 @@
-"""パスキーの登録・ログインを本物の署名で通す。
+"""Passkey registration and sign-in with real signatures.
 
-``PyWebAuthnRelyingParty`` を差し替えずに、テスト用のソフトウェア認証器
-（``software_authenticator``）で署名したレスポンスを送る。設定値（RP ID・
-オリジン）からチャレンジ発行・署名検証・トークン発行までが一続きで動くことを
-確認する。
+Without replacing ``PyWebAuthnRelyingParty``, responses signed by a software authenticator for
+tests (``software_authenticator``) are sent. Confirms that everything from the settings (RP ID,
+origin) through challenge issuance, signature verification and token issuance works end to end.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from tests.integration.api.software_authenticator import SoftwareAuthenticator
 
-# 既定の WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN と揃える
+# Matches the default WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN
 RP_ID = "localhost"
 ORIGIN = "http://localhost:5173"
 
@@ -62,7 +61,7 @@ def test_register_then_sign_in_with_a_real_signature(
     )
     assert login.status_code == 200, login.text
 
-    # 載った Cookie がそのまま使えること（ADR-0076 §4）
+    # The cookie that was set can be used as is (ADR-0076 §4)
     me = client.get("/api/auth/me")
     assert me.status_code == 200
     assert me.json()["email"] == "admin@example.com"
@@ -71,7 +70,7 @@ def test_register_then_sign_in_with_a_real_signature(
 def test_signing_in_records_the_usage(
     client: TestClient, admin_headers: dict[str, str], authenticator: SoftwareAuthenticator
 ) -> None:
-    """署名カウンタと最終使用日時が更新される（資格情報の複製検出の土台）。"""
+    """The signature counter and last-used time are updated (the basis for detecting cloned credentials)."""
     from bounded_contexts.account_security.infrastructure.account_security_models import (
         PasskeyCredentialRecord,
     )
@@ -104,7 +103,7 @@ def test_signing_in_records_the_usage(
 
 
 def test_a_signature_for_another_origin_is_rejected(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """フィッシングサイトからの署名は通らない（オリジンが検証される）。"""
+    """Signatures from a phishing site do not pass (the origin is verified)."""
     attacker = SoftwareAuthenticator(rp_id=RP_ID, origin="https://phishing.example")
     response = _register(client, admin_headers, attacker, None)
     assert response.status_code == 401
@@ -114,7 +113,7 @@ def test_a_signature_for_another_origin_is_rejected(client: TestClient, admin_he
 def test_a_replayed_challenge_is_rejected(
     client: TestClient, admin_headers: dict[str, str], authenticator: SoftwareAuthenticator
 ) -> None:
-    """同じチャレンジで 2 度ログインできない。"""
+    """You cannot sign in twice with the same challenge."""
     assert _register(client, admin_headers, authenticator, None).status_code == 201
 
     client.cookies.clear()
@@ -142,7 +141,7 @@ def test_a_signature_for_a_different_challenge_is_rejected(
     response = client.post(
         "/api/auth/passkey/login",
         json={
-            # 新しいチャレンジ ID に、古いチャレンジで作った署名を添える
+            # Attach a signature made with the old challenge to a new challenge ID
             "challenge_id": fresh["challenge_id"],
             "credential": authenticator.authenticate(stale["public_key"]["challenge"]),
         },

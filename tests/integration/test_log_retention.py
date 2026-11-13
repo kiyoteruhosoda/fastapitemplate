@@ -1,4 +1,4 @@
-"""期限切れログの削除（実際の SQL で、両テーブルの境界と小分けを見る）。"""
+"""Deleting expired logs (with real SQL; checks the boundaries of both tables and batching)."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _remaining(engine: sa.Engine, table: str) -> int:
 
 
 def test_only_rows_older_than_the_cutoff_are_deleted(engine: sa.Engine) -> None:
-    """境界そのものは残す（``<`` であって ``<=`` ではない）。"""
+    """The boundary itself is kept (``<``, not ``<=``)."""
     cutoff = _NOW - timedelta(days=30)
     _insert_logs(engine, [cutoff - timedelta(seconds=1), cutoff, cutoff + timedelta(seconds=1)])
 
@@ -51,7 +51,7 @@ def test_only_rows_older_than_the_cutoff_are_deleted(engine: sa.Engine) -> None:
 
 
 def test_the_audit_log_is_deleted_by_its_own_timestamp(engine: sa.Engine) -> None:
-    """``audit_log`` は ``occurred_at`` で判定すること（列名が ``log`` と違う）。"""
+    """``audit_log`` is judged by ``occurred_at`` (its column name differs from ``log``)."""
     cutoff = _NOW - timedelta(days=365)
     _insert_audit_logs(engine, [cutoff - timedelta(days=1), cutoff + timedelta(days=1)])
 
@@ -62,7 +62,7 @@ def test_the_audit_log_is_deleted_by_its_own_timestamp(engine: sa.Engine) -> Non
 
 
 def test_deletion_continues_past_one_chunk(engine: sa.Engine) -> None:
-    """対象が 1 塊に収まらなくても、尽きるまで消えること。"""
+    """Even when the targets do not fit in one batch, they are deleted until none remain."""
     old = _NOW - timedelta(days=100)
     _insert_logs(engine, [old] * 7)
 
@@ -80,7 +80,7 @@ def test_nothing_to_delete_leaves_the_table_alone(engine: sa.Engine) -> None:
 
 
 def test_the_scheduled_job_deletes_nothing_with_the_default_settings(engine: sa.Engine) -> None:
-    """既定の設定のまま定期実行が走っても 1 行も消えないこと。"""
+    """A periodic run with the default settings deletes no rows."""
     ancient = utcnow() - timedelta(days=10_000)
     _insert_logs(engine, [ancient])
     _insert_audit_logs(engine, [ancient])
@@ -92,7 +92,7 @@ def test_the_scheduled_job_deletes_nothing_with_the_default_settings(engine: sa.
 
 
 def test_the_scheduled_job_uses_the_configured_retention(engine: sa.Engine, monkeypatch: pytest.MonkeyPatch) -> None:
-    """設定した日数がそのまま掃除の境界になること（再起動を挟まない）。"""
+    """The configured number of days becomes the cleanup boundary directly (no restart in between)."""
     monkeypatch.setenv("LOG_RETENTION_DAYS", "30")
     now = utcnow()
     _insert_logs(engine, [now - timedelta(days=31), now])
@@ -101,5 +101,5 @@ def test_the_scheduled_job_uses_the_configured_retention(engine: sa.Engine, monk
     purge_expired_logs_once()
 
     assert _remaining(engine, "log") == 1
-    # 監査ログは別のキーなので、指定しない限り消えない
+    # Audit logs use a separate key, so they are not deleted unless set
     assert _remaining(engine, "audit_log") == 1

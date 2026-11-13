@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# E2E 用に本物のサーバーを 1 つ立てる（ADR-0072 §6）。playwright.config.ts の webServer から呼ばれ、
-# 画面のビルド（frontend/dist）はその前に済んでいる。FastAPI が dist をそのまま配る。
+# Start one real server for E2E (ADR-0072 §6). Called from webServer in playwright.config.ts;
+# the frontend build (frontend/dist) is already done by then. FastAPI serves dist as is.
 #
-# DB は毎回まっさらな SQLite を作り、マイグレーションで初期管理者まで入れる
-# （パスワードは webServer が渡す ADMIN_INITIAL_PASSWORD）。
+# Each run creates a fresh SQLite DB; migrations insert everything up to the initial admin
+# (password is ADMIN_INITIAL_PASSWORD passed by webServer).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -13,8 +13,8 @@ DB_DIR="$(mktemp -d)"
 
 export TESTING="true"
 export DATABASE_URI="sqlite:///${DB_DIR}/e2e.db"
-# 手元の .env に本番寄りの値があっても、ここで決めた値が勝つ（load_dotenv は上書きしない）。
-# http で試すので Secure の Cookie は使えない。入り口はパスワードのログインだけにする。
+# Values set here win even if the local .env has production-like values (load_dotenv does not
+# override). Testing over http, so Secure cookies can't be used. Only password sign-in is enabled.
 export SESSION_COOKIE_SECURE="false"
 export LOCAL_LOGIN_ENABLED="true"
 export OIDC_ENABLED="false"

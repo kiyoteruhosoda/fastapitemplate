@@ -1,7 +1,7 @@
-"""配布面の ``latest.json`` を読む（ADR-0081 §4）。
+"""Reading ``latest.json`` from the distribution store (ADR-0081 §4).
 
-形は deploy-repo の ``bin/flutter-release.sh`` が書くもの。⚠ ``build`` は
-ビルド番号ではない（焼いた時刻とコミットの組）。番号は ``version`` の ``+`` の後ろ。
+Its shape is what deploy-repo's ``bin/flutter-release.sh`` writes. ⚠ ``build`` is not the build
+number (it is the pair of build time and commit). The number is after the ``+`` in ``version``.
 """
 
 from __future__ import annotations
@@ -34,13 +34,13 @@ def test_reads_the_version_and_build_number() -> None:
     release = read_release_manifest(_manifest())
 
     assert release.version == "1.53.0"
-    # ``build`` の欄（"20260927T010203Z-abc1234"）ではなく、版の + の後ろ。
+    # Not the ``build`` field ("20260927T010203Z-abc1234") but after the + in the version.
     assert release.build == 356
     assert release.built_at == datetime(2026, 9, 27, 1, 2, 3, tzinfo=UTC)
 
 
 def test_a_missing_or_odd_build_time_is_not_a_failure() -> None:
-    """焼いた時刻は知らせに要らない。読めなくても版は知らせる。"""
+    """The build time is not needed for the notice. Even if it is unreadable, the version is announced."""
     assert read_release_manifest(_manifest(built_at=None)).built_at is None
     assert read_release_manifest(_manifest(built_at="yesterday")).built_at is None
 
@@ -57,7 +57,7 @@ def test_a_build_time_without_a_zone_is_read_as_utc() -> None:
         b"not json",
         b"[]",
         _manifest(version=None),
-        # ビルド番号の無い版は新旧を比べられない。
+        # A version without a build number cannot be compared as newer or older.
         _manifest(version="1.53.0"),
         _manifest(version="v1.53.0+356"),
     ],

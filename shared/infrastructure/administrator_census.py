@@ -1,4 +1,4 @@
-"""「管理の要」を持つ有効な利用者を数える（ADR-0078 §4）。"""
+"""Count active users holding the "administration core" (ADR-0078 §4)."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from shared.infrastructure.models import Permission, User, UserTenant, role_perm
 
 
 def count_active_administrators(session: Session, tenant_id: int | None) -> int:
-    """``ADMINISTRATION_CORE`` を（複数のロールにまたがってでも）すべて持つ有効な利用者の数。
+    """Number of active users holding all of ``ADMINISTRATION_CORE`` (even across several roles).
 
-    数えるのは**そのテナントの中**（「管理の要」はテナントごと。ADR-0079 §1 決定 7）。
-    ``tenant_id`` が ``None`` なら、テナントに属さない利用者の中で数える。
-    変更を ``flush`` した後に呼ぶ。0 なら、その変更で誰も権限を配り直せなくなる。
+    Counted **inside that tenant** (the "administration core" is per tenant; ADR-0079 §1 decision 7).
+    If ``tenant_id`` is ``None``, counted among users outside the tenants.
+    Call after ``flush``ing the change. If 0, nobody could redistribute permissions after that change.
     """
     in_tenant = UserTenant.tenant_id.is_(None) if tenant_id is None else UserTenant.tenant_id == tenant_id
     holders = (

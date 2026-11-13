@@ -1,19 +1,19 @@
-"""assay の名簿を引く実装（ADR-0077 §7。idp の ADR-0057 の口を叩く）。
+"""Implementation that fetches assay's roster (ADR-0077 §7. Calls idp's ADR-0057 endpoint).
 
 ```
 GET {issuer}/admin/applications/self/users?subs=...
 ```
 
-⚠ **経路にアプリを書かない。** どのアプリの名簿を返すかは、呼んできたサービスアカウント
-（トークンの名乗り）から **assay が決める**。こちらが ``OIDC_CLIENT_ID`` を載せて
-「自分はこのアプリだ」と申告する形は、nolumiawiki で作って向きが逆だと分かり捨てた
-（nolumiawiki の ADR-0098）。
+⚠ **Don't put the app in the path.** Which app's roster to return is decided **by assay** from the
+calling service account (the token's identity). Declaring "I am this app" by sending ``OIDC_CLIENT_ID``
+was built in nolumiawiki, found to be backwards, and dropped
+(nolumiawiki ADR-0098).
 
-⚠ **403 は「このサービスアカウントがまだアプリの名乗りとして結び付いていない」。** 障害ではないので
-:class:`MachineNotBoundToApplicationError` で分けて知らせる。
+⚠ **403 means "this service account is not yet bound as the app's identity".** Not a fault, so
+it is reported separately as :class:`MachineNotBoundToApplicationError`.
 
-⚠ **引けなかったら例外で止める。** 空の名簿として返すと、呼び出し側は「全員辞めた」と
-読んでしまう。
+⚠ **Stop with an exception when the lookup fails.** Returning an empty roster would make the caller
+read it as "everyone left".
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
 
-#: 一度に聞ける `sub` の数（idp の ADR-0057 の上限）。⚠ 超えると 400 になるので、分けて聞く。
+#: Number of `sub` values per query (idp ADR-0057 limit). ⚠ Exceeding it gives 400, so ask in batches.
 SUBJECTS_PER_REQUEST = 100
 
 _REQUEST_TIMEOUT_SECONDS = 10.0
@@ -75,7 +75,7 @@ class HttpxRosterGateway:
                 params=params,
                 headers={
                     "Accept": "application/json",
-                    # ⚠ 名乗らないと idp の前段の Cloudflare に落とされる。
+                    # ⚠ Without identifying itself, Cloudflare in front of idp drops it.
                     "User-Agent": USER_AGENT,
                     "Authorization": f"Bearer {self.tokens.token()}",
                 },
@@ -84,13 +84,13 @@ class HttpxRosterGateway:
         except httpx.HTTPError as error:
             raise IdentityProviderUnavailableError(f"the roster is unreachable: {type(error).__name__}") from error
         if response.status_code == 401:
-            # 期限内でも、向こうでクライアントを止めた・鍵を替えたときは通らなくなる。
+            # Even within expiry, it stops passing if the client was stopped or the key changed over there.
             self.tokens.invalidate()
         if response.status_code == 403:
-            # ⚠ 結び付けるまで毎周回ここへ来る。warning を撒かない（記録は呼び出し側で 1 行）。
+            # ⚠ This is hit every cycle until bound. Don't spray warnings (the caller logs one line).
             raise MachineNotBoundToApplicationError("the machine client is not bound to an application")
         if response.status_code != 200:
-            # ⚠ 名簿が空なのとは違うので、**ここで止める**。
+            # ⚠ Not the same as an empty roster, so **stop here**.
             logger.warning("sso_roster_request_failed", extra={"status_code": response.status_code})
             raise IdentityProviderUnavailableError(f"the roster returned {response.status_code}")
         try:

@@ -1,41 +1,41 @@
 /**
- * 新しい版が焼かれたことの検出（Service Worker の更新）。
+ * Detect that a new version has been built (Service Worker update).
  *
- * SPA は画面を描き替えるだけで再読み込みしないので、**デプロイしても開きっぱなしの
- * 端末は古い版のまま動き続ける**。Service Worker は新しい版を裏で取ってくるが、
- * 既に読み込まれた JavaScript を差し替える手段は持たない（差し替わるのは次の
- * 読み込みから）。そこで「新しい版が待機している」ことだけを画面へ伝え、
- * 入れ替え（＝再読み込み）は利用者が押したときに行う（ADR-0080 §7）。
+ * The SPA only re-renders and never reloads, so **after a deploy, devices left open keep running
+ * the old version**. The Service Worker fetches the new version in the background, but has no way
+ * to replace JavaScript already loaded (replacement takes effect from the next load). So we only
+ * tell the screen that "a new version is waiting", and the swap (= reload) happens when the user
+ * presses the button (ADR-0080 §7).
  *
- * ⚠ 待つだけでは気付けない。ブラウザが Service Worker の更新を確認するのは
- * **ページ遷移のとき**で、SPA の画面切り替えはページ遷移ではない。ここで
- * 定期的に・タブが手前へ戻ったときに確認を起こす。
+ * WARNING: Just waiting won't notice it. Browsers check for Service Worker updates **on page
+ * navigation**, and SPA screen changes are not page navigations. So we trigger the check here
+ * periodically and when the tab returns to the foreground.
  */
 import { registerSW } from 'virtual:pwa-register'
 
-/** 更新を確認する間隔。 */
+/** Interval between update checks. */
 export const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000
 
-/** 確認どうしの最短間隔（タブの出入りを繰り返しても頻繁には叩かない）。 */
+/** Minimum interval between checks (don't hit it often even if the tab keeps going in and out). */
 const MIN_CHECK_GAP_MS = 60 * 1000
 
 /**
- * 押してから、こちらの都合で再読み込みするまでの猶予。
+ * Grace period after the press before we reload on our own.
  *
- * 通常は新しい Service Worker が制御を引き継いだ合図（`controllerchange`）で
- * workbox が再読み込みする。⚠ **まだ Service Worker に制御されていない画面**
- * ——この版を初めて開いた（登録された直後の）タブ——では合図が来ないので、
- * 押したのに何も起きないことになる。その取りこぼしを拾う。
+ * Normally workbox reloads on the signal that the new Service Worker took control
+ * (`controllerchange`). WARNING: **On a screen not yet controlled by a Service Worker** — a tab
+ * that opened this version for the first time (right after registration) — the signal never
+ * comes, so pressing would do nothing. This catches that case.
  */
 const RELOAD_FALLBACK_MS = 2000
 
-/** 新しい版へ入れ替える（現在の画面を再読み込みする）。 */
+/** Swap to the new version (reload the current screen). */
 export type ApplyUpdate = () => void
 
-/** 新しい版が待機したときに呼ばれる。 */
+/** Called when a new version is waiting. */
 export type UpdateReadyListener = (apply: ApplyUpdate) => void
 
-/** 待機している新しい版を見張る。 */
+/** Watch for a waiting new version. */
 export type WatchForUpdate = (onUpdateReady: UpdateReadyListener) => void
 
 function scheduleChecks(registration: ServiceWorkerRegistration): void {
@@ -43,11 +43,11 @@ function scheduleChecks(registration: ServiceWorkerRegistration): void {
 
   const check = (): void => {
     const now = Date.now()
-    // 取得中・オフライン・直前に確認済みのときは起こさない。
+    // Don't trigger while fetching, offline, or just checked.
     if (registration.installing || !navigator.onLine || now - checkedAt < MIN_CHECK_GAP_MS) return
     checkedAt = now
     void registration.update().catch(() => {
-      // 確認できなくても画面には出さない（次の機会に取り直す）。
+      // Even if the check fails, don't show it on screen (retry at the next chance).
     })
   }
 
@@ -61,8 +61,8 @@ export const watchForUpdate: WatchForUpdate = (onUpdateReady) => {
   const updateSW = registerSW({
     onNeedRefresh() {
       onUpdateReady(() => {
-        // 待機している Service Worker に skipWaiting を送る。再読み込みは
-        // 制御が移った合図を受けて workbox が行う。
+        // Send skipWaiting to the waiting Service Worker. workbox reloads
+        // on the signal that control has moved.
         void updateSW()
         window.setTimeout(() => {
           window.location.reload()

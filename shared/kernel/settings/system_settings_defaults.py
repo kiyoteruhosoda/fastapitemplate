@@ -1,56 +1,59 @@
-"""システム設定のデフォルト値（優先順位: 環境変数 > DB > ここ）。
+"""Default values of system settings (precedence: environment variables > DB > here).
 
-キーを追加したら ``settings.py`` の ``@property`` と
-``presentation/fastapi/admin/system_settings_definitions.py`` も更新する
-（CLAUDE.md「設定管理」参照）。
+When adding a key, also update the ``@property`` in ``settings.py`` and
+``presentation/fastapi/admin/system_settings_definitions.py``
+(see "Settings" in CLAUDE.md).
 """
 
 from __future__ import annotations
 
 DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS = 14 * 24 * 3600
-#: これより長い寿命は受け付けない。桁を間違えると日時の計算があふれ、ログインが全部 500 になる（ADR-0101 決定 6）
+#: Longer lifetimes are rejected. A wrong order of magnitude overflows the date arithmetic and every
+#: sign-in fails with 500 (ADR-0101 decision 6)
 MAX_REFRESH_TOKEN_EXPIRES_SECONDS = 10 * 365 * 24 * 3600
 
 DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
-    # --- 認証 ---
-    # ⚠ **本番（APP_ENV=production）ではこの値のまま起動できない**（ADR-0073 §4）。
+    # --- Authentication ---
+    # ⚠ **Production (APP_ENV=production) refuses to start with this value** (ADR-0073 §4).
     "JWT_SECRET_KEY": "default-jwt-secret-change-me-in-production",
     "ACCESS_TOKEN_ISSUER": "fastapitemplate",
     "ACCESS_TOKEN_AUDIENCE": "fastapitemplate",
     "ACCESS_TOKEN_EXPIRES_SECONDS": 300,
     "REFRESH_TOKEN_EXPIRES_SECONDS": DEFAULT_REFRESH_TOKEN_EXPIRES_SECONDS,
-    # 更新のたびに寿命を今から数え直すか。偽ならログインから数える（ADR-0101）
+    # Whether each refresh restarts the lifetime from now. If false, count from sign-in (ADR-0101)
     "REFRESH_TOKEN_SLIDING_ENABLED": True,
     "SESSION_COOKIE_SECURE": False,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS": 3600,
-    # パスキーの追加・削除とメールの変更は、サインインからこの秒数以内に限る（ADR-0076 §10）
+    # Adding/removing passkeys and changing email are allowed only within this many seconds of
+    # sign-in (ADR-0076 §10)
     "RECENT_SIGN_IN_SECONDS": 600,
-    # 宛名ごとの失敗の上限（ADR-0076 §9）。窓の中で上限まで失敗したら、しばらく断る
+    # Failure limit per account name (ADR-0076 §9). After that many failures within the window,
+    # refuse for a while
     "LOGIN_MAX_FAILURES": 5,
     "LOGIN_FAILURE_WINDOW_SECONDS": 900,
     "LOGIN_LOCK_SECONDS": 900,
-    # --- 二要素認証（TOTP） ---
-    "TOTP_ISSUER": "fastapitemplate",  # 認証アプリに表示される発行者名
-    "TOTP_VALID_WINDOW": 1,  # 前後いくつの時間枠を許容するか（時刻ずれ吸収）
-    # --- パスキー（WebAuthn） ---
-    # RP ID は登録済みパスキーの結び付け先。変更すると既存のパスキーが無効になる。
-    # 指定できるのは**ドメイン名のみ**（IP アドレス不可）。そのため開発時は
-    # 127.0.0.1 ではなく localhost で開く（docs/OPERATIONS.md に対応表）。
+    # --- Two-factor authentication (TOTP) ---
+    "TOTP_ISSUER": "fastapitemplate",  # Issuer name shown in authenticator apps
+    "TOTP_VALID_WINDOW": 1,  # How many time steps before/after to accept (absorbs clock drift)
+    # --- Passkeys (WebAuthn) ---
+    # The RP ID is what registered passkeys are bound to. Changing it invalidates existing passkeys.
+    # It must be a **domain name only** (no IP address), so during development open the app at
+    # localhost rather than 127.0.0.1 (mapping in docs/OPERATIONS.md).
     "WEBAUTHN_RP_ID": "localhost",
     "WEBAUTHN_RP_NAME": "fastapitemplate",
     "WEBAUTHN_ORIGIN": "http://localhost:5173",
     "WEBAUTHN_CHALLENGE_TTL_SECONDS": 300,
-    # --- 一般 ---
-    "APP_BASE_URL": "",  # パスワードリセットリンク等の生成元（例: https://app.example.com）
+    # --- General ---
+    "APP_BASE_URL": "",  # Base for generated links such as password reset (e.g. https://app.example.com)
     "LANGUAGES": ["en", "ja"],
     "DEFAULT_LOCALE": "en",
     "DEFAULT_THEME": "system",  # system / light / dark
     "CORS_ALLOWED_ORIGINS": [],
-    # 前段に置いた**信頼できる**リバースプロキシの段数。X-Forwarded-For は
-    # 送信元が自由に付けられるヘッダーなので、既定（0）では一切信用せず TCP の
-    # 接続元を使う。同梱の nginx 構成では 1（docker-compose で設定済み）。
+    # Number of **trusted** reverse proxy hops in front. X-Forwarded-For is a header the sender
+    # can set freely, so by default (0) it is not trusted at all and the TCP peer address is
+    # used. The bundled nginx setup uses 1 (set in docker-compose).
     "TRUSTED_PROXY_HOPS": 0,
-    # --- メール ---
+    # --- Mail ---
     "MAIL_ENABLED": False,
     "MAIL_SERVER": "smtp.example.com",
     "MAIL_PORT": 587,
@@ -59,121 +62,127 @@ DEFAULT_APPLICATION_SETTINGS: dict[str, object] = {
     "MAIL_USERNAME": "",
     "MAIL_PASSWORD": "",
     "MAIL_DEFAULT_SENDER": "",
-    # --- ログ ---
+    # --- Logging ---
     "LOG_LEVEL": "INFO",
     "LOG_TO_DATABASE": True,
-    # DB へ書くレコードの下限レベル（stdout は LOG_LEVEL のまま全量出す）。
-    # ログ量が問題になったら WARNING へ上げて DB の増え方だけを抑える。
+    # Minimum level of records written to the DB (stdout still emits everything at LOG_LEVEL).
+    # If log volume becomes a problem, raise this to WARNING to curb only the DB growth.
     "LOG_DB_MIN_LEVEL": "INFO",
-    # 保持期間（日）。0 は「削除しない」。既定ではどちらも消さない——保持期間は
-    # 運用・監査の要件で決まるもので、テンプレートが勝手に消し始めてよいものでは
-    # ないため。日数を入れた時点で定期的な掃除が働く（ADR-0075 §3）。
+    # Retention period (days). 0 means "never delete". By default neither is deleted: retention
+    # is decided by operational and audit requirements, and the template should not start
+    # deleting on its own. Periodic cleanup starts once a number of days is set (ADR-0075 §3).
     "LOG_RETENTION_DAYS": 0,
-    # 監査ログはアプリログと分けて持つ（少量・長命で、間引いてよい行が無い）。
+    # Audit logs are kept separately from application logs (small, long-lived, no rows to thin out).
     "AUDIT_LOG_RETENTION_DAYS": 0,
-    # --- 通知（ADR-0081 §3） ---
-    # Web Push（端末への通知）の VAPID 秘密鍵（PEM）のファイルの場所。空なら端末への
-    # 通知は出せない（ベル・画面上部の知らせは動く）。⚠ 値ではなく場所で持つ。
-    # 作り方は docs/OPERATIONS.md。公開鍵は秘密鍵から導くので設定は要らない。
+    # --- Notifications (ADR-0081 §3) ---
+    # Location of the file holding the VAPID private key (PEM) for Web Push (device notifications).
+    # When empty, device notifications cannot be sent (the bell and on-screen notices still
+    # work). ⚠ Held by location, not by value.
+    # See docs/OPERATIONS.md for how to create it. The public key is derived from the private
+    # key, so no setting is needed.
     "WEB_PUSH_VAPID_PRIVATE_KEY_FILE": "",
-    # 通知サービス（FCM / Mozilla など）へ名乗る連絡先。``mailto:`` か ``https:``。
-    # 送り過ぎたときに通知サービスがここへ連絡してくる。
+    # Contact the app identifies itself with to push services (FCM / Mozilla etc.). ``mailto:`` or
+    # ``https:``. The push service contacts this address if we send too much.
     "WEB_PUSH_SUBJECT": "",
-    # スマホアプリへの通知（FCM。ADR-0081 §5）。Firebase のサービスアカウントの鍵（JSON）の
-    # ファイルの場所。空なら FCM へは送らない。⚠ 値ではなく場所で持つ。
+    # Notifications to the mobile apps (FCM; ADR-0081 §5). Location of the Firebase service account
+    # key file (JSON). When empty, nothing is sent to FCM. ⚠ Held by location, not by value.
     "FCM_SERVICE_ACCOUNT_FILE": "",
-    # --- スマホアプリの最新版（ADR-0081 §4） ---
-    # 読む先（ENDPOINT_URL / OBJECT_KEY / ACCESS_KEY_ID / SECRET_ACCESS_KEY_FILE）が
-    # 1 つでも空なら知らせない。⚠ 秘密の鍵は値ではなくファイルのパスで持つ。
-    # ⚠ 鍵には artifacts の読み取りだけを持たせる（書けると配っている APK をすり替えられる）。
+    # --- Latest mobile app release (ADR-0081 §4) ---
+    # If any of the read settings (ENDPOINT_URL / OBJECT_KEY / ACCESS_KEY_ID /
+    # SECRET_ACCESS_KEY_FILE) is empty, nothing is announced. ⚠ The secret key is held as a file
+    # path, not a value.
+    # ⚠ Give the key read access to artifacts only (with write access, the distributed APK could
+    # be swapped).
     "APP_RELEASE_S3_ENDPOINT_URL": "",
     "APP_RELEASE_S3_REGION": "garage",
     "APP_RELEASE_S3_BUCKET": "artifacts",
-    "APP_RELEASE_S3_OBJECT_KEY": "",  # 例: <アプリ名>/latest.json
+    "APP_RELEASE_S3_OBJECT_KEY": "",  # e.g. <app name>/latest.json
     "APP_RELEASE_S3_ACCESS_KEY_ID": "",
     "APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE": "",
-    # 知らせを押したときにブラウザで開く先（APK を人が取りに行く画面）。
+    # Where the browser goes when the notice is tapped (the page where people fetch the APK).
     "APP_RELEASE_DOWNLOAD_URL": "",
-    # --- 外部 IdP との SSO（ADR-0077 §1 / ADR-0076 §3） ---
-    # ⚠ **既定は無効。** テンプレートは連携先を知らない。設定が空のまま有効にすると、
-    #   起動はするのにログインだけが失敗する状態になる。
+    # --- SSO with an external IdP (ADR-0077 §1 / ADR-0076 §3) ---
+    # ⚠ **Off by default.** The template does not know the IdP. Enabling it with empty settings
+    #   leaves the app starting fine but with sign-in failing.
     "OIDC_ENABLED": False,
-    "OIDC_DISPLAY_NAME": "SSO",  # ログイン画面のボタンに出る名前
-    # OpenID Provider の発行者 URL。末尾に /.well-known/openid-configuration を
-    # 付けた先が読める必要がある（discovery で各エンドポイントを引く）。
+    "OIDC_DISPLAY_NAME": "SSO",  # Name shown on the sign-in screen button
+    # Issuer URL of the OpenID Provider. The URL with /.well-known/openid-configuration
+    # appended must be readable (each endpoint is looked up via discovery).
     "OIDC_ISSUER": "",
     "OIDC_CLIENT_ID": "",
     "OIDC_CLIENT_SECRET": "",
-    # トークンエンドポイントへの client 認証方式（ADR-0077 §1 決定 5）。
-    # client_secret_basic = 上の CLIENT_SECRET を使う。
-    # private_key_jwt     = 下の PRIVATE_KEY_FILE の秘密鍵で署名する（秘密を
-    #                       デプロイの変数にも DB にも置かずに済む）。
-    # ⚠ 知らない値は既定へ落とさず「不備」として扱う（SSO が無効になる）。
+    # Client authentication method for the token endpoint (ADR-0077 §1 decision 5).
+    # client_secret_basic = use CLIENT_SECRET above.
+    # private_key_jwt     = sign with the private key in PRIVATE_KEY_FILE below (keeps the
+    #                       secret out of both deploy variables and the DB).
+    # ⚠ Unknown values do not fall back to the default; they are treated as invalid (SSO is off).
     "OIDC_CLIENT_AUTH_METHOD": "client_secret_basic",
-    # private_key_jwt のときだけ使う。ホスト上の PEM を read-only で渡す。
+    # Used only with private_key_jwt. Pass the PEM on the host read-only.
     "OIDC_PRIVATE_KEY_FILE": "",
-    # IdP に鍵が複数登録されているときに、どれで検証するかを示す（RFC 7638 の
-    # サムプリント）。1 つしか無ければ空でよい。
+    # When several keys are registered at the IdP, tells which one to verify with (an RFC 7638
+    # thumbprint). Can be empty if there is only one.
     "OIDC_PRIVATE_KEY_KID": "",
-    # このアプリが**機械として** IdP を呼ぶときの client_id（ADR-0077 §7）。assay で
-    # サービスアカウントとして登録したもので、ログイン用の OIDC_CLIENT_ID とは別の登録。
-    # 鍵は上の OIDC_PRIVATE_KEY_FILE / KID を共有し、方式は常に private_key_jwt。
-    # 空なら定期照合は走らない。⚠ assay でアプリの「名乗り」に結び付けるまでは 403 で見送る。
+    # client_id used when this app calls the IdP **as a machine** (ADR-0077 §7). Registered in
+    # assay as a service account; a separate registration from the sign-in OIDC_CLIENT_ID.
+    # Shares the key OIDC_PRIVATE_KEY_FILE / KID above; the method is always private_key_jwt.
+    # When empty, periodic reconciliation does not run. ⚠ Until assay binds it to the app's
+    # identity, calls are skipped with 403.
     "MACHINE_CLIENT_ID": "",
     "OIDC_SCOPES": ["openid", "profile", "email"],
-    # IdP に登録するリダイレクト URI。空なら APP_BASE_URL + /api/auth/sso/callback。
+    # Redirect URI registered at the IdP. When empty, APP_BASE_URL + /api/auth/sso/callback.
     "OIDC_REDIRECT_URI": "",
-    # サインアウトを IdP まで通すか（RP-Initiated Logout 1.0）。**既定は無効。**
-    # ⚠ **有効にすると他のアプリに影響する。** 消えるのは IdP の SSO セッションなので、
-    #   このアプリのサインアウトが他アプリの「次回 SSO ログイン」にも効く。
-    #   ローカル口座を持つアプリは無効のままでよい（/logout が既に自分のセッションを
-    #   終わらせている）。詳細は settings.oidc_rp_logout_enabled の docstring。
+    # Whether sign-out is passed through to the IdP (RP-Initiated Logout 1.0). **Off by default.**
+    # ⚠ **Turning it on affects other apps.** What ends is the IdP's SSO session, so signing out
+    #   of this app also affects other apps' "next SSO sign-in".
+    #   Apps with local accounts can leave it off (/logout already ends their own session).
+    #   Details in the settings.oidc_rp_logout_enabled docstring.
     "OIDC_RP_LOGOUT_ENABLED": False,
-    # サインアウト後に IdP から戻る先。空なら APP_BASE_URL + /api/auth/sso/signed-out。
-    # ⚠ **IdP 側の登録と完全一致でなければ使われない**（未登録でも失敗はせず、
-    #   IdP 自身の完了ページで止まる）。
+    # Where the IdP returns after sign-out. When empty, APP_BASE_URL + /api/auth/sso/signed-out.
+    # ⚠ **Only used if it exactly matches the IdP-side registration** (if unregistered, it does
+    #   not fail but stops at the IdP's own completion page).
     "OIDC_POST_LOGOUT_REDIRECT_URI": "",
-    # 要求する認証の強度（``acr_values``）。空 = 要求しない（ADR-0076 §3 決定 1）。
-    # ⚠ **入れたら fail closed になる。** 返ってきた acr が要求と一致しなければ
-    #   （返ってこない場合も）ログインを断る。予約語を持たない IdP へつなぐときは
-    #   空のままにする。自前 idp（assay）なら urn:assay:ac:mfa が使える。
+    # Requested authentication strength (``acr_values``). Empty = none (ADR-0076 §3 decision 1).
+    # ⚠ **Setting it makes sign-in fail closed.** If the returned acr does not match the request
+    #   (or none is returned), sign-in is refused. Leave it empty when connecting to an IdP
+    #   without reserved values. With our own idp (assay), urn:assay:ac:mfa is available.
     "OIDC_ACR_VALUES": [],
-    # クレーム名の対応付け（IdP ごとに異なる）
+    # Claim name mapping (differs per IdP)
     "OIDC_EMAIL_CLAIM": "email",
     "OIDC_USERNAME_CLAIM": "name",
-    # IdP のグループ -> このアプリのロール。"<グループ>=<ロール>" の並び。
-    # 対応付けに当たらなかった利用者へ与えるロール
+    # IdP group -> this app's role. A list of "<group>=<role>".
+    # Role given to users who match no mapping
     "OIDC_DEFAULT_ROLES": [],
-    # 毎回のログインでロールを IdP のグループから引き直す（IdP を正とする）。
-    # 既定は false = 初回のプロビジョニング時にだけ与える（管理画面で足したロールが
-    # ログインのたびに剥がれるのを避ける）。
+    # Re-derive roles from IdP groups on every sign-in (the IdP is the source of truth).
+    # Default false = only granted at first provisioning (so roles added on the admin screen
+    # are not stripped on each sign-in).
     "OIDC_ROLE_SYNC": False,
-    # ⚠ **未知の利用者を初回ログインで作るか。既定は false。** IdP がテナント共用の
-    #   場合、true は「IdP に口座がある人は全員このアプリに入れる」を意味する。
+    # ⚠ **Whether unknown users are created on first sign-in. Default false.** If the IdP is
+    #   shared across tenants, true means "everyone with an IdP account can enter this app".
     "OIDC_AUTO_PROVISION": False,
-    # ⚠ **初回ログインで既存のローカルアカウントへ寄せるか。既定は false**（ADR-0077 §4）。
-    #   条件の email_verified は、自前 idp (assay) では「テナント管理者がそう主張して
-    #   いる」であって本人の証明ではない。開けるなら、つないだ IdP でこの値がどう立つ
-    #   のかまで確かめること。
+    # ⚠ **Whether first sign-in links to an existing local account. Default false** (ADR-0077 §4).
+    #   With our own idp (assay), the email_verified condition means "the tenant administrator
+    #   claims so", not proof by the person. If you enable it, check how the connected IdP sets
+    #   this value.
     "OIDC_LINK_BY_EMAIL": False,
-    # 受け入れるメールアドレスのドメイン（空 = 制限しない）
+    # Accepted email domains (empty = no restriction)
     "OIDC_ALLOWED_EMAIL_DOMAINS": [],
-    # 認可要求 -> コールバックの往復に許す時間（署名付き Cookie の寿命）
+    # Time allowed for the authorization request -> callback round trip (lifetime of the signed cookie)
     "OIDC_LOGIN_TRANSACTION_TTL_SECONDS": 600,
-    # コールバックが発行する引き換え券（SPA がトークンへ交換する）の寿命
+    # Lifetime of the exchange ticket issued by the callback (the SPA exchanges it for tokens)
     "OIDC_LOGIN_TICKET_TTL_SECONDS": 60,
-    # --- ローカルの入口（ADR-0076 §3 決定 2・3） ---
-    # ⚠ **false にするとパスワード・パスキーでのログインが塞がる。** 併せてローカルの
-    #   資格情報の登録（パスキー・TOTP・パスワード変更）も止まる（閉じた入口の合鍵を
-    #   作れないようにするため）。締め出されたら環境変数で true へ戻して再起動する。
+    # --- Local sign-in (ADR-0076 §3 decisions 2 and 3) ---
+    # ⚠ **false blocks sign-in with password and passkey.** Registering local credentials
+    #   (passkey, TOTP, password change) stops too (so no spare key to a closed door can be
+    #   made). If locked out, set the environment variable back to true and restart.
     "LOCAL_LOGIN_ENABLED": True,
-    # パスワードで入る人に二要素認証を必須にする（ADR-0093）。アプリ全体に 1 つ。
-    # ⚠ 戻すときは画面か scripts/unset_setting.py（保存した値は環境変数より強い）。
+    # Require two-factor authentication for password sign-in (ADR-0093). One switch for the app.
+    # ⚠ To revert, use the screen or scripts/unset_setting.py (saved values beat env vars).
     "LOCAL_TWO_FACTOR_REQUIRED": False,
 }
 
-#: 環境変数だけで決める設定（ADR-0090）。サーバーがつなぎに行く先と、鍵のファイルの場所。
-#: 管理画面には見るだけで出し、保存は断る。DB に古い値が残っていても読まない。
+#: Settings decided by environment variables only (ADR-0090): where the server connects to, and
+#: locations of key files. Shown read-only on the admin screen; saving is refused. Stale values
+#: left in the DB are not read.
 ENV_ONLY_SETTINGS: frozenset[str] = frozenset(
     {
         "OIDC_ISSUER",

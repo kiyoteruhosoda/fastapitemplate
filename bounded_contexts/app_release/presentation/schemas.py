@@ -1,4 +1,4 @@
-"""``GET /api/app-release/latest`` の応答スキーマ（ADR-0081 §4）。"""
+"""Response schema for ``GET /api/app-release/latest`` (ADR-0081 §4)."""
 
 from __future__ import annotations
 
@@ -6,23 +6,23 @@ from pydantic import BaseModel
 
 
 class AppReleaseResponse(BaseModel):
-    """配布面に最新として置かれている版。"""
+    """The release placed in the distribution store as latest."""
 
-    #: 人に見せる版（``1.53.0``）。
+    #: Version shown to people (``1.53.0``).
     version: str
-    #: 新旧の比較に使う番号。端末は自分のビルド番号より大きければ知らせる。
+    #: Number used to compare releases. The device notifies if it is greater than its own build number.
     build: int
-    #: 人がブラウザで開いて APK を取りに行く先。設定が空なら ``None``。
+    #: Where people open a browser to get the APK. ``None`` when the setting is empty.
     download_url: str | None
-    #: 焼いた時刻（UTC、末尾 ``Z``）。配布面が書いていなければ ``None``。
+    #: Build time (UTC, trailing ``Z``). ``None`` if the distribution store does not record it.
     built_at: str | None
 
 
 class LatestAppReleaseResponse(BaseModel):
-    """``latest`` が ``None`` なら、知らせることは無い。
+    """When ``latest`` is ``None`` there is nothing to announce.
 
-    読む先が設定されていない・配布面が読めなかった、のどちらでも ``None``
-    になる。端末から見て違いは無い（どちらも知らせない）。
+    It is ``None`` both when nothing to read from is configured and when the distribution
+    store could not be read. The device sees no difference (it announces nothing either way).
     """
 
     latest: AppReleaseResponse | None

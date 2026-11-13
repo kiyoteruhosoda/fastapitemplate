@@ -1,6 +1,6 @@
 /**
- * お知らせの配信画面（ADR-0081 §3）。書いた内容・出す場所・宛先がそのまま送られることと、
- * 端末への通知はサーバーが送れる設定のときだけ選べることを見る。
+ * Announcement sending page (ADR-0081 §3). Checks that the written content, places and recipient
+ * are sent as is, and that device notifications can be chosen only when the server can send them.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -53,7 +53,7 @@ describe('NotificationsAdminPage', () => {
     vi.clearAllMocks()
   })
 
-  it('グループ宛てに、選んだ場所で送る', async () => {
+  it('sends to a group in the chosen places', async () => {
     serve(true)
     apiPost.mockResolvedValue({ recipient_count: 3 })
     renderPage()
@@ -79,7 +79,7 @@ describe('NotificationsAdminPage', () => {
     expect(await screen.findByText('Sent to 3 people.')).toBeInTheDocument()
   })
 
-  it('送れる設定でなければ端末への通知は選べない', async () => {
+  it('cannot choose device notifications when sending is not configured', async () => {
     serve(false)
     renderPage()
 

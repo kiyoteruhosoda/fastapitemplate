@@ -1,8 +1,8 @@
 /**
- * 新しい版の知らせ（ADR-0080 §7）。
+ * New-version notice (ADR-0080 §7).
  *
- * Service Worker そのものは jsdom に無いので、見張り役は偽物を渡して
- * 「知らせが来るまで出さない」「押すまで入れ替えない」だけを検証する。
+ * jsdom has no Service Worker, so a fake watcher is passed in and only "nothing is shown until
+ * notified" and "nothing is swapped until pressed" are verified.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -30,13 +30,13 @@ function renderPrompt() {
 }
 
 describe('AppUpdatePrompt', () => {
-  it('新しい版が待機するまで何も出さない', () => {
+  it('shows nothing until a new version is waiting', () => {
     renderPrompt()
 
     expect(screen.queryByRole('status')).toBeNull()
   })
 
-  it('待機したら知らせを出し、押されたときだけ入れ替える', () => {
+  it('shows the notice once waiting and swaps only when pressed', () => {
     const { watcher } = renderPrompt()
     const apply = vi.fn()
 
@@ -52,7 +52,7 @@ describe('AppUpdatePrompt', () => {
     expect(apply).toHaveBeenCalledTimes(1)
   })
 
-  it('出ている間だけ、ヘッダーを下げる高さを渡す', () => {
+  it('passes the height that pushes the header down only while shown', () => {
     const { watcher, view } = renderPrompt()
     const root = document.documentElement
 

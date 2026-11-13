@@ -1,16 +1,17 @@
-"""``log`` テーブルへの書き込みハンドラ。
+"""Handler that writes to the ``log`` table.
 
-- ``requestId`` はレコード（``RequestContextFilter`` 付与）から取得する。
-- DB 未接続・マイグレーション前・書き込み失敗時は黙って諦める
-  （ログのために本処理を落とさない）。
-- SQLAlchemy 自身のログを書き込むと再帰するため除外する。
-- ``LOG_DB_MIN_LEVEL`` 未満のレコードは書かない。stdout の構造化ログは
-  ``LOG_LEVEL`` のまま全量残しつつ、DB の増え方だけを別に抑えられるようにする
-  （既定は ``INFO``。ログ量が問題になったら管理画面で ``WARNING`` へ上げる）。
-- **リクエスト中は行を控えに積むだけ**にし、実際の INSERT はリクエストの処理が
-  終わってから :class:`~presentation.fastapi.middleware.deferred_log_writes.DeferredLogWriteMiddleware`
-  がまとめて行う。処理の途中で別コネクションから書くと、リクエストのセッションが
-  握った書き込みロックと衝突するため（:mod:`shared.kernel.logging.pending_records`）。
+- ``requestId`` is taken from the record (set by ``RequestContextFilter``).
+- When the DB is not reachable, before migrations, or on write failure, it silently gives up
+  (the actual work is never brought down for the sake of logging).
+- SQLAlchemy's own logs are excluded because writing them would recurse.
+- Records below ``LOG_DB_MIN_LEVEL`` are not written. The structured stdout log keeps everything
+  at ``LOG_LEVEL``, while only the DB growth can be curbed separately
+  (default ``INFO``; if log volume becomes a problem, raise it to ``WARNING`` on the admin screen).
+- **During a request, rows are only queued**; the actual INSERT is done in one go by
+  :class:`~presentation.fastapi.middleware.deferred_log_writes.DeferredLogWriteMiddleware`
+  after the request has been processed. Writing from another connection mid-request would
+  collide with the write lock held by the request's session
+  (:mod:`shared.kernel.logging.pending_records`).
 """
 
 from __future__ import annotations
@@ -28,8 +29,8 @@ from shared.kernel.logging.pending_records import (
 
 _EXCLUDED_LOGGER_PREFIXES = ("sqlalchemy", "alembic", "shared.kernel.logging")
 
-# レベル名 -> 数値。未知の名前が設定されていても書き込みを止めないよう、
-# 解決できないときは全件通す（DEBUG 相当）。
+# Level name -> number. So that an unknown configured name does not stop writing, everything
+# passes (equivalent to DEBUG) when it cannot be resolved.
 _LEVEL_NUMBERS = logging.getLevelNamesMapping()
 
 
@@ -38,10 +39,10 @@ def _threshold(level_name: str) -> int:
 
 
 def write_log_rows(rows: Sequence[LogRow]) -> None:
-    """控えた行を 1 トランザクションで書き込む。
+    """Write the queued rows in one transaction.
 
-    呼び出すのはリクエストの処理が終わってから（ミドルウェア）。例外はそのまま
-    投げる（握りつぶすかどうかは呼び出し側の判断）。
+    Called after the request has been processed (by the middleware). Exceptions propagate as is
+    (whether to swallow them is the caller's decision).
     """
     if not rows:
         return
@@ -67,16 +68,16 @@ class DbLogHandler(logging.Handler):
             row = _to_row(record)
             pending = current_pending_log_records()
             if pending is None:
-                # リクエストの外（起動時処理・スクリプト）。競合する相手がいない
+                # Outside a request (startup, scripts). Nothing to collide with
                 write_log_rows([row])
             else:
                 pending.add(row)
         except Exception:
-            # ログのために本処理は落とさない。ただし**黙らない**——ここを
-            # ``pass`` にすると「管理画面にログが出ない」だけが症状になり、
-            # 原因（DB 未接続・マイグレーション前・列の不一致）が誰にも見えない。
-            # ``handleError`` は traceback を stderr へ出すだけで、ロギングを
-            # 再入させない（DB へ書こうとして再び失敗する経路を作らない）。
+            # Never bring down the actual work for logging. But **do not stay silent**: making this
+            # ``pass`` leaves "no logs on the admin screen" as the only symptom, with the cause
+            # (DB not reachable, before migrations, column mismatch) invisible to everyone.
+            # ``handleError`` only prints the traceback to stderr and does not re-enter logging
+            # (no path that tries to write to the DB and fails again).
             self.handleError(record)
 
 
@@ -87,8 +88,8 @@ def _to_row(record: logging.LogRecord) -> LogRow:
     if record.exc_info and record.exc_info[0] is not None:
         trace = "".join(tb_module.format_exception(*record.exc_info))
 
-    # duration_ms 列は Integer。SQLite は型アフィニティで float をそのまま
-    # 保持してしまうため、書き込み前に丸めて両バックエンドの挙動を揃える。
+    # The duration_ms column is Integer. SQLite's type affinity would keep a float as is, so round
+    # before writing to make both backends behave the same.
     duration_ms = getattr(record, "duration_ms", None)
     if duration_ms is not None:
         duration_ms = round(float(duration_ms))

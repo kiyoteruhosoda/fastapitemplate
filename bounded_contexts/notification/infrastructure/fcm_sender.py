@@ -1,13 +1,13 @@
-"""スマホアプリへの通知を FCM（HTTP v1）で送る（ADR-0081 §5）。
+"""Send mobile app notifications via FCM (HTTP v1) (ADR-0081 §5).
 
-``firebase-admin`` は入れない。やることは 2 つだけで、どちらも既にある道具で足りる。
+``firebase-admin`` is not installed. Only two things are needed, and existing tools cover both.
 
-1. サービスアカウントの鍵で JWT を署名し（``pyjwt``）、Google の OAuth で
-   アクセストークンに換える（``grant_type=jwt-bearer``。1 時間もつのでプロセスで覚える）
-2. ``POST https://fcm.googleapis.com/v1/projects/<project>/messages:send``（``httpx``）
+1. Sign a JWT with the service account key (``pyjwt``) and exchange it via Google OAuth for
+   an access token (``grant_type=jwt-bearer``; valid for an hour, so cached in the process)
+2. ``POST https://fcm.googleapis.com/v1/projects/<project>/messages:send`` (``httpx``)
 
-⚠ **鍵は値ではなく場所で持つ**（``FCM_SERVICE_ACCOUNT_FILE``）。Firebase のコンソールで
-「新しい秘密鍵を生成」した JSON をそのまま置く。中身は送るたびに読む。
+⚠ **The key is held by location, not value** (``FCM_SERVICE_ACCOUNT_FILE``). Place the JSON from
+"Generate new private key" in the Firebase console as is. Its content is read on every send.
 """
 
 from __future__ import annotations
@@ -37,15 +37,15 @@ _SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 _DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
 _SEND_URL = "https://fcm.googleapis.com/v1/projects/{project}/messages:send"
 _TIMEOUT_SECONDS = 10
-#: アクセストークンは 1 時間もつ。切れる少し前に取り直す。
+#: Access tokens last an hour. Fetch a new one shortly before expiry.
 _TOKEN_LIFETIME_SECONDS = 3600
 _TOKEN_MARGIN_SECONDS = 300
-#: FCM がこの答えを返したら、そのトークンはもう使えない（アプリを消した・データを消した）。
+#: If FCM returns this, the token is no longer usable (app uninstalled or data cleared).
 _GONE_ERROR_CODES = frozenset({"UNREGISTERED"})
 
 
 class FcmUnavailableError(Exception):
-    """鍵が読めない・Google の OAuth で断られた（送れない設定・状態）。"""
+    """The key cannot be read or Google OAuth refused (sending not configured or not possible)."""
 
 
 @dataclass(frozen=True)
@@ -66,12 +66,12 @@ class _ServiceAccount:
                 token_uri=str(data.get("token_uri") or _DEFAULT_TOKEN_URI),
             )
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            # パスは秘密ではないので出してよい（どこを直せばよいかが分かる）。
+            # The path is not secret, so it may be logged (it shows what to fix).
             raise FcmUnavailableError(f"cannot read the service account file {path}: {type(exc).__name__}") from exc
 
 
 class _AccessTokenCache:
-    """Google のアクセストークンをプロセスで覚える（送るたびに OAuth へ行かない）。"""
+    """Cache Google access tokens in the process (no OAuth round trip on every send)."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -123,7 +123,7 @@ _token_cache = _AccessTokenCache()
 
 
 def _error_code(response: httpx.Response) -> str | None:
-    """FCM の失敗の理由（``UNREGISTERED`` など）。``error.details[].errorCode`` に入っている。"""
+    """Reason for an FCM failure (e.g. ``UNREGISTERED``), found in ``error.details[].errorCode``."""
     try:
         details = response.json().get("error", {}).get("details", [])
     except ValueError:
@@ -168,7 +168,7 @@ class FcmSender(DevicePushSender):
 
     @staticmethod
     def _payload(device: DeviceToken, message: PushMessage) -> dict[str, Any]:
-        # data の値は文字列しか許されない。アプリは notification_id で既読にし、url で行き先を開く。
+        # data values must be strings. The app marks as read by notification_id and opens url as the link.
         data = {"notification_id": str(message.notification_id)}
         if message.link_url:
             data["url"] = message.link_url
@@ -189,7 +189,7 @@ class FcmSender(DevicePushSender):
         if response.status_code == httpx.codes.NOT_FOUND or code in _GONE_ERROR_CODES:
             return PushOutcome.GONE
         if response.status_code == httpx.codes.UNAUTHORIZED:
-            # 覚えていたアクセストークンが失効した（鍵を消された等）。次は取り直す。
+            # The cached access token was revoked (e.g. the key was deleted). Fetch a new one next time.
             _token_cache.forget(account)
         logger.warning(
             "fcm_failed",

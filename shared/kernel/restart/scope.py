@@ -1,11 +1,10 @@
-"""再起動の対象範囲（スコープ）。
+"""Scope of a restart.
 
-設定値ごとに「どのサービスを再起動すれば反映されるか」を表す語彙。
-``docker-compose.yml`` のアプリケーションサービスと 1 対 1 で対応する。
+Vocabulary expressing, per setting, "which service must restart for it to take effect".
+Corresponds one-to-one to the application services in ``docker-compose.yml``.
 
-本テンプレートのサービスは ``web`` のみ。バックグラウンドワーカー等を足した
-場合はここへ値を追加し、そのプロセスの起動処理で
-:func:`shared.kernel.restart.start_restart_watcher` を呼ぶ。
+This template has only the ``web`` service. When adding a background worker or the like, add a
+value here and call :func:`shared.kernel.restart.start_restart_watcher` in that process's startup.
 """
 
 from __future__ import annotations
@@ -15,13 +14,13 @@ from enum import StrEnum
 
 
 class RestartScope(StrEnum):
-    """再起動要求の宛先となるサービス。"""
+    """Service a restart request is addressed to."""
 
     WEB = "web"
 
     @classmethod
     def parse(cls, value: object) -> RestartScope | None:
-        """文字列をスコープへ変換する。未知の値は ``None``。"""
+        """Convert a string to a scope. ``None`` for unknown values."""
         if isinstance(value, RestartScope):
             return value
         if not isinstance(value, str):
@@ -31,9 +30,9 @@ class RestartScope(StrEnum):
 
     @classmethod
     def parse_all(cls, values: Iterable[object]) -> tuple[RestartScope, ...]:
-        """文字列の並びをスコープの並びへ変換する（未知の値は捨てる）。
+        """Convert a sequence of strings to a sequence of scopes (unknown values are dropped).
 
-        並び順は :data:`ALL_RESTART_SCOPES` に揃え、重複は取り除く。
+        The order follows :data:`ALL_RESTART_SCOPES` and duplicates are removed.
         """
         parsed = {scope for scope in (cls.parse(value) for value in values) if scope is not None}
         return tuple(scope for scope in ALL_RESTART_SCOPES if scope in parsed)

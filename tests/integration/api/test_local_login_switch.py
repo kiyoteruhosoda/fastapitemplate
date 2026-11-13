@@ -1,7 +1,7 @@
-"""ローカルの入口を閉じられること（ADR-0076 §3 決定 2・3）。
+"""The local entrance can be closed (ADR-0076 §3 decisions 2, 3).
 
-``LOCAL_LOGIN_ENABLED=false`` で、パスワード・パスキーのログインと**ローカル資格情報の
-登録**が止まる。登録まで止めるのは、閉じた入口の合鍵を作れないようにするため。
+``LOCAL_LOGIN_ENABLED=false`` stops password and passkey sign-in and **registration of local
+credentials**. Registration is stopped too so that no spare key to the closed entrance can be made.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from shared.domain.auth import master_data
 
 @pytest.fixture
 def closed_client(engine: sa.Engine, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    """ローカルの入口を閉じたアプリ。"""
+    """An app with the local entrance closed."""
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("LOCAL_LOGIN_ENABLED", "false")
@@ -33,14 +33,14 @@ def test_password_login_is_refused_when_closed(closed_client: TestClient) -> Non
 
 
 def test_passkey_login_is_refused_when_closed(closed_client: TestClient) -> None:
-    """パスワードだけ塞いでも、パスキーの口が開いていれば迂回できてしまう。"""
+    """Blocking only passwords could be bypassed if the passkey entrance stayed open."""
     response = closed_client.post("/api/auth/passkey/challenge", json={})
     assert response.status_code == 403
     assert response.json()["detail"]["error"] == ERROR_CODE
 
 
 def test_password_reset_is_refused_when_closed(closed_client: TestClient) -> None:
-    """再設定を通すとローカルのパスワードが作れてしまう（閉じた入口の合鍵）。"""
+    """Going through a reset would create a local password (a spare key to the closed entrance)."""
     response = closed_client.post("/api/auth/forgot-password", json={"email": "someone@example.com"})
     assert response.status_code == 403
 
@@ -50,7 +50,7 @@ def test_credentials_cannot_be_enrolled_when_closed(
     admin_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """認証済みでも、閉じている間はパスキー・TOTP を足せない（ADR-0076 §3 決定 3）。"""
+    """Even when authenticated, passkeys and TOTP cannot be added while closed (ADR-0076 §3 decision 3)."""
     from presentation.fastapi.app import create_app
 
     monkeypatch.setenv("LOCAL_LOGIN_ENABLED", "false")
@@ -62,7 +62,7 @@ def test_credentials_cannot_be_enrolled_when_closed(
 
 
 def test_the_login_screen_is_told_the_entrance_is_closed(closed_client: TestClient) -> None:
-    """画面はここを見てパスワード欄とパスキーのボタンを出さない。"""
+    """The screen checks this and hides the password field and passkey button."""
     response = closed_client.get("/api/auth/sso/provider")
     assert response.status_code == 200
     assert response.json()["local_login_enabled"] is False
@@ -73,5 +73,5 @@ def test_everything_stays_open_by_default(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["local_login_enabled"] is True
-    # 連携先を知らないテンプレートの既定は「SSO 無効」（ADR-0077 §1）。
+    # The template, which does not know its federation partner, defaults to "SSO disabled" (ADR-0077 §1).
     assert body["enabled"] is False

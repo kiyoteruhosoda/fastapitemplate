@@ -1,10 +1,12 @@
 /**
- * 共有メモ（ADR-0078 §6 の見本。要 `note:view`、書くには `note:write`）。
+ * Shared notes (example for ADR-0078 §6. Requires `note:view`; writing needs `note:write`).
  *
- * 出し分けは 2 段。
- * - 「メモを書く」ボタンは **scope**（`note:write`）で出す。機能を使えるかはトークンが知っている。
- * - 行ごとの「編集」「削除」は、scope に加えて **サーバーが返す `can_change`** で出す。どのメモが
- *   自分のものかはトークンに載っていないので、scope だけでは決められない（両方そろって通る）。
+ * Visibility is decided in two stages.
+ * - The "Write a note" button is shown by **scope** (`note:write`). The token knows whether the
+ *   feature can be used.
+ * - Per-row "Edit" / "Delete" are shown by scope plus **`can_change` returned by the server**.
+ *   Which notes are your own is not in the token, so scope alone cannot decide (both are needed
+ *   to pass).
  */
 import { useEffect, useState, type SubmitEvent } from 'react'
 
@@ -32,7 +34,7 @@ interface ShareTarget {
   name: string
 }
 
-/** 編集中の内容。`id` が無ければ新規。 */
+/** Content being edited. New if there is no `id`. */
 interface Draft {
   id: number | null
   title: string
@@ -48,7 +50,7 @@ export function NotesPage() {
   const { notify } = useToast()
   const [notes, setNotes] = useState<Note[]>([])
   const [targets, setTargets] = useState<ShareTarget[]>([])
-  // 書きかけはログインの往復をまたいで残す（ADR-0104）
+  // Keep drafts across the login round trip (ADR-0104)
   const [draft, setDraft] = useSessionDraft<Draft>('notes')
   const [reading, setReading] = useState<Note | null>(null)
   const { pendingActionOf, runForRow } = usePendingRows<'removal'>()
@@ -96,7 +98,7 @@ export function NotesPage() {
     return targets.find((g) => g.id === note.shared_group_id)?.name ?? t('notes.sharedGroup')
   }
 
-  // 共有した後に自分が抜けたグループも、いまの共有先として選べるように残す
+  // Keep groups you left after sharing selectable as current share targets
   const choices =
     draft?.sharedGroupId != null && !targets.some((g) => g.id === draft.sharedGroupId)
       ? [...targets, { id: draft.sharedGroupId, name: t('notes.sharedGroup') }]

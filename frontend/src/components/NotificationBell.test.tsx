@@ -1,8 +1,8 @@
 /**
- * ベルと画面上部のお知らせ（ADR-0081 §3）。
+ * The bell and the top-of-screen announcements (ADR-0081 §3).
  *
- * 見るのは、未読の数の出し方、押したら既読にして行き先へ進むこと、上部の知らせを
- * 閉じられること、`channels` で出る場所が分かれること。
+ * Checks how the unread count is shown, that pressing marks read and goes to the destination,
+ * that the top announcement can be dismissed, and that `channels` decides where each appears.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -72,7 +72,7 @@ describe('NotificationBell', () => {
     apiPost.mockResolvedValue(undefined)
   })
 
-  it('未読の数を出し、押したら既読にして行き先を開く', async () => {
+  it('shows the unread count and on press marks read and opens the destination', async () => {
     serve({ items: [item({})], unread_count: 1 })
     renderWith()
 
@@ -86,7 +86,7 @@ describe('NotificationBell', () => {
     expect(await screen.findByText('items page')).toBeInTheDocument()
   })
 
-  it('既読のものは押しても既読の要求を出さない', async () => {
+  it('does not send a mark-read request when pressing an already read one', async () => {
     serve({ items: [item({ read_at: '2026-09-29T02:00:00Z', link_url: null })], unread_count: 0 })
     renderWith()
 
@@ -96,7 +96,7 @@ describe('NotificationBell', () => {
     expect(apiPost).not.toHaveBeenCalled()
   })
 
-  it('すべて既読にできる', async () => {
+  it('can mark all as read', async () => {
     serve({ items: [item({}), item({ id: 2, title: 'Second' })], unread_count: 2 })
     renderWith()
 
@@ -108,7 +108,7 @@ describe('NotificationBell', () => {
     })
   })
 
-  it('上部だけのお知らせはベルの一覧に出ない', async () => {
+  it('does not list top-only announcements in the bell', async () => {
     serve({ items: [item({ channels: ['banner'] })], unread_count: 0 })
     renderWith()
 
@@ -124,7 +124,7 @@ describe('NotificationBanner', () => {
     apiPost.mockResolvedValue(undefined)
   })
 
-  it('閉じていない上部のお知らせを出し、閉じられる', async () => {
+  it('shows an undismissed top announcement and lets it be dismissed', async () => {
     serve({ items: [item({ channels: ['banner'] })], unread_count: 0 })
     renderWith()
 
@@ -135,7 +135,7 @@ describe('NotificationBanner', () => {
     })
   })
 
-  it('押すと閉じて行き先を開く', async () => {
+  it('dismisses and opens the destination on press', async () => {
     serve({ items: [item({ channels: ['banner'] })], unread_count: 0 })
     renderWith()
 
@@ -148,7 +148,7 @@ describe('NotificationBanner', () => {
     expect(await screen.findByText('items page')).toBeInTheDocument()
   })
 
-  it('閉じたものとベルだけのものは出さない', async () => {
+  it('does not show dismissed or bell-only announcements', async () => {
     serve({
       items: [
         item({ id: 1, channels: ['banner'], dismissed_at: '2026-09-29T02:00:00Z' }),

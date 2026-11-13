@@ -1,4 +1,4 @@
-"""パスワードで入る人に二要素認証を必須にする（ADR-0093）。"""
+"""Two-factor authentication is required for people who sign in with a password (ADR-0093)."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def test_an_enrolled_user_comes_in_as_before(client: TestClient) -> None:
     secret = _enroll(client)
     client.cookies.clear()
 
-    assert _login(client).status_code == 401  # コードを求める
+    assert _login(client).status_code == 401  # asks for the code
     assert _login(client, totp_code=pyotp.TOTP(secret).now()).status_code == 200
     assert client.get("/api/auth/me").json()[_SETUP_REQUIRED] is False
     assert client.get("/api/items").status_code == 200
@@ -138,7 +138,7 @@ def test_turning_it_off_gives_the_permissions_back_at_the_next_refresh(
 
 
 def test_a_closed_local_entrance_does_not_require_it(monkeypatch: pytest.MonkeyPatch) -> None:
-    # 閉じていると登録の口も断るので、効かせると行き止まりになる
+    # When closed, the enrolment entrance is refused too, so enforcing it would be a dead end
     monkeypatch.setenv("LOCAL_TWO_FACTOR_REQUIRED", "true")
     assert settings.local_two_factor_required is True
     monkeypatch.setenv("LOCAL_LOGIN_ENABLED", "false")

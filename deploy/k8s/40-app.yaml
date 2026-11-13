@@ -1,8 +1,8 @@
-# app（FastAPI）と front（nginx）。
+# app (FastAPI) and front (nginx).
 #
-# ⚠ **サービス名に一般名を使わない**（ADR-0073 §1 決定 8）。`app` / `front` は
-#   namespace で分かれているので衝突しないが、名前を変えると `20-config.yaml` の
-#   `proxy_pass` の FQDN も変わる。
+# ⚠ **Do not use generic service names** (ADR-0073 §1 decision 8). `app` / `front` do not
+#   collide because namespaces separate them, but renaming them also changes the FQDN in
+#   `proxy_pass` in `20-config.yaml`.
 ---
 apiVersion: v1
 kind: Service
@@ -23,7 +23,7 @@ metadata:
   labels:
     nolumia.dev/service: app
 spec:
-  # ⚠ **台数は宣言しない**（`30-db.yaml` と同じ理由）。
+  # ⚠ **Do not declare the replica count** (same reason as `30-db.yaml`).
   selector:
     matchLabels: {app: app}
   strategy: {type: Recreate}
@@ -32,21 +32,21 @@ spec:
       labels: {app: app}
     spec:
       securityContext:
-        # イメージの appuser は uid/gid 5678（`Dockerfile` の ARG APP_UID）。
-        # ⚠ **`10-storage.yaml` の chown と揃える。** 片方だけ変えると書けなくなる。
+        # The image's appuser is uid/gid 5678 (ARG APP_UID in the `Dockerfile`).
+        # ⚠ **Keep in sync with the chown in `10-storage.yaml`.** Changing only one breaks writes.
         runAsUser: 5678
         runAsGroup: 5678
-        # ⚠ **compose の `init-paths` はこれで要らなくなった。**
+        # ⚠ **This replaces compose's `init-paths`.**
         fsGroup: 5678
-        # ⚠ 既定（Always）だとマウントのたびに再帰 chown する。データが増えるほど
-        #   起動が遅くなる。
+        # ⚠ The default (Always) chowns recursively on every mount, so startup gets slower
+        #   as the data grows.
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: app
-          # ⚠ **digest で固定する。** `:latest` だと宣言が変わらないので
-          #   `kubectl apply` しても rollout が起きず、古い Pod のまま残る。
-          #   **この行を書き換えるのが「版を上げる」ことで、それは deck の pin の段が
-          #   機械的に行う**（手で書くのは最初の 1 回だけ）。
+          # ⚠ **Pin by digest.** With `:latest` the declaration never changes, so
+          #   `kubectl apply` triggers no rollout and old Pods keep running.
+          #   **Rewriting this line is what "bumping the version" means, and deck's pin stage
+          #   does it mechanically** (write it by hand only the first time).
           image: hub.nolumia.com:5000/app/<image>:sha-<コミット>@sha256:<digest>
           args: ["web"]
           envFrom:
@@ -56,8 +56,8 @@ spec:
             - containerPort: 8000
           volumeMounts:
             - {name: app-data, mountPath: /app/data}
-            # 外部 IdP を private_key_jwt で使うときだけ。鍵はホストの
-            # /srv/secrets/oidc（0710）にあり、hostPath で貸す。
+            # Only when using an external IdP with private_key_jwt. The key lives on the host at
+            # /srv/secrets/oidc (0710) and is lent via hostPath.
             # - {name: oidc, mountPath: /run/oidc, readOnly: true}
           readinessProbe:
             httpGet: {path: /healthz, port: 8000}
@@ -66,9 +66,9 @@ spec:
             failureThreshold: 60
           livenessProbe:
             httpGet: {path: /healthz, port: 8000}
-            # ⚠ **長く取る。** 初回起動は entrypoint が `alembic upgrade head` を
-            #   流すので、空の DB だとスキーマ構築ぶんだけ待たされる。短いと
-            #   移行の途中で殺され、永久に立ち上がらない。
+            # ⚠ **Keep this long.** On first start the entrypoint runs `alembic upgrade head`,
+            #   so with an empty DB it waits for the whole schema build. Too short and it is
+            #   killed mid-migration and never comes up.
             initialDelaySeconds: 660
             periodSeconds: 30
             failureThreshold: 5
@@ -89,17 +89,17 @@ metadata:
   name: front
   namespace: <app>-<env>
 spec:
-  # **LAN へ出しているのはこの Service。**
+  # **This Service is what is exposed to the LAN.**
   #
-  # ⚠ **番号は NodePort の既定の帯（30000-32767）。** 採番との対応は
-  #   **`30000 +（採番の番号 - 10000）`** ——採番表の 10510 なら 30510。
-  #   採番の正本は Wiki「ポート採番」で、**空き番号を勝手に取らない。**
-  #   compose は 10000 番台なので、**docker と番号が構造的に重ならない。**
-  # ⚠ **`nodePort` を必ず書く。** 省くと帯のどこかが自動で割り当たり、採番との
-  #   対応が崩れる。
-  # ⚠ **`externalTrafficPolicy: Local`。** 既定の `Cluster` だと kube-proxy が
-  #   SNAT して、送信元が**全部 `10.42.0.1` に潰れる**（LAN からの直叩きも）。
-  #   `set_real_ip_from` の前提ごと崩れる。
+  # ⚠ **The number is in the default NodePort range (30000-32767).** It maps to the allocation as
+  #   **`30000 + (allocated number - 10000)`** — 10510 in the allocation table becomes 30510.
+  #   The allocation's source of truth is the Wiki "Port allocation"; **never grab a free number on your own.**
+  #   compose uses the 10000s, so **numbers structurally never overlap with docker.**
+  # ⚠ **Always write `nodePort`.** If omitted, some number in the range is auto-assigned and
+  #   the mapping to the allocation breaks.
+  # ⚠ **`externalTrafficPolicy: Local`.** With the default `Cluster`, kube-proxy SNATs and
+  #   **every source collapses to `10.42.0.1`** (direct LAN access too), which
+  #   breaks the premise of `set_real_ip_from`.
   type: NodePort
   externalTrafficPolicy: Local
   selector: {app: front}
@@ -116,11 +116,11 @@ metadata:
   labels:
     nolumia.dev/service: front
 spec:
-  # ⚠ **台数は宣言しない**（`30-db.yaml` と同じ理由）。
+  # ⚠ **Do not declare the replica count** (same reason as `30-db.yaml`).
   selector:
     matchLabels: {app: front}
-  # 番号は Service が持つので Pod は番号に縛られず、RollingUpdate が使える。
-  # `maxUnavailable: 0` で、**新しい Pod が Ready になってから古いほうを消す**。
+  # The Service owns the port, so Pods are not tied to it and RollingUpdate works.
+  # With `maxUnavailable: 0`, **the old Pod is removed only after the new one is Ready**.
   strategy:
     type: RollingUpdate
     rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
@@ -128,16 +128,16 @@ spec:
     metadata:
       labels: {app: front}
     spec:
-      # ⚠ **`preStop` を外さない。** Pod を消す指示と kube-proxy が経路から外すのは
-      #   **非同期**なので、無いと「先に落ちてから経路が外れる」窓ができ、入れ替えの
-      #   あいだ散発的に失敗する（実測 0.8% → `preStop` 有りで 0.1%）。
-      #   **まとまって落ちないぶん、気づきにくい落ち方**になる。
+      # ⚠ **Do not remove `preStop`.** Deleting a Pod and kube-proxy removing it from routing are
+      #   **asynchronous**, so without it there is a window where it goes down before the route is
+      #   removed, causing sporadic failures during rollout (measured 0.8% -> 0.1% with `preStop`).
+      #   **Because the failures are scattered, they are hard to notice.**
       terminationGracePeriodSeconds: 30
       containers:
         - name: front
           image: nginx:1.30-alpine@sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951
           ports:
-            # ⚠ **`hostPort` は張らない**（番号は Service が持つ）。
+            # ⚠ **Do not set `hostPort`** (the Service owns the port).
             - containerPort: 80
           volumeMounts:
             - {name: conf, mountPath: /etc/nginx/conf.d, readOnly: true}

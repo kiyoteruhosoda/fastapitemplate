@@ -1,24 +1,25 @@
 /**
- * API クライアント（fetch ラッパー）。
+ * API client (fetch wrapper).
  *
- * - **トークンは持たない**（ADR-0076 §4）。httpOnly Cookie で運ばれるので、
- *   この層は `credentials: 'same-origin'` で送るだけでよい。
- * - 更新系には CSRF の二重送信トークンを載せる（`csrf_token` Cookie の値）。
- * - 401 のとき 1 回だけログインを続けてから再試行する。パスワード・パスキーで入ったログインは
- *   更新の口、SSO で入ったログインは見えない枠で IdP へ問い合わせる（ADR-0104。`silentRenewal.ts`）。
- *   続けられなければ「ログインが終わった」と知らせる（画面はログイン画面へ送る。書きかけは
- *   `useSessionDraft` が sessionStorage に残している）。
- * - バックエンドはエラーコード（{"error": "..."}）を返す。表示文言への変換は
- *   i18n（フロントエンド側）で行う。
- * - 前段（edge）が閉じていると答えた 503 は、メンテナンスの画面へ知らせる（ADR-0080 §10）。
- *   例外はこれまでどおり投げる（呼んだ側の処理は止まる。トーストは出ない）。
+ * - **Holds no tokens** (ADR-0076 §4). They travel in httpOnly cookies, so this layer only needs
+ *   to send with `credentials: 'same-origin'`.
+ * - Mutating requests carry the CSRF double-submit token (the `csrf_token` cookie value).
+ * - On 401, continue the session once and retry. Sessions started with a password or passkey
+ *   use the refresh endpoint; SSO sessions ask the IdP in a hidden frame (ADR-0104,
+ *   `silentRenewal.ts`).
+ *   If the session can't be continued, report that it ended (the screen goes to sign-in; drafts
+ *   are kept in sessionStorage by `useSessionDraft`).
+ * - The backend returns error codes ({"error": "..."}). Converting them to display text is done
+ *   by i18n (on the frontend).
+ * - A 503 where the front tier (edge) says it is closed is reported to the maintenance screen
+ *   (ADR-0080 §10). The exception is still thrown (the caller stops; no toast is shown).
  */
 import { currentOutage, outageFrom, reportOutage, reportReopened } from './maintenance'
 import { markSilentSsoTried, clearSilentSsoMarks, signedOutHere } from './silentSso'
 import { reportSessionEnded } from './sessionEnded'
 import { oneAtATime, renewInFrame } from './silentRenewal'
 
-/** CSRF の二重送信トークン。**この Cookie だけは JavaScript から読める。** */
+/** CSRF double-submit token. **This is the only cookie JavaScript can read.** */
 const CSRF_COOKIE = 'csrf_token'
 const CSRF_HEADER = 'X-CSRF-Token'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -36,20 +37,20 @@ export class ApiError extends Error {
 }
 
 /**
- * 例外を i18n の翻訳キーへ変換する。
+ * Convert an exception into an i18n translation key.
  *
- * バックエンドはエラーコードだけを返すので、画面側の扱いは常に
- * 「`error.<code>` を引く」に落ちる。各ページで同じ分岐を書かないための入口。
+ * The backend returns only error codes, so the screen always ends up looking up
+ * `error.<code>`. A single entry point so each page doesn't repeat the same branching.
  */
 export function errorMessageKey(error: unknown): string {
   return `error.${error instanceof ApiError ? error.code : 'unknown_error'}`
 }
 
 /**
- * CSRF トークンを Cookie から読む。
+ * Read the CSRF token from the cookie.
  *
- * **毎回読み直す。** セッションを張り直すたびに新しくなるので、控えておくと
- * 更新やロール切り替えの後に古い値を送ることになる。
+ * **Re-read it every time.** It changes whenever the session is re-established, so a cached copy
+ * would send a stale value after a refresh or a role switch.
  */
 function csrfToken(): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`))
@@ -71,10 +72,10 @@ function extractErrorCode(body: unknown): string {
 let refreshing: Promise<boolean> | null = null
 
 /**
- * ログインを続ける。トークンは行きも帰りも Cookie なので、ここでは何も持ち回さない。
+ * Continue the session. Tokens travel as cookies both ways, so nothing is carried around here.
  */
 function tryRefresh(): Promise<boolean> {
-  // 同時に 401 になった要求は 1 本を待つ（ADR-0091）
+  // Requests that got 401 at the same time wait on a single attempt (ADR-0091)
   refreshing ??= continueSession().finally(() => {
     refreshing = null
   })
@@ -82,16 +83,18 @@ function tryRefresh(): Promise<boolean> {
 }
 
 async function continueSession(): Promise<boolean> {
-  // パスワード・パスキーで入ったログインは更新の札を持つ（SSO で入ったログインには無いので 401 で返る）
+  // Password/passkey sessions hold a refresh token (SSO sessions don't, so this returns 401)
   if (await sendRefresh()) return true
-  // サインアウトした後は IdP に問い合わせない（IdP のログイン状態は既定で残るので、入り直してしまう）
+  // Don't ask the IdP after signing out (the IdP session persists by default, so it would sign
+  // straight back in)
   if (signedOutHere()) return false
   return oneAtATime(async () => {
-    // 待っている間に、ほかのタブが続けていたかもしれない（Cookie は共有）
+    // Another tab may have continued the session while we waited (cookies are shared)
     if (await stillSignedIn()) return true
     const result = await renewInFrame()
     if (result === 'renewed') clearSilentSsoMarks()
-    // 断られた: ログイン画面が開いても、このタブではもう試さない（再読み込みでは試す。ADR-0077 §10）
+    // Declined: don't try again in this tab even if the sign-in screen opens (a reload does;
+    // ADR-0077 §10)
     else if (result === 'declined') markSilentSsoTried()
     return result === 'renewed'
   })
@@ -115,8 +118,9 @@ async function stillSignedIn(): Promise<boolean> {
 }
 
 /**
- * ログインが切れた・無いという 401 か。入口の 401（パスワード違い・二要素の不足など）では続けない
- * ——続けると、パスワードを打ち間違えただけで IdP への問い合わせが走る。
+ * Whether the 401 means the session expired or is missing. Don't continue on entry-point 401s
+ * (wrong password, missing second factor, etc.) — otherwise a mistyped password would query
+ * the IdP.
  */
 const SESSION_ERRORS = new Set(['authentication_required', 'invalid_token'])
 
@@ -128,13 +132,16 @@ async function meansSessionExpired(response: Response): Promise<boolean> {
   }
 }
 
-/** 失敗の応答を例外へ変える。前段が閉じている・二要素の登録が要る、はここで画面へ知らせる。 */
+/**
+ * Turn a failed response into an exception. A closed front tier or required 2FA setup is reported
+ * to the screen here.
+ */
 async function failureOf(response: Response): Promise<ApiError> {
   let payload: unknown = null
   try {
     payload = await response.json()
   } catch {
-    /* 非 JSON 応答 */
+    /* non-JSON response */
   }
   const outage = outageFrom(response.status, payload)
   if (outage) {
@@ -142,7 +149,7 @@ async function failureOf(response: Response): Promise<ApiError> {
     return new ApiError(response.status, 'service_unavailable')
   }
   const code = extractErrorCode(payload)
-  // 使っている途中で必須になった。/me を読み直せば登録の画面が出る（ADR-0093）
+  // Became required mid-use. Reloading /me shows the enrollment screen (ADR-0093)
   if (code === TWO_FACTOR_SETUP_REQUIRED) window.location.reload()
   return new ApiError(response.status, code)
 }
@@ -165,7 +172,7 @@ async function request<T>(method: string, path: string, body?: unknown, retry = 
     reportSessionEnded()
   }
   if (!response.ok) throw await failureOf(response)
-  // 答えが返った＝閉じていない（メンテナンスの画面を出していれば戻す）
+  // Got a response = not closed (restore from the maintenance screen if shown)
   if (currentOutage()) reportReopened()
   if (response.status === 204) return undefined as T
   return (await response.json()) as T

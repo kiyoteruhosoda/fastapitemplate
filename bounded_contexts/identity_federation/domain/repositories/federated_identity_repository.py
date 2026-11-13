@@ -1,4 +1,4 @@
-"""IdP アカウントとの結び付きの永続化インターフェース（実装は Infrastructure 層）。"""
+"""Persistence interface for IdP account bindings (implemented in Infrastructure)."""
 
 from __future__ import annotations
 
@@ -12,25 +12,25 @@ from bounded_contexts.identity_federation.domain.entities.federated_identity imp
 
 class FederatedIdentityRepository(Protocol):
     def find(self, issuer: str, subject: str) -> FederatedIdentity | None:
-        """結び付きを引く。無ければ ``None``。"""
+        """Look up a binding. ``None`` if absent."""
 
     def link(self, identity: FederatedIdentity) -> FederatedIdentity:
-        """結び付きを保存する（同じ ``(issuer, subject)`` は上書きしない）。"""
+        """Save a binding (the same ``(issuer, subject)`` is not overwritten)."""
 
     def find_for_user(self, issuer: str, user_id: int) -> FederatedIdentity | None:
-        """その利用者が、その IdP と結び付いているかを引く（ADR-0077 §5）。"""
+        """Look up whether that user is bound to that IdP (ADR-0077 §5)."""
 
     def unlink(self, identity: FederatedIdentity) -> None:
-        """結び付きを消す。**利用者そのものには触らない。**"""
+        """Delete the binding. **The user itself is not touched.**"""
 
     def touch(self, identity: FederatedIdentity) -> None:
-        """最終ログイン日時を更新する（棚卸しと、定期照合の失効の宛名。ADR-0077 §7）。"""
+        """Update the last login time (for inventory, and as the revocation address in reconciliation. ADR-0077 §7)."""
 
     def list_for_issuer(self, issuer: str) -> Sequence[FederatedIdentity]:
-        """その IdP と結び付いている利用者を全件返す（定期照合。ADR-0077 §7）。
+        """Return all users bound to that IdP (periodic reconciliation. ADR-0077 §7).
 
-        ⚠ **ページングを持たない。** 照合は「こちらが持っている `sub` を全部聞く」
-        ものなので、途中で切ると**切られたぶんが毎回確かめられないまま残る**。
+        ⚠ **No paging.** Reconciliation "asks about every `sub` we hold", so cutting it short would
+        leave **the cut-off part unchecked every time**.
         """
 
 

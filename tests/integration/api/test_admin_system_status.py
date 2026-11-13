@@ -1,4 +1,4 @@
-"""システムステータス API（要 ``system:view``）。"""
+"""System status API (requires ``system:view``)."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from tests.conftest import sign_in
 
 
 def _sign_in_member(client: TestClient, member_client: TestClient, admin_headers: dict[str, str]) -> dict[str, str]:
-    """``system:view`` を持たない利用者で**別のクライアント**にログインする。
+    """Signs in as a user without ``system:view`` on a **separate client**.
 
-    セッションは Cookie で持つので（ADR-0076 §4）、管理者と同じクライアントで
-    ログインすると管理者のセッションが置き換わってしまう。
+    The session is held in a cookie (ADR-0076 §4), so signing in on the same client as the
+    administrator would replace the administrator's session.
     """
     created = client.post(
         "/api/admin/users",

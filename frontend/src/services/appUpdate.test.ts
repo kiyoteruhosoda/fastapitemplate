@@ -1,9 +1,9 @@
 /**
- * 更新の見張り（ADR-0080 §7）。
+ * Update watching (ADR-0080 §7).
  *
- * Service Worker は jsdom に無いので、登録の口（`virtual:pwa-register`）を
- * 差し替えて「いつ確認しに行くか」「押したときに何をするか」を検証する。
- * 実際に知らせが出て入れ替わるところは実ブラウザでしか確かめられない。
+ * jsdom has no Service Worker, so we swap out the registration entry point (`virtual:pwa-register`)
+ * and verify "when it goes to check" and "what happens on press".
+ * Seeing the notice actually appear and the swap happen can only be checked in a real browser.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,7 +24,7 @@ interface RegisterOptions {
 
 const reload = vi.fn()
 
-/** 更新の確認だけを肩代わりする、最低限の登録。 */
+/** Minimal registration that only stands in for the update check. */
 function fakeRegistration() {
   const update = vi.fn(() => Promise.resolve())
   return {
@@ -33,7 +33,7 @@ function fakeRegistration() {
   }
 }
 
-/** 見張りを始めて、`registerSW` へ渡された手当てを取り出す。 */
+/** Start watching and pull out the handlers passed to `registerSW`. */
 function startWatching(): { options: RegisterOptions; applied: ApplyUpdate[] } {
   const applied: ApplyUpdate[] = []
   registerSW.mockImplementation(() => updateSW)
@@ -56,7 +56,7 @@ afterEach(() => {
 })
 
 describe('watchForUpdate', () => {
-  it('待機している版が出たときだけ知らせ、押されるまで入れ替えない', () => {
+  it('notifies only when a waiting version appears, and does not swap until pressed', () => {
     const { options, applied } = startWatching()
 
     expect(applied).toHaveLength(0)
@@ -71,7 +71,7 @@ describe('watchForUpdate', () => {
     expect(updateSW).toHaveBeenCalledTimes(1)
   })
 
-  it('制御の合図が来なくても、猶予のあとに読み直す', () => {
+  it('reloads after the grace period even without the control signal', () => {
     const { options, applied } = startWatching()
     options.onNeedRefresh?.()
     applied[0]?.()
@@ -83,7 +83,7 @@ describe('watchForUpdate', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
-  it('定期的に更新を確認する（オフラインのときは起こさない）', () => {
+  it('checks for updates periodically (not while offline)', () => {
     const { options } = startWatching()
     const { registration, update } = fakeRegistration()
     options.onRegisteredSW?.('/sw.js', registration)
@@ -100,7 +100,7 @@ describe('watchForUpdate', () => {
     online.mockRestore()
   })
 
-  it('タブが手前へ戻ったときに確認する（短い間に何度も叩かない）', () => {
+  it('checks when the tab returns to the foreground (not repeatedly in a short time)', () => {
     const { options } = startWatching()
     const { registration, update } = fakeRegistration()
     options.onRegisteredSW?.('/sw.js', registration)

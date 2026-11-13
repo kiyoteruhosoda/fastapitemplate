@@ -1,8 +1,8 @@
 /**
- * パスワード欄の表示・非表示の切り替え。
+ * Show / hide toggle of the password field.
  *
- * 検証するのは「既定は伏せ字」「押すと平文になり、もう一度押すと戻る」「入力値は
- * 切り替えで失われない」の 3 点。見た目（枠線）は CSS が担うのでここでは見ない。
+ * Verifies three things: "masked by default", "pressing shows plain text and pressing again
+ * reverts", and "the value is not lost when toggling". The look (border) is CSS, so not checked.
  */
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
@@ -21,8 +21,8 @@ const SETTINGS: UiSettings = {
 function renderInput(props: ComponentProps<typeof PasswordInput> = {}) {
   return render(
     <I18nProvider settings={SETTINGS}>
-      {/* 表示切り替えボタンを持つため `<label>` では囲まず、`for` / `id` で結ぶ
-       * （利用側の書き方と揃える）。 */}
+      {/* It has a visibility toggle, so it is tied with `for` / `id` instead of wrapped in
+       * `<label>` (matching how callers write it). */}
       <label htmlFor="test-password">Password</label>
       <PasswordInput id="test-password" {...props} />
     </I18nProvider>,
@@ -34,7 +34,7 @@ function field() {
 }
 
 describe('PasswordInput', () => {
-  it('既定では伏せ字で表示する', () => {
+  it('is masked by default', () => {
     renderInput()
     expect(field()).toHaveAttribute('type', 'password')
     expect(screen.getByRole('button', { name: 'Show password' })).toHaveAttribute(
@@ -43,7 +43,7 @@ describe('PasswordInput', () => {
     )
   })
 
-  it('ボタンを押すと平文になり、もう一度押すと伏せ字へ戻る', () => {
+  it('shows plain text on press and masks again on a second press', () => {
     renderInput()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show password' }))
@@ -55,7 +55,7 @@ describe('PasswordInput', () => {
     expect(field()).toHaveAttribute('type', 'password')
   })
 
-  it('切り替えても入力値は残る', () => {
+  it('keeps the value when toggling', () => {
     renderInput()
 
     fireEvent.change(field(), { target: { value: 'correct horse' } })
@@ -63,7 +63,7 @@ describe('PasswordInput', () => {
     expect(field()).toHaveValue('correct horse')
   })
 
-  it('入力欄が無効なら切り替えボタンも押せない', () => {
+  it('disables the toggle when the input is disabled', () => {
     renderInput({ disabled: true })
     expect(screen.getByRole('button', { name: 'Show password' })).toBeDisabled()
   })

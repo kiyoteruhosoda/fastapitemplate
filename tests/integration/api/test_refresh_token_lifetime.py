@@ -1,4 +1,4 @@
-"""リフレッシュトークンの寿命と、更新で延ばすかの設定（ADR-0101）。"""
+"""Refresh-token lifetime and the setting for extending it on refresh (ADR-0101)."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _after_the_grace() -> datetime:
 
 
 def _refresh_after_the_grace(client: TestClient) -> object:
-    """猶予を過ぎた更新。猶予の中では振り替わらない（ADR-0092）。"""
+    """A refresh after the grace period. Within the grace period it is not rotated (ADR-0092)."""
     with patch(_UTCNOW, return_value=_after_the_grace()):
         return client.post(_REFRESH, headers=_headers(client))
 
@@ -94,7 +94,7 @@ def _set_the_expiry(engine: sa.Engine, expires_at: datetime) -> None:
         session.commit()
 
 
-# --- 既定（延長あり）
+# --- Default (sliding)
 
 
 def test_extending_is_the_default() -> None:
@@ -111,7 +111,7 @@ def test_the_settings_screen_offers_both(client: TestClient, system_admin_header
 
 def test_extending_moves_the_expiry_on_each_rotation(client: TestClient, engine: sa.Engine) -> None:
     sign_in(client, _EMAIL, _PASSWORD)
-    # 控えが今から期間ぶん先へ動いたことを見たいので、ログインの期限を手前へ寄せておく
+    # To see the record move forward by the period from now, pull the sign-in expiry earlier
     earlier = utcnow().replace(microsecond=0) + timedelta(seconds=60)
     _set_the_expiry(engine, earlier)
 
@@ -136,7 +136,7 @@ def test_the_row_and_the_tokens_agree_from_the_sign_in(client: TestClient, engin
     assert _exp(_logout_cookie(client)) == expires_at
 
 
-# --- 延長なし
+# --- No sliding
 
 
 @pytest.mark.usefixtures("fixed_lifetime")
@@ -157,7 +157,7 @@ def test_without_extending_the_expiry_stays_and_the_token_still_rotates(client: 
 @pytest.mark.usefixtures("fixed_lifetime")
 def test_without_extending_everything_shows_the_remaining_time(client: TestClient, engine: sa.Engine) -> None:
     sign_in(client, _EMAIL, _PASSWORD)
-    # 残りが目に見えて短い状態を作る
+    # Create a state with visibly little time left
     expires_at = utcnow().replace(microsecond=0) + timedelta(hours=1)
     _set_the_expiry(engine, expires_at)
 
@@ -189,7 +189,7 @@ def test_without_extending_the_update_does_not_write_the_expiry(client: TestClie
 
     rotation = next(s for s in statements if s.startswith("UPDATE refresh_sessions"))
     assert "expires_at=" not in rotation.split("WHERE")[0]
-    # MariaDB は SET を左から評価する（ADR-0091）
+    # MariaDB evaluates SET left to right (ADR-0091)
     assert rotation.index("previous_jti=") < rotation.index("current_jti=")
 
 
@@ -252,7 +252,7 @@ def test_a_racing_refresh_does_not_sign_out_without_extending(client: TestClient
         assert client.post(_REFRESH, headers=_headers(client)).status_code == 200
 
 
-# --- 控えを引き継ぐ経路
+# --- Paths that carry the record over
 
 
 @pytest.mark.usefixtures("fixed_lifetime")
@@ -271,7 +271,7 @@ def test_switching_roles_does_not_extend(client: TestClient, engine: sa.Engine) 
 
 @pytest.mark.usefixtures("fixed_lifetime")
 def test_switching_roles_past_the_expiry_is_refused(client: TestClient, engine: sa.Engine) -> None:
-    """アクセストークンは期限の後も生きる。切り替えで出し直せると、繰り返すだけで上限が無くなる。"""
+    """Access tokens outlive the expiry. If switching could reissue them, repeating it would remove the cap."""
     headers = sign_in(client, _EMAIL, _PASSWORD)
     _expire_the_row(engine)
     assert client.post("/api/auth/switch-role", json={"role": None}, headers=headers).status_code == 401
@@ -313,7 +313,7 @@ def test_changing_the_password_starts_over_when_extending(client: TestClient, en
     assert _exp(_refresh_cookie(client)) > earlier
 
 
-# --- 設定を変えたとき
+# --- When the setting changes
 
 
 def test_turning_it_off_does_not_shrink_and_keeps_the_sign_in(
@@ -345,7 +345,7 @@ def test_turning_it_back_on_extends_from_the_next_rotation(
     assert _exp(_refresh_cookie(client)) == _row(engine).expires_at
 
 
-# --- 不正な値
+# --- Invalid values
 
 
 @pytest.mark.parametrize("value", [0, -1, "abc", "", 1.5, True, MAX_REFRESH_TOKEN_EXPIRES_SECONDS + 1])
@@ -386,5 +386,5 @@ def test_an_unusable_value_from_the_environment_falls_back(
 ) -> None:
     monkeypatch.setenv(_PERIOD, value)
     assert settings.refresh_token_expires_seconds == 14 * 24 * 3600
-    # 500 にならず、普通にログインできる
+    # No 500; sign-in works normally
     sign_in(client, _EMAIL, _PASSWORD)

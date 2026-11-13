@@ -1,11 +1,11 @@
-"""back-channel logout (停止の伝播の受け口)
+"""back-channel logout (receiving end for propagated revocation)
 
-IdP から届いた「このセッションを止めろ」を記録する表を追加し、引き換え券に
-**どの IdP セッションから始まったログインか**を持たせる（ADR-0077 §3）。
+Add a table recording "stop this session" notices from the IdP, and make the exchange ticket carry
+**which IdP session the sign-in started from** (ADR-0077 §3).
 
-⚠ **引き換え券は作り直す。** 追加する 3 列は NOT NULL だが、券の寿命は 60 秒なので
-残しても意味が無い。既存の行は消してから列を足す（使い切る前の券があった場合は
-ログインをやり直してもらう）。
+⚠ **Exchange tickets are recreated.** The 3 added columns are NOT NULL, but tickets live only 60
+seconds, so keeping them is pointless. Existing rows are deleted before adding the columns (anyone
+with an unused ticket simply signs in again).
 
 Revision ID: backchannel_logout
 Revises: identity_federation
@@ -26,14 +26,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 停止の記録。主キーが jti なのは、**再送を行の重複としてそのまま弾く**ため
-    # （送り手は再送でも同じ jti を使う。idp の ADR-0024）。
+    # Revocation records. The primary key is the jti so that **resends are rejected as duplicate
+    # rows** (the sender reuses the same jti when resending; idp ADR-0024).
     op.create_table(
         "federated_session_revocations",
         sa.Column("jti", sa.String(length=64), nullable=False),
         sa.Column("issuer", sa.String(length=255), nullable=False),
         sa.Column("subject", sa.String(length=255), nullable=False),
-        # NULL = その利用者のすべてのセッション（通知に sid が無かった場合）
+        # NULL = all sessions of the user (when the notice had no sid)
         sa.Column("session_id", sa.String(length=255), nullable=True),
         sa.Column("revoked_at", sa.DateTime(), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=False),
@@ -44,7 +44,7 @@ def upgrade() -> None:
         "federated_session_revocations",
         ["issuer", "subject"],
     )
-    # 期限切れは通知を受けるたびに掃除するので、定期ジョブは持たない。
+    # Expired rows are cleaned up on every notice, so there is no periodic job.
     op.create_index(
         "ix_federated_session_revocations_expires_at",
         "federated_session_revocations",
@@ -63,6 +63,6 @@ def downgrade() -> None:
     op.drop_column("sso_login_tickets", "session_id")
     op.drop_column("sso_login_tickets", "subject")
     op.drop_column("sso_login_tickets", "issuer")
-    # ⚠ **索引は単独で落とさない。** ``DROP TABLE`` が一緒に消すので不要で、外部キー列の
-    #   索引だと MariaDB では 1553 で落ちる（SQLite は通るので手元では気付けない）。
+    # ⚠ **Do not drop the index on its own.** ``DROP TABLE`` removes it anyway, and for an index on a
+    #   foreign key column MariaDB fails with 1553 (SQLite passes, so it goes unnoticed locally).
     op.drop_table("federated_session_revocations")

@@ -1,7 +1,7 @@
-"""「ローカル認証を持たない」をデータで表せているか（ADR-0076 §6）。
+"""Whether "has no local authentication" can be expressed in the data (ADR-0076 §6).
 
-``users.password_hash`` が NULL の利用者は、パスワードで入れない・変更できない・
-**リセットでも生やせない**。持たせられるのは管理者が明示的に設定したときだけ。
+A user whose ``users.password_hash`` is NULL cannot sign in with a password, cannot change it, and
+**cannot grow one through a reset**. One can only be given when an administrator explicitly sets it.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ _SSO_ONLY = "sso-only@example.com"
 
 @pytest.fixture
 def sso_only_user(db_session: Session) -> User:
-    """SSO でしか入れない利用者（パスワードを持たない）。"""
+    """A user who can only sign in via SSO (has no password)."""
     user = User(email=_SSO_ONLY, username="SSO only", password_hash=None, is_active=True)
     user.join(tenant_of_slug(db_session, DEFAULT_TENANT_SLUG) or 0)
     db_session.add(user)
@@ -31,7 +31,7 @@ def sso_only_user(db_session: Session) -> User:
 
 
 def test_an_sso_user_is_provisioned_without_a_password(db_session: Session, engine: sa.Engine) -> None:
-    """⚠ ランダム値で埋めない。埋めると「無い」と「誰も知らない値がある」が混ざる。"""
+    """⚠ Do not fill it with a random value; that would mix "none" with "a value nobody knows"."""
     from bounded_contexts.identity_federation.domain.entities.federated_account import (
         NewFederatedAccount,
     )
@@ -60,19 +60,19 @@ def test_a_reset_is_not_issued_for_a_user_without_a_password(
     db_session: Session,
     sso_only_user: User,
 ) -> None:
-    """⚠ ここが抜けると、リセット 1 回でローカル認証が生える。"""
+    """⚠ Without this, a single reset would grow local authentication."""
     response = client.post("/api/auth/forgot-password", json={"email": _SSO_ONLY})
-    # 応答は宛先が無いときと同じ（存在を漏らさない）。
+    # The response is the same as when there is no such recipient (existence is not leaked).
     assert response.status_code == 200
     assert response.json() == {"status": "accepted"}
     assert db_session.scalar(select(PasswordResetToken).where(PasswordResetToken.user_id == sso_only_user.id)) is None
 
 
 def _take_the_password_away(db_session: Session, email: str) -> None:
-    """入っている人のパスワードだけを取り上げる（セッションはそのまま）。
+    """Takes away only the password of a signed-in user (the session stays).
 
-    「SSO でしか入れない利用者が、既にこのアプリに入っている」状態を作るための
-    最短路。**入る手段が無い相手は、そのままではログインさせられない。**
+    The shortest path to the state "a user who can only sign in via SSO is already signed in to this
+    app". **Someone with no way in cannot simply be signed in.**
     """
     user = db_session.scalar(select(User).where(User.email == email))
     assert user is not None
@@ -81,7 +81,7 @@ def _take_the_password_away(db_session: Session, email: str) -> None:
 
 
 def test_the_screen_is_told_whether_there_is_a_password(client: TestClient, db_session: Session) -> None:
-    """画面はこれを見て、パスワード変更の導線を出すかどうかを決める。"""
+    """The screen uses this to decide whether to offer the password change."""
     sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     assert client.get("/api/auth/me").json()["has_password"] is True
 
@@ -90,10 +90,10 @@ def test_the_screen_is_told_whether_there_is_a_password(client: TestClient, db_s
 
 
 def test_a_user_without_a_password_cannot_change_one(client: TestClient, db_session: Session) -> None:
-    """パスワードを持たない利用者に「今のパスワード」は入力できない。
+    """A user without a password cannot enter a "current password".
 
-    理由は分けずに ``invalid_current_password`` へ揃える（入り口の有無を
-    外から数えられないようにするため）。
+    The reason is not distinguished and is unified to ``invalid_current_password`` (so the presence
+    of a way in cannot be counted from outside).
     """
     headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     _take_the_password_away(db_session, master_data.DEFAULT_ADMIN_EMAIL)
@@ -112,7 +112,7 @@ def test_an_administrator_can_give_a_password_on_purpose(
     other_client: TestClient,
     sso_only_user: User,
 ) -> None:
-    """ローカル口座を持たせるのは、明示的な操作だけ（ADR-0076 §6）。"""
+    """Only an explicit operation gives someone a local account (ADR-0076 §6)."""
     headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
     updated = client.put(
         f"/api/admin/users/{sso_only_user.id}",

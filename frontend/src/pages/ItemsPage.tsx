@@ -1,5 +1,5 @@
 /**
- * アイテム（`bounded_contexts/example`）の画面側の見本。一覧のページ送り（ADR-0095）・追加・編集・削除。
+ * Frontend example for items (`bounded_contexts/example`). List pagination (ADR-0095), add, edit, delete.
  */
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
@@ -21,13 +21,13 @@ interface Item {
   updated_at: string
 }
 
-/** 一覧 API の規約の形（ADR-0095）。`total` はページの件数ではなく全体の件数。 */
+/** Shape of the list API convention (ADR-0095). `total` is the overall count, not the page's. */
 interface ItemPage {
   entries: Item[]
   total: number
 }
 
-/** 入力中の 1 件。`id` が `null` なら追加。 */
+/** The item being edited. Add if `id` is `null`. */
 interface Draft {
   id: number | null
   name: string
@@ -41,7 +41,7 @@ export function ItemsPage() {
   const { notify } = useToast()
   const [items, setItems] = useState<ItemPage>({ entries: [], total: 0 })
   const [page, setPage] = useState(0)
-  // 書きかけはログインの往復をまたいで残す（ADR-0104）
+  // Keep drafts across the login round trip (ADR-0104)
   const [draft, setDraft] = useSessionDraft<Draft>('items')
   const { pendingActionOf, runForRow } = usePendingRows<'removal'>()
 
@@ -76,7 +76,7 @@ export function ItemsPage() {
     runForRow(item.id, 'removal', async () => {
       try {
         await api.delete(`/api/items/${String(item.id)}`)
-        // ページの最後の 1 件を消したら、空のページに残らず 1 つ戻る
+        // When the last item on a page is deleted, go back one page instead of staying on an empty page
         if (items.entries.length === 1 && page > 0) setPage(page - 1)
         else await reload()
       } catch (err) {

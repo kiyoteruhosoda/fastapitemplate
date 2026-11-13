@@ -1,4 +1,4 @@
-"""``IEmailSender`` の SMTP 実装（接続設定はシステム設定から取得）。"""
+"""SMTP implementation of ``IEmailSender`` (connection settings come from the system settings)."""
 
 from __future__ import annotations
 

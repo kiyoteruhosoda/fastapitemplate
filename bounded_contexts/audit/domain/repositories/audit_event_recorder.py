@@ -1,15 +1,15 @@
-"""監査イベントの収集・書き込みインターフェース（実装は外側の層）。
+"""Interfaces for collecting and writing audit events (implemented in outer layers).
 
-収集と書き込みを分けている。**収集は I/O を伴わず失敗しない**（処理の途中で呼ばれる）
-のに対し、**書き込みは I/O で失敗し得る**（リクエストの処理が終わってから一度だけ
-行う）。責務が違うので同じ口にまとめない。
+Collecting and writing are separate. **Collecting involves no I/O and cannot fail** (it is called
+mid-processing), whereas **writing does I/O and can fail** (done once after the request has been
+processed). Their responsibilities differ, so they are not merged into one interface.
 
-分けたもう 1 つの理由は SQLite（ADR-0071 §1 で開発・テストの DB として使う）。処理の
-途中で別コネクションから書こうとすると、リクエストのセッションが持つ書き込みロック
-と衝突して `database is locked` になる。書き込みをリクエストの外へ出すことで、
-ロックの競合そのものを無くしている（ADR-0075 §1）。
+The other reason for the split is SQLite (used as the development/test DB per ADR-0071 §1).
+Writing from another connection mid-processing collides with the write lock held by the
+request's session and gives `database is locked`. Moving writes outside the request removes the
+lock contention altogether (ADR-0075 §1).
 
-読み取りは :mod:`~bounded_contexts.audit.domain.repositories.audit_log_query`。
+Reading is :mod:`~bounded_contexts.audit.domain.repositories.audit_log_query`.
 """
 
 from __future__ import annotations
@@ -21,20 +21,20 @@ from bounded_contexts.audit.domain.entities.audit_event import AuditEvent
 
 
 class AuditEventCollector(Protocol):
-    """処理の途中で発生した監査イベントを控える先。"""
+    """Where audit events raised mid-processing are queued."""
 
     def add(self, event: AuditEvent) -> None:
-        """*event* を控えに積む。I/O を行わないため失敗しない。"""
+        """Queue *event*. Does no I/O, so it cannot fail."""
 
 
 class AuditEventRecorder(Protocol):
-    """控えた監査イベントを永続化する先。"""
+    """Where queued audit events are persisted."""
 
     def record_all(self, events: Sequence[AuditEvent]) -> None:
-        """*events* を発生順に 1 トランザクションで書き込む。
+        """Write *events* in order of occurrence in one transaction.
 
-        呼び出し元の処理（リクエスト）は既に終わっている。失敗したログイン試行の
-        ように、リクエストがロールバックされたイベントもここで書かれる。
+        The caller's processing (the request) has already finished. Events of requests that were
+        rolled back, such as failed sign-in attempts, are written here too.
         """
 
 

@@ -1,9 +1,10 @@
 /**
- * お知らせの配信（ADR-0081 §3。要 `notification:send`）。
+ * Sending announcements (ADR-0081 §3. Requires `notification:send`).
  *
- * 上で書いて送り、下に送った記録（何人に配り、何人が読んだか）を並べる。
- * 出す場所（ベル・画面上部・端末への通知）は複数選べる。宛先は全員・グループ・個人の
- * どれか 1 つ。**送った時点の顔ぶれに配る**ので、あとからグループに入った人には届かない。
+ * Compose and send at the top; below, the sent records (how many received it, how many read it).
+ * Several places can be chosen (bell, top of screen, device notification). The recipient is one
+ * of everyone, a group or a person. **It goes to the members at send time**, so people who join
+ * the group later do not get it.
  */
 import { useEffect, useState, type SubmitEvent } from 'react'
 
@@ -42,8 +43,8 @@ export function NotificationsAdminPage() {
   useEffect(() => {
     void reload()
     void notificationsApi.audiences().then(setOptions)
-    // 端末への通知は、サーバーが送れる設定のときだけ選ばせる。ブラウザ（Web Push）と
-    // スマホアプリ（FCM。ADR-0081 §5）のどちらか 1 つでも送れれば選べる。
+    // Device notifications can be chosen only when the server is configured to send them.
+    // Selectable if either browser (Web Push) or mobile app (FCM. ADR-0081 §5) can be sent.
     void api
       .get<{ enabled: boolean; device_enabled?: boolean }>('/api/notifications/push')
       .then((config) => {

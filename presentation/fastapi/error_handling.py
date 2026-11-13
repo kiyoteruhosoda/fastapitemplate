@@ -1,36 +1,35 @@
-"""失敗した応答の記録と、想定外の例外 → HTTP 応答の対応付け（最後の受け皿）。
+"""Recording failed responses, and mapping unexpected exceptions to HTTP responses (last resort).
 
-**失敗はルーターの外側で応答へ変わる。** ``HTTPException`` も入力検証エラーも
-ドメイン例外も、送出された時点でルーターを抜け、例外ハンドラが応答を組み立てる。
-そのためルーターに ``logger`` を足しても失敗は記録されず、アプリログには
-アクセスログの 1 行（ステータスコードだけ）しか残らない。「何が起きたか」——
-エラーコード・入力検証で落ちた項目・traceback —— はハンドラでしか分からない。
+**Failures turn into responses outside the router.** ``HTTPException``, input validation errors
+and domain exceptions all leave the router when raised, and an exception handler builds the
+response. So adding a ``logger`` to a router doesn't record failures, and the app log holds only
+the single access log line (status code only). "What happened" (error code, fields that failed
+validation, traceback) is known only in the handler.
 
-そこで失敗の記録をここへ集約する。ルーターごとに ``try/except`` を書かずに済み、
-記録の粒度も 1 か所で決められる。ログのレベルは :func:`log_level_for_status` が
-ステータスコードから決める（アクセスログも同じ関数を使う）。
+So failure recording is centralized here. Routers need no ``try/except`` of their own, and the
+recording granularity is decided in one place. :func:`log_level_for_status` picks the log level
+from the status code (the access log uses the same function).
 
-想定外の例外については応答も組み立てる。受け皿が無いと Starlette は本文
-``Internal Server Error`` の **text/plain** を返す。API クライアント（SPA）は
-本文を JSON として読むため、これを受け取るとエラーコードを取り出せず、画面には
-一律 ``unknown_error`` の文言しか出せない（原因の切り分けもできない）。そこで
+For unexpected exceptions, this also builds the response. Without a catch-all, Starlette returns
+a **text/plain** body ``Internal Server Error``. The API client (SPA) reads bodies as JSON, so it
+could not extract an error code and could only show the generic ``unknown_error`` message (and
+the cause could not be narrowed down). So this
 
-- ``{"detail": {"error": "internal_error"}}`` の JSON へ揃え（表示文言は
-  フロントエンドが決める。CLAUDE.md「国際化」）
-- traceback つきでログへ残す（``log`` テーブルの ``trace`` 列へ入る）
+- normalizes it to JSON ``{"detail": {"error": "internal_error"}}`` (the frontend decides the
+  display text; CLAUDE.md "Internationalization")
+- logs it with the traceback (stored in the ``trace`` column of the ``log`` table)
 
-を行う。ドメイン例外の対応付けは各コンテキストの ``error_handling`` が担うので、
-ここへ個別の例外を足さない（記録には :func:`log_failed_request` を使う）。
+Mapping domain exceptions is each context's ``error_handling``'s job, so don't add individual
+exceptions here (use :func:`log_failed_request` for recording).
 
-受け皿は**二重**に置く。
+The catch-all is placed **twice**.
 
 1. :class:`~presentation.fastapi.middleware.internal_error.InternalErrorMiddleware`
-   （通常の経路）。CORS・リクエストログの**内側**に置くため、応答に CORS
-   ヘッダーと ``X-Request-Id`` が付き、アクセスログにも 500 として残る。
-2. ``Exception`` ハンドラ（保険）。1 より外側のミドルウェア自身が落ちた場合に
-   だけ働く。Starlette はこのハンドラを ``ServerErrorMiddleware``（全ミドル
-   ウェアの外側）へ載せるため、ここから返す応答には CORS ヘッダーが付かない。
-   通常の経路を 1 に任せているのはこのため。
+   (the normal path). It sits **inside** CORS and request logging, so the response gets CORS
+   headers and ``X-Request-Id``, and the access log records it as 500.
+2. The ``Exception`` handler (safety net). Only works when middleware outside 1 itself fails.
+   Starlette mounts this handler on ``ServerErrorMiddleware`` (outside all middleware), so
+   responses returned from it have no CORS headers. That is why the normal path is left to 1.
 """
 
 from __future__ import annotations
@@ -53,22 +52,22 @@ logger = logging.getLogger(__name__)
 
 INTERNAL_ERROR_CODE = "internal_error"
 
-# 401 は運用上ふつうに起きる（トークンの期限切れ・未ログインでの API 呼び出し）。
-# ここだけ INFO へ落とす。残りの 4xx は「利用者か呼び出し側の想定違い」として
-# WARNING に上げ、ログを絞り込んだときに埋もれないようにする。
+# 401 happens routinely (expired tokens, API calls without login), so only it drops to INFO.
+# Other 4xx are "a mistaken assumption by the user or caller" and go up to WARNING so they
+# don't get buried when filtering logs.
 _ROUTINE_STATUS_CODES = frozenset({status.HTTP_401_UNAUTHORIZED})
 
-# 入力検証の失敗（FastAPI が返すステータス）。``status`` の
-# ``HTTP_422_UNPROCESSABLE_ENTITY`` は Starlette で非推奨になり、参照するだけで
-# 警告が出るためここで数値を持つ。
+# Input validation failure (the status FastAPI returns). ``status``'s
+# ``HTTP_422_UNPROCESSABLE_ENTITY`` is deprecated in Starlette and merely referencing it
+# emits a warning, so the number is held here.
 _VALIDATION_ERROR_STATUS = 422
 
 
 def log_level_for_status(status_code: int) -> int:
-    """HTTP のステータスコードからログのレベルを決める。
+    """Decide the log level from the HTTP status code.
 
-    アクセスログ（``RequestLoggingMiddleware``）と失敗の記録（このモジュール）で
-    同じ方針を使うため、判断はここに 1 つだけ置く。
+    The access log (``RequestLoggingMiddleware``) and failure recording (this module) share
+    the same policy, so the decision lives here only.
     """
     if status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
         return logging.ERROR
@@ -78,11 +77,11 @@ def log_level_for_status(status_code: int) -> int:
 
 
 def error_code_of(detail: object) -> str | None:
-    """応答本文（``detail``）からエラーコードだけを取り出す。
+    """Extract only the error code from the response body (``detail``).
 
-    このアプリの応答は ``{"error": "..."}`` で揃っている。FastAPI 既定の
-    ``"Not Found"`` のような文字列もそのまま扱う。**コード以外は取り出さない**——
-    ``detail`` には対象の名前が入ることがあり、値をログへ移すと PII になるため。
+    This app's responses are uniformly ``{"error": "..."}``. Plain strings such as FastAPI's
+    default ``"Not Found"`` are taken as is. **Nothing but the code is extracted**: ``detail`` may
+    contain a target's name, and copying values into logs would leak PII.
     """
     if isinstance(detail, dict):
         code = detail.get("error")
@@ -93,12 +92,12 @@ def error_code_of(detail: object) -> str | None:
 
 
 def log_failed_request(request: Request, status_code: int, error_code: str | None) -> None:
-    """エラー応答を返すことを記録する。ドメイン例外のハンドラからも呼ぶ。
+    """Record that an error response is being returned. Also called from domain exception handlers.
 
-    エラーコードは**本文（message）に入れる**。``log`` テーブルへ残るのは
-    列にある項目（``message`` / ``path`` / ``method`` / ``status_code`` / ``trace``）
-    だけで、``extra`` の残りは stdout の JSON にしか出ない。管理画面から
-    「何のコードで落ちたか」を読めるようにするため、本文にも持たせる。
+    The error code **goes into the message**. Only the columns (``message`` / ``path`` /
+    ``method`` / ``status_code`` / ``trace``) are kept in the ``log`` table; the rest of ``extra``
+    only appears in the stdout JSON. It is put in the message so the admin console can show
+    "which code it failed with".
     """
     logger.log(
         log_level_for_status(status_code),
@@ -114,7 +113,7 @@ def log_failed_request(request: Request, status_code: int, error_code: str | Non
 
 
 def log_unhandled_exception(request: Request, error: Exception) -> None:
-    """想定外の例外を traceback つきで記録する（``log`` の ``trace`` 列へ入る）。"""
+    """Record an unexpected exception with its traceback (stored in the ``trace`` column of ``log``)."""
     logger.exception(
         "unhandled_exception",
         extra={
@@ -127,10 +126,10 @@ def log_unhandled_exception(request: Request, error: Exception) -> None:
 
 
 def internal_error_response(request: Request, error: Exception) -> JSONResponse:
-    """例外を記録し、エラーコードだけを返す 500 応答を組み立てる。
+    """Record the exception and build a 500 response that returns only the error code.
 
-    例外の中身は応答に出さない（内部構造の露出を避ける）。追跡は ``requestId``
-    で行う。
+    The exception details are not exposed in the response (to avoid revealing internals).
+    Tracing is done via ``requestId``.
     """
     log_unhandled_exception(request, error)
     request_id = current_request_id()
@@ -142,11 +141,11 @@ def internal_error_response(request: Request, error: Exception) -> JSONResponse:
 
 
 def _validation_failures(error: RequestValidationError) -> str:
-    """検証に落ちた項目を ``body.email:missing`` の形で並べる。
+    """List fields that failed validation as ``body.email:missing``.
 
-    **入力値そのものは含めない**（``ctx`` や ``input`` を入れるとメールアドレス・
-    パスワードがログへ移る。CLAUDE.md「ログ」）。項目名と落ちた理由だけを残せば、
-    どのリクエストがどう間違っていたかは十分に追える。
+    **Input values themselves are not included** (including ``ctx`` or ``input`` would copy email
+    addresses and passwords into logs; CLAUDE.md "Logging"). Field names and failure reasons are
+    enough to trace which request was wrong and how.
     """
     return ",".join(
         "{}:{}".format(
@@ -158,7 +157,7 @@ def _validation_failures(error: RequestValidationError) -> str:
 
 
 def register_error_handling(app: FastAPI) -> None:
-    """失敗の記録と、ミドルウェアより外側で起きた例外のための保険を登録する。"""
+    """Register failure recording and the safety net for exceptions raised outside the middleware."""
 
     @app.exception_handler(StarletteHTTPException)
     async def _handle_http_exception(request: Request, error: StarletteHTTPException) -> Response:

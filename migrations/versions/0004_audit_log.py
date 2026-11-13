@@ -1,12 +1,12 @@
 """audit log
 
-監査ログ（``audit_log``）テーブルを追加し、アプリログ（``log``）へ絞り込み用の
-索引を足す。定義の正本は
-``bounded_contexts/audit/infrastructure/audit_log_model.py`` と
-``shared/infrastructure/models/log.py``。
+Add the audit log table (``audit_log``) and add filtering indexes to the application log
+(``log``). The definitions live in
+``bounded_contexts/audit/infrastructure/audit_log_model.py`` and
+``shared/infrastructure/models/log.py``.
 
-``audit_log`` は追記専用の記録なので外部キーを張らない（ユーザーを削除しても
-「誰が何をしたか」の行を残すため。ADR-0075 §1）。
+``audit_log`` is an append-only record, so it has no foreign keys (rows of "who did what" stay
+even when the user is deleted; ADR-0075 §1).
 
 Revision ID: audit_log
 Revises: account_security
@@ -26,10 +26,10 @@ branch_labels = None
 depends_on = None
 
 _BIGINT = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
-# DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる）
+# No DB-native ENUM (becomes a VARCHAR with a CHECK constraint)
 _AUDIT_RESULT = sa.Enum("success", "failure", name="audit_result", native_enum=False)
 
-# log テーブルへ後から足す索引（管理画面の絞り込み軸）
+# Indexes added to the log table afterwards (the admin screen's filter axes)
 _LOG_INDEXES: tuple[tuple[str, str], ...] = (
     ("ix_log_level", "level"),
     ("ix_log_logger", "logger"),

@@ -1,8 +1,8 @@
 /**
- * ヘッダーのベル（ADR-0081 §3）。まだ読んでいない数を出し、押すと一覧を開く。
+ * Header bell (ADR-0081 §3). Shows the unread count and opens the list when clicked.
  *
- * 一覧の 1 件を押すと既読にして行き先を開く（行き先が無ければ既読にするだけ）。
- * 開閉の作法（Esc・外側のクリックで閉じる）はロールの切り替えと揃える。
+ * Clicking an item marks it read and opens its destination (or only marks it read if none).
+ * Open/close behaviour (Esc and outside clicks close it) matches the role switcher.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -14,7 +14,7 @@ import { bellItems, type InboxItem } from '../services/notifications'
 import { useInbox } from '../store/InboxContext'
 import { useToast } from './ToastNotification'
 
-/** 数の表示の上限（それ以上は「99+」）。ヘッダーの幅を数で押し広げない。 */
+/** Upper limit of the displayed count (above it shows "99+"). Keeps the count from widening the header. */
 const BADGE_MAX = 99
 
 export function NotificationBell() {
@@ -155,8 +155,9 @@ export function NotificationBell() {
 }
 
 /**
- * ベルのアイコン。⚠ 絵文字（🔔）にしない ——端末ごとに色付きの絵になり、ほかの線のアイコン
- * （パスワード欄の目）と揃わない。色は `currentColor`（ボタンの文字色）に任せる。
+ * Bell icon. Note: not an emoji (🔔) - it becomes a colored picture that differs per device and
+ * does not match the other line icons (the eye in the password field). The color comes from
+ * `currentColor` (the button's text color).
  */
 function BellIcon() {
   return (

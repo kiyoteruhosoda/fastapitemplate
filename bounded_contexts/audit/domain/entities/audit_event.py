@@ -1,7 +1,7 @@
-"""監査イベント（誰が・いつ・何に対して・何をして・どうなったか）。
+"""Audit events (who, when, on what, did what, with what outcome).
 
-PII は持たない。実行者・対象は内部の識別子（サロゲートキー）のみで表す
-（ADR-0075 §1）。メールアドレス・ユーザー名・パスワード・トークンは記録しない。
+No PII. The actor and target are represented only by internal identifiers (surrogate keys)
+(ADR-0075 §1). Email addresses, user names, passwords and tokens are never recorded.
 """
 
 from __future__ import annotations
@@ -17,72 +17,74 @@ from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget
 
 
 class AuditEventType(StrEnum):
-    """監査対象の操作。
+    """Audited operations.
 
-    値（``<名詞>.<過去形の動詞>``）が DB に入る安定キーなので、一度使った値は
-    変えない。新しい操作を監査対象にするときは末尾に追加する。
+    The value (``<noun>.<past-tense verb>``) is a stable key stored in the DB, so a value once used
+    never changes. Append new audited operations at the end.
     """
 
-    # --- 認証 ---
-    # ログアウトは記録しない。Cookie を落とすだけの未認証エンドポイントで、
-    # 「誰が」を特定できないため（ADR-0075 §1）。
+    # --- Authentication ---
+    # Logout is not recorded: it is an unauthenticated endpoint that only drops the cookie, and
+    # "who" cannot be identified (ADR-0075 §1).
     LOGIN_SUCCEEDED = "login.succeeded"
     LOGIN_FAILED = "login.failed"
-    # 失敗が続いたので、その宛名をしばらく断り始めた（ADR-0076 §9）
+    # Started refusing that account name for a while after repeated failures (ADR-0076 §9)
     LOGIN_LOCKED = "login.locked"
-    # 一度使ったリフレッシュトークンが戻ってきた（盗まれた疑い。ADR-0091）
+    # A refresh token that was already used came back (suspected theft; ADR-0091)
     REFRESH_TOKEN_REUSED = "refresh_token.reused"
     PASSWORD_CHANGED = "password.changed"
     PASSWORD_RESET_REQUESTED = "password_reset.requested"
     PASSWORD_RESET_COMPLETED = "password_reset.completed"
-    # 本人によるアクティブロールの切り替え（ADR-0078 §1）。どの権限で操作していたかを
-    # 後から辿れるように記録する。``reason`` には切り替え先のロール名が入る
-    # （ロール名は個人情報ではない）。
+    # The user switched their own active role (ADR-0078 §1). Recorded so it can later be traced
+    # with which permissions they were operating. ``reason`` holds the target role name
+    # (role names are not personal information).
     ROLE_SWITCHED = "role.switched"
-    # --- SSO（外部 IdP との連携。ADR-0077 §1） ---
-    # 失敗は実行者を入れない（誰が試したかが分かっていないため。ADR-0075 §1）。
+    # --- SSO (integration with an external IdP; ADR-0077 §1) ---
+    # Failures carry no actor (who tried is unknown; ADR-0075 §1).
     SSO_LOGIN_SUCCEEDED = "sso_login.succeeded"
     SSO_LOGIN_FAILED = "sso_login.failed"
-    # IdP の名乗りから利用者を作った／既存の利用者へ結び付けた。どちらも初回だけ起きる。
+    # Created a user from the IdP identity / linked it to an existing user. Both happen only the first time.
     SSO_USER_PROVISIONED = "sso_user.provisioned"
     SSO_IDENTITY_LINKED = "sso_identity.linked"
-    # 本人が設定画面から結び付けた／外した（ADR-0077 §5）。
+    # The user linked/unlinked from the settings screen (ADR-0077 §5).
     SSO_IDENTITY_UNLINKED = "sso_identity.unlinked"
-    # --- 二要素認証・パスキー ---
+    # --- Two-factor authentication, passkeys ---
     TWO_FACTOR_ENABLED = "two_factor.enabled"
     TWO_FACTOR_DISABLED = "two_factor.disabled"
     PASSKEY_REGISTERED = "passkey.registered"
     PASSKEY_DELETED = "passkey.deleted"
-    # --- ユーザー・ロール管理 ---
+    # --- User and role management ---
     USER_CREATED = "user.created"
     USER_UPDATED = "user.updated"
     USER_DELETED = "user.deleted"
     ROLE_CREATED = "role.created"
     ROLE_UPDATED = "role.updated"
     ROLE_DELETED = "role.deleted"
-    # --- システム運用 ---
+    # --- System operations ---
     SYSTEM_SETTINGS_UPDATED = "system_settings.updated"
-    # --- コンテンツ設定（テナントの中。ADR-0085）。``reason`` には変えた項目名だけを入れる ---
+    # --- Content settings (inside a tenant; ADR-0085). ``reason`` holds only the changed item names ---
     CONTENT_SETTINGS_UPDATED = "content_settings.updated"
     SERVICE_RESTART_REQUESTED = "service.restart_requested"
-    # --- プロフィール（本人によるメールアドレス・表示名の変更。ADR-0080 §3） ---
+    # --- Profile (the user changing their own email or display name; ADR-0080 §3) ---
     PROFILE_UPDATED = "profile.updated"
-    # --- グループ・お知らせ（ADR-0081 §3） ---
-    # グループの ``reason`` には所属の人数を入れる（誰が入ったかは ID の並びで長くなる）。
+    # --- Groups, announcements (ADR-0081 §3) ---
+    # A group's ``reason`` holds the member count (listing who joined by ID would get long).
     GROUP_CREATED = "group.created"
     GROUP_UPDATED = "group.updated"
     GROUP_DELETED = "group.deleted"
-    # ``reason`` には宛先・チャネル・配った人数を入れる（本文は入れない）。
+    # ``reason`` holds the audience, channels and number of recipients (not the body).
     NOTIFICATION_SENT = "notification.sent"
-    # テナントの外側（ADR-0079 §1・§5）。システム管理者の操作
+    # Outside the tenants (ADR-0079 §1, §5). Operations by system administrators
     TENANT_CREATED = "tenant.created"
     TENANT_UPDATED = "tenant.updated"
     TENANT_DELETED = "tenant.deleted"
     TENANT_ADMIN_DESIGNATED = "tenant.admin_designated"
     SYSTEM_ADMIN_ADDED = "system_admin.added"
     SYSTEM_ADMIN_REMOVED = "system_admin.removed"
-    # --- 機械の口（ADR-0087）。実行者は振る舞う利用者、対象は名乗った機械（``machine_client:<client_id>``） ---
-    # 「機械 X が利用者 Y として」を残す（ADR-0082 §1 決定 4）。拒否の ``reason`` は「理由: 操作」。
+    # --- Machine endpoints (ADR-0087). Actor = the user acted as, target = the machine that identified
+    # itself (``machine_client:<client_id>``) ---
+    # Records "machine X acting as user Y" (ADR-0082 §1 decision 4). A refusal's ``reason`` is
+    # "reason: operation".
     MACHINE_TOKEN_ISSUED = "machine_token.issued"
     MACHINE_TOKEN_REFUSED = "machine_token.refused"
     MACHINE_OPERATION_REFUSED = "machine_operation.refused"
@@ -90,7 +92,7 @@ class AuditEventType(StrEnum):
 
 
 class AuditResult(StrEnum):
-    """操作の成否。失敗だけを追うための絞り込み軸。"""
+    """Outcome of the operation. A filter axis for tracking failures only."""
 
     SUCCESS = "success"
     FAILURE = "failure"
@@ -98,10 +100,10 @@ class AuditResult(StrEnum):
 
 @dataclass(frozen=True)
 class AuditEvent:
-    """これから記録する 1 件。
+    """One event about to be recorded.
 
-    ``actor_user_id`` は操作した利用者。認証前の失敗（存在しないメールアドレスでの
-    ログイン試行）では相手が特定できないため ``None`` になる。
+    ``actor_user_id`` is the user who performed the operation. For failures before authentication
+    (a sign-in attempt with a nonexistent email) the other party cannot be identified, so it is ``None``.
     """
 
     event_type: AuditEventType
@@ -115,11 +117,11 @@ class AuditEvent:
 
 @dataclass(frozen=True)
 class AuditLogEntry:
-    """``audit_log`` から読み出した 1 件（閲覧画面の読み取りモデル）。
+    """One entry read from ``audit_log`` (the read model of the viewer screen).
 
-    ``event_type`` / ``result`` は保存された文字列をそのまま持つ。過去に使って
-    いた値が :class:`AuditEventType` から消えても行は表示できなければならない
-    ため、列挙型へ restrict しない。
+    ``event_type`` / ``result`` keep the stored strings as is. Rows must still be displayable even if
+    a previously used value disappears from :class:`AuditEventType`, so they are not restricted to
+    the enum.
     """
 
     id: int
@@ -137,7 +139,7 @@ class AuditLogEntry:
 
 @dataclass(frozen=True)
 class AuditLogPage:
-    """検索結果 1 ページと、条件に一致する総件数。"""
+    """One page of search results and the total count matching the criteria."""
 
     entries: tuple[AuditLogEntry, ...] = field(default_factory=tuple)
     total: int = 0

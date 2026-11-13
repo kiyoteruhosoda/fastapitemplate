@@ -1,8 +1,9 @@
-"""サポート担当（テナントの外で、状態を見るだけ。ADR-0084 §2・§4）。
+"""Support staff (outside tenants, view-only; ADR-0084 §2, §4).
 
-運用者が「テナントの外の人」としてロールを選んで足す。サポート担当はテナントの一覧と
-システムの状態を見られるが、設定・アプリログ・監査ログ・人の付け外しには入れず、何も変えられない。
-最後の運用者を外す関門は、サポート担当を運用者として数えない。
+An operator adds them as "someone outside the tenants" by choosing the role. Support staff can see
+the tenant list and system status, but cannot enter settings, app logs, audit logs or role
+assignment, and can change nothing. The gate against removing the last operator does not count
+support staff as operators.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ def _add_support(client: TestClient, system_admin_headers: dict[str, str], engin
     )
     assert added.status_code == 201, added.text
     user_id = int(added.json()["user_id"])
-    # 招待のメールの代わりに、試験ではパスワードを直に置く
+    # Instead of the invitation email, the test sets the password directly
     with Session(engine) as session:
         user = session.get(User, user_id)
         assert user is not None

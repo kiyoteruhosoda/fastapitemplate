@@ -1,4 +1,4 @@
-"""example のドメイン例外 → HTTP 応答（応答本文はエラーコードのみ）。"""
+"""example domain exceptions -> HTTP responses (the response body carries only the error code)."""
 
 from __future__ import annotations
 

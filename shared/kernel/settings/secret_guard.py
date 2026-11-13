@@ -1,14 +1,14 @@
-"""起動時に署名鍵を確かめる（ADR-0073 §4）。
+"""Check the signing key at startup (ADR-0073 §4).
 
-**本番（``APP_ENV=production``）では既定の鍵で起動しない。** 既定値は公開
-リポジトリに載っているので、それで発行したトークンは誰でも偽造できる。しかも
-アクセストークンの検証は DB を引かない（ADR-0076 §5）ので、偽造したトークンが
-書いた権限のまま通る。警告はログにしか出ず、本番のログを毎日読む人はいない。
-気付かせる唯一確実な方法は動かないことである。
+**In production (``APP_ENV=production``) the app does not start with the default key.** The
+default value is in a public repository, so anyone can forge tokens issued with it. Moreover,
+access token verification does not hit the DB (ADR-0076 §5), so a forged token passes with
+whatever permissions it claims. A warning only shows up in the log, and nobody reads production
+logs every day. The only reliable way to make it noticed is to refuse to run.
 
-それ以外の環境では警告だけ出して起動する。開発で偽造できる鍵に困る人はいない。
+In other environments it only warns and starts. Nobody in development suffers from a forgeable key.
 
-鍵の値そのものはログに出さない。出すのは分類（空・既定のまま・短すぎる）だけ。
+The key value itself is never logged. Only the category (empty, still default, too short) is.
 """
 
 from __future__ import annotations
@@ -19,20 +19,20 @@ from shared.kernel.settings.system_settings_defaults import DEFAULT_APPLICATION_
 
 logger = logging.getLogger(__name__)
 
-#: 既定値では動かさない環境名（``APP_ENV``）
+#: Environment name (``APP_ENV``) that refuses to run with the default value
 PRODUCTION = "production"
-#: 256 ビットを base64 にした長さに相当。``openssl rand -base64 48`` で 64 文字になる
+#: Equivalent to 256 bits in base64. ``openssl rand -base64 48`` gives 64 characters
 MIN_SECRET_LENGTH = 32
 
 
 class InsecureSecretError(RuntimeError):
-    """本番で使えない署名鍵。起動を止めるために投げる。"""
+    """A signing key unusable in production. Raised to stop startup."""
 
 
 def secret_problem(secret: str) -> str | None:
-    """鍵の何が駄目かの分類。問題が無ければ ``None``。
+    """Category of what is wrong with the key. ``None`` if there is no problem.
 
-    「既定値ではない」は「強い」を意味しない。長さも見る。
+    "Not the default" does not mean "strong". The length is checked too.
     """
     if not secret:
         return "empty"
@@ -44,7 +44,7 @@ def secret_problem(secret: str) -> str | None:
 
 
 def require_usable_secret(secret: str, environment: str) -> None:
-    """本番なら駄目な鍵で落とし、それ以外なら警告する。"""
+    """In production, fail on a bad key; otherwise warn."""
     problem = secret_problem(secret)
     if problem is None:
         return

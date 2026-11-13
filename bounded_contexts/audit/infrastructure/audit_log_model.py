@@ -1,10 +1,9 @@
-"""``audit_log`` テーブルの SQLAlchemy モデル（audit コンテキスト固有）。
+"""SQLAlchemy model of the ``audit_log`` table (specific to the audit context).
 
-追記専用の記録なので外部キーは張らない。ユーザーを削除しても「誰が何をしたか」
-の行は残らなければならないため（ADR-0075 §1）。
+It is an append-only record, so it has no foreign keys: rows of "who did what" must remain even
+when the user is deleted (ADR-0075 §1).
 
-Alembic とテストが認識できるよう ``migrations/env.py`` と ``tests/conftest.py``
-へ import を追加してある。
+Imported in ``migrations/env.py`` and ``tests/conftest.py`` so Alembic and the tests see it.
 """
 
 from __future__ import annotations
@@ -17,8 +16,8 @@ from shared.infrastructure.models.base import BigIntPk, utcnow
 from shared.infrastructure.models.tenancy import Tenancy, declared
 from shared.kernel.database.db import Base
 
-# DB ネイティブ ENUM は使わない（CHECK 制約付き VARCHAR になる。CLAUDE.md「DB モデリング」）。
-# 許可値は Python 側の AuditResult で集中管理する。
+# No DB-native ENUM (becomes a VARCHAR with a CHECK constraint; "DB modeling" in CLAUDE.md).
+# Allowed values are managed centrally on the Python side in AuditResult.
 _AUDIT_RESULT = sa.Enum(
     *(result.value for result in AuditResult),
     name="audit_result",
@@ -31,21 +30,23 @@ class AuditLogModel(Base):
     __table_args__ = declared(Tenancy.TENANT)
 
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
-    # どのテナントの記録か。NULL は全体の操作（システム管理者・宛先の分からない失敗）。
-    # ⚠ 外部キーを張らない（テナントを消しても記録は残す。ADR-0075 §1 と同じ理由）
+    # Which tenant the record belongs to. NULL is a global operation (system administrators,
+    # failures with unknown target).
+    # ⚠ No foreign key (records stay when a tenant is deleted; same reason as ADR-0075 §1)
     tenant_id = mapped_column(BigIntPk, nullable=True, index=True)
     occurred_at = mapped_column(sa.DateTime(), nullable=False, default=utcnow, index=True)
     event_type: Mapped[str] = mapped_column(sa.String(64), nullable=False, index=True)
     result: Mapped[str] = mapped_column(_AUDIT_RESULT, nullable=False, index=True)
-    # 操作した利用者の内部 ID。認証前の失敗（未登録メールでのログイン）では NULL。
+    # Internal ID of the user who performed the operation. NULL for failures before authentication
+    # (sign-in with an unregistered email).
     actor_user_id = mapped_column(BigIntPk, nullable=True, index=True)
     target_type = mapped_column(sa.String(64), nullable=True, index=True)
     target_id = mapped_column(sa.String(64), nullable=True)
     ip_address = mapped_column(sa.String(45), nullable=True)
     user_agent = mapped_column(sa.String(512), nullable=True)
-    # 失敗理由・変更した項目名。値そのもの（PII）は入れない。
+    # Failure reason or changed item names. Never the values themselves (PII).
     reason = mapped_column(sa.String(255), nullable=True)
-    # log.request_id と同じ値。アプリログと監査ログを突き合わせる追跡キー。
+    # Same value as log.request_id. Tracking key to match application logs and audit logs.
     request_id = mapped_column(sa.String(36), nullable=True, index=True)
 
 

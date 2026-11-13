@@ -1,4 +1,4 @@
-/** 言語の初期選択・切り替え・プレースホルダ差し込み。 */
+/** Initial language selection, switching, and placeholder substitution. */
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +10,7 @@ function settingsOf(overrides: Partial<UiSettings> = {}): UiSettings {
   return { languages: ['en', 'ja'], default_locale: 'en', default_theme: 'system', ...overrides }
 }
 
-/** 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）。 */
+/** A browser that cannot read or write storage (e.g. Chrome with site data blocked). */
 function blockStorage(): () => void {
   const denied = () => {
     throw new DOMException('denied', 'SecurityError')
@@ -55,31 +55,31 @@ describe('I18nProvider', () => {
     localStorage.clear()
   })
 
-  it('利用者の選択（localStorage）を最優先する', () => {
+  it('prefers the choice the user saved (localStorage) above all', () => {
     localStorage.setItem('locale', 'ja')
     renderWith(settingsOf({ default_locale: 'en' }))
     expect(screen.getByTestId('locale').textContent).toBe('ja')
   })
 
-  it('選べない言語が保存されていればサーバーの既定値へ落ちる', () => {
+  it('falls back to the server default when the saved language is not selectable', () => {
     localStorage.setItem('locale', 'ja')
     renderWith(settingsOf({ languages: ['en'], default_locale: 'en' }))
     expect(screen.getByTestId('locale').textContent).toBe('en')
   })
 
-  it('未知の言語しか設定されていなければ en に落ちる', () => {
+  it('falls back to en when only unknown languages are configured', () => {
     renderWith(settingsOf({ languages: ['fr'], default_locale: 'fr' }))
     expect(screen.getByTestId('locale').textContent).toBe('en')
     expect(screen.getByTestId('locales').textContent).toBe('en')
   })
 
-  it('<html lang> を選択中の言語に合わせる', () => {
+  it('sets <html lang> to the selected language', () => {
     localStorage.setItem('locale', 'ja')
     renderWith(settingsOf())
     expect(document.documentElement.lang).toBe('ja')
   })
 
-  it('保存領域が使えなくても画面を出し、切り替えもできる', () => {
+  it('renders and can still switch when storage is unavailable', () => {
     const restore = blockStorage()
     try {
       renderWith(settingsOf({ languages: ['en', 'ja'] }))
@@ -94,13 +94,13 @@ describe('I18nProvider', () => {
     }
   })
 
-  it('辞書に無いキーはキー自身を返す', () => {
+  it('returns the key itself for a key missing from the dictionary', () => {
     renderWith(settingsOf())
     expect(screen.getByTestId('missing').textContent).toBe('no.such.key')
   })
 })
 
-describe('t のプレースホルダ差し込み', () => {
+describe('placeholder substitution in t', () => {
   function Interpolated({ params }: { params: Record<string, string | number> }) {
     const { t } = useI18n()
     return <span data-testid="out">{t('{greeting}, {name}! ({count})', params)}</span>
@@ -110,7 +110,7 @@ describe('t のプレースホルダ差し込み', () => {
     localStorage.clear()
   })
 
-  it('{name} 形式のプレースホルダを置き換える', () => {
+  it('replaces {name}-style placeholders', () => {
     render(
       <I18nProvider settings={settingsOf()}>
         <Interpolated params={{ greeting: 'Hello', name: 'Ada', count: 3 }} />
@@ -119,7 +119,7 @@ describe('t のプレースホルダ差し込み', () => {
     expect(screen.getByTestId('out').textContent).toBe('Hello, Ada! (3)')
   })
 
-  it('渡されなかったプレースホルダはそのまま残す', () => {
+  it('leaves placeholders that were not passed as they are', () => {
     render(
       <I18nProvider settings={settingsOf()}>
         <Interpolated params={{ greeting: 'Hi' }} />
@@ -130,7 +130,7 @@ describe('t のプレースホルダ差し込み', () => {
 })
 
 describe('useI18n', () => {
-  it('Provider の外で使うと例外を投げる', () => {
+  it('throws when used outside the Provider', () => {
     withSuppressedRenderErrors(() => {
       expect(() => render(<Probe />)).toThrow(/I18nProvider/)
     })

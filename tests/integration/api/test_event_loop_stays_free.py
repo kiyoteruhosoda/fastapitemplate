@@ -1,8 +1,9 @@
-"""DB を使う口と依存関数をイベントループの上で動かさない（ADR-0100）。
+"""DB-using entrances and dependencies do not run on the event loop (ADR-0100).
 
-``async def`` の中で同期の DB を呼ぶと、後の要求が行のロックを待つあいだ、イベントループごと止まる。先の要求の
-確定（``get_db`` の後始末）の順番が回ってこないので、ロック待ちの上限か gunicorn の ``--timeout`` まで固まる
-（MariaDB でだけ起きる。SQLite の試験では出ない。task #807）。
+Calling a synchronous DB inside ``async def`` freezes the whole event loop while a later request
+waits for a row lock. The earlier request never gets its turn to commit (``get_db`` teardown), so it
+hangs until the lock-wait limit or gunicorn's ``--timeout`` (only on MariaDB; it does not show in
+SQLite tests; task #807).
 """
 
 from __future__ import annotations
@@ -16,15 +17,15 @@ from fastapi.routing import APIRoute, iter_route_contexts
 
 from shared.kernel.database.session import get_db
 
-#: ``async def`` のままにする関数と理由。DB は ``run_in_threadpool`` の中でだけ触る
+#: Functions that stay ``async def``, and why. They touch the DB only inside ``run_in_threadpool``
 _STAYS_ASYNC: dict[str, str] = {
-    "get_app_or_web_principal": "ログの文脈（ContextVar）を置く。スレッドの中で置くとミドルウェアへ戻らない",
-    "receive_backchannel_logout": "本文を await で読む（大きすぎる本文を読まずに断る）",
+    "get_app_or_web_principal": "Sets the log context (ContextVar); set in a thread it would not reach the middleware",
+    "receive_backchannel_logout": "Reads the body with await (refuses an oversized body without reading it)",
 }
 
 
 def _own_session(call: Callable[..., object]) -> bool:
-    """``get_db`` を通らず、自分でセッションを開く依存関数（失敗の記録を別に確定するものなど）。"""
+    """Dependencies that open their own session instead of ``get_db`` (e.g. committing failure records apart)."""
     return inspect.isfunction(call) and "get_session_factory" in inspect.getsource(call)
 
 
@@ -36,7 +37,7 @@ def _reaches_db(dependant: Dependant) -> bool:
 
 def _coroutines_on_the_way_to_db(dependant: Dependant) -> Iterator[str]:
     call = dependant.call
-    # ``yield`` の依存関数は ``iscoroutinefunction`` が偽になる
+    # For dependencies that ``yield``, ``iscoroutinefunction`` is false
     if (inspect.iscoroutinefunction(call) or inspect.isasyncgenfunction(call)) and _reaches_db(dependant):
         yield call.__name__
     for child in dependant.dependencies:
@@ -44,9 +45,9 @@ def _coroutines_on_the_way_to_db(dependant: Dependant) -> Iterator[str]:
 
 
 def _blocking(app: FastAPI) -> set[str]:
-    """DB を使うのに ``async def`` の関数の名前。
+    """Names of ``async def`` functions that use the DB.
 
-    ⚠ **``app.routes`` を直に回さない**（``test_route_authorization.py`` と同じ理由）。
+    ⚠ **Do not iterate ``app.routes`` directly** (same reason as ``test_route_authorization.py``).
     """
     return {
         name
@@ -72,7 +73,7 @@ async def free_dependency() -> None: ...
 
 
 def _an_app_that_blocks() -> FastAPI:
-    """規則を破った口を、``include_router`` の奥に置いたアプリ（判定の空振りを見つけるため）。"""
+    """An app with rule-breaking entrances placed deep inside ``include_router`` (to catch the check missing them)."""
     inner = APIRouter()
 
     @inner.get("/direct")
@@ -110,10 +111,10 @@ def test_the_check_catches_a_route_that_breaks_the_rule() -> None:
 
 
 def test_the_real_routes_are_being_looked_at(app: FastAPI) -> None:
-    """列挙が空だと、下の試験は素通りする。例外の表の 2 つは必ず見つかるはず。"""
+    """If the listing is empty, the test below passes trivially. The two in the exemption table must always be found."""
     assert set(_STAYS_ASYNC) <= _blocking(app)
 
 
 def test_routes_that_use_the_database_do_not_run_on_the_event_loop(app: FastAPI) -> None:
     found = _blocking(app) - set(_STAYS_ASYNC)
-    assert not found, f"DB を使うなら def にしてください。await が要るなら DB をスレッドへ逃がして表へ: {found}"
+    assert not found, f"Use def with the DB. If await is needed, move the DB to a thread and list it: {found}"

@@ -1,11 +1,12 @@
-"""CLAUDE.md の規則のうち、Ruff・MyPy では表せないものの機械的な検証（ADR-0089）。
+"""Mechanical checks of CLAUDE.md rules that Ruff and MyPy cannot express (ADR-0089).
 
-規則を読んで守るのではなく、破ったら CI が落ちるようにする。例外は理由と一緒にこのファイルへ
-書く（理由を書けないものは直す）。例外の表は、使われなくなったら別の試験が落とす。
+Instead of reading and following the rules, CI fails when they are broken. Exceptions are written in
+this file with a reason (fix anything you cannot give a reason for). Another test fails when an
+exception entry is no longer used.
 
-層の依存方向は ``test_layer_dependencies.py``、設計の定量基準は ``test_design_metrics.py``、
-文書と実物の突き合わせは ``test_documents_match.py``、API の認可は
-``tests/integration/api/test_route_authorization.py``。
+Layer dependency direction is in ``test_layer_dependencies.py``, quantitative design standards in
+``test_design_metrics.py``, document-versus-reality checks in ``test_documents_match.py``, and API
+authorization in ``tests/integration/api/test_route_authorization.py``.
 """
 
 from __future__ import annotations
@@ -21,34 +22,34 @@ from shared.domain.auth import master_data
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# 検査対象。テストは時刻や環境変数を自由に扱うので含めない。
+# Files checked. Tests handle time and environment variables freely, so they are excluded.
 _SOURCE_ROOTS = ("asgi.py", "main.py", "bounded_contexts", "migrations", "presentation", "scripts", "shared")
 
-#: 時刻の生成口（CLAUDE.md「時刻の契約」）
+#: The time entrance (CLAUDE.md "Time contract")
 _TIME_ENTRANCE = "shared/kernel/timestamps.py"
 
-#: 環境変数を直に読んでよいファイルと理由（CLAUDE.md「設定管理」）
+#: Files allowed to read environment variables directly, and why (CLAUDE.md "Settings management")
 _ENVIRONMENT_READERS: dict[str, str] = {
-    "shared/kernel/settings/settings.py": "環境変数を読む正本",
-    "presentation/fastapi/services/system_setting_service.py": "設定の画面に「環境変数で決まっている値」を出す",
-    "shared/kernel/version.py": "ビルド情報と APP_ENV。画面や DB から変えられては困る（本番の判定に使う）",
-    "shared/kernel/restart/terminator.py": "SERVER_SOFTWARE は gunicorn がプロセスに置く値で、設定ではない",
-    "scripts/seed_master_data.py": "手で流す道具の入力",
-    "scripts/create_system_admin.py": "手で流す道具の入力（パスワードを引数に書かせない）",
-    "migrations/versions/0002_seed_master_data.py": "据え付けの入力（設定の表がまだ無い）",
+    "shared/kernel/settings/settings.py": "The source of truth that reads environment variables",
+    "presentation/fastapi/services/system_setting_service.py": "Shows values fixed by env vars on the settings screen",
+    "shared/kernel/version.py": "Build info and APP_ENV. Must not change via screen or DB (detects production)",
+    "shared/kernel/restart/terminator.py": "SERVER_SOFTWARE is set on the process by gunicorn; it is not a setting",
+    "scripts/seed_master_data.py": "Input to a tool run by hand",
+    "scripts/create_system_admin.py": "Input to a tool run by hand (keeps the password off the command line)",
+    "migrations/versions/0002_seed_master_data.py": "Installation input (the settings table does not exist yet)",
 }
 
-#: ``getattr`` を使ってよいファイルと理由（CLAUDE.md「動的呼び出しの制限」）
+#: Files allowed to use ``getattr``, and why (CLAUDE.md "Restrictions on dynamic calls")
 _ATTRIBUTE_READERS: dict[str, str] = {
-    "shared/kernel/logging/db_log_handler.py": "LogRecord の extra は標準ライブラリの作りで属性としてしか読めない",
-    "shared/kernel/logging/logging_config.py": "標準ライブラリのログレベル名を引く",
-    "shared/kernel/settings/settings.py": "threading.local の値は初回に属性が無い",
-    "bounded_contexts/account_security/infrastructure/py_webauthn_relying_party.py": "webauthn の enum か文字列か",
+    "shared/kernel/logging/db_log_handler.py": "stdlib design: LogRecord extras can only be read as attributes",
+    "shared/kernel/logging/logging_config.py": "Looks up standard-library log level names",
+    "shared/kernel/settings/settings.py": "threading.local values have no attribute the first time",
+    "bounded_contexts/account_security/infrastructure/py_webauthn_relying_party.py": "webauthn enum or str",
 }
 
-#: 同期の関数で ``ContextVar`` を置いてよいファイルと理由（ADR-0100）
+#: Files allowed to set a ``ContextVar`` in a synchronous function, and why (ADR-0100)
 _CONTEXT_SETTERS: dict[str, str] = {
-    "bounded_contexts/audit/presentation/pending_events.py": "ミドルウェア（イベントループの上）からだけ呼ばれる",
+    "bounded_contexts/audit/presentation/pending_events.py": "Called only from middleware (on the event loop)",
 }
 
 _FORBIDDEN_DYNAMIC_CALLS = frozenset({"setattr", "delattr", "eval", "exec", "globals", "locals", "vars", "__import__"})
@@ -95,24 +96,24 @@ def _called_names(tree: ast.Module) -> set[str]:
 
 
 def test_time_comes_from_the_one_entrance() -> None:
-    """``datetime.now()`` などは tz の有無が混ざる元になる。生成口を通す（CLAUDE.md「時刻の契約」）。"""
+    """``datetime.now()`` etc. mix aware and naive values. Use the entrance (CLAUDE.md "Time contract")."""
     found = [f"{path}:{line}" for path, tree in _sources() if path != _TIME_ENTRANCE for line in _clock_reads(tree)]
-    assert not found, f"shared/kernel/timestamps.py の utcnow / utcnow_aware を使ってください: {found}"
+    assert not found, f"Use utcnow / utcnow_aware from shared/kernel/timestamps.py: {found}"
 
 
 def test_settings_are_read_through_the_settings_object() -> None:
     found = [path for path, tree in _sources() if _reads_environment(tree) and path not in _ENVIRONMENT_READERS]
-    assert not found, f"環境変数は settings の @property から読んでください（要るなら理由を例外に）: {found}"
+    assert not found, f"Read env vars via settings @property (if needed, add an exception with a reason): {found}"
 
 
 def test_no_dynamic_dispatch() -> None:
     found = [f"{path}: {name}" for path, tree in _sources() for name in _called_names(tree) & _FORBIDDEN_DYNAMIC_CALLS]
-    assert not found, f"動的呼び出しは使えません（CLAUDE.md「動的呼び出しの制限」）: {found}"
+    assert not found, f'Dynamic calls are not allowed (CLAUDE.md "Restrictions on dynamic calls"): {found}'
 
 
 def test_getattr_only_where_a_reason_is_written() -> None:
     found = [path for path, tree in _sources() if "getattr" in _called_names(tree) and path not in _ATTRIBUTE_READERS]
-    assert not found, f"getattr を使わず明示的なインターフェースにしてください: {found}"
+    assert not found, f"Use an explicit interface instead of getattr: {found}"
 
 
 @pytest.mark.parametrize(
@@ -124,11 +125,11 @@ def test_getattr_only_where_a_reason_is_written() -> None:
     ids=["environment", "getattr"],
 )
 def test_exemptions_are_still_needed(exemptions: dict[str, str], still_applies: object) -> None:
-    """直したのに例外だけ残ると、そのファイルで規則が効かないままになる。"""
+    """If a fix leaves the exception behind, the rule stays off for that file."""
     assert callable(still_applies)
     trees = dict(_sources())
     stale = [path for path in exemptions if path not in trees or not still_applies(trees[path])]
-    assert not stale, f"もう要らない例外です。表から消してください: {stale}"
+    assert not stale, f"Exceptions no longer needed; remove them from the table: {stale}"
 
 
 def _native_enums(tree: ast.Module) -> Iterator[int]:
@@ -142,7 +143,7 @@ def _native_enums(tree: ast.Module) -> Iterator[int]:
 
 def test_no_native_enum_columns() -> None:
     found = [f"{path}:{line}" for path, tree in _sources() for line in _native_enums(tree)]
-    assert not found, f"sa.Enum には native_enum=False を付けてください（CLAUDE.md「DB モデリング」）: {found}"
+    assert not found, f'Add native_enum=False to sa.Enum (CLAUDE.md "DB modelling"): {found}'
 
 
 def _migrations() -> Iterator[tuple[str, ast.Module]]:
@@ -154,7 +155,7 @@ def test_migrations_start_with_future_annotations() -> None:
         return any(isinstance(n, ast.ImportFrom) and n.module == "__future__" for n in tree.body)
 
     found = [path for path, tree in _migrations() if not has_it(tree)]
-    assert not found, f"from __future__ import annotations がありません: {found}"
+    assert not found, f"Missing from __future__ import annotations: {found}"
 
 
 def test_migrations_can_go_both_ways() -> None:
@@ -162,11 +163,11 @@ def test_migrations_can_go_both_ways() -> None:
         return {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
 
     found = [path for path, tree in _migrations() if not {"upgrade", "downgrade"} <= functions(tree)]
-    assert not found, f"upgrade() と downgrade() の両方が要ります: {found}"
+    assert not found, f"Both upgrade() and downgrade() are required: {found}"
 
 
 def _context_sets_in_sync_functions(tree: ast.AST) -> list[str]:
-    """``def`` の中の ``なんとか_var.set(...)``。``def`` はスレッドで動くので、置いた値は呼び出し元へ戻らない。"""
+    """``something_var.set(...)`` inside a ``def``. A ``def`` runs in a thread, so the value never reaches callers."""
     return [
         function.name
         for function in ast.walk(tree)
@@ -186,14 +187,14 @@ def test_the_context_check_catches_a_sync_function() -> None:
 
 
 def test_presentation_does_not_set_context_in_sync_functions() -> None:
-    """依存関数を ``def`` にすると、ログと監査の「誰が」が黙って消える（試験では気付きにくい。ADR-0100）。"""
+    """Making a dependency a ``def`` silently drops "who" from logs and audit (hard to notice in tests; ADR-0100)."""
     found = [
         f"{path}: {name}"
         for path, tree in _sources()
         if path not in _CONTEXT_SETTERS and "presentation/" in path
         for name in _context_sets_in_sync_functions(tree)
     ]
-    assert not found, f"ContextVar は async def の依存関数かミドルウェアで置いてください: {found}"
+    assert not found, f"Set ContextVar in an async def dependency or middleware: {found}"
 
 
 def test_no_vague_names() -> None:
@@ -204,11 +205,11 @@ def test_no_vague_names() -> None:
         for node in ast.walk(tree)
         if isinstance(node, ast.ClassDef) and _VAGUE_CLASS.search(node.name)
     ]
-    assert not modules + classes, f"util / helper という名前は使えません（ドメインの語で）: {modules + classes}"
+    assert not modules + classes, f"The names util / helper are not allowed (use domain terms): {modules + classes}"
 
 
 def _schema_classes(tree: ast.Module) -> Iterator[str]:
-    """``BaseModel`` を（同じファイルの中の継承も辿って）受け継ぐクラスの名前。"""
+    """Names of classes inheriting ``BaseModel`` (following inheritance within the same file too)."""
     known = {"BaseModel"}
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and {ast.unparse(base) for base in node.bases} & known:
@@ -224,7 +225,7 @@ def test_schemas_are_named_request_or_response() -> None:
         for name in _schema_classes(tree)
         if not name.endswith(("Request", "Response"))
     ]
-    assert not found, f"スキーマは 〇〇Request / 〇〇Response と名付けます（CLAUDE.md「API 設計」）: {found}"
+    assert not found, f'Name schemas XxxRequest / XxxResponse (CLAUDE.md "API design"): {found}'
 
 
 def _role_name_comparisons(tree: ast.Module) -> Iterator[int]:
@@ -243,15 +244,15 @@ def _role_name_comparisons(tree: ast.Module) -> Iterator[int]:
 
 
 def test_authorization_does_not_branch_on_role_names() -> None:
-    """認可は scope で決める。ロール名で分岐すると、ロールの中身を変えても効かなくなる。"""
+    """Authorization is decided by scope. Branching on role names stops working when a role's contents change."""
     found = [
         f"{path}:{line}"
         for path, tree in _sources()
-        # マイグレーションはその時点のロールの行を名前で探す（認可ではない）
+        # Migrations look up that point's role rows by name (not authorization)
         if not path.startswith("migrations/")
         for line in _role_name_comparisons(tree)
     ]
-    assert not found, f"ロール名で分岐しないでください（require_permission の scope で）: {found}"
+    assert not found, f"Do not branch on role names (use the require_permission scope): {found}"
 
 
 @pytest.mark.parametrize(
@@ -275,7 +276,7 @@ def test_the_environment_check_catches_direct_reads(broken: str) -> None:
 
 
 def test_the_other_checks_catch_what_they_forbid() -> None:
-    """判定が空振りすると、規則を破っても試験は緑のまま（経路の列挙で実際に起きた。ADR-0089）。"""
+    """If the check misses, the test stays green despite a broken rule (happened with route listing; ADR-0089)."""
     assert "eval" in _called_names(ast.parse("eval('1')"))
     assert list(_native_enums(ast.parse("sa.Enum('a')")))
     assert list(_native_enums(ast.parse("sa.Enum('a', native_enum=True)")))

@@ -1,7 +1,9 @@
 /**
- * 言語・テーマの選択。プロフィールページの「表示設定」に出す（ADR-0080 §3）。
+ * Language and theme selection. Shown under "Display settings" on the profile page
+ * (ADR-0080 §3).
  *
- * 選択はブラウザ（localStorage）に保存され、端末ごとに独立する（ADR-0080 §1）。
+ * The choice is stored in the browser (localStorage) and is independent per device
+ * (ADR-0080 §1).
  */
 import { LOCALE_LABELS, useI18n, type Locale } from '../i18n'
 import { THEME_PREFERENCES, useTheme, type ThemePreference } from '../theme'

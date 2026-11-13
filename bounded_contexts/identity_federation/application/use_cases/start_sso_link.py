@@ -1,13 +1,13 @@
-"""連携の開始 ——**既にログインしている利用者**の IdP 往復を始める（ADR-0077 §5）。
+"""Starting a link — begin the IdP round trip for **an already signed-in user** (ADR-0077 §5).
 
-ログインの往復との違いは往復状態だけで、IdP へ送る認可要求は同じものになる
-（戻り先の URI も 1 つしか登録しない）。往復状態には
+The only difference from a login round trip is the round-trip state; the authorization request
+sent to the IdP is the same (only one redirect URI is registered). The round-trip state holds
 
-- ``purpose = LINK`` —— 戻ってきたときにどちらの後始末をするかの目印
-- ``user_id`` —— **始めた本人**
+- ``purpose = LINK`` — marker of which follow-up to run on return
+- ``user_id`` — **the person who started it**
 
-を入れる。⚠ **``user_id`` を入れるのがこの往復の要である。** これが無いと、
-往復の途中で入れ替わったブラウザが、戻ってきたときに**別人の口座へ**結び付ける。
+⚠ **Putting ``user_id`` in is the crux of this round trip.** Without it, a browser whose
+user switched mid-round-trip would bind **to someone else's account** on return.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from bounded_contexts.identity_federation.domain.value_objects.transaction_purpo
 class StartSsoLink:
     provider: IdentityProvider | None
     gateway: OidcProviderGateway
-    #: 認可要求に載せる ``acr_values``（空 = 要求しない）。ADR-0076 §3 決定 1。
+    #: ``acr_values`` to put in the authorization request (empty = none required). ADR-0076 §3 decision 1.
     acr_values: tuple[str, ...] = ()
 
     def execute(self, *, user_id: int) -> SsoAuthorizationDto:

@@ -5,10 +5,11 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PushSubscription:
-    """端末（ブラウザ）1 つの Web Push の購読。
+    """Web Push subscription of one device (browser).
 
-    ``endpoint`` は通知サービスが端末ごとに発行する URL で、これが端末の識別になる。
-    ``p256dh`` / ``auth`` は本文を暗号化する鍵（端末が作り、通知サービスは中身を読めない）。
+    ``endpoint`` is a URL the push service issues per device; it identifies the device.
+    ``p256dh`` / ``auth`` are the keys that encrypt the body (made by the device; the push service
+    cannot read the content).
     """
 
     user_id: int

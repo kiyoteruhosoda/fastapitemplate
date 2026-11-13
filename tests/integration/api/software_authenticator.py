@@ -1,11 +1,11 @@
-"""テスト用のソフトウェア認証器（WebAuthn）。
+"""Software authenticator (WebAuthn) for tests.
 
-実物の認証器が使えないため、ブラウザ＋認証器が返すものと同じ形の
-レスポンスを組み立てて署名する。これで登録・認証の検証パス
-（``PyWebAuthnRelyingParty``）を本物の署名で確認できる。
+Real authenticators are not available, so this builds and signs responses of the same shape a
+browser plus authenticator would return. This lets the registration and authentication
+verification path (``PyWebAuthnRelyingParty``) be checked with real signatures.
 
-出力は WebAuthn の仕様どおりの形（base64url 文字列の JSON）で、
-``frontend/src/services/webauthn.ts`` がブラウザから作るものと同じ。
+The output has the shape defined by the WebAuthn spec (JSON of base64url strings), the same as
+what ``frontend/src/services/webauthn.ts`` builds in the browser.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import cbor2
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-# authenticatorData のフラグ（WebAuthn 仕様）
+# authenticatorData flags (WebAuthn spec)
 _FLAG_USER_PRESENT = 0x01
 _FLAG_USER_VERIFIED = 0x04
 _FLAG_ATTESTED_CREDENTIAL_DATA = 0x40
@@ -65,7 +65,7 @@ def _authenticator_data(*, rp_id: str, flags: int, sign_count: int, attested: by
 
 @dataclass
 class SoftwareAuthenticator:
-    """1 つのパスキーを持つ認証器。"""
+    """An authenticator holding one passkey."""
 
     rp_id: str = "localhost"
     origin: str = "http://localhost:5173"
@@ -75,7 +75,7 @@ class SoftwareAuthenticator:
     _private_key: ec.EllipticCurvePrivateKey = field(default_factory=lambda: ec.generate_private_key(ec.SECP256R1()))
 
     def register(self, challenge: str) -> dict[str, Any]:
-        """``navigator.credentials.create`` が返すものと同じ形を組み立てる。"""
+        """Builds the same shape that ``navigator.credentials.create`` returns."""
         client_data = _client_data(ceremony="webauthn.create", challenge=challenge, origin=self.origin)
         attested = (
             self.aaguid
@@ -89,7 +89,7 @@ class SoftwareAuthenticator:
             sign_count=self.sign_count,
             attested=attested,
         )
-        # fmt="none": 認証器の出自を証明しない（本テンプレートの登録方針と同じ）
+        # fmt="none": no attestation of the authenticator's provenance (same as this template's registration policy)
         attestation_object = cbor2.dumps({"fmt": "none", "attStmt": {}, "authData": auth_data})
         return {
             "id": base64url(self.credential_id),
@@ -103,7 +103,7 @@ class SoftwareAuthenticator:
         }
 
     def authenticate(self, challenge: str) -> dict[str, Any]:
-        """``navigator.credentials.get`` が返すものと同じ形を組み立てる。"""
+        """Builds the same shape that ``navigator.credentials.get`` returns."""
         self.sign_count += 1
         client_data = _client_data(ceremony="webauthn.get", challenge=challenge, origin=self.origin)
         auth_data = _authenticator_data(

@@ -1,25 +1,24 @@
-"""Cookie で認証したリクエストの CSRF 対策（二重送信トークン。ADR-0076 §4）。
+"""CSRF protection for cookie-authenticated requests (double-submit token; ADR-0076 §4).
 
-トークンを httpOnly Cookie に移すと、ブラウザは**こちらが送るつもりの無い
-リクエストにも Cookie を付ける**ようになる。`SameSite=Lax` は別サイトからの
-POST を止めるが、同一サイト扱いになる相手（サブドメインを取られた場合など）は
-止めない。更新系だけ、Cookie とヘッダーの両方に同じ値を求める。
+Once tokens move into httpOnly cookies, the browser **attaches the cookie even to requests we
+never meant to send**. `SameSite=Lax` stops POSTs from other sites but not from parties treated
+as same-site (e.g. a taken-over subdomain). For state-changing requests only, the same value is
+required in both the cookie and a header.
 
-**要求するのは「Cookie で認証している更新系」だけ。**
+**Required only for "state-changing requests authenticated by cookie".**
 
-- 読み取り（GET / HEAD / OPTIONS）は求めない。結果を攻撃者が読めないため。
-- ``Authorization`` ヘッダーで来たリクエストは求めない。**ヘッダーは自動では
-  送られない**ので、そもそも CSRF が成立しない（curl・CI・他アプリのため）。
-- **入口そのもの（ログイン・パスキー・SSO の引き換え・パスワード再設定・ログアウト）は
-  求めない。** これらは既にあるセッションに対して何かをするのではなく、セッションを
-  作る／捨てる操作である。ここで求めると、**別のアカウントでログインし直すだけで
-  403 になる**（前のセッションの Cookie が残っているため）。ログイン CSRF の心配は
-  残るが、パスワードでのログインには資格情報が要り、SSO は往復状態の Cookie で
-  別に塞いでいる（ADR-0077 §1）。ログアウトは Cookie を落とすだけで害が小さい。
+- Not required for reads (GET / HEAD / OPTIONS): the attacker cannot read the result.
+- Not required for requests with an ``Authorization`` header: **headers are not sent
+  automatically**, so CSRF is not possible in the first place (for curl, CI, other apps).
+- **Not required for the entrances themselves (login, passkey, SSO exchange, password reset,
+  logout).** These do not act on an existing session; they create or discard one. Requiring it
+  here would mean **simply logging in again with another account gets 403** (the previous
+  session's cookie is still there). Login CSRF remains a concern, but password login needs
+  credentials, and SSO is closed off separately by the round-trip state cookie (ADR-0077 §1).
+  Logout only drops cookies, so the harm is small.
 
-トークンは JavaScript から読めなければ送れないので、この Cookie だけは
-``httpOnly`` にしない。**アクセストークンとは別物**である ——こちらは漏れても
-それ単体では何もできない。
+The token cannot be sent unless JavaScript can read it, so this cookie alone is not
+``httpOnly``. **It is not the access token**: leaking it achieves nothing on its own.
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ ERROR_CODE = "csrf_token_invalid"
 
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
-#: セッションを作る／捨てる口。既存のセッションに対する操作ではないので対象外。
+#: Endpoints that create or discard a session. Excluded since they don't act on an existing one.
 _ENTRANCES = frozenset(
     {
         "/api/auth/login",
@@ -69,8 +68,8 @@ class CsrfMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         sent = request.headers.get(CSRF_HEADER) or ""
         expected = request.cookies.get(CSRF_COOKIE) or ""
-        # 一致だけでなく**空でないこと**も見る。両方が空のときに通すと、Cookie を
-        # 落とした相手が素通りする。
+        # Check **non-empty** as well as equal. Passing when both are empty would let through
+        # anyone who dropped the cookie.
         if not expected or not compare_digest(sent, expected):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,

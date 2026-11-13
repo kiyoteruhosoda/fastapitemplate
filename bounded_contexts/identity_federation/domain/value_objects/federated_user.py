@@ -1,11 +1,11 @@
-"""IdP が名乗った利用者（クレームを対応付けた結果）。
+"""A user as claimed by the IdP (result of mapping the claims).
 
-``subject`` は IdP の中で不変の識別子で、アカウントの結び付けはこれで行う。
-メールアドレスは変わり得るため、結び付けの**鍵にはしない**（初回に既存の
-ローカルアカウントを見つける手掛かりとしてだけ使う。ADR-0077 §1）。
+``subject`` is the IdP's immutable identifier, and accounts are bound by it.
+Email can change, so it is **not a binding key** (used only as a clue to find an existing
+local account the first time. ADR-0077 §1).
 
-⚠ **鍵ではない以上、無くても成立する**（ADR-0077 §6）。IdP によっては出てこない
-——**そのときに弾いていたのは、鍵にしていた名残である。**
+⚠ **Not being a key, it may be absent** (ADR-0077 §6). Some IdPs don't provide it
+— **rejecting in that case was a leftover from when it was a key.**
 """
 
 from __future__ import annotations
@@ -16,9 +16,9 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class FederatedUser:
     subject: str
-    #: ⚠ **任意である**（ADR-0077 §6）。結び付けの鍵は ``subject`` なので、既に
-    #: 結び付いている相手はメールアドレスが無くても入れる。無いと困るのは
-    #: **初回にメールで寄せるとき**と**利用者を作るとき**だけである。
+    #: ⚠ **Optional** (ADR-0077 §6). The binding key is ``subject``, so already bound
+    #: parties can sign in without an email. It is only needed
+    #: **when merging by email the first time** and **when creating a user**.
     email: str | None
     username: str
     email_verified: bool = False

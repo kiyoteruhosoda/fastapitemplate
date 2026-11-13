@@ -1,4 +1,4 @@
-/** テーマの初期選択・OS 追従・切り替えの反映。 */
+/** Initial theme selection, following the OS, and applying a switch. */
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,8 +11,8 @@ function settingsOf(overrides: Partial<UiSettings> = {}): UiSettings {
 }
 
 /**
- * `matchMedia` を差し替え、OS 側の切り替えを発火できるようにする。
- * jsdom の実装は `change` を通知しないため、購読の検証には差し替えが必要。
+ * Replace `matchMedia` so an OS-side change can be fired.
+ * jsdom's implementation never emits `change`, so testing the subscription needs a stub.
  */
 function stubMatchMedia(matches: boolean) {
   const listeners = new Set<(event: MediaQueryListEvent) => void>()
@@ -40,7 +40,7 @@ function stubMatchMedia(matches: boolean) {
   }
 }
 
-/** 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）。 */
+/** A browser that cannot read or write storage (e.g. Chrome with site data blocked). */
 function blockStorage(): () => void {
   const denied = () => {
     throw new DOMException('denied', 'SecurityError')
@@ -86,7 +86,7 @@ describe('ThemeProvider', () => {
     document.documentElement.removeAttribute('data-theme')
   })
 
-  it('利用者の選択（localStorage）を最優先する', () => {
+  it('prefers the choice the user saved (localStorage) above all', () => {
     stubMatchMedia(false)
     localStorage.setItem('theme', 'dark')
     renderWith(settingsOf({ default_theme: 'light' }))
@@ -94,26 +94,26 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('resolved').textContent).toBe('dark')
   })
 
-  it('未選択ならサーバーの既定値を使う', () => {
+  it('uses the server default when nothing is chosen', () => {
     stubMatchMedia(false)
     renderWith(settingsOf({ default_theme: 'light' }))
     expect(screen.getByTestId('theme').textContent).toBe('light')
   })
 
-  it('既定値が不正なら system に落ちる', () => {
+  it('falls back to system when the default is invalid', () => {
     stubMatchMedia(true)
     renderWith(settingsOf({ default_theme: 'solarized' }))
     expect(screen.getByTestId('theme').textContent).toBe('system')
     expect(screen.getByTestId('resolved').textContent).toBe('dark')
   })
 
-  it('system のときは OS の配色を解決結果にする', () => {
+  it('resolves to the OS palette when system is chosen', () => {
     stubMatchMedia(true)
     renderWith(settingsOf({ default_theme: 'system' }))
     expect(screen.getByTestId('resolved').textContent).toBe('dark')
   })
 
-  it('system のまま OS 側が切り替わると追従する', () => {
+  it('follows an OS-side change while on system', () => {
     const media = stubMatchMedia(false)
     renderWith(settingsOf({ default_theme: 'system' }))
     expect(screen.getByTestId('resolved').textContent).toBe('light')
@@ -124,7 +124,7 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('resolved').textContent).toBe('dark')
   })
 
-  it('明示的に選んだテーマは OS の変化に影響されない', () => {
+  it('an explicitly chosen theme is not affected by OS changes', () => {
     const media = stubMatchMedia(false)
     localStorage.setItem('theme', 'light')
     renderWith(settingsOf())
@@ -135,14 +135,14 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('resolved').textContent).toBe('light')
   })
 
-  it('解決結果を <html data-theme> と colorScheme へ反映する', () => {
+  it('applies the resolved theme to <html data-theme> and colorScheme', () => {
     stubMatchMedia(true)
     renderWith(settingsOf({ default_theme: 'system' }))
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(document.documentElement.style.colorScheme).toBe('dark')
   })
 
-  it('選択を localStorage に保存する', () => {
+  it('saves the choice to localStorage', () => {
     stubMatchMedia(false)
     renderWith(settingsOf({ default_theme: 'dark' }))
 
@@ -153,7 +153,7 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('resolved').textContent).toBe('light')
   })
 
-  it('保存領域が使えなくても画面を出し、切り替えもできる', () => {
+  it('renders and can still switch when storage is unavailable', () => {
     stubMatchMedia(false)
     const restore = blockStorage()
     try {
@@ -169,7 +169,7 @@ describe('ThemeProvider', () => {
     }
   })
 
-  it('アンマウント時に OS の購読を解除する', () => {
+  it('unsubscribes from the OS on unmount', () => {
     const media = stubMatchMedia(false)
     const { unmount } = renderWith(settingsOf())
     expect(media.listenerCount()).toBe(1)
@@ -180,7 +180,7 @@ describe('ThemeProvider', () => {
 })
 
 describe('useTheme', () => {
-  it('Provider の外で使うと例外を投げる', () => {
+  it('throws when used outside the Provider', () => {
     stubMatchMedia(false)
     try {
       withSuppressedRenderErrors(() => {

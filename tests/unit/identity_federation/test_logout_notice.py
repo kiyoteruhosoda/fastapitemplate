@@ -1,6 +1,6 @@
-"""停止の通知として成立しているか（ADR-0077 §3）。
+"""Whether it is valid as a logout notice (ADR-0077 §3).
 
-署名の検証は Infrastructure 層の仕事なので、ここで見るのは**中身の形**だけ。
+Signature verification is the Infrastructure layer's job, so only the **shape of the contents** is checked here.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def test_a_notice_carries_the_session_it_names() -> None:
 
 
 def test_without_a_sid_the_whole_subject_is_named() -> None:
-    """``sid`` の無い通知は「この利用者を止めた」。セッションの区別が付かない。"""
+    """A notice without ``sid`` means "this user was stopped"; it cannot tell sessions apart."""
     claims = _claims()
     del claims["sid"]
     assert LogoutNotice.from_claims(claims, issuer=_ISSUER).session.session_id is None
@@ -56,8 +56,8 @@ def test_a_token_without_the_logout_event_is_refused() -> None:
 
 
 def test_an_id_token_is_refused() -> None:
-    """⚠ ``nonce`` があるものは ID トークン。受け付けると、正規に受け取った
-    ID トークンを送り返すだけで他人のセッションを落とせる。"""
+    """⚠ Anything with ``nonce`` is an ID token. Accepting it would let anyone sign out another
+    person's session just by sending back a legitimately received ID token."""
     with pytest.raises(InvalidLogoutTokenError):
         LogoutNotice.from_claims(_claims(nonce="n-1"), issuer=_ISSUER)
 
@@ -71,7 +71,7 @@ def test_a_token_naming_nobody_is_refused() -> None:
 
 
 def test_a_token_without_a_jti_is_refused() -> None:
-    """``jti`` が無いと再送を弾けない（同じ通知が何度でも効いてしまう）。"""
+    """Without ``jti``, resends cannot be rejected (the same notice would work any number of times)."""
     claims = _claims()
     del claims["jti"]
     with pytest.raises(InvalidLogoutTokenError):

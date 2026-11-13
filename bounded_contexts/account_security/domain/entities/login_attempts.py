@@ -1,10 +1,10 @@
-"""宛名ごとの失敗の数え上げ（ADR-0076 §9）。
+"""Counting failures per submitted identifier (ADR-0076 §9).
 
-「窓の中で *N* 回失敗したら *L* のあいだ断る」を、**判定と状態の遷移だけ**で持つ。
-いつが「いま」かは外から渡す。DB もリクエストも知らない。
+Holds "refuse for *L* after *N* failures within the window" as **decisions and state transitions
+only**. What "now" is gets passed in from outside. Knows nothing of the DB or requests.
 
-数える単位は**送られてきた宛名**であって、実在するアカウントではない。
-実在するものだけを数えると、断られるかどうかで存在が分かってしまう。
+The unit counted is **the identifier that was submitted**, not an existing account.
+Counting only existing ones would reveal whether an account exists by whether it gets refused.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
-# 用途。DB ネイティブ ENUM は使わない方針のため、許可値は Python 側で管理する。
+# Purpose. DB-native ENUMs are not used by policy, so allowed values are managed in Python.
 PURPOSE_LOGIN = "login"
 PURPOSE_PASSWORD_RESET = "password_reset"
 ATTEMPT_PURPOSES: tuple[str, ...] = (PURPOSE_LOGIN, PURPOSE_PASSWORD_RESET)
@@ -20,9 +20,9 @@ ATTEMPT_PURPOSES: tuple[str, ...] = (PURPOSE_LOGIN, PURPOSE_PASSWORD_RESET)
 
 @dataclass(frozen=True)
 class ThrottlePolicy:
-    """窓の中で何回まで許し、超えたらどれだけ断るか。
+    """How many failures to allow within the window, and how long to refuse once exceeded.
 
-    ``max_failures`` が 0 なら**数えない**（開発の便宜。本番で 0 にしない）。
+    If ``max_failures`` is 0, **nothing is counted** (a development convenience; never 0 in production).
     """
 
     max_failures: int
@@ -36,10 +36,10 @@ class ThrottlePolicy:
 
 @dataclass(frozen=True)
 class LoginAttempts:
-    """宛名 1 つ分の失敗の控え。
+    """Failure record for one identifier.
 
-    *window_started_at* は数え始めた時刻。窓を過ぎた失敗は数え直す。
-    *locked_until* が入っているあいだは断る。
+    *window_started_at* is when counting started. Failures past the window restart the count.
+    Refuse while *locked_until* is set.
     """
 
     purpose: str
@@ -49,13 +49,13 @@ class LoginAttempts:
     locked_until: datetime | None = None
 
     def retry_after(self, now: datetime) -> timedelta | None:
-        """断っているなら、あとどれだけ待つか。断っていなければ ``None``。"""
+        """If refusing, how much longer to wait. ``None`` if not refusing."""
         if self.locked_until is None or now >= self.locked_until:
             return None
         return self.locked_until - now
 
     def after_failure(self, now: datetime, policy: ThrottlePolicy) -> LoginAttempts:
-        """1 回失敗した。窓の外なら数え直し、上限に達したら断り始める。"""
+        """One more failure. Outside the window the count restarts; at the limit, refusing begins."""
         if self.window_started_at is None or now - self.window_started_at >= policy.window:
             failures, started = 1, now
         else:
@@ -64,11 +64,11 @@ class LoginAttempts:
         return replace(self, failures=failures, window_started_at=started, locked_until=locked_until)
 
     def after_success(self) -> LoginAttempts:
-        """正しく入れた。それまでの失敗は打ち間違いなので忘れる。"""
+        """Entered correctly. Earlier failures were typos, so forget them."""
         return replace(self, failures=0, window_started_at=None, locked_until=None)
 
     def is_stale(self, now: datetime, policy: ThrottlePolicy) -> bool:
-        """もう覚えておく意味が無い（窓も断りも過ぎた）。掃除の対象。"""
+        """No longer worth remembering (both the window and the lockout have passed). Subject to cleanup."""
         if self.locked_until is not None and now < self.locked_until:
             return False
         return self.window_started_at is None or now - self.window_started_at >= policy.window

@@ -1,4 +1,4 @@
-"""notification の ``Depends()`` 用の組み立て（具象はここだけで選ぶ）。"""
+"""Wiring for notification's ``Depends()`` (the only place concrete classes are chosen)."""
 
 from __future__ import annotations
 
@@ -34,22 +34,25 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 
 def get_push_sender() -> PushSender:
-    """設定はリクエストのたびに読む（管理画面で鍵の場所を変えたら次から効く）。"""
+    """Settings are read on every request (changing the key location in the admin console takes effect next time)."""
     return WebPushSender.from_settings()
 
 
 def get_device_push_sender() -> DevicePushSender:
-    """スマホアプリへの送り口（FCM。ADR-0081 §5）。設定はリクエストのたびに読む。"""
+    """Sender to the mobile app (FCM; ADR-0081 §5). Settings are read on every request."""
     return FcmSender.from_settings()
 
 
 def get_notification_repository(db: DbDep) -> SqlNotificationRepository:
-    """本人の手元（配られたもの）だけを扱う。送る・送った記録は :func:`get_sent_notification_repository`。"""
+    """Handles only the user's own inbox (what was delivered).
+
+    For sending and sent records, use :func:`get_sent_notification_repository`.
+    """
     return SqlNotificationRepository(db)
 
 
 def get_sent_notification_repository(db: DbDep, tenant_id: TenantIdDep) -> SqlNotificationRepository:
-    """送り手のテナントで絞ったもの（ADR-0079 §1）。"""
+    """Filtered by the sender's tenant (ADR-0079 §1)."""
     return SqlNotificationRepository(db, tenant_id)
 
 
@@ -84,11 +87,11 @@ PushChannelsDep = Annotated[PushChannels, Depends(get_push_channels)]
 
 
 def deliver_push_after_response(result: SendResultDTO, channels: PushChannels) -> None:
-    """応答を返した後で端末へ送る（``BackgroundTasks`` から呼ぶ）。
+    """Send to devices after the response is returned (called from ``BackgroundTasks``).
 
-    ⚠ **リクエストのセッションは使えない。** FastAPI は ``yield`` の依存（``get_db``）を
-    背景の仕事より先に閉じる。ここで自分のセッションを開いて閉じる。
-    ⚠ 失敗しても誰にも返せない（応答は返した後）ので、記録だけ残す。
+    ⚠ **The request's session cannot be used.** FastAPI closes ``yield`` dependencies (``get_db``)
+    before background tasks run. Open and close our own session here.
+    ⚠ A failure cannot be reported to anyone (the response is already sent), so it is only logged.
     """
     session = get_session_factory()()
     try:
@@ -107,7 +110,7 @@ def deliver_push_after_response(result: SendResultDTO, channels: PushChannels) -
 
 
 class SendAndDeliverPush:
-    """送る（同じトランザクション）→ ``push`` なら応答の後で端末へ届ける、の組。"""
+    """Pair of: send (same transaction) -> if ``push``, deliver to devices after the response."""
 
     def __init__(self, use_case: SendNotification, channels: PushChannels, background: BackgroundTasks) -> None:
         self._use_case = use_case

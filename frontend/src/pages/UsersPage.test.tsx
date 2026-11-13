@@ -1,8 +1,8 @@
 /**
- * ユーザー管理のロール列。
+ * Role columns of user management.
  *
- * 見るのは 2 点。ロール一覧が読めないときでも既存の割り当てを失わないこと
- * （ADR-0078 §2）と、同じ行への続けざまの更新で片方の選択が消えないこと。
+ * Checks two things: existing assignments are not lost even when the role list cannot be read
+ * (ADR-0078 §2), and rapid successive updates on the same row do not drop one of the selections.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +29,7 @@ vi.mock('../services/api', () => ({
 
 const SETTINGS = { languages: ['en'], default_locale: 'en', default_theme: 'light' }
 
-/** `roles` を解決するか拒否するかで、ロール一覧を読める／読めないを切り替える。 */
+/** Switches whether the role list is readable by resolving or rejecting `roles`. */
 function mockApi(catalog: { id: number; name: string }[] | null) {
   apiGet.mockImplementation((path: string) => {
     if (path === '/api/admin/users') return Promise.resolve([USER])
@@ -50,15 +50,16 @@ async function renderPage() {
   })
 }
 
-describe('UsersPage のロール列', () => {
+describe('UsersPage role columns', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiPut.mockResolvedValue({})
   })
 
-  it('入れる手段を並べて出す（認証系が 2 つあることを読み取れるようにする）', async () => {
-    // ⚠ IdP 側の多要素はここに出ない。出せるのはこのアプリが知っている口だけで、
-    //   それがまさに「認証系が 2 つある」ということ（ADR-0076 §7）。
+  it('lists the ways in (so it is visible that there are two authentication systems)', async () => {
+    // Note: IdP-side multi-factor does not show here. Only the entry points this app knows
+    //   about can be shown, and that is exactly what "there are two authentication systems"
+    //   means (ADR-0076 §7).
     apiGet.mockImplementation((path: string) =>
       path === '/api/admin/users'
         ? Promise.resolve([
@@ -79,7 +80,7 @@ describe('UsersPage のロール列', () => {
     expect(screen.getByText('Passkey ×2 / SSO')).toBeInTheDocument()
   })
 
-  it('ロール一覧を読めればその全ロールが列になる', async () => {
+  it('makes every role a column when the role list is readable', async () => {
     mockApi([
       { id: 1, name: 'owner' },
       { id: 2, name: 'manager' },
@@ -90,21 +91,21 @@ describe('UsersPage のロール列', () => {
     expect(screen.getByRole('checkbox', { name: 'multi: manager' })).toBeChecked()
   })
 
-  it('ロール一覧を読めなくても、割り当て済みのロールは消えない', async () => {
+  it('keeps assigned roles even when the role list cannot be read', async () => {
     mockApi(null)
     await renderPage()
 
     expect(screen.getByRole('checkbox', { name: 'multi: manager' })).toBeChecked()
   })
 
-  it('更新中の行は操作を受け付けない（古い値から差分を作らない）', async () => {
+  it('rejects operations on a row being updated (no diff from stale values)', async () => {
     mockApi([
       { id: 1, name: 'owner' },
       { id: 2, name: 'manager' },
     ])
     await renderPage()
 
-    // 1 つ目の更新を保留にしたまま 2 つ目を押しても、後者は送られない。
+    // Pressing a second one while the first update is pending does not send the second.
     const first = { finish: () => undefined }
     apiPut.mockReturnValueOnce(
       new Promise<void>((resolve) => {

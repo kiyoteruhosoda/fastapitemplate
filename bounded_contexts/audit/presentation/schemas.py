@@ -1,15 +1,15 @@
-"""audit コンテキストの API スキーマ（ログ閲覧）。
+"""API schemas of the audit context (log viewing).
 
-検索条件は 1 つの ``〇〇Request`` にまとめてクエリ文字列から受け取る。件数上限は
-Domain の :mod:`~bounded_contexts.audit.domain.value_objects.log_page` を参照し、
-ここに数値を写さない。
+Search criteria are gathered into one ``XxxRequest`` and received from the query string. The
+limits refer to the Domain :mod:`~bounded_contexts.audit.domain.value_objects.log_page`; the
+numbers are not copied here.
 
-**外部入力の正規化はここで行う。** 画面のフォームは未入力の項目も空文字で送ってくる
-ので、空白を落として空文字を「未指定」（``None``）へ丸める。Application 層へは
-バリデーション済みの値だけを渡す（CLAUDE.md「API 設計」）。
+**External input is normalized here.** Screen forms send empty strings even for blank fields, so
+whitespace is stripped and empty strings are turned into "not specified" (``None``). Only
+validated values are passed to the Application layer ("API design" in CLAUDE.md).
 
-検索結果は ``total`` を添えて返す。画面がページ送りの可否と総件数を出せるように
-するため（``entries`` だけでは「次があるか」が分からない）。
+Search results come with ``total``, so the screen can show whether paging is possible and the
+total count (``entries`` alone cannot tell "is there a next page").
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from bounded_contexts.audit.domain.value_objects.log_page import MAX_LIMIT
 
 
 def _blank_to_none(value: object) -> object:
-    """前後の空白を落とし、空文字を「未指定」にする。"""
+    """Strip surrounding whitespace and turn empty strings into "not specified"."""
     if not isinstance(value, str):
         return value
     trimmed = value.strip()
@@ -31,18 +31,18 @@ def _blank_to_none(value: object) -> object:
 
 
 def _upper_or_none(value: object) -> object:
-    """レベル名を大文字へ揃える（``error`` でも拾えるようにする）。"""
+    """Uppercase the level name (so ``error`` matches too)."""
     normalized = _blank_to_none(value)
     return normalized.upper() if isinstance(normalized, str) else normalized
 
 
-# 絞り込みの文字列項目。空欄で送られてきたら条件に使わない。
+# String filter fields. Not used as a condition when sent blank.
 FilterText = Annotated[str | None, BeforeValidator(_blank_to_none)]
 LevelFilter = Annotated[str | None, BeforeValidator(_upper_or_none)]
 
 
 class AuditLogSearchRequest(BaseModel):
-    """監査ログの検索条件（クエリ文字列）。未指定の項目は絞り込みに使わない。"""
+    """Audit log search criteria (query string). Unspecified fields are not used for filtering."""
 
     event_type: FilterText = None
     result: FilterText = None
@@ -71,14 +71,14 @@ class AuditLogEntryResponse(BaseModel):
 
 
 class AuditLogSearchResponse(BaseModel):
-    """条件に一致した総件数と、そのうち 1 ページ分。"""
+    """Total count matching the criteria, and one page of it."""
 
     total: int
     entries: list[AuditLogEntryResponse]
 
 
 class AuditLogFilterOptionsResponse(BaseModel):
-    """絞り込みの選択肢（列挙をフロントエンドへ写さないための一覧）。"""
+    """Filter choices (a list so the enums need not be copied to the frontend)."""
 
     event_types: list[str]
     results: list[str]
@@ -86,7 +86,7 @@ class AuditLogFilterOptionsResponse(BaseModel):
 
 
 class LogSearchRequest(BaseModel):
-    """アプリログの検索条件（クエリ文字列）。"""
+    """Application log search criteria (query string)."""
 
     level: LevelFilter = None
     logger: FilterText = Field(default=None, description="ロガー名の前方一致")

@@ -1,9 +1,9 @@
-"""SSO から見たこのアプリの利用者。
+"""A user of this app as seen from SSO.
 
-``shared`` の ``User`` モデルそのものではなく、ID 連携が必要とする項目だけを
-持つ。Domain 層が SQLAlchemy のモデルに触れないようにするための境界で、実体との
-やり取りは ``domain/repositories/federated_user_directory.py`` の
-:class:`FederatedUserDirectory` が行う。
+Not the ``shared`` ``User`` model itself; it holds only the fields identity federation needs.
+A boundary to keep Domain from touching SQLAlchemy models; exchanges with the real entity
+go through :class:`FederatedUserDirectory` in
+``domain/repositories/federated_user_directory.py``.
 """
 
 from __future__ import annotations
@@ -17,13 +17,13 @@ class FederatedAccount:
     email: str
     is_active: bool
     roles: tuple[str, ...] = ()
-    #: 指名されたまま、まだ誰も入っていない席（パスワードも IdP との結び付きもパスキーも無い。ADR-0079 §5）
+    #: A designated seat nobody has entered yet (no password, IdP binding or passkey. ADR-0079 §5)
     awaiting_owner: bool = False
 
 
 @dataclass(frozen=True)
 class NewFederatedAccount:
-    """これから作る利用者（初回ログインの自動プロビジョニング）。"""
+    """A user about to be created (automatic provisioning on first login)."""
 
     email: str
     username: str

@@ -1,11 +1,13 @@
-"""テナントの外の人（運用者・サポート担当）の付け外し（要 ``system:manage``。ADR-0079 §1・§5・ADR-0084 §4）。
+"""Adding and removing people outside tenants (operators, support staff) (requires
+``system:manage``; ADR-0079 §1, §5, ADR-0084 §4).
 
-テナントの外の人はテナントに属さない利用者で、ロールは ``SYSTEM_ROLES`` のどれか 1 つ
-（運用者は ``system-admin``、サポート担当は ``system-support``）。足すときは
-テナント管理者の指名と同じく、席を作って招待する（パスワードは本人が決める）。
+People outside tenants are users that belong to no tenant, with exactly one role from
+``SYSTEM_ROLES`` (``system-admin`` for operators, ``system-support`` for support staff). Adding
+one works like appointing a tenant administrator: create a seat and invite (the person sets
+their own password).
 
-- 自分は外せない（締め出しを防ぐ）
-- 有効な運用者を 0 人にする変更は通さない（テナントを管理できる人が居なくなる）
+- You cannot remove yourself (prevents lockout)
+- A change that leaves zero active operators is rejected (nobody could manage tenants)
 """
 
 from __future__ import annotations

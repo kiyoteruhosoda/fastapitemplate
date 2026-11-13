@@ -1,11 +1,11 @@
-"""保持期間を過ぎたログを削除するユースケース。
+"""Use case that deletes logs past their retention period.
 
-定期実行（常駐スレッド）から呼ばれる。設定が「削除しない」（既定）なら DB を
-一切触らない（ADR-0075 §3）。
+Called from periodic execution (a resident thread). If the setting is "never delete" (the
+default), the DB is not touched at all (ADR-0075 §3).
 
-削除した行数はアプリログへ残す。運用者が「掃除が効いているか」「一度にどれだけ
-消えているか」を管理画面から確かめられるようにするため。何も消さなかった回は
-書かない（定期実行のたびに同じ行が積み上がるのを避ける）。
+The number of deleted rows is written to the application log, so operators can check on the admin
+screen "is the cleanup working" and "how much is deleted at a time". Rounds that delete nothing
+write nothing (avoids piling up the same line on every run).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class PurgeOutcome:
-    """1 回の掃除で消えた行数。"""
+    """Number of rows deleted by one cleanup."""
 
     application_logs: int = 0
     audit_logs: int = 0
@@ -50,7 +50,7 @@ class PurgeExpiredLogs:
         )
         if outcome.total:
             logger.info(
-                "保持期間を過ぎたログを削除しました",
+                "Deleted logs past their retention period",
                 extra={
                     "event": "log.retention.purged",
                     "deleted_application_logs": outcome.application_logs,

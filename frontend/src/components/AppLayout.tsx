@@ -1,15 +1,15 @@
 /**
- * サインイン後の画面の外枠（ヘッダー・ナビゲーション・本文・フッター）。
+ * Outer frame of the signed-in screens (header, navigation, main content, footer).
  *
- * 狭い画面ではサイドバーを開閉式のドロワーにする。開閉状態はここが持ち、
- * ヘッダーのメニューボタン・オーバーレイ・ナビゲーションのリンクから閉じられる。
- * 画面幅の判定は CSS のメディアクエリ側（`index.css`）に任せ、ここでは
- * `data-open` 属性だけを切り替える（広い画面ではサイドバーは常に見えている）。
+ * On narrow screens the sidebar becomes a drawer. Its open state lives here, and it can be
+ * closed from the header menu button, the overlay and the navigation links. Screen width
+ * handling is left to the CSS media queries (`index.css`); this only toggles the `data-open`
+ * attribute (on wide screens the sidebar is always visible).
  *
- * 開いているあいだヘッダーと本文はオーバーレイの下に隠れる。キーボードだけが
- * そこへ到達できると「見えない要素を操作している」状態になるため、開いたら
- * フォーカスをドロワーへ移し、Tab をドロワー内に閉じ込め、閉じたらメニュー
- * ボタンへ戻す（ADR-0080 §2）。
+ * While open, the header and content are hidden under the overlay. If only the keyboard could
+ * still reach them, the user would be "operating invisible elements", so on open focus moves
+ * into the drawer and Tab is trapped there, and on close focus returns to the menu button
+ * (ADR-0080 §2).
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -27,7 +27,7 @@ function focusableIn(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
 }
 
-/** Tab / Shift+Tab の移動先を *container* の中に折り返す。 */
+/** Wraps Tab / Shift+Tab focus movement within *container*. */
 function keepFocusInside(container: HTMLElement, event: KeyboardEvent): void {
   const items = focusableIn(container)
   const first = items.at(0)
@@ -49,7 +49,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const toggleRef = useRef<HTMLButtonElement>(null)
   const navRef = useRef<HTMLElement>(null)
-  // 「閉じた」ときだけフォーカスを戻すための記録（初期描画では動かさない）。
+  // Record used to return focus only on "closed" (does nothing on the initial render).
   const wasOpen = useRef(false)
 
   const closeNav = useCallback(() => {
@@ -60,19 +60,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
     setNavOpen((open) => !open)
   }, [])
 
-  // 画面が切り替わったらドロワーを閉じる（ページ内のボタンによる遷移も含む）。
+  // Close the drawer when the page changes (including navigation by in-page buttons).
   useEffect(() => {
     setNavOpen(false)
   }, [pathname])
 
-  // 開いているあいだ: 先頭の操作へフォーカスを移し、Esc で閉じ、Tab を閉じ込める。
+  // While open: move focus to the first control, close on Esc, trap Tab.
   useEffect(() => {
     const nav = navRef.current
     if (!navOpen || nav === null) return
 
-    // ドロワーは閉じているあいだ `visibility: hidden`（= フォーカス不可）なので、
-    // 開いた状態が描画される次のフレームまで待ってからフォーカスを移す。
-    // このフレームを待たずに focus() を呼ぶとブラウザに無視される。
+    // The drawer is `visibility: hidden` (= not focusable) while closed, so wait for the
+    // next frame where the open state is rendered before moving focus.
+    // Calling focus() without waiting for that frame is ignored by the browser.
     const frame = requestAnimationFrame(() => {
       focusableIn(nav).at(0)?.focus()
     })
@@ -88,8 +88,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   }, [navOpen])
 
-  // 閉じたらメニューボタンへフォーカスを戻す（ドロワーは非表示になり、
-  // フォーカスの置き場所が無くなるため）。
+  // On close, return focus to the menu button (the drawer becomes hidden and focus
+  // would have nowhere to be).
   useEffect(() => {
     if (navOpen) {
       wasOpen.current = true
@@ -102,14 +102,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }, [navOpen])
 
   return (
-    // お知らせ（ベルと画面上部）は同じ一覧を見るので、外枠で 1 回だけ取る（ADR-0081 §3）。
+    // Announcements (bell and top banner) use the same list, so fetch it once in the frame (ADR-0081 §3).
     <InboxProvider>
       <div className="layout">
         <Header navOpen={navOpen} onToggleNav={toggleNav} toggleRef={toggleRef} />
         <div className="layout-body">
           <Sidebar open={navOpen} onClose={closeNav} navRef={navRef} />
-          {/* ドロワーの外側をタップして閉じるための覆い。読み上げ・キーボードからは
-            ドロワー内の閉じるボタンと Esc で閉じられるため、支援技術には出さない。 */}
+          {/* Overlay for tapping outside the drawer to close it. Screen reader and keyboard
+            users can close it with the close button in the drawer and Esc, so it is hidden
+            from assistive technology. */}
           {navOpen && (
             <div
               className="nav-overlay"

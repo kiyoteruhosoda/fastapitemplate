@@ -1,8 +1,8 @@
-"""ログイン検証の ``Depends()`` 用依存関数。
+"""``Depends()`` dependency for login verification.
 
-DB セッション・第二要素の検証・監査記録を組み立てて
-:class:`~presentation.fastapi.services.login_service.LoginService` に注入する。
-ルーターはこれを 1 つ受け取るだけで済み、認証の材料を個別に知らなくてよい。
+Assembles the DB session, second-factor verification and audit recording and injects them into
+:class:`~presentation.fastapi.services.login_service.LoginService`.
+Routers just take this one dependency and need not know the individual auth pieces.
 """
 
 from __future__ import annotations

@@ -1,10 +1,10 @@
-"""お知らせを送る（ADR-0081 §3）。
+"""Send a notification (ADR-0081 §3).
 
-1. 中身を検証してお知らせを作る
-2. 宛先を**いまの顔ぶれ**へ展開し、1 人ずつに配る（同じトランザクション）
-3. ``push`` を選んでいれば、端末へ送るのは呼び出し側が**応答の後で**行う
-   （:class:`DeliverPushNotification`）。通知サービスへの往復は相手の数だけかかり、
-   管理画面を待たせる理由が無い
+1. Validate the content and create the notification
+2. Expand the audience to **the current members** and deliver to each (same transaction)
+3. If ``push`` was chosen, the caller sends to devices **after the response**
+   (:class:`DeliverPushNotification`). Round trips to the push service scale with the number of
+   recipients; there's no reason to make the admin console wait
 """
 
 from __future__ import annotations
@@ -66,7 +66,8 @@ class SendNotification:
     def execute(self, command: SendNotificationCommand, now: datetime) -> SendResultDTO:
         channels = _channels(command.channels)
         if NotificationChannel.PUSH in channels and not self._push.enabled:
-            # 選べてしまうと「送った」のに誰にも届かない。画面は選ばせないが、API も断る。
+            # If it could be chosen, it would be "sent" yet reach no one.
+            # The UI doesn't offer it, but the API refuses too.
             raise NotificationValidationError("push_not_configured")
         notification = Notification(
             id=None,

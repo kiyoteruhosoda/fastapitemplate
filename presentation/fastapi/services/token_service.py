@@ -1,14 +1,15 @@
-"""JWT の発行・検証（access / refresh の2トークン。SSO で入ったログインは access だけ。ADR-0104）。
+"""JWT issuance and verification (two tokens, access / refresh; SSO logins get access only;
+ADR-0104).
 
-- scope クレームはユーザーの保有権限の範囲内。未指定・空 = 権限なし。
-- ``active_role`` クレームは「いまどのロールで操作しているか」（ADR-0078 §1）。
-  ``None`` は「すべてのロール」＝保有権限の和集合。指定されている場合、scope は
-  そのロール 1 つ分の権限に絞られる。切り替えは新しいトークンの発行で行う。
-- ``fed_iss`` / ``fed_sub`` / ``sid`` / ``fed_iat`` は、IdP 経由で始まったセッションの
-  宛名と**始まった時刻**（ADR-0077 §3）。**検証のたびに「止められていないか」を照合
-  する**——サーバーにセッションの控えが無いので、届いた停止はここでしか効かせ
-  られない。ローカルのログインで発行したトークンには載らない。
-- 検証結果は ``AuthenticatedPrincipal`` として返す。
+- The scope claim is within the user's held permissions. Missing or empty = no permissions.
+- The ``active_role`` claim is "which role is being used now" (ADR-0078 §1).
+  ``None`` means "all roles" = union of held permissions. If set, scope is narrowed to that one
+  role's permissions. Switching is done by issuing a new token.
+- ``fed_iss`` / ``fed_sub`` / ``sid`` / ``fed_iat`` are the identifiers and **start time** of a
+  session started via the IdP (ADR-0077 §3). **Checked against suspensions on every
+  verification**: the server keeps no session record, so a received termination can only take
+  effect here. Not present on tokens issued for local logins.
+- The verification result is returned as an ``AuthenticatedPrincipal``.
 """
 
 from __future__ import annotations
@@ -47,74 +48,76 @@ _ALGORITHM = "HS256"
 TYPE_ACCESS = "access"
 TYPE_REFRESH = "refresh"
 TYPE_LOGOUT = "logout"
-# アクティブロール名を載せるクレーム名（access / refresh の双方に入れる。
-# refresh に無いと、トークン更新のたびに「すべてのロール」へ戻ってしまう）
+# Claim name carrying the active role name (put in both access and refresh;
+# without it in refresh, every token refresh would revert to "all roles")
 CLAIM_ACTIVE_ROLE = "active_role"
-# IdP 側のセッションの宛名（ADR-0077 §3）。``sid`` だけ OIDC と同じ綴りにする
-# （ID トークンから写した値であることを読み取れるようにするため）。
+# Identifiers of the IdP-side session (ADR-0077 §3). Only ``sid`` uses the OIDC spelling
+# (to make it readable as a value copied from the ID token).
 CLAIM_FEDERATED_ISSUER = "fed_iss"
 CLAIM_FEDERATED_SUBJECT = "fed_sub"
 CLAIM_SESSION_ID = "sid"
-# セッションが始まった時刻（エポックからのマイクロ秒）。``iat`` は秒までしか持たず、
-# 止めた直後の同じ秒に入り直した利用者を巻き添えにするため、別に持つ。
+# Session start time (microseconds since the epoch). ``iat`` only has seconds and would catch
+# a user who signed in again within the same second right after a termination, so it is separate.
 CLAIM_FEDERATED_ISSUED_AT = "fed_iat"
-# 本人が最後に実際にサインインした時刻（エポック秒。OIDC と同じ綴り。ADR-0076 §10）。
-# 更新・ロールの切り替えでは引き継ぎ、新しくしない。
+# Time the user last actually signed in (epoch seconds; OIDC spelling; ADR-0076 §10).
+# Carried over on refresh and role switch, never renewed.
 CLAIM_AUTHENTICATED_AT = "auth_time"
-# 所属するテナント（ADR-0079 §1）。テナントに属さない利用者は null。
-# ⚠ **クレームが無いトークン（テナントより前のもの）は受け付けない。** null と読むと
-# 「どのテナントの中身も見えない」まま寿命まで過ごすことになるので、401 で更新させる
-# （更新は DB を引いて、いまの所属で出し直す）。
+# Tenant the user belongs to (ADR-0079 §1). null for users outside any tenant.
+# ⚠ **Tokens without the claim (pre-tenant ones) are rejected.** Reading it as null would leave
+# the user "unable to see any tenant's data" until expiry, so 401 forces a refresh
+# (the refresh reads the DB and reissues with the current membership).
 CLAIM_TENANT = "tenant"
-#: 機械の口から出したトークンの印（名乗った機械の ``client_id``。ADR-0087）。人のトークンには載らない。
-#: ⚠ これが載ったトークンは、scope で守られた口（``require_permission``）でしか通らない。
+#: Marks a token issued by the machine endpoint (the claimed machine's ``client_id``; ADR-0087).
+#: Not present on human tokens.
+#: ⚠ Tokens carrying it pass only scope-guarded endpoints (``require_permission``).
 CLAIM_MACHINE_CLIENT = "machine_client"
-#: ログインの控え（``refresh_sessions.id``。ADR-0091）。アクセストークンにも載せ、ロールの切り替えで引き継ぐ
+#: The login record (``refresh_sessions.id``; ADR-0091). Also put in access tokens and carried
+#: over on role switch
 CLAIM_REFRESH_SESSION = "rsid"
-# パスキーで入ったログインの印（access / refresh。更新で落とさない）と、二要素の登録待ちの印（access だけ。
-# 更新のたびに決め直す）。ADR-0093
+# Mark for passkey logins (access / refresh; not dropped on refresh) and mark for pending
+# two-factor enrollment (access only; re-decided on every refresh). ADR-0093
 CLAIM_SIGNED_IN_WITH_PASSKEY = "passkey"
 CLAIM_TWO_FACTOR_SETUP = "two_factor_setup"
-#: SSO で入ったログインのアクセストークンの Cookie を残す長さ（ADR-0104）。トークン自体は 5 分で切れる。
-#: 切れた後も Cookie を残すのは、画面を出さずに続ける往復でロールとサインインした時刻を引き継ぐため
-#: （:func:`continuation_of`）。IdP のログイン状態の最も長いもの（30 日）に揃える
+#: How long the access token cookie of an SSO login is kept (ADR-0104). The token itself expires
+#: in 5 minutes. The cookie outlives it so the silent continuation round trip can carry over the
+#: role and sign-in time (:func:`continuation_of`). Matches the longest IdP login state (30 days)
 RENEWAL_CARRY_SECONDS = 30 * 24 * 3600
-#: ``auth_time`` を持たない（この仕組みより前の）トークンの扱い。「ずっと前」とみなす
+#: Treatment of tokens without ``auth_time`` (from before this mechanism): "long ago"
 SIGNED_IN_LONG_AGO = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
 class MachineAccessToken:
-    """機械の口で出したトークン（ADR-0087）。"""
+    """A token issued by the machine endpoint (ADR-0087)."""
 
     token: str
     expires_in: int
-    #: 実際に載った scope（許可簿の操作と利用者の権限の重なり）
+    #: Scopes actually included (overlap of allowlisted operations and the user's permissions)
     scopes: list[str]
 
 
 @dataclass(frozen=True)
 class RefreshedSession:
-    """更新の対象。**入り口（``federated_session``）も一緒に返す**（ADR-0077 §3）。
+    """The refresh target. **The entrance (``federated_session``) is returned too** (ADR-0077 §3).
 
-    落とすと、更新のたびに IdP のセッションの宛名が消え、**トークンを 1 回更新する
-    だけで停止の伝播をすり抜けられる**。
+    Dropping it would lose the IdP session identifiers on every refresh, and **a single token
+    refresh would slip past termination propagation**.
     """
 
     user: User
     active_role: str | None
     federated_login: FederatedLogin | None
-    #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。更新でも引き継ぐ
+    #: Time the user last actually signed in (ADR-0076 §10). Carried over on refresh too
     authenticated_at: datetime = SIGNED_IN_LONG_AGO
     signed_in_with_passkey: bool = False
     refresh_session_id: str = ""
-    #: 出されたトークンの識別子と、控えと比べた結果（ADR-0091）
+    #: Identifier of the presented token and the result of comparing it with the record (ADR-0091)
     jti: str = ""
     standing: RefreshStanding = RefreshStanding.CURRENT
 
     @property
     def carry(self) -> SessionCarryOver:
-        """新しいトークンへ引き継ぐもの（ロール・入り口・サインインした時刻）。"""
+        """What carries over to the new token (role, entrance, sign-in time)."""
         return SessionCarryOver(
             active_role=self.active_role,
             federated_login=self.federated_login,
@@ -128,10 +131,10 @@ class RefreshedSession:
 class TokenService:
     @staticmethod
     def create_access_token(user: User, *, carry: SessionCarryOver) -> str:
-        """アクセストークンだけを発行する（SSO で入ったログイン。ADR-0104）。
+        """Issue only an access token (SSO login; ADR-0104).
 
-        リフレッシュトークンも控え（``rsid``）も作らない。切れたら画面が IdP へ画面を出さずに
-        問い合わせ、IdP のログイン状態が生きていれば入り直す。
+        Neither a refresh token nor a record (``rsid``) is created. On expiry the UI silently asks
+        the IdP and signs in again if the IdP login state is still alive.
         """
         return _access_token(user, carry, _base_claims(user, carry, None, utcnow_aware()))
 
@@ -143,11 +146,11 @@ class TokenService:
         carry: SessionCarryOver = FRESH_SIGN_IN,
         refresh_expires_at: datetime | None = None,
     ) -> dict[str, object]:
-        """access / refresh トークンを発行する（パスワード・パスキーで入ったログイン）。
+        """Issue access / refresh tokens (password or passkey login).
 
-        ``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。
-        二要素の登録待ちのログインには権限を載せない（ADR-0093）。
-        ``refresh_expires_at`` は控えと揃える終わりの時刻（UTC naive。ADR-0101）。
+        Even when ``scopes`` is given, it is trimmed to the intersection with the active role's
+        permissions. Logins pending two-factor enrollment get no permissions (ADR-0093).
+        ``refresh_expires_at`` is the expiry time matched with the record (naive UTC; ADR-0101).
         """
         now = utcnow_aware()
         refresh_session_id = carry.refresh_session_id or refresh_sessions.new_identifier()
@@ -180,15 +183,15 @@ class TokenService:
 
     @classmethod
     def verify_access_token_with_reason(cls, token: str) -> tuple[AuthenticatedPrincipal | None, str | None]:
-        """アクセストークンを**署名とクレームだけ**で検証する（ADR-0076 §5）。
+        """Verify an access token **by signature and claims only** (ADR-0076 §5).
 
-        ⚠ **DB を引かない。** 止まっている利用者・外された権限・IdP からの停止は、
-        ここでは分からない。**分かるのは次の更新のとき**で、それまでの上限が
-        アクセストークンの寿命（既定 5 分）になる。
+        ⚠ **Does not hit the DB.** Suspended users, removed permissions and IdP terminations are
+        not visible here. **They are noticed at the next refresh**, so the access token lifetime
+        (default 5 minutes) is the upper bound until then.
 
-        ⚠ **この緩さを引き受けられるのは、更新の側が引き締めているからである。**
-        :meth:`verify_refresh_token` は DB を引き、止まっていれば新しい
-        アクセストークンを出さない。**止める判定はあちらの 1 点に集約してある。**
+        ⚠ **This looseness is acceptable only because the refresh side is strict.**
+        :meth:`verify_refresh_token` hits the DB and issues no new access token if suspended.
+        **The suspension decision is concentrated in that one place.**
         """
         claims, reason = _decode(token)
         if claims is None:
@@ -218,11 +221,11 @@ class TokenService:
 
     @classmethod
     def verify_refresh_token(cls, token: str, *, session: Session) -> RefreshedSession | None:
-        """更新対象のユーザーと、そのセッションのアクティブロール・入り口を返す。
+        """Return the user to refresh, plus the session's active role and entrance.
 
-        ⚠ **止める判定はここに集約してある**（ADR-0076 §5）。アクセストークンの検証は
-        DB を引かないので、**止まっている利用者を止められるのはこの 1 点だけ**である
-        ——ここを緩めると、寿命による上限そのものが無くなる。
+        ⚠ **The suspension decision is concentrated here** (ADR-0076 §5). Access token
+        verification doesn't hit the DB, so **this is the only place a suspended user can be
+        stopped**; loosening it removes the lifetime bound altogether.
         """
         claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_REFRESH:
@@ -232,7 +235,7 @@ class TokenService:
             return None
         if _session_revoked(claims, session):
             return None
-        # ⚠ 控えを持たないトークン（ADR-0091 より前のもの）は受け付けない。使い回しを見分けられない
+        # ⚠ Tokens without a record (pre-ADR-0091) are rejected: reuse could not be detected
         refresh_session_id, jti = claims.get(CLAIM_REFRESH_SESSION), claims.get("jti")
         if not isinstance(refresh_session_id, str) or not isinstance(jti, str):
             return None
@@ -252,7 +255,8 @@ class TokenService:
 
     @classmethod
     def end_refresh_session(cls, logout_token: str, *, session: Session) -> None:
-        """ログアウトの札からログインの控えを消す（ADR-0091）。読めない札は何もしない。"""
+        """Delete the login record identified by the logout token (ADR-0091). Unreadable tokens do
+        nothing."""
         claims, _ = _decode(logout_token)
         if claims is None or claims.get("type") != TYPE_LOGOUT:
             return
@@ -262,24 +266,24 @@ class TokenService:
 
     @classmethod
     def refresh_session_id_of(cls, token: str) -> str | None:
-        """アクセストークンに載っているログインの控え（ロールの切り替えで引き継ぐ）。"""
+        """The login record carried in the access token (carried over on role switch)."""
         claims, _ = _decode(token)
         value = claims.get(CLAIM_REFRESH_SESSION) if claims is not None else None
         return value if isinstance(value, str) else None
 
     @classmethod
     def signed_in_with_passkey_of(cls, token: str) -> bool:
-        """パスキーで入ったログインのトークンか（ADR-0093）。出し直すときに引き継ぐ。"""
+        """Whether the token is from a passkey login (ADR-0093). Carried over on reissue."""
         claims, _ = _decode(token)
         return claims is not None and claims.get(CLAIM_SIGNED_IN_WITH_PASSKEY) is True
 
     @classmethod
     def session_is_revoked(cls, token: str, *, session: Session) -> bool:
-        """このアクセストークンのセッションが IdP 側で止められているか（ADR-0076 §5）。
+        """Whether this access token's session has been terminated at the IdP (ADR-0076 §5).
 
-        ⚠ **普段の検証では呼ばない。** 呼ぶのは「新しいトークンを出す」経路だけで、
-        そこだけは DB を引いて確かめる ——確かめないと、止められた利用者が
-        出し直しを繰り返すだけで寿命の上限を破れる。
+        ⚠ **Not called in ordinary verification.** Only paths that "issue new tokens" call it,
+        checking the DB there alone; otherwise a suspended user could break the lifetime bound
+        just by reissuing repeatedly.
         """
         claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_ACCESS:
@@ -288,10 +292,10 @@ class TokenService:
 
     @classmethod
     def federated_login_of(cls, token: str) -> FederatedLogin | None:
-        """検証済みのアクセストークンから、IdP 側のセッションを読む。
+        """Read the IdP-side session from a verified access token.
 
-        ロールの切り替えで新しいトークンを出すときに引き継ぐためのもの
-        （引き継がないと、切り替えた瞬間に停止の伝播から外れる）。
+        Used to carry it over when issuing a new token on role switch
+        (without it, the switch would escape termination propagation).
         """
         claims, _ = _decode(token)
         if claims is None or claims.get("type") != TYPE_ACCESS:
@@ -323,18 +327,21 @@ def _load_active_user(claims: dict[str, Any], session: Session) -> User | None:
     user = session.get(User, user_id)
     if user is None or not user.is_active:
         return None
-    # 止めたテナントの人には出し直さない（ADR-0079 §1）。手元の 1 枚は寿命まで
+    # No reissue for members of a suspended tenant (ADR-0079 §1). A token in hand lasts until it
+    # expires
     if not tenant_admits(session, user):
         return None
     return user
 
 
 def continuation_of(token: str) -> ContinuedSessionDto | None:
-    """期限の切れた SSO のアクセストークンから、続ける往復が引き継ぐものを読む（ADR-0104）。
+    """Read what the continuation round trip carries over from an expired SSO access token
+    (ADR-0104).
 
-    ⚠ **これは認証ではない。** 読んだ値は、IdP から**同じ人**が戻ってきたときにだけ使う
-    （ロールとサインインした時刻を引き継ぐため）。署名と発行者・宛先は確かめ、期限は
-    :data:`RENEWAL_CARRY_SECONDS` まで見逃す。SSO で入ったログインのものでなければ読まない。
+    ⚠ **This is not authentication.** The values are used only when **the same person** comes
+    back from the IdP (to carry over the role and sign-in time). Signature, issuer and audience
+    are checked; expiry is tolerated up to :data:`RENEWAL_CARRY_SECONDS`. Tokens not from an SSO
+    login are not read.
     """
     try:
         claims = jwt.decode(
@@ -367,13 +374,14 @@ def _base_claims(
     refresh_session_id: str | None,
     now: datetime,
 ) -> dict[str, object]:
-    """access / refresh に共通のクレーム。``refresh_session_id`` が ``None`` なら控えを載せない（ADR-0104）。"""
+    """Claims common to access / refresh. If ``refresh_session_id`` is ``None``, no record is
+    included (ADR-0104)."""
     claims: dict[str, object] = {
         "sub": str(user.id),
         "iss": settings.access_token_issuer,
         "aud": settings.access_token_audience,
         "iat": now,
-        # ``None`` は「いまサインインした」（パスワード・パスキー・SSO の入口）
+        # ``None`` means "signed in just now" (password, passkey, SSO entrances)
         CLAIM_AUTHENTICATED_AT: int((carry.authenticated_at or now).timestamp()),
         CLAIM_ACTIVE_ROLE: carry.active_role,
         CLAIM_TENANT: user.tenant_id,
@@ -391,12 +399,13 @@ def _access_token(
     base_claims: dict[str, object],
     scopes: list[str] | None = None,
 ) -> str:
-    """``scopes`` を指定した場合もアクティブロールの権限との積集合に切り詰める。二要素の登録待ちには権限を載せない。"""
+    """Even when ``scopes`` is given, trim it to the intersection with the active role's
+    permissions. Logins pending two-factor enrollment get no permissions."""
     granted = user.permission_codes_of(carry.active_role)
     setup_required = needs_two_factor_setup(user, carry)
     effective = [] if setup_required else sorted(granted if scopes is None else granted & set(scopes))
     issued_at = base_claims["iat"]
-    if not isinstance(issued_at, datetime):  # pragma: no cover - _base_claims が必ず datetime を入れる
+    if not isinstance(issued_at, datetime):  # pragma: no cover - _base_claims always sets a datetime
         raise TypeError("iat must be a datetime")
     return jwt.encode(
         {
@@ -404,8 +413,8 @@ def _access_token(
             "type": TYPE_ACCESS,
             "scope": effective,
             "email": user.email,
-            # ⚠ **検証が DB を引かないので、principal の材料はここに全部載せる**
-            #   （ADR-0076 §5）。載せ忘れた項目は、その経路でだけ空になる。
+            # ⚠ **Verification doesn't hit the DB, so everything the principal needs goes here**
+            #   (ADR-0076 §5). A forgotten item would be empty only on that path.
             "username": user.username,
             CLAIM_TWO_FACTOR_SETUP: setup_required,
             "exp": issued_at + timedelta(seconds=settings.access_token_expires_seconds),
@@ -416,7 +425,7 @@ def _access_token(
 
 
 def _logout_token(user: User, refresh_session_id: str, issued_at: datetime, expires_at: datetime) -> str:
-    """ログインを終わらせることしかできない札（ADR-0091）。"""
+    """A token that can do nothing but end the login (ADR-0091)."""
     return jwt.encode(
         {
             "sub": str(user.id),
@@ -433,10 +442,13 @@ def _logout_token(user: User, refresh_session_id: str, issued_at: datetime, expi
 
 
 def create_machine_access_token(user: User, *, client_id: str, operations: frozenset[str]) -> MachineAccessToken:
-    """機械の口のアクセストークン（ADR-0087）。**リフレッシュトークンは出さない**（機械は取り直せばよい）。
+    """Access token for the machine endpoint (ADR-0087). **No refresh token** (machines just request
+    a new one).
 
-    scope は「利用者の全ロールの権限」と「許可簿の操作」の**両方にあるものだけ**。
-    ⚠ ``auth_time`` は「ずっと前」にする（入り直したばかりが要る操作を、機械は通れない。ADR-0076 §10）。
+    Scopes are **only those in both** "the permissions of all the user's roles" and "the
+    allowlisted operations".
+    ⚠ ``auth_time`` is set to "long ago" (machines cannot pass operations requiring a recent
+    sign-in; ADR-0076 §10).
     """
     effective = sorted(user.permission_codes_of(None) & operations)
     now = utcnow_aware()
@@ -463,7 +475,7 @@ def create_machine_access_token(user: User, *, client_id: str, operations: froze
 
 
 def _federation_claims(federated_login: FederatedLogin | None) -> dict[str, object]:
-    """IdP 側のセッションをクレームへ写す。ローカルのログインでは何も載せない。"""
+    """Copy the IdP-side session into claims. Nothing is added for local logins."""
     if federated_login is None:
         return {}
     claims: dict[str, object] = {
@@ -477,7 +489,7 @@ def _federation_claims(federated_login: FederatedLogin | None) -> dict[str, obje
 
 
 def _federated_login_of(claims: dict[str, Any]) -> FederatedLogin | None:
-    """クレームから IdP 側のセッションを読む。載っていなければ ``None``。"""
+    """Read the IdP-side session from claims. ``None`` if absent."""
     issuer = claims.get(CLAIM_FEDERATED_ISSUER)
     subject = claims.get(CLAIM_FEDERATED_SUBJECT)
     started_at = claims.get(CLAIM_FEDERATED_ISSUED_AT)
@@ -495,7 +507,7 @@ def _federated_login_of(claims: dict[str, Any]) -> FederatedLogin | None:
 
 
 def _to_microseconds(moment: datetime) -> int:
-    """naive な UTC をエポックからのマイクロ秒へ（CLAUDE.md「時刻の契約」）。"""
+    """Naive UTC to microseconds since the epoch (CLAUDE.md "time contract")."""
     return int(moment.replace(tzinfo=UTC).timestamp() * 1_000_000)
 
 
@@ -504,11 +516,11 @@ def _from_microseconds(value: int) -> datetime:
 
 
 def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
-    """このトークンのセッションが終わっていないか。
+    """Whether this token's session has ended.
 
-    終わっているのは 4 通り: パスワードを変えるなどして、利用者がそれより前の
-    ログインを終わらせた（ADR-0076 §8）／IdP 側で止められた（ADR-0077 §3）／
-    ログアウトした・使い回しが見つかった（ADR-0091）／控えの期限を過ぎた（ADR-0101）。
+    It has ended in four cases: the user ended earlier logins, e.g. by changing the password
+    (ADR-0076 §8) / it was terminated at the IdP (ADR-0077 §3) / logged out or reuse was detected
+    (ADR-0091) / the record's expiry has passed (ADR-0101).
     """
     if _issued_before_sessions_ended(claims, session) or _refresh_session_ended(claims, session):
         return True
@@ -517,10 +529,11 @@ def _session_revoked(claims: dict[str, Any], session: Session) -> bool:
 
 
 def _refresh_session_ended(claims: dict[str, Any], session: Session) -> bool:
-    """控えが消えたか、期限を過ぎたログインか（ADR-0091・0101）。控えの載っていないトークンはここでは止めない。
+    """Whether the login record is gone or past its expiry (ADR-0091, 0101). Tokens without a record
+    are not stopped here.
 
-    ⚠ **期限もここで見る。** アクセストークンは期限の後も少し生きるので、見ないとロールの切り替えを
-    繰り返すだけで出し直しが続き、延長なしの期限を破れる。
+    ⚠ **Expiry is checked here too.** Access tokens live a little past the record's expiry, so
+    without this, repeated role switches would keep reissuing and break the non-sliding expiry.
     """
     refresh_session_id = claims.get(CLAIM_REFRESH_SESSION)
     if not isinstance(refresh_session_id, str):
@@ -530,11 +543,12 @@ def _refresh_session_ended(claims: dict[str, Any], session: Session) -> bool:
 
 
 def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> bool:
-    """利用者の区切り（``user_session_boundaries``）より前に出したトークンか（ADR-0076 §8）。
+    """Whether the token was issued before the user's boundary (``user_session_boundaries``)
+    (ADR-0076 §8).
 
-    ``iat`` は秒までしか持たないので、区切りも秒に切り捨てて比べる。切り上げると、
-    区切った直後に**同じ秒の中で出し直した自分のトークン**まで断ってしまう。
-    同じ秒の中で出た古いトークンは通るが、それは 1 秒に満たない幅である。
+    ``iat`` only has seconds, so the boundary is truncated to seconds for comparison. Rounding up
+    would also reject **one's own token reissued within the same second** right after the
+    boundary. Old tokens issued within that same second pass, but that window is under 1 second.
     """
     try:
         user = session.get(User, int(claims.get("sub", "")))
@@ -549,10 +563,10 @@ def _issued_before_sessions_ended(claims: dict[str, Any], session: Session) -> b
 
 
 def _authenticated_at_of(claims: dict[str, Any]) -> datetime:
-    """本人が最後に実際にサインインした時刻。無い・読めないものは「ずっと前」（ADR-0076 §10）。
+    """Time the user last actually signed in. Missing or unreadable means "long ago" (ADR-0076 §10).
 
-    ⚠ **無いときに「いま」へ倒さない。** 倒すと、この仕組みより前のトークンが更新 1 回で
-    「入り直したばかり」に化ける。
+    ⚠ **Never default a missing value to "now".** Otherwise a token from before this mechanism
+    would turn into "just signed in again" after a single refresh.
     """
     value = claims.get(CLAIM_AUTHENTICATED_AT)
     if not isinstance(value, int):
@@ -571,9 +585,9 @@ def _machine_client_of(claims: dict[str, Any]) -> str | None:
 
 
 def _active_role_of(claims: dict[str, Any]) -> str | None:
-    """クレームのアクティブロール。無い・文字列でないものは「すべてのロール」扱い。
+    """The active role from the claim. Missing or non-string means "all roles".
 
-    クレームを持たない発行済みトークン（この機能より前のもの）もそのまま使える。
+    Already-issued tokens without the claim (from before this feature) keep working.
     """
     value = claims.get(CLAIM_ACTIVE_ROLE)
     return value if isinstance(value, str) else None

@@ -1,7 +1,8 @@
-"""``DpopProofReplayRepository`` の SQLAlchemy 実装（ADR-0103）。
+"""SQLAlchemy implementation of ``DpopProofReplayRepository`` (ADR-0103).
 
-⚠ **「重複なら挿さない」INSERT 1 回で決める。** 確かめてから挿す 2 段だと、同じ証明が同時に 2 本来たときに
-両方通る。主キー違反の例外で受けると、その要求のトランザクションまで巻き戻ってしまう。
+⚠ **Decide with a single "insert unless duplicate" INSERT.** Check-then-insert in two steps lets both
+through when the same proof arrives twice concurrently. Catching a primary key violation would roll back
+the request's transaction too.
 """
 
 from __future__ import annotations

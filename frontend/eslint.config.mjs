@@ -4,10 +4,10 @@ import sonarjs from 'eslint-plugin-sonarjs'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  // ビルド成果物・依存は解析対象外
+  // Build output and dependencies are not linted
   {
-    // public/ はビルドを通らずそのまま配る素の JavaScript（Service Worker に読ませる
-    // push-sw.js など）。型付きの解析の対象にできない。
+    // public/ is plain JavaScript served as is without the build (e.g. push-sw.js loaded by
+    // the Service Worker). It can't be type-aware linted.
     ignores: [
       'dist/**',
       'coverage/**',
@@ -56,8 +56,8 @@ export default tseslint.config(
 
       'sonarjs/cognitive-complexity': ['error', 15],
 
-      // 数値の文字列化は一意で安全（ID を URL に埋める用途）。
-      // このルールの主眼はオブジェクト・null の混入検出にある。
+      // Stringifying numbers is unambiguous and safe (used to embed IDs in URLs).
+      // The rule is mainly about catching objects or null slipping in.
       '@typescript-eslint/restrict-template-expressions': [
         'error',
         {
@@ -67,9 +67,9 @@ export default tseslint.config(
     },
   },
 
-  // 時刻を文字にするのは services/localTime.ts だけ（ADR-0105）。ほかで書くと時間帯
-  // （`UTC+9`）を付け忘れ、コピーした時刻がどの時計の時刻か分からなくなる。
-  // 試験は期待値を作るために使ってよい。
+  // Only services/localTime.ts formats times as text (ADR-0105). Doing it elsewhere forgets the
+  // offset (`UTC+9`), and copied times no longer say which clock they belong to.
+  // Tests may use these to build expected values.
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/services/localTime.ts', 'src/**/*.test.{ts,tsx}'],
@@ -79,19 +79,19 @@ export default tseslint.config(
         {
           selector: 'CallExpression[callee.property.name=/^toLocale(String|TimeString)$/]',
           message:
-            '時刻は services/localTime.ts の formatWithLocalZone などで文字にする（時間帯を付けるため。ADR-0105）。数値なら Intl.NumberFormat を使う。',
+            'Format times with formatWithLocalZone etc. in services/localTime.ts (to include the offset; ADR-0105). For numbers, use Intl.NumberFormat.',
         },
         {
           selector:
             ':matches(NewExpression, CallExpression)[callee.object.name="Intl"][callee.property.name="DateTimeFormat"]',
           message:
-            '時刻は services/localTime.ts の formatWithLocalZone などで文字にする（時間帯を付けるため。ADR-0105）。',
+            'Format times with formatWithLocalZone etc. in services/localTime.ts (to include the offset; ADR-0105).',
         },
       ],
     },
   },
 
-  // 設定ファイル（Node 側）は型情報付き解析の対象外
+  // Config files (Node side) are excluded from type-aware linting
   {
     files: ['*.config.{ts,mts,mjs}', 'eslint.config.mjs'],
     extends: [tseslint.configs.disableTypeChecked],

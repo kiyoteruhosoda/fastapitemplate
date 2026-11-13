@@ -6,7 +6,7 @@ from bounded_contexts.notes.domain.value_objects.viewer import Viewer
 
 @dataclass(frozen=True)
 class NoteInput:
-    """画面から受け取る題名・本文・共有先（検証済みの素の値）。"""
+    """Title, body and share target received from the UI (validated plain values)."""
 
     title: str
     body: str
@@ -19,10 +19,10 @@ class NoteDTO:
     title: str
     body: str
     shared_group_id: int | None
-    #: 自分のメモか（表示用）
+    #: Whether it is the caller's own note (for display)
     mine: bool
-    #: この人がこの 1 件を書き換え・削除できるか（持ち主か）。**画面は scope と合わせて出し分ける**
-    #: （scope の ``note:write`` だけでは、どのメモかが分からない。ADR-0078 §6）
+    #: Whether this person may modify/delete this note (is the owner). **The UI combines it with the scope**
+    #: (the ``note:write`` scope alone does not say which note; ADR-0078 §6)
     can_change: bool
 
     @classmethod

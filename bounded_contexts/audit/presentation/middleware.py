@@ -1,23 +1,23 @@
-"""監査イベントの書き込みミドルウェア。
+"""Middleware that writes audit events.
 
-リクエスト中に控えたイベントを、**リクエストの処理が完全に終わってから**まとめて書く。
+Writes the events queued during a request together, **after the request has been fully processed**.
 
-この位置で書く理由は 2 つ（ADR-0075 §1）。
+There are two reasons to write at this point (ADR-0075 §1).
 
-1. **失敗したログインを残すため。** リクエストのセッションで書くと、401 の
-   ロールバックで最も記録したいイベントが消える。
-2. **SQLite で書き込みロックと競合しないため。** 処理の途中で別コネクションから
-   書くと、リクエストのセッションが握った書き込みロックと衝突して
-   ``database is locked`` になる（既定の ``sqlite:///app.db`` で必ず起きる）。
+1. **To keep failed sign-ins.** Writing through the request's session would lose the very event
+   we most want to record when the 401 rolls back.
+2. **To avoid write lock contention on SQLite.** Writing from another connection mid-request
+   collides with the write lock held by the request's session and gives
+   ``database is locked`` (it always happens with the default ``sqlite:///app.db``).
 
-**素の ASGI ミドルウェアとして書いている**（``BaseHTTPMiddleware`` を使わない）。
-FastAPI は ``yield`` を使う依存（``get_db`` の commit）をレスポンス送出の**後**に
-閉じるが、``BaseHTTPMiddleware`` の ``call_next`` はレスポンスの先頭を受け取った
-時点で戻ってくる。それでは commit 前に書きに行ってしまい、上記 2 の競合が起きる。
-``await self.app(...)`` は下流を最後まで待つので、セッションが閉じた後になる。
+**It is written as a plain ASGI middleware** (not ``BaseHTTPMiddleware``).
+FastAPI closes dependencies that use ``yield`` (the commit in ``get_db``) **after** sending the
+response, but ``BaseHTTPMiddleware``'s ``call_next`` returns as soon as the start of the response
+arrives. It would then write before the commit, causing the contention in 2 above.
+``await self.app(...)`` waits for the downstream to finish, so it runs after the session is closed.
 
-例外で抜けた場合も書く。控えたイベントはそれぞれが自分の成否（``result``）を
-持っており、リクエストが落ちたことと記録の要否は別だから。
+It also writes when exiting with an exception. Each queued event carries its own outcome
+(``result``), and the request failing is a separate matter from whether to record.
 """
 
 from __future__ import annotations

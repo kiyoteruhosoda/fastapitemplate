@@ -1,7 +1,8 @@
-"""テナントの外側の管理（ADR-0079 §1・§5）。
+"""Managing the outside of tenants (ADR-0079 §1, §5).
 
-システム管理者がテナントを登録・停止・削除し、最初のテナント管理者を指名する。指名された人は
-招待のメールで自分のパスワードを決めるか、テナントの IdP で初めて入ったときに席を受け取る。
+The system administrator registers, suspends and deletes tenants and appoints the first tenant
+administrator. The appointee either sets their own password via the invitation email, or takes the
+seat when first signing in through the tenant's IdP.
 """
 
 from __future__ import annotations
@@ -48,7 +49,7 @@ def _create(client: TestClient, headers: dict[str, str], **overrides: Any) -> di
 
 
 def test_only_system_administrators_manage_tenants(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """テナント管理者（owner）はテナントの外側に入れない。"""
+    """The tenant administrator (owner) cannot reach the outside of tenants."""
     assert client.get("/api/system/tenants").status_code == 403
     assert client.post("/api/system/tenants", json=_ACME, headers=admin_headers).status_code == 403
     assert client.get("/api/system/administrators").status_code == 403
@@ -59,7 +60,7 @@ def test_a_tenant_is_registered_with_a_designated_administrator(
 ) -> None:
     created = _create(client, system_admin_headers)
     assert created["tenant"]["slug"] == "acme"
-    # 試験ではメールを止めてあるので送れない（送れたかは画面に出す）
+    # Mail is disabled in tests, so it cannot be sent (whether it was sent is shown on screen)
     assert created["designation"]["invitation_sent"] is False
 
     with Session(engine) as session:
@@ -67,7 +68,7 @@ def test_a_tenant_is_registered_with_a_designated_administrator(
         assert seat is not None
         assert seat.tenant_id == created["tenant"]["id"]
         assert seat.role_names == ("owner",)
-        # ⚠ 指名した人はパスワードを決めない（中身を見ない約束。ADR-0079 §5）
+        # ⚠ The appointer does not set the password (the promise not to look inside; ADR-0079 §5)
         assert seat.password_hash is None
 
     listed = {t["slug"]: t for t in client.get("/api/system/tenants").json()}
@@ -163,7 +164,7 @@ def test_system_administrators_are_added_by_invitation_and_never_all_removed(
     assert removed.status_code == 204
 
 
-# --- 指名された席を IdP で受け取る（ADR-0079 §5） ----------------------------------
+# --- Taking an appointed seat via the IdP (ADR-0079 §5) ----------------------------------
 
 _ISSUER = "https://idp.example.test/acme"
 
@@ -184,7 +185,7 @@ def sso_app(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> Iterator[FastAPI]:
     monkeypatch.setenv("OIDC_ENABLED", "true")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "shhh")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "https://app.example.test/api/auth/sso/callback")
-    # ⚠ 寄せる設定（OIDC_LINK_BY_EMAIL）は既定の「寄せない」のまま。席はそれとは別に受け取れる
+    # ⚠ The merge setting (OIDC_LINK_BY_EMAIL) stays at the default "do not merge". The seat is taken independently
     app.dependency_overrides[dependencies.oidc_gateway] = lambda: _StubGateway("boss@acme.example")
     yield app
     app.dependency_overrides.clear()
@@ -208,7 +209,7 @@ def test_the_designated_seat_is_claimed_at_the_first_sso_sign_in(
 def test_a_seat_someone_already_uses_is_not_taken_over(
     sso_app: FastAPI, client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """入り口を持った利用者は「席」ではない。寄せる設定が無ければ断る（ADR-0077 §4）。"""
+    """A user who has a way in is not a "seat". Refused unless the merge setting is on (ADR-0077 §4)."""
     created = _create(client, system_admin_headers, issuer=_ISSUER, client_id="acme-rp")
     with Session(engine) as session:
         seat = session.get(User, created["designation"]["user_id"])
@@ -222,13 +223,13 @@ def test_a_seat_someone_already_uses_is_not_taken_over(
     assert "sso_error=sso_account_not_linked" in done.headers["location"]
 
 
-# --- 消す・変える・指名し直す -------------------------------------------------
+# --- Delete, change, re-appoint -------------------------------------------------
 
 _BOSS_PASSWORD = "boss-password-1"
 
 
 def _sign_in_as_the_boss(browser: TestClient, engine: sa.Engine, seat_id: int) -> dict[str, str]:
-    """指名された席にパスワードを持たせ、そのテナントの入口から入る（招待の往復は上の試験で見ている）。"""
+    """Gives the appointed seat a password and signs in at that tenant's entrance (invitation is tested above)."""
     with Session(engine) as session:
         seat = session.get(User, seat_id)
         assert seat is not None
@@ -238,7 +239,7 @@ def _sign_in_as_the_boss(browser: TestClient, engine: sa.Engine, seat_id: int) -
 
 
 def _fill_the_tenant(browser: TestClient, headers: dict[str, str]) -> None:
-    """テナントの管理者として、各コンテキストに中身を作る。"""
+    """As the tenant administrator, creates contents in each context."""
     member = browser.post(
         "/api/admin/users",
         json={"email": "kid@acme.example", "username": "kid", "password": "member-password-1", "roles": ["member"]},
@@ -259,7 +260,7 @@ def _fill_the_tenant(browser: TestClient, headers: dict[str, str]) -> None:
 
 
 def _rows_of(session: Session, tenant_id: int) -> dict[str, int]:
-    """``tenant_id`` を持つ表ごとの、そのテナントの行数（0 の表は省く）。"""
+    """Row counts of that tenant per table with ``tenant_id`` (tables with 0 are omitted)."""
     counts = {
         table.name: session.scalar(sa.select(sa.func.count()).select_from(table).where(table.c.tenant_id == tenant_id))
         or 0
@@ -272,7 +273,7 @@ def _rows_of(session: Session, tenant_id: int) -> dict[str, int]:
 def test_deleting_a_tenant_takes_its_people_and_content_but_keeps_the_audit_trail(
     app: FastAPI, client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """消すと戻せないので、消えるもの・残るもの・巻き込まないものを表ごとに確かめる（ADR-0079 §5）。"""
+    """Deletion cannot be undone, so check per table what goes, what stays and what is not dragged in (ADR-0079 §5)."""
     created = _create(client, system_admin_headers)
     acme_id = created["tenant"]["id"]
     with TestClient(app) as boss, TestClient(app) as neighbour:
@@ -289,7 +290,7 @@ def test_deleting_a_tenant_takes_its_people_and_content_but_keeps_the_audit_trai
 
     with Session(engine) as session:
         before = _rows_of(session, acme_id)
-    # 中身が本当に入っていること（入っていなければ、消えたかどうかを見ていない）
+    # The contents really exist (otherwise we would not be checking whether they disappeared)
     assert {"items", "user_groups", "role_tenants", "notifications", "audit_log"} <= before.keys()
 
     suspended = client.put(f"/api/system/tenants/{acme_id}", json={"status": "suspended"}, headers=system_admin_headers)
@@ -297,7 +298,7 @@ def test_deleting_a_tenant_takes_its_people_and_content_but_keeps_the_audit_trai
     assert client.delete(f"/api/system/tenants/{acme_id}", headers=system_admin_headers).status_code == 204
 
     with Session(engine) as session:
-        # 監査ログだけが残る（誰が何をしたかは、テナントを消しても追える。ADR-0075 §1）
+        # Only audit logs remain (who did what stays traceable after the tenant is deleted; ADR-0075 §1)
         assert set(_rows_of(session, acme_id)) == {"audit_log"}
         assert (
             session.scalar(
@@ -308,10 +309,10 @@ def test_deleting_a_tenant_takes_its_people_and_content_but_keeps_the_audit_trai
         emails = set(session.scalars(sa.select(User.email)))
         assert not emails & {"boss@acme.example", "kid@acme.example"}
         assert session.scalar(sa.select(Role).where(Role.name == "acme-reader")) is None
-        # 隣のテナントは巻き込まない
+        # The neighbouring tenant is not dragged in
         assert master_data.DEFAULT_ADMIN_EMAIL in emails
         assert session.scalar(sa.select(ItemModel).where(ItemModel.name == "neighbour-item")) is not None
-        # 共有のロール（雛形）は消さない
+        # Shared roles (templates) are not deleted
         assert session.scalar(sa.select(Role).where(Role.name == master_data.DEFAULT_ADMIN_ROLE)) is not None
 
 
@@ -329,14 +330,14 @@ def test_a_tenant_can_be_renamed_and_rewired(client: TestClient, system_admin_he
         "https://idp.example.test/acme",
         "acme-rp",
     )
-    # 自分の発行者をそのまま送り直しても、自分とはぶつからない
+    # Resending our own issuer as is does not clash with ourselves
     again = client.put(
         f"/api/system/tenants/{tenant_id}",
         json={"issuer": "https://idp.example.test/acme"},
         headers=system_admin_headers,
     )
     assert again.status_code == 200, again.text
-    # 空にすれば SSO を使わないテナントに戻る
+    # Clearing it returns the tenant to not using SSO
     cleared = client.put(
         f"/api/system/tenants/{tenant_id}", json={"issuer": "", "client_id": ""}, headers=system_admin_headers
     ).json()
@@ -373,7 +374,7 @@ def test_an_unknown_tenant_is_not_found(client: TestClient, system_admin_headers
 def test_another_tenant_administrator_can_be_designated(
     client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """管理者が居なくなったときの立て直し。新しい席を作って招待する（今いる人を上げはしない）。"""
+    """Recovering when no administrator is left. Create a new seat and invite (existing people are not promoted)."""
     tenant_id = _create(client, system_admin_headers)["tenant"]["id"]
     second = client.post(
         f"/api/system/tenants/{tenant_id}/administrators",
@@ -389,7 +390,7 @@ def test_another_tenant_administrator_can_be_designated(
     listed = {t["slug"]: t for t in client.get("/api/system/tenants").json()}
     assert listed["acme"]["member_count"] == 2
 
-    # 同じテナントに同じメールアドレスの人は置けない。ほかのテナントなら置ける（一意はテナントの中だけ）
+    # The same email address cannot exist twice in one tenant, but can in another (unique only within a tenant)
     duplicate = client.post(
         f"/api/system/tenants/{tenant_id}/administrators",
         json={"email": "deputy@acme.example", "username": "deputy2"},
@@ -428,7 +429,7 @@ def test_a_system_administrator_email_is_used_once(client: TestClient, system_ad
 def test_only_system_administrators_are_removed_here(
     client: TestClient, system_admin_headers: dict[str, str], engine: sa.Engine
 ) -> None:
-    """この口でテナントの人は消せない（テナントの中の人事はテナント管理者の仕事）。"""
+    """This entrance cannot delete tenant people (personnel inside a tenant is the tenant administrator's job)."""
     with Session(engine) as session:
         tenant_member = session.scalar(sa.select(User.id).where(User.email == master_data.DEFAULT_ADMIN_EMAIL))
     for user_id in (tenant_member, 9999):
@@ -475,7 +476,7 @@ def test_the_tenant_ledger_is_audited(
 
 
 def test_an_issuer_must_be_https_and_outside_the_home(client: TestClient, system_admin_headers: dict[str, str]) -> None:
-    """テナントの発行者は宅内やクラスタの内側へ向けられない（ADR-0090）。"""
+    """A tenant issuer cannot point at the home network or inside the cluster (ADR-0090)."""
     for number, issuer in enumerate(
         ("http://idp.example.test", "https://10.10.2.11/x", "https://db:3306", "https://app", "https://a.svc/x")
     ):

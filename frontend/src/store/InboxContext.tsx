@@ -1,10 +1,10 @@
 /**
- * 本人の手元のお知らせ（ADR-0081 §3）。ベル（ヘッダー）と画面上部の知らせが同じ一覧を
- * 見るので、取得と既読・閉じるをここに集める。
+ * The user's own notification inbox (ADR-0081 §3). The bell (header) and the banner at the top
+ * of the screen read the same list, so fetching, marking read and dismissing live here.
  *
- * 取り直すのは、開いたとき・一定間隔・タブが手前に戻ったとき・端末への通知が
- * 届いたとき（Service Worker からの合図。`public/push-sw.js`）。
- * 取れなかったときは黙って前の一覧のまま（ベルが出ないだけで、画面の操作は止めない）。
+ * It is re-fetched on open, at a fixed interval, when the tab comes back to the foreground, and
+ * when a device notification arrives (a signal from the Service Worker; `public/push-sw.js`).
+ * On failure it silently keeps the previous list (only the bell is missing; the UI keeps working).
  */
 import {
   createContext,
@@ -18,10 +18,10 @@ import {
 
 import { notificationsApi, type Inbox } from '../services/notifications'
 
-/** 取り直す間隔。お知らせは急ぎのものではないので、1 分で十分。 */
+/** Re-fetch interval. Notifications are not urgent, so one minute is enough. */
 export const INBOX_REFRESH_INTERVAL_MS = 60 * 1000
 
-/** Service Worker が「端末への通知が届いた」と画面へ伝える合図の名前。 */
+/** Name of the message the Service Worker sends the page when a device notification arrives. */
 export const PUSH_RECEIVED_MESSAGE = 'notification-received'
 
 interface InboxValue {
@@ -41,7 +41,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     try {
       setInbox(await notificationsApi.inbox())
     } catch {
-      // 取れなくても画面は止めない（次の機会に取り直す）。
+      // A failed fetch does not block the UI (it is retried next time).
     }
   }, [])
 
@@ -56,7 +56,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     const onMessage = (event: MessageEvent) => {
       if ((event.data as { type?: unknown } | null)?.type === PUSH_RECEIVED_MESSAGE) void refresh()
     }
-    // Service Worker は安全な接続（https / localhost）でしか使えない。
+    // Service Workers are only available on secure origins (https / localhost).
     const worker = 'serviceWorker' in navigator ? navigator.serviceWorker : null
     document.addEventListener('visibilitychange', onVisible)
     worker?.addEventListener('message', onMessage)
@@ -97,6 +97,6 @@ export function InboxProvider({ children }: { children: ReactNode }) {
 
 export function useInbox(): InboxValue {
   const value = useContext(InboxContext)
-  if (!value) throw new Error('useInbox は InboxProvider の内側で使う')
+  if (!value) throw new Error('useInbox must be used within InboxProvider')
   return value
 }

@@ -1,13 +1,14 @@
-"""アカウントセキュリティ API（ログイン中の利用者が自分の設定を操作する）。
+"""Account security API (a signed-in user manages their own settings).
 
-対象は「自分自身」のみ。他人のアカウントは扱わないため scope は要求せず、
-認証済みであることだけを条件にする（他人の二要素認証を触る管理操作は
-``/api/admin/users`` 側の責務）。
+The target is "yourself" only. Other people's accounts are not handled, so no scope is required;
+being authenticated is the only condition (admin operations on someone else's two-factor
+authentication belong to ``/api/admin/users``).
 
-二要素認証・パスキーの**有効化と解除**は監査ログへ残す。アカウントを守る手段の
-increase/decrease はセキュリティ事故の調査で最初に見る情報のため。共有鍵・
-資格情報そのものは記録しない（ADR-0075 §1）。登録の開始（チャレンジ発行）や一覧の
-参照は記録しない（状態を変えないため）。
+**Enabling and removing** two-factor authentication and passkeys is recorded in the audit log.
+Increases and decreases in the means protecting an account are the first thing looked at when
+investigating a security incident. Shared keys and credentials themselves are not recorded
+(ADR-0075 §1). Starting enrollment (issuing a challenge) and viewing the list are not recorded
+(they don't change state).
 """
 
 from __future__ import annotations
@@ -60,9 +61,9 @@ from shared.kernel.timestamps import isoformat_utc
 
 router = APIRouter(prefix="/api/account/security", tags=["account-security"])
 
-#: ⚠ **資格情報を作り替える経路の関門**（ADR-0076 §5 決定 6）。二要素認証やパスキーの
-#: 登録・解除は「新しい入り口を作る」操作なので、**いまの状態を確かめてから通す**
-#: ——止められた利用者でも、手元のアクセストークンは寿命まで通るためである。
+#: ⚠ **Gate for routes that rework credentials** (ADR-0076 §5 decision 6). Enrolling/removing
+#: two-factor authentication or passkeys "creates a new way in", so **check the current state before
+#: letting it through** — a suspended user's access token in hand still works until it expires.
 PrincipalDep = Annotated[AuthenticatedPrincipal, Depends(get_settled_principal)]
 
 
@@ -77,7 +78,7 @@ def _to_passkey_response(summary: PasskeySummaryDto) -> PasskeyResponse:
 
 
 # ---------------------------------------------------------------------------
-# 二要素認証（TOTP）
+# Two-factor authentication (TOTP)
 # ---------------------------------------------------------------------------
 
 
@@ -101,7 +102,7 @@ def start_two_factor_enrollment(
     principal: PrincipalDep,
     use_case: Annotated[StartTotpEnrollment, Depends(dependencies.start_totp_enrollment)],
 ) -> TotpEnrollmentResponse:
-    """共有鍵を発行する。この時点ではまだ二要素認証は有効にならない。"""
+    """Issue a shared key. Two-factor authentication is not enabled yet at this point."""
     enrollment = use_case.execute(user_id=principal.user_id, account_name=principal.email)
     return TotpEnrollmentResponse(
         secret=enrollment.secret,
@@ -117,7 +118,7 @@ def confirm_two_factor_enrollment(
     use_case: Annotated[ConfirmTotpEnrollment, Depends(dependencies.confirm_totp_enrollment)],
     audit: AuditRecorderDep,
 ) -> StatusResponse:
-    """認証アプリのコードを検証し、二要素認証を有効にする。"""
+    """Verify the authenticator app's code and enable two-factor authentication."""
     use_case.execute(user_id=principal.user_id, code=body.code)
     audit.execute(
         AuditEventType.TWO_FACTOR_ENABLED,
@@ -134,7 +135,7 @@ def disable_two_factor(
     audit: AuditRecorderDep,
 ) -> StatusResponse:
     if settings.local_two_factor_required:
-        # 外せるとログインのたびに登録し直しになるだけで、守りにならない（ADR-0093）
+        # If it could be removed, it would just mean re-enrolling at every login; no protection (ADR-0093)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "two_factor_required"})
     use_case.execute(user_id=principal.user_id, code=body.code)
     audit.execute(
@@ -145,7 +146,7 @@ def disable_two_factor(
 
 
 # ---------------------------------------------------------------------------
-# パスキー（WebAuthn）
+# Passkeys (WebAuthn)
 # ---------------------------------------------------------------------------
 
 
@@ -160,14 +161,14 @@ def list_registered_passkeys(
 @router.post(
     "/passkeys/registration",
     response_model=PasskeyChallengeResponse,
-    # 入り口を足す操作。入り直したばかりのときだけ（ADR-0076 §10）
+    # Adds a way in. Only right after re-authenticating (ADR-0076 §10)
     dependencies=[Depends(require_local_login), Depends(require_recent_sign_in)],
 )
 def start_passkey_registration(
     principal: PrincipalDep,
     use_case: Annotated[StartPasskeyRegistration, Depends(dependencies.start_passkey_registration)],
 ) -> PasskeyChallengeResponse:
-    """登録用のチャレンジを発行する（``navigator.credentials.create`` 用）。"""
+    """Issue a registration challenge (for ``navigator.credentials.create``)."""
     challenge = use_case.execute(
         user_id=principal.user_id,
         user_name=principal.email,
@@ -204,7 +205,7 @@ def complete_passkey_registration(
 @router.delete(
     "/passkeys/{passkey_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    # 本人のパスキーを消して締め出す操作も、入り直したばかりのときだけ（ADR-0076 §10）
+    # Deleting one's own passkeys can lock one out too, so only right after re-authenticating (ADR-0076 §10)
     dependencies=[Depends(require_recent_sign_in)],
 )
 def delete_registered_passkey(

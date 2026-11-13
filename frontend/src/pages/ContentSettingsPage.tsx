@@ -1,9 +1,10 @@
 /**
- * コンテンツ設定（テナントの中身の決まり。ADR-0084 §3・ADR-0085）。
+ * Content settings (rules for the tenant's content. ADR-0084 §3, ADR-0085).
  *
- * 見るには `content-settings:view`、変えるには `content-settings:write`。見るだけの人（監査者）には
- * 入力欄を止めて保存ボタンを出さない。項目の定義はサーバーが返し、表示の文言だけを辞書が持つ。
- * 「既定に戻す」は値を消し、定義の既定値で動かす。
+ * Viewing needs `content-settings:view`, changing needs `content-settings:write`. For view-only
+ * users (auditors) the inputs are disabled and no save button is shown. The server returns the
+ * item definitions; the dictionary holds only the display text.
+ * "Reset to default" clears the value so the definition's default applies.
  */
 import { useEffect, useState } from 'react'
 
@@ -51,7 +52,8 @@ export function ContentSettingsPage() {
     }
   })
 
-  // 辞書に訳が無ければキーをそのまま出す（項目を足して訳を足すまでのあいだ画面を壊さない）
+  // If the dictionary has no translation, show the key as is (so the page does not break between
+  // adding an item and adding its translation)
   const translateOr = (key: string, fallback: string) => {
     const translated = t(key)
     return translated === key ? fallback : translated

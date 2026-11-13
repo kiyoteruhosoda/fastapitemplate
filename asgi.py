@@ -1,4 +1,4 @@
-"""本番用 ASGI エントリポイント（``uvicorn asgi:app`` / Gunicorn から参照）。"""
+"""Production ASGI entry point (referenced by ``uvicorn asgi:app`` / Gunicorn)."""
 
 from dotenv import load_dotenv
 

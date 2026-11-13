@@ -1,11 +1,11 @@
 /**
- * テーマ切り替え（ライト / ダーク / OS 追従）。
+ * Theme switching (light / dark / follow the OS).
  *
- * 選んだテーマは `<html data-theme>` に載せ、配色は index.css の CSS 変数で
- * 解決する。JavaScript 側は「どの配色を使うか」だけを決め、色そのものは持たない。
+ * The chosen theme goes on `<html data-theme>`, and the colors are resolved by the CSS
+ * variables in index.css. JavaScript only decides which palette to use; it holds no colors.
  *
- * 優先順位は「利用者の選択（localStorage）> サーバーの既定値（DEFAULT_THEME）」。
- * `system` を選んだ場合は OS の設定に追従し、OS 側の切り替えにも即座に反応する。
+ * Precedence: the user's choice (localStorage) > the server default (DEFAULT_THEME).
+ * With `system`, the OS setting is followed, and OS-side changes take effect immediately.
  */
 import {
   createContext,
@@ -20,7 +20,7 @@ import {
 import type { UiSettings } from '../services/uiSettings'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
-/** 実際に適用される配色（`system` を解決した結果）。 */
+/** The palette actually applied (`system` resolved). */
 export type ResolvedTheme = 'light' | 'dark'
 
 export const THEME_PREFERENCES: ThemePreference[] = ['system', 'light', 'dark']
@@ -41,8 +41,9 @@ function isThemePreference(value: unknown): value is ThemePreference {
 }
 
 /**
- * 選んだ見た目の控え。⚠ 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）では
- * `localStorage` に触れるだけで例外になる。控えは使い勝手のためだけなので、無いものとして続ける。
+ * Remembered appearance choice. ⚠ In browsers that cannot read or write storage (e.g. Chrome with
+ * site data blocked), merely touching `localStorage` throws. The memo is only a convenience, so
+ * carry on as if there were none.
  */
 function storedTheme(): string | null {
   try {
@@ -56,7 +57,7 @@ function storeTheme(next: ThemePreference): void {
   try {
     localStorage.setItem(STORAGE_KEY, next)
   } catch {
-    // 控えられなくても、この画面では切り替わる
+    // Even if it cannot be remembered, the switch still applies on this page
   }
 }
 
@@ -82,8 +83,8 @@ export function ThemeProvider({
     prefersDark() ? 'dark' : 'light',
   )
 
-  // OS 側の切り替えに追従する（`system` 以外を選んでいても購読は続ける。
-  // 途中で `system` に戻したときに古い値が残らないようにするため）。
+  // Follow OS-side changes (keep subscribing even when something other than `system` is chosen,
+  // so no stale value remains when switching back to `system` later).
   useEffect(() => {
     const query = window.matchMedia(DARK_QUERY)
     const handle = (event: MediaQueryListEvent) => {
@@ -99,7 +100,7 @@ export function ThemeProvider({
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme
-    // フォームコントロール等のブラウザ既定 UI も配色に合わせる
+    // Make browser-default UI such as form controls match the palette too
     document.documentElement.style.colorScheme = resolvedTheme
   }, [resolvedTheme])
 

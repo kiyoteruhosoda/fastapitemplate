@@ -1,7 +1,7 @@
-"""TOTP の生成・検証インターフェース（実装は Infrastructure 層）。
+"""Interface for generating and verifying TOTP (implemented in Infrastructure).
 
-RFC 6238 の計算そのものはライブラリに任せる。ドメインが知るのは
-「共有鍵を作る」「認証アプリへ渡す URI を組み立てる」「コードを検証する」の 3 つ。
+The RFC 6238 computation itself is left to a library. The domain only knows three things:
+"create a shared key", "build the URI handed to the authenticator app" and "verify a code".
 """
 
 from __future__ import annotations
@@ -11,13 +11,13 @@ from typing import Protocol
 
 class TotpAuthenticator(Protocol):
     def generate_secret(self) -> str:
-        """新しい共有鍵（Base32）を発行する。"""
+        """Issue a new shared key (Base32)."""
 
     def provisioning_uri(self, *, secret: str, account_name: str) -> str:
-        """認証アプリが読み取る ``otpauth://`` URI を組み立てる。"""
+        """Build the ``otpauth://`` URI read by the authenticator app."""
 
     def verify(self, *, secret: str, code: str) -> bool:
-        """ワンタイムコードが正しいか判定する（時刻ずれの許容幅は実装側の設定）。"""
+        """Check whether a one-time code is correct (the clock-skew tolerance is set by the implementation)."""
 
 
 __all__ = ["TotpAuthenticator"]

@@ -1,4 +1,4 @@
-"""アプリログ閲覧の DTO（Application → Presentation）。"""
+"""DTOs for viewing application logs (Application -> Presentation)."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class ApplicationLogPageDto:
 
 @dataclass(frozen=True)
 class ApplicationLogFilterOptionsDto:
-    """絞り込みの選択肢（画面のセレクトボックスを組む材料）。"""
+    """Filter choices (material for building the screen's select boxes)."""
 
     levels: tuple[str, ...] = field(default_factory=tuple)
 

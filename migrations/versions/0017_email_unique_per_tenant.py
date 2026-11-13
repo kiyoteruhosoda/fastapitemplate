@@ -1,14 +1,15 @@
 """email unique per tenant
 
-``users.email`` の一意をアプリ全体からテナントの中へ狭める（ADR-0079 §4）。
+Narrow the uniqueness of ``users.email`` from the whole app to within a tenant (ADR-0079 §4).
 
-assay の別々のテナントに同じ人（同じメールアドレス）が居ることはあり、その人がこのアプリの
-2 つのテナントを使えば、利用者も 2 人になる。全体で一意のままだと、2 つ目のテナントで
-初めて入ったときに作れない。一意は「同じテナントの中」「テナントに属さない人の中」で
-アプリが確かめる（``shared/infrastructure/sign_in_directory.py``）。
+The same person (same email) can exist in different assay tenants, and if they use two tenants of
+this app, there are two users too. With app-wide uniqueness, they could not be created on first
+sign-in to the second tenant. Uniqueness "within the same tenant" and "among people outside the
+tenants" is checked by the app (``shared/infrastructure/sign_in_directory.py``).
 
-DB の一意制約は外し、引くための索引だけを残す。元の一意制約は名前を付けずに作っているので、
-名前は実物から引く（MariaDB は ``email``、SQLite は無名）。
+The DB unique constraint is dropped, keeping only the lookup index. The original unique constraint
+was created without a name, so the name is taken from the actual schema (MariaDB ``email``,
+SQLite unnamed).
 
 Revision ID: email_unique_per_tenant
 Revises: split_system_authority

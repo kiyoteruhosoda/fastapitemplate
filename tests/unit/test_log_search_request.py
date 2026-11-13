@@ -1,9 +1,9 @@
-"""検索条件の正規化（未入力のフォーム項目を「絞り込まない」に丸める）。
+"""Normalising search conditions (blank form fields become "no filter").
 
-画面のフォームは未入力の項目も空文字で送ってくる。空文字をそのまま渡すと
-「空文字に一致する行を探せ」になって 0 件になるため、Presentation の
-``〇〇Request`` で ``None`` へ丸める（Application 層へはバリデーション済みの値
-だけを渡す。CLAUDE.md「API 設計」）。
+The screen form sends unfilled fields as empty strings. Passing an empty string through would
+mean "find rows matching the empty string" and return 0 rows, so the Presentation
+``XxxRequest`` rounds them to ``None`` (only validated values are passed to the Application
+layer; CLAUDE.md "API design").
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_audit_request_treats_blank_values_as_unspecified() -> None:
 
 
 def test_audit_request_keeps_a_zero_actor_id() -> None:
-    """0 は「未指定」ではない（真偽で落とすと取りこぼす）。"""
+    """0 is not "unspecified" (dropping it by truthiness would miss it)."""
     assert AuditLogSearchRequest(actor_user_id=0).actor_user_id == 0
 
 
@@ -40,7 +40,7 @@ def test_log_request_treats_blank_values_as_unspecified() -> None:
 
 
 def test_unspecified_paging_is_left_to_the_domain() -> None:
-    """既定値・上限の判断は ``LogPage`` が持つ（ここでは素通しする）。"""
+    """Defaults and limits are decided by ``LogPage`` (passed through as is here)."""
     request = LogSearchRequest()
 
     assert request.limit is None

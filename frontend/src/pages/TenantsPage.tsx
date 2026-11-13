@@ -1,11 +1,12 @@
 /**
- * テナントの管理（ADR-0079 §1・§5）。一覧は `tenant:view`（運用者とサポート担当）、
- * 登録・変更・指名・停止・削除は `tenant:manage`（運用者だけ。ADR-0084 §3）。
+ * Tenant management (ADR-0079 §1, §5). The list needs `tenant:view` (operators and support);
+ * registering, changing, appointing, suspending and deleting need `tenant:manage` (operators only.
+ * ADR-0084 §3).
  *
- * テナントの登録・連携先の変更・停止・削除と、テナント管理者の指名。⚠ **中身は出さない。**
- * 並べるのは台帳と人数だけ。指名した人には招待のメールが届き、本人がパスワードを決める
- * （システム管理者はパスワードを知らない）。SSO のテナントなら、その人が IdP で初めて
- * 入ったときに席を受け取る。
+ * Registers tenants, changes their IdP, suspends and deletes them, and appoints tenant admins.
+ * Note: **the content is not shown.** Only the ledger and head counts are listed. The appointed
+ * person receives an invitation email and sets their own password (system admins never know the
+ * password). For an SSO tenant, that person receives the seat when they first sign in at the IdP.
  */
 import { useEffect, useState, type SubmitEvent } from 'react'
 
@@ -35,7 +36,7 @@ interface Designation {
   invitation_sent: boolean
 }
 
-/** 開いているダイアログ。 */
+/** The dialog that is open. */
 type Dialog =
   | { kind: 'create' }
   | { kind: 'edit'; tenant: Tenant }
@@ -68,7 +69,7 @@ export function TenantsPage() {
   const { t } = useI18n()
   const { notify } = useToast()
   const { hasScope } = useAuth()
-  // サポート担当は一覧を見るだけ。変える操作のボタンは出さない
+  // Support staff only view the list. No buttons for changing operations
   const canManage = hasScope('tenant:manage')
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [dialog, setDialog] = useState<Dialog | null>(null)
@@ -92,7 +93,7 @@ export function TenantsPage() {
     setDialog(next)
   }
 
-  /** 招待を送れたかを知らせる（送れなければ、受け取り方を案内する）。 */
+  /** Reports whether the invitation was sent (if not, explains how to receive it). */
   const announce = (designation: Designation) => {
     notify(
       'success',

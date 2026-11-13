@@ -1,17 +1,18 @@
 /**
- * 一覧の行ごとに「いま実行中の操作」を持つ（ADR-0080 §5）。
+ * Tracks the "operation in progress" per list row (ADR-0080 §5).
  *
- * 一覧の中の操作は、サーバーの返事で読み直すまで表示が変わらない。どこを押したのかが
- * 分かるよう、行だけでなく操作の種類まで覚える（削除中と更新中では目印を出す場所が
- * 違う）。同じ行への同時操作は受け付けない（結果の取り違えを防ぐ）。
+ * Operations in a list don't change the display until it is reloaded from the server's reply.
+ * To show what was pressed, remember the operation kind as well as the row (deleting and
+ * updating show the indicator in different places). Concurrent operations on the same row are
+ * rejected (prevents mixing up results).
  *
- * 判定は ref で行う。state の更新は次の描画までに反映されないので、`disabled` だけに
- * 任せると、同じフレームで続けて押された 2 つ目を止められない。
+ * The check uses a ref. State updates don't apply until the next render, so relying on
+ * `disabled` alone can't stop a second press in the same frame.
  */
 import { useRef, useState } from 'react'
 
 export function usePendingRows<A extends string>(): {
-  /** その行で実行中の操作（実行していなければ `null`）。 */
+  /** The operation running on that row (`null` when none). */
   pendingActionOf: (rowId: number) => A | null
   runForRow: (rowId: number, action: A, request: () => Promise<void>) => Promise<void>
 } {

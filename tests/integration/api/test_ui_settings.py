@@ -1,4 +1,4 @@
-"""画面の初期設定 API（未認証で読める）。"""
+"""Initial screen settings API (readable without authentication)."""
 
 from __future__ import annotations
 

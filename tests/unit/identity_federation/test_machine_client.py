@@ -1,4 +1,4 @@
-"""機械の口の許可簿と、トークンの主体（ADR-0082 §1 決定 3・ADR-0087）。"""
+"""The machine-entrance allow list and the token subject (ADR-0082 §1 decision 3, ADR-0087)."""
 
 from __future__ import annotations
 

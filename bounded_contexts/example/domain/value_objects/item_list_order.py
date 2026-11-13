@@ -1,4 +1,4 @@
-"""アイテムの一覧の並び順（コンテンツ設定 ``item_list_order`` の値。ADR-0085）。"""
+"""Sort order of the item list (value of the content setting ``item_list_order``; ADR-0085)."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from enum import StrEnum
 
 
 class ItemListOrder(StrEnum):
-    #: 追加した順（古いものが先）
+    #: Order added (oldest first)
     OLDEST = "oldest"
-    #: 新しいものが先
+    #: Newest first
     NEWEST = "newest"
-    #: 名前の順
+    #: By name
     NAME = "name"
 
 

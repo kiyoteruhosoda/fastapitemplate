@@ -1,6 +1,7 @@
-"""全部の応答に守りのヘッダが付く（ADR-0073 §5）。
+"""Every response carries protective headers (ADR-0073 §5).
 
-前段の nginx に頼らず、アプリ自身が付ける。雛形から起こしたアプリには必ず入る。
+The app sets them itself instead of relying on the nginx in front, so every app made from the
+template always has them.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ def _assert_guarded(headers: Mapping[str, str]) -> None:
 
 @pytest.fixture
 def page_client(engine: sa.Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """画面（SPA）も配るアプリ。CI の Backend では dist を焼かないので最小のものを置く。"""
+    """An app that also serves the screen (SPA). The CI backend job does not build dist, so place a minimal one."""
     from presentation.fastapi.app import create_app
 
     (tmp_path / "index.html").write_text("<!doctype html><title>app</title>")
@@ -63,7 +64,7 @@ def test_a_request_refused_by_csrf_carries_the_headers(client: TestClient) -> No
 
 
 def test_the_api_documentation_reads_its_cdn(client: TestClient) -> None:
-    """``/docs`` は外の CDN からスクリプトを読むので、CSP だけ付けない。"""
+    """``/docs`` loads scripts from an external CDN, so only the CSP is left off."""
     response = client.get("/docs")
     assert response.status_code == 200
     assert "content-security-policy" not in response.headers

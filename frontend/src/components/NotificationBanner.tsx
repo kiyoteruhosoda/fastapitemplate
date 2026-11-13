@@ -1,10 +1,10 @@
 /**
- * 画面上部のお知らせ（ADR-0081 §3）。`banner` を含み、まだ閉じていないものの
- * いちばん新しい 1 通を本文の上に出す。
+ * Announcement at the top of the screen (ADR-0081 §3). Shows the newest one that includes
+ * `banner` and has not been dismissed yet, above the main content.
  *
- * 押すと閉じて行き先を開く。「閉じる」は閉じるだけ。どちらも既読になる。
- * トーストにしないのは、数秒で消えると見ていない間に出て消えるため
- * （新しい版の知らせと同じ考え方。ADR-0080 §7）。
+ * Clicking it dismisses it and opens its destination. "Close" only dismisses. Both mark it read.
+ * It is not a toast because a toast vanishes after a few seconds and can appear and disappear
+ * while the user is not looking (same reasoning as the new-version notice, ADR-0080 §7).
  */
 import { useState } from 'react'
 

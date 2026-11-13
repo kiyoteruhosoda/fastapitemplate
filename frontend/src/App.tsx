@@ -33,16 +33,16 @@ function RequireAuth() {
   const { t } = useI18n()
   const location = useLocation()
   if (loading) return <p className="loading">{t('common.loading')}</p>
-  // 届かないだけならログイン画面へ送らない（リリース中など。つながれば自動で戻る）
+  // Don't send to the sign-in screen when merely unreachable (e.g. during a release; it recovers automatically once connected)
   if (!user && unreachable)
     return (
       <p className="loading">
         <span className="spinner" aria-hidden="true" /> {t('common.unreachable')}
       </p>
     )
-  // 開こうとしていた画面を持たせて送る（ADR-0077 §8）。持たせないと、サインインした先は着地になる。
+  // Carry the screen being opened (ADR-0077 §8). Without it, sign-in lands on the landing page.
   if (!user) return <Navigate to={signInPathFor(location)} replace />
-  // 経路は変えない。登録が済めば、開こうとしていた画面がそのまま出る（ADR-0093）
+  // Keep the route. Once registration is done, the screen being opened shows as is (ADR-0093)
   if (user.two_factor_setup_required) return <TwoFactorSetupPage />
   return (
     <AppLayout>
@@ -55,7 +55,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      {/* テナントごとの入口（ADR-0079 §4） */}
+      {/* Per-tenant entrance (ADR-0079 §4) */}
       <Route path="/t/:tenant/login" element={<LoginPage />} />
       <Route path="/t/:tenant/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/login/sso" element={<SsoCallbackPage />} />
@@ -68,9 +68,9 @@ export default function App() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/security" element={<SecurityPage />} />
-        {/* パスワード変更はセキュリティの区画になり、セキュリティはプロフィールの
-            下の画面へ移った（ADR-0080 §4）。旧 URL のブックマークが行き止まりに
-            ならないよう転送する。 */}
+        {/* Password change became a section of Security, and Security moved under the
+            Profile screen (ADR-0080 §4). Redirect so bookmarks of the old URL don't
+            dead-end. */}
         <Route path="/change-password" element={<Navigate to="/profile/security" replace />} />
         <Route path="/security" element={<Navigate to="/profile/security" replace />} />
         <Route path="/admin/users" element={<UsersPage />} />

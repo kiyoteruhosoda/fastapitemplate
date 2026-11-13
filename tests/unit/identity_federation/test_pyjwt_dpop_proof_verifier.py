@@ -1,4 +1,4 @@
-"""DPoP の証明の確かめ（ADR-0103）。assay（idp の ADR-0075）と同じ幅・同じ断り方。"""
+"""Verifying DPoP proofs (ADR-0103). Same tolerance and same refusals as assay (idp ADR-0075)."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def test_a_fresh_proof_yields_the_key_thumbprint() -> None:
 
 
 def test_the_thumbprint_follows_rfc_7638() -> None:
-    # RFC 7638 §3.1 の例と同じ手順（EC の必須欄を辞書順に並べる）。値は assay の試験と同じ。
+    # Same steps as the example in RFC 7638 §3.1 (required EC members in lexical order). Values match assay's tests.
     x = "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU"
     y = "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0"
     assert len(jwk_thumbprint(x, y)) == 43
@@ -94,7 +94,7 @@ def test_iat_must_be_inside_the_window(delta: timedelta, accepted: bool) -> None
 
 def test_a_proof_signed_by_another_key_is_rejected() -> None:
     owner, thief = DeviceKey(), DeviceKey()
-    # ヘッダーには持ち主の公開鍵を書き、盗んだ側の鍵で署名する
+    # Put the owner's public key in the header and sign with the thief's key
     forged = thief.proof("GET", _URI, _TOKEN, iat=_at(timedelta()), header={"typ": "dpop+jwt", "jwk": owner.jwk})
     with pytest.raises(DpopProofRejectedError):
         PyJwtDpopProofVerifier().verify(forged, _requirements())

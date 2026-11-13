@@ -4,14 +4,14 @@ import type { Page } from '@playwright/test'
 
 import { expect, test } from './fixtures'
 
-/** サーバーが配っている Service Worker（webServer がビルドした frontend/dist）。 */
+/** The Service Worker served by the server (frontend/dist built by webServer). */
 const SERVICE_WORKER_FILE = new URL('../dist/sw.js', import.meta.url)
 
 /**
- * Service Worker に制御された画面を開く。
+ * Open a screen controlled by the Service Worker.
  *
- * 初めて開いたタブは、登録した Service Worker にまだ制御されていない。
- * 登録が済むのを待ってから読み込み直す。
+ * A freshly opened tab is not yet controlled by the registered Service Worker.
+ * Wait for registration to finish, then reload.
  */
 async function openControlledPage(page: Page): Promise<void> {
   await page.goto('/login')
@@ -24,7 +24,7 @@ async function openControlledPage(page: Page): Promise<void> {
     .toBe(true)
 }
 
-test('Service Worker の下でも、無い API は SPA の画面にならず 404 のまま', async ({ page }) => {
+test('under the Service Worker, a missing API stays 404 instead of the SPA', async ({ page }) => {
   await openControlledPage(page)
 
   const response = await page.goto('/api/e2e-no-such-endpoint')
@@ -34,21 +34,21 @@ test('Service Worker の下でも、無い API は SPA の画面にならず 404
   expect(await response?.headerValue('content-type')).toContain('application/json')
 })
 
-test('sw.js が変わると新しい版の知らせが出て、押すと入れ替わる', async ({ page }) => {
+test('when sw.js changes, a new-version notice appears and swaps the version', async ({ page }) => {
   await openControlledPage(page)
 
-  // 新しい版を配ったのと同じことを起こす（中身が 1 バイトでも違えば別の版）。
+  // Simulate deploying a new version (a single differing byte makes it a different version).
   const original = readFileSync(SERVICE_WORKER_FILE, 'utf-8')
   writeFileSync(SERVICE_WORKER_FILE, `${original}\n// e2e: ${String(Date.now())}\n`)
   try {
-    // 見張りは 30 分ごと・タブが手前へ戻ったときに確かめに行く。待たずにここで起こす。
+    // The watcher checks every 30 minutes and when the tab returns to the foreground. Trigger it here instead of waiting.
     await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration()
       await registration?.update()
     })
     const notice = page.getByText('新しい版があります。')
     await expect(notice).toBeVisible()
-    // 画面の下ではなく、いちばん上の帯に出る（ADR-0106）。
+    // Shown in the top banner, not at the bottom of the screen (ADR-0106).
     const bar = await notice.locator('xpath=..').boundingBox()
     expect(bar?.y).toBe(0)
 

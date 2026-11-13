@@ -1,4 +1,4 @@
-"""アプリ（assay に直接ログイン）の assay のアクセストークンで、アプリ向けの口を叩く（ADR-0081 §1）。"""
+"""Calling the app entrances with the app's assay access token (the app signs in to assay directly; ADR-0081 §1)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ _ME = f"{_BASE_URL}/api/app/me"
 
 
 class _StubAppTokenGateway:
-    """トークンの文字列そのものを「どのクレームか」の名前として扱う。"""
+    """Treats the token string itself as the name of "which claims" it carries."""
 
     def __init__(self) -> None:
         self.tokens: dict[str, dict[str, Any]] = {}
@@ -33,9 +33,9 @@ class _StubAppTokenGateway:
         self.id_token_calls = 0
 
     def issue(self, name: str, **overrides: Any) -> str:
-        """assay のアクセストークンと同じく JWT の形にする（発行者でテナントを選ぶため。ADR-0079 §4）。
+        """Shaped as a JWT like assay access tokens (the issuer selects the tenant; ADR-0079 §4).
 
-        署名はこの IdP が確かめるので、鍵は何でもよい。
+        This IdP does the signature check, so any key will do.
         """
         claims = {"iss": _ISSUER, "sub": _SUBJECT, "client_id": _APP, "iat": int(time.time()), **overrides}
         token = jwt.encode({"iss": claims["iss"], "name": name}, "stub-idp-key", algorithm="HS256")
@@ -97,7 +97,7 @@ def test_first_visit_from_the_app_creates_the_account_once(
     assert first.status_code == 200, first.text
     assert first.json()["email"] == "alice@example.com"
 
-    # 2 回目からは結び付きで引く（userinfo を引き直さない）
+    # From the second time it is looked up by the link (userinfo is not fetched again)
     assert app_client.get("/api/app/me", headers=_bearer(token)).status_code == 200
     assert gateway.userinfo_calls == 1
 
@@ -183,7 +183,7 @@ def test_assetlinks_is_served_only_when_configured(app_client: TestClient, monke
 
 
 # ---------------------------------------------------------------------------
-# 端末の鍵に結び付けたトークン（DPoP。ADR-0103）
+# Tokens bound to the device key (DPoP; ADR-0103)
 # ---------------------------------------------------------------------------
 
 
@@ -207,7 +207,7 @@ def test_a_bound_token_is_accepted_with_a_proof_of_its_key(
     )
     assert first.status_code == 200, first.text
     assert first.json()["email"] == "alice@example.com"
-    # 初めて来た人のプロフィールは ID トークンから（結び付けたトークンでは userinfo を引けない）
+    # A first-time person's profile comes from the ID token (userinfo cannot be fetched with a bound token)
     assert gateway.userinfo_calls == 0
     assert gateway.id_token_calls == 1
 
@@ -215,20 +215,20 @@ def test_a_bound_token_is_accepted_with_a_proof_of_its_key(
 
 
 def test_a_bound_token_alone_is_useless(app_client: TestClient, gateway: _StubAppTokenGateway) -> None:
-    """トークンだけを別の端末へ写しても使えない（AC1）。"""
+    """Copying only the token to another device does not work (AC1)."""
     device, thief = DeviceKey(), DeviceKey()
     token = gateway.issue("t1", cnf={"jkt": device.thumbprint})
     first = _dpop(token, device.proof("GET", _ME, token), id_token="id-token-of-alice")
     assert app_client.get("/api/app/me", headers=first).status_code == 200
 
-    # Bearer として出す
+    # Presented as Bearer
     assert app_client.get("/api/app/me", headers=_bearer(token)).status_code == 401
-    # DPoP で出しても証明が無い
+    # Presented as DPoP but without a proof
     missing = app_client.get("/api/app/me", headers=_dpop(token, None))
     assert missing.status_code == 401
     assert missing.json()["detail"]["error"] == "invalid_dpop_proof"
     assert missing.headers["WWW-Authenticate"].startswith("DPoP ")
-    # 別の鍵で証明を作る
+    # Proof made with a different key
     stolen = app_client.get("/api/app/me", headers=_dpop(token, thief.proof("GET", _ME, token)))
     assert stolen.status_code == 401
     assert stolen.json()["detail"]["error"] == "invalid_dpop_proof"
@@ -243,7 +243,7 @@ def test_a_proof_is_used_only_once_and_only_for_its_request(
     assert app_client.get("/api/app/me", headers=_dpop(token, proof, id_token="id-token-of-alice")).status_code == 200
 
     assert app_client.get("/api/app/me", headers=_dpop(token, proof)).status_code == 401
-    # 別の口・別のメソッド宛ての証明
+    # Proof for a different entrance or method
     other_path = device.proof("GET", f"{_BASE_URL}/api/notifications", token)
     assert app_client.get("/api/app/me", headers=_dpop(token, other_path)).status_code == 401
     other_method = device.proof("POST", _ME, token)
@@ -256,5 +256,5 @@ def test_an_unbound_token_is_not_taken_with_the_dpop_scheme(
     device = DeviceKey()
     token = gateway.issue("t1")
     assert app_client.get("/api/app/me", headers=_dpop(token, device.proof("GET", _ME, token))).status_code == 401
-    # 今までのアプリ（Bearer）はそのまま（AC3）
+    # Existing apps (Bearer) are unchanged (AC3)
     assert app_client.get("/api/app/me", headers=_bearer(token)).status_code == 200

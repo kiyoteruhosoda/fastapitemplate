@@ -1,16 +1,17 @@
-"""ユーザー管理 API（要 ``user:manage``）。
+"""User management API (requires ``user:manage``).
 
-作成・更新・削除は監査ログ（``audit_log``）へ残す。``reason`` には**変更した項目名**
-だけを入れ、値そのもの（メールアドレス・パスワード）は入れない（ADR-0075 §1）。
+Create, update and delete are recorded in the audit log (``audit_log``). ``reason`` holds only
+the **names of changed fields**, never the values themselves (email address, password)
+(ADR-0075 §1).
 
-一覧は **「この利用者が入れる手段」**（``entrances``）も返す（ADR-0076 §7）。認証系が
-2 つある以上、開いている口の数は並べて見ないと分からない。材料は
-**それぞれのコンテキストに聞く** ——パスワードは ``users`` の列、TOTP と
-パスキーは account_security、IdP との結び付きは identity_federation。
+The list also returns **"the ways this user can sign in"** (``entrances``) (ADR-0076 §7). With
+two authentication systems, the number of open entrances is only visible side by side. The data
+is **asked from each context**: password from the ``users`` column, TOTP and passkeys from
+account_security, IdP links from identity_federation.
 
-ロールの付け外し・停止・削除には、scope とは別に関門を掛ける（ADR-0078 §4）。
-自分が持っていない権限は配れず、自分より強い利用者には触れず、自分自身は
-変えられず、「管理の要」を持つ人を 0 人にはできない。
+Assigning/removing roles, suspending and deleting get a gate in addition to the scope
+(ADR-0078 §4). You cannot hand out permissions you don't hold, touch users stronger than you,
+change yourself, or leave zero people with the "key admin" permissions.
 """
 
 from __future__ import annotations
@@ -72,7 +73,7 @@ DbDep = Annotated[Session, Depends(get_db)]
 
 @dataclass(frozen=True)
 class _Inventory:
-    """棚卸しの材料。全員分をまとめて引き、利用者ごとに引き直さない。"""
+    """Inventory data. Fetched for everyone at once, not again per user."""
 
     factors: dict[int, LocalFactors]
     issuers: dict[int, tuple[str, ...]]
@@ -86,7 +87,7 @@ class _Inventory:
 
     @classmethod
     def none(cls) -> _Inventory:
-        """作った直後の利用者。第二要素も結び付きもまだ無い。"""
+        """A just-created user. No second factor or IdP link yet."""
         return cls(factors={}, issuers={})
 
     def entrances_of(self, user: User) -> SignInEntrancesResponse:
@@ -111,7 +112,7 @@ def _to_response(user: User, inventory: _Inventory) -> UserResponse:
 
 
 def _resolve_roles(admin: Administration, names: list[str]) -> list[Role]:
-    """自分のテナントで使えるロールだけを引く（ADR-0079 §3）。システムのロールは使えない。"""
+    """Fetch only roles usable in your own tenant (ADR-0079 §3). System roles cannot be used."""
     roles = admin.members.roles_named(names)
     missing = set(names) - {r.name for r in roles}
     if missing:
@@ -123,7 +124,7 @@ def _resolve_roles(admin: Administration, names: list[str]) -> list[Role]:
 
 
 def _changed_fields(body: UserUpdateRequest) -> str:
-    """監査ログの ``reason`` に載せる「何を変えたか」。値そのものは載せない。"""
+    """The "what changed" put in the audit log ``reason``. Values themselves are not included."""
     fields = sorted(name for name, value in body.model_dump().items() if value is not None)
     return f"fields={','.join(fields)}" if fields else "fields=none"
 
@@ -136,8 +137,8 @@ def list_users(db: DbDep, members: TenantMembersDep) -> list[UserResponse]:
 
 
 def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest) -> list[Role] | None:
-    """更新の関門（ADR-0078 §4）。通れば、付け替え後のロール（変えないなら ``None``）を返す。"""
-    # 自分より強い利用者のパスワードを書き換えれば、その人の権限を丸ごと取れる。
+    """Gate for updates (ADR-0078 §4). If it passes, return the new roles (``None`` if unchanged)."""
+    # Rewriting the password of a stronger user would take over all of their permissions.
     if user.id != admin.actor.user_id:
         admin.ensure_within_authority(permissions_of(user.roles))
     if body.is_active is False:
@@ -154,7 +155,7 @@ def _authorize_update(admin: Administration, user: User, body: UserUpdateRequest
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 def create_user(body: UserCreateRequest, admin: AdministrationDep, audit: AuditRecorderDep) -> UserResponse:
     db = admin.db
-    # メールアドレスはテナントの中で一意（ADR-0079 §4）
+    # Email addresses are unique within a tenant (ADR-0079 §4)
     if admin.members.user_with_email(body.email) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -199,7 +200,7 @@ def update_user(
         user.roles = new_roles
     if body.password is not None:
         user.password_hash = generate_password_hash(body.password)
-        # 乗っ取られた口座を付け直す場面で、乗っ取った側のログインを残さない（ADR-0076 §8）
+        # When restoring a hijacked account, don't leave the hijacker's logins alive (ADR-0076 §8)
         user.end_sessions()
     admin.ensure_an_administrator_remains()
     audit.execute(
@@ -219,8 +220,8 @@ def delete_user(user_id: int, admin: AdministrationDep, audit: AuditRecorderDep)
     admin.ensure_not_yourself(user)
     admin.ensure_within_authority(permissions_of(user.roles))
     user.roles = []
-    # グループには User 側から辿る関係を張っていないので、所属は明示的に外す
-    # （SQLite は外部キーの CASCADE を既定で効かせない）。
+    # There is no relationship from User to groups, so remove memberships explicitly
+    # (SQLite does not enforce foreign key CASCADE by default).
     db.execute(delete(user_group_members).where(user_group_members.c.user_id == user_id))
     db.delete(user)
     admin.ensure_an_administrator_remains()

@@ -1,15 +1,15 @@
-"""assay の**管理 API** を叩くときに名乗るトークン（ADR-0077 §7）。
+"""Token presented when calling assay's **admin API** (ADR-0077 §7).
 
-``client_credentials`` ＋ ``private_key_jwt`` で取る。ログイン用の登録（``OIDC_CLIENT_ID``）とは別の、
-**このアプリのサービスアカウント**（``MACHINE_CLIENT_ID``）として名乗る。
+Obtained via ``client_credentials`` + ``private_key_jwt``. Separate from the login registration (``OIDC_CLIENT_ID``),
+it identifies as **this app's service account** (``MACHINE_CLIENT_ID``).
 
-- **宛名は ``{issuer}/admin``。** 管理 API のトークンはこの ``aud`` でなければ通らない
-  （idp の ADR-0037）。⚠ **設定にしない** ——発行者から決まる値で、運用者が選ぶものではない。
-- **方式は常に ``private_key_jwt``。** ログインが ``client_secret_basic`` でも、機械は秘密を持たない。
-  鍵はログインと同じ ``OIDC_PRIVATE_KEY_FILE`` / ``OIDC_PRIVATE_KEY_KID`` を使う（ADR-0077 §1）。
+- **The audience is ``{issuer}/admin``.** Admin API tokens only pass with this ``aud``
+  (idp ADR-0037). ⚠ **Not a setting** — it is derived from the issuer, not chosen by operators.
+- **The method is always ``private_key_jwt``.** Even if login uses ``client_secret_basic``, machines hold no secret.
+  The key is the same ``OIDC_PRIVATE_KEY_FILE`` / ``OIDC_PRIVATE_KEY_KID`` as login (ADR-0077 §1).
 
-⚠ **assay 側でこのサービスアカウントをアプリの名乗りとして結び付ける必要がある。** 結び付けるまで、
-管理 API は 403 を返し続ける（トークンそのものは取れる）。
+⚠ **assay must bind this service account as the app's identity.** Until then,
+the admin API keeps returning 403 (the token itself can be obtained).
 """
 
 from __future__ import annotations
@@ -42,29 +42,29 @@ from shared.kernel.settings.settings import settings
 
 logger = logging.getLogger(__name__)
 
-#: 期限のどれだけ手前で取り直すか（秒）。**0 にしない**（送信中に期限が来ると 401 で落ちる）。
+#: How many seconds before expiry to refetch. **Never 0** (expiring mid-request fails with 401).
 _RENEW_MARGIN_SECONDS = 60.0
 
-#: 期限が読めなかったときに仮定する寿命（秒）。⚠ 無期限と読むと二度と取り直さない。
+#: Lifetime (seconds) assumed when the expiry can't be read. ⚠ Reading it as unlimited would never refetch.
 _FALLBACK_LIFETIME_SECONDS = 60.0
 
 _REQUEST_TIMEOUT_SECONDS = 10.0
 
 
 def admin_audience(issuer: str) -> str:
-    """管理 API のトークンに刻む宛名。
+    """Audience stamped on admin API tokens.
 
-    ⚠ **``issuer`` にはテナントが含まれる**（``https://identity.example/<tenant>``）ので、
-    宛名はその後ろに ``/admin`` を足したものになる（idp の ADR-0037）。
+    ⚠ **``issuer`` includes the tenant** (``https://identity.example/<tenant>``), so the
+    audience is that plus ``/admin`` (idp ADR-0037).
     """
     return f"{issuer.rstrip('/')}/admin"
 
 
 class AdminToken(Protocol):
-    """管理 API 向けの 1 本を出すもの。
+    """Something that issues one token for the admin API.
 
-    名簿を引く側が要るのはこの 2 つだけ。**クラスではなくこの形に依存させる**ので、
-    試験は idp を立てずに差し替えられる。
+    These two are all the roster side needs. **Depending on this shape rather than the class**
+    lets tests swap it without running idp.
     """
 
     def token(self) -> str: ...
@@ -73,9 +73,9 @@ class AdminToken(Protocol):
 
 
 class AssayAdminTokenSource:
-    """管理 API 用のトークンを取得し、期限まで使い回す。
+    """Obtain a token for the admin API and reuse it until it expires.
 
-    プロセスで 1 つ持つ。周回のたびに取り直すと、照合 1 回につき idp への往復が 1 つ増える。
+    One per process. Refetching every cycle would add one round trip to idp per reconciliation.
     """
 
     def __init__(self, metadata: OidcMetadataCache | None = None) -> None:
@@ -94,7 +94,7 @@ class AssayAdminTokenSource:
             return self._token
 
     def invalidate(self) -> None:
-        """控えているトークンを捨てる（401 を受けたときに呼ぶ）。"""
+        """Discard the held token (called on receiving 401)."""
         with self._lock:
             self._token = ""
             self._expires_at = 0.0
@@ -130,15 +130,15 @@ class AssayAdminTokenSource:
             "client_id": client_id,
             "client_assertion_type": ASSERTION_TYPE,
             "client_assertion": assertion,
-            # ⚠ 管理 API では宛名が**必須**。省くと権限の載らないトークンになり、
-            #   管理 API 側で弾かれる（idp の ADR-0037）。
+            # ⚠ The audience is **required** for the admin API. Omitting it yields a token without
+            #   permissions, rejected by the admin API (idp ADR-0037).
             "resource": audience,
         }
         try:
             response = httpx.post(
                 endpoint,
                 data=form,
-                # ⚠ 名乗らないと idp の前段の Cloudflare に落とされる。
+                # ⚠ Without identifying itself, Cloudflare in front of idp drops it.
                 headers={"Accept": "application/json", "User-Agent": USER_AGENT},
                 timeout=_REQUEST_TIMEOUT_SECONDS,
             )
@@ -147,7 +147,7 @@ class AssayAdminTokenSource:
                 f"the token endpoint is unreachable: {type(error).__name__}"
             ) from error
         if response.status_code != 200:
-            # ⚠ 本文をそのままログに出さない（トークンが載りうる）。
+            # ⚠ Don't log the body as is (it may contain a token).
             logger.warning("assay_admin_token_failed", extra={"status_code": response.status_code})
             raise IdentityProviderUnavailableError(f"the token endpoint returned {response.status_code}")
         try:

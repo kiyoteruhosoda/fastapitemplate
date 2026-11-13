@@ -1,7 +1,7 @@
-"""FastAPI JWT 認証依存コンポーネント。
+"""FastAPI JWT authentication dependencies.
 
-``Depends()`` ベースで JWT を検証し、検証済みの ``AuthenticatedPrincipal`` を
-ルーターへ渡す。認可は :func:`require_permission`（scope ベース）で宣言する。
+Verifies the JWT via ``Depends()`` and passes the verified ``AuthenticatedPrincipal`` to
+routers. Authorization is declared with :func:`require_permission` (scope based).
 """
 
 from __future__ import annotations
@@ -29,24 +29,25 @@ from shared.kernel.timestamps import utcnow_aware
 
 logger = logging.getLogger(__name__)
 
-# アクセストークンを格納する Cookie 名（ログイン時に auth ルーターが設定する）
+# Name of the cookie holding the access token (set by the auth router at login)
 ACCESS_TOKEN_COOKIE = "access_token"
-# リフレッシュトークンの Cookie。**経路を更新の口だけに絞る**——他のリクエストに
-# 付いて回ると、長命な資格情報が送られる回数がむやみに増える（ADR-0076 §4）。
+# Refresh token cookie. **Its path is limited to the refresh endpoint**: riding along on other
+# requests would needlessly multiply how often a long-lived credential is sent (ADR-0076 §4).
 REFRESH_TOKEN_COOKIE = "refresh_token"
 REFRESH_COOKIE_PATH = "/api/auth/refresh"
-# ログインを終わらせるためだけの札（ADR-0091）。更新の Cookie は経路を絞ってあってログアウトの口へ
-# 届かず、アクセストークンの Cookie は寿命で消える。札ができるのはそのログインを終わらせることだけ。
+# A token used only to end the login (ADR-0091). The refresh cookie's path is limited and doesn't
+# reach the logout endpoint, and the access token cookie expires with its lifetime. This token can
+# do nothing but end that login.
 LOGOUT_TOKEN_COOKIE = "logout_token"
 LOGOUT_COOKIE_PATH = "/api/auth/logout"
 
 
 def set_access_token_cookie(response: Response, token: str, *, max_age: int | None = None) -> None:
-    """アクセストークンを Cookie へ載せる。
+    """Set the access token cookie.
 
-    トークンを発行する経路（パスワード・リフレッシュ・パスキー）が複数あるため、
-    属性の付け方をここ 1 か所に集約する。``max_age`` の既定はトークンの寿命
-    （SSO で入ったログインだけ長く残す。ADR-0104）。
+    Several paths issue tokens (password, refresh, passkey), so the attributes are set in this
+    one place. ``max_age`` defaults to the token lifetime (only SSO logins keep it longer;
+    ADR-0104).
     """
     response.set_cookie(
         ACCESS_TOKEN_COOKIE,
@@ -59,11 +60,11 @@ def set_access_token_cookie(response: Response, token: str, *, max_age: int | No
 
 
 def set_refresh_token_cookie(response: Response, token: str, *, max_age: int) -> None:
-    """リフレッシュトークンを Cookie へ載せる（ADR-0076 §4）。
+    """Set the refresh token cookie (ADR-0076 §4).
 
-    ⚠ **応答本文には載せない。** Cookie は自動で送られるので、本文にも返すと
-    XSS が ``POST /api/auth/refresh`` を叩いて新しいトークンを読めてしまい、
-    ``httpOnly`` が意味を持たなくなる。
+    ⚠ **Not put in the response body.** Cookies are sent automatically, so returning it in the
+    body too would let XSS call ``POST /api/auth/refresh`` and read the new token, making
+    ``httpOnly`` meaningless.
     """
     response.set_cookie(
         REFRESH_TOKEN_COOKIE,
@@ -94,12 +95,12 @@ def clear_access_token_cookie(response: Response) -> None:
 
 
 def clear_refresh_cookies(response: Response) -> None:
-    """更新の札とログアウトの札を落とす（SSO で入ったログインは持たない。ADR-0104）。"""
+    """Drop the refresh and logout tokens (SSO logins don't have them; ADR-0104)."""
     response.delete_cookie(REFRESH_TOKEN_COOKIE, path=REFRESH_COOKIE_PATH)
     response.delete_cookie(LOGOUT_TOKEN_COOKIE, path=LOGOUT_COOKIE_PATH)
 
 
-# Authorization ヘッダー優先、無ければ Cookie フォールバック
+# Authorization header first, falling back to the cookie
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -116,16 +117,18 @@ async def get_operation_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
 ) -> AuthenticatedPrincipal:
-    """JWT を検証して ``AuthenticatedPrincipal`` を返す。失敗時は 401。**機械の主体も通す**（ADR-0087）。
+    """Verify the JWT and return an ``AuthenticatedPrincipal``. 401 on failure. **Machine principals
+    pass too** (ADR-0087).
 
-    ⚠ **これを直に使うのは、scope で守る関門だけ**（:func:`require_permission` /
-    :func:`require_any_permission` と、主体のテナントを取り出す依存関数）。機械に出したトークンは
-    scope が許可簿の操作に絞られているので、scope で守られた口なら通してよい。
-    それ以外の口は :func:`get_current_principal`（人だけ）を使う。
+    ⚠ **Only scope-guarded gates use this directly** (:func:`require_permission` /
+    :func:`require_any_permission` and the dependency that extracts the principal's tenant).
+    Tokens issued to machines have scopes limited to the operations in their allowlist, so
+    scope-guarded endpoints may let them through. Other endpoints use
+    :func:`get_current_principal` (humans only).
 
-    ⚠ **DB を引かない**（ADR-0076 §5）。認可の材料はすべてトークンのクレームに
-    載っている。利用者の行そのものが要る経路は :func:`get_current_user` を使う
-    ——そちらは 1 件引くが、**認可の判定ではない**。
+    ⚠ **Does not hit the DB** (ADR-0076 §5). Everything needed for authorization is in the token
+    claims. Paths that need the user row itself use :func:`get_current_user`, which loads one
+    row but **is not an authorization decision**.
     """
     from presentation.fastapi.services.token_service import TokenService
 
@@ -139,23 +142,24 @@ async def get_operation_principal(
 
     principal, reason = TokenService.verify_access_token_with_reason(token)
     if not principal:
-        logger.debug("JWT 認証失敗: %s", reason)
+        logger.debug("JWT authentication failed: %s", reason)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token", "reason": reason},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 以降のログへ user.id_hash を伝播する（PII は残さない）
+    # Propagate user.id_hash to subsequent logs (no PII is kept)
     user_id_hash_var.set(principal.id_hash)
-    # 監査ログの「誰が」。呼び出し側が主体を引き回さなくても記録できるようにする
+    # The audit log's "who", so it can be recorded without callers passing the principal around
     actor_user_id_var.set(principal.user_id)
     return principal
 
 
 MACHINE_NOT_ALLOWED = "machine_not_allowed"
 TWO_FACTOR_SETUP_REQUIRED = "two_factor_setup_required"
-#: 二要素の登録待ちのログインで通る口（ADR-0093）。更新とログアウトは主体を見ないので、ここに無くても通る。
+#: Endpoints open to logins pending two-factor enrollment (ADR-0093). Refresh and logout don't
+#: look at the principal, so they pass without being listed here.
 _OPEN_DURING_TWO_FACTOR_SETUP = frozenset(
     {
         ("GET", "/api/auth/me"),
@@ -170,11 +174,12 @@ async def get_current_principal(
     request: Request,
     principal: AuthenticatedPrincipal = Depends(get_operation_principal),
 ) -> AuthenticatedPrincipal:
-    """人の主体を返す。**機械の主体は 403**（ADR-0087 決定 4）。
+    """Return a human principal. **Machine principals get 403** (ADR-0087 decision 4).
 
-    scope で守られていない口（本人の設定・ロールの切り替え・資格情報の作り替えなど）は、
-    許可簿の操作で絞れない。機械に開けると、振る舞う利用者として何でもできてしまう ——
-    既定で断り、開けるのは scope で守った口だけにする。
+    Endpoints not guarded by a scope (own settings, role switching, credential changes, etc.)
+    can't be limited by allowlisted operations. Opening them to machines would let them do
+    anything as the user they act for, so they are refused by default and only scope-guarded
+    endpoints are opened.
     """
     if principal.is_machine:
         refuse_machine(principal, _operation_of(request))
@@ -184,26 +189,29 @@ async def get_current_principal(
 
 
 def refuse_during_two_factor_setup(principal: AuthenticatedPrincipal) -> None:
-    """二要素の登録待ちのログインを断る（ADR-0093）。画面はこの 403 で登録の画面へ切り替わる。"""
+    """Reject logins pending two-factor enrollment (ADR-0093). This 403 switches the UI to the
+    enrollment screen."""
     if principal.two_factor_setup_required:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TWO_FACTOR_SETUP_REQUIRED})
 
 
 def refuse_machine(principal: AuthenticatedPrincipal, operation: str) -> NoReturn:
-    """機械の主体を断る（人だけの口）。監査に残してから 403。"""
+    """Reject machine principals (human-only endpoints). Audit, then 403."""
     _refuse_machine(principal, operation, "person_only")
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": MACHINE_NOT_ALLOWED})
 
 
 def _operation_of(request: Request) -> str:
-    """監査に残す操作の名前（``GET /api/items`` のような経路の型。値の入った URL は残さない）。"""
+    """Operation name for the audit (a route template like ``GET /api/items``; URLs with values
+    are not recorded)."""
     route = request.scope.get("route")
     path = route.path if isinstance(route, Route) else request.url.path
     return f"{request.method} {path}"
 
 
 def _record_machine_write(principal: AuthenticatedPrincipal, request: Request) -> None:
-    """機械が書く操作を監査に残す（どの機械が・誰として・何を。ADR-0087）。読むだけの操作は残さない。"""
+    """Audit write operations by machines (which machine, as whom, what; ADR-0087). Read-only
+    operations are not recorded."""
     if not principal.is_machine or request.method in {"GET", "HEAD", "OPTIONS"}:
         return
     from bounded_contexts.audit.domain.entities.audit_event import AuditEventType, AuditResult
@@ -221,7 +229,7 @@ def _record_machine_write(principal: AuthenticatedPrincipal, request: Request) -
 
 
 def _refuse_machine(principal: AuthenticatedPrincipal, operation: str, why: str) -> None:
-    """機械の操作を断ったことを監査に残す（ADR-0087 決定 5。``client_id``・操作・理由）。"""
+    """Audit a refused machine operation (ADR-0087 decision 5; ``client_id``, operation, reason)."""
     from bounded_contexts.audit.domain.entities.audit_event import AuditEventType, AuditResult
     from bounded_contexts.audit.domain.value_objects.audit_target import AuditTarget, AuditTargetType
     from bounded_contexts.audit.presentation.dependencies import record_audit_event
@@ -236,7 +244,8 @@ def _refuse_machine(principal: AuthenticatedPrincipal, operation: str, why: str)
 
 
 def _refuse_missing_operation(principal: AuthenticatedPrincipal, codes: tuple[str, ...]) -> None:
-    """scope が足りない機械の操作を監査に残す。理由は「許可簿に無い」か「利用者のロールに無い」。"""
+    """Audit a machine operation lacking scope. The reason is "not in the allowlist" or "not in
+    the user's roles"."""
     from bounded_contexts.identity_federation.domain.value_objects.machine_client import (
         find_machine_client,
         parse_machine_clients,
@@ -253,10 +262,10 @@ def get_current_user(
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
     db: Session = Depends(get_db),
 ) -> User:
-    """認証済み主体に対応する ``User`` 行を返す。
+    """Return the ``User`` row for the authenticated principal.
 
-    ロールの一覧のように「トークンに載っていない現在の状態」が要るときだけ使う
-    （認可の判定は :func:`require_permission` の scope で行う）。
+    Use only when "current state not carried in the token" is needed, such as the role list
+    (authorization is decided by scopes in :func:`require_permission`).
     """
     user = db.get(User, principal.user_id)
     if user is None:
@@ -271,12 +280,12 @@ def get_current_user_or_none(
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """入っていれば利用者を、入っていなければ ``None`` を返す（401 にしない）。
+    """Return the user if signed in, ``None`` otherwise (no 401).
 
-    ⚠ **これを認可に使わない。** 用があるのは**ブラウザの画面遷移**で戻ってくる
-    経路だけである（ADR-0077 §5 の連携の戻り）。そこで 401 を返すと、利用者には
-    JSON の生文字列が見えるだけで、やり直す導線も出せない。認可が要る口は
-    :func:`get_current_principal` 系を使う。
+    ⚠ **Don't use this for authorization.** It is only for paths reached by **browser
+    navigation** (the federation return in ADR-0077 §5). A 401 there would show the user a raw
+    JSON string with no way to retry. Endpoints that need authorization use the
+    :func:`get_current_principal` family.
     """
     from presentation.fastapi.services.token_service import TokenService
 
@@ -290,21 +299,21 @@ def get_current_user_or_none(
 
 @dataclass(frozen=True)
 class CurrentSession:
-    """いま操作している利用者と、その入り口（ADR-0077 §3）。
+    """The user currently operating, and their entrance (ADR-0077 §3).
 
-    ``federated_login`` が ``None`` ならローカルのログイン。新しいトークンを
-    出し直す口（ロールの切り替え）は、**これをそのまま引き継ぐ**。
+    ``federated_login`` of ``None`` means a local login. Endpoints that reissue tokens (role
+    switch) **carry this over unchanged**.
     """
 
     user: User
     federated_login: FederatedLogin | None
-    #: いまのアクティブロール（ADR-0078 §1）。出し直すときに引き継ぐ。
+    #: Current active role (ADR-0078 §1). Carried over on reissue.
     active_role: str | None = None
-    #: 本人が最後に実際にサインインした時刻（ADR-0076 §10）。出し直すときに引き継ぐ。
+    #: Time the user last actually signed in (ADR-0076 §10). Carried over on reissue.
     authenticated_at: datetime | None = None
-    #: このログインの控え（ADR-0091）。ロールの切り替えで引き継ぐ。
+    #: This login's record (ADR-0091). Carried over on role switch.
     refresh_session_id: str | None = None
-    #: パスキーで入ったログインか（ADR-0093）。出し直すときに引き継ぐ。
+    #: Whether the login used a passkey (ADR-0093). Carried over on reissue.
     signed_in_with_passkey: bool = False
 
 
@@ -314,16 +323,15 @@ def get_current_session(
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
     db: Session = Depends(get_db),
 ) -> CurrentSession:
-    """認証済みの利用者と、そのセッションがどこから始まったかを返す。
+    """Return the authenticated user and where the session started.
 
-    トークンは :func:`get_current_principal` が既に検証している（同じリクエストの
-    同じ値）。ここで読むのは宛名のクレームだけで、認証をやり直しているのではない。
+    The token was already verified by :func:`get_current_principal` (same value in the same
+    request). Only the subject claims are read here; authentication is not redone.
 
-    ⚠ **ここは「新しいトークンを出す」経路のためにある**（ロールの切り替え）。
-    アクセストークンの検証が DB を引かなくなったので（ADR-0076 §5）、**出し直しの
-    経路だけは止まっていないことを確かめる** ——確かめないと、止められた利用者が
-    切り替えを繰り返すだけで**いつまでも新しいトークンを受け取れる**。
-    **寿命による上限が、そこで破れる。**
+    ⚠ **This exists for paths that "issue new tokens"** (role switch). Since access token
+    verification no longer hits the DB (ADR-0076 §5), **reissue paths alone check the user is
+    not suspended**: otherwise a suspended user could **keep receiving new tokens forever** just
+    by switching repeatedly. **The lifetime bound would break there.**
     """
     from presentation.fastapi.services.token_service import TokenService
 
@@ -346,26 +354,26 @@ def get_current_session(
 
 
 def get_settled_principal(
-    # ⚠ **値は使わない。関門として通すためだけに置いてある**（名前の ``_`` はその印）。
+    # ⚠ **The value is unused; it is only here to pass the gate** (the ``_`` prefix marks that).
     _session: CurrentSession = Depends(get_current_session),
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     access_token_cookie: str | None = Cookie(default=None, alias=ACCESS_TOKEN_COOKIE),
 ) -> AuthenticatedPrincipal:
-    """**資格情報を作り替える経路**のための関門（ADR-0076 §5 決定 6）。
+    """Gate for **paths that change credentials** (ADR-0076 §5 decision 6).
 
-    二要素認証やパスキーの登録・解除は「新しい入り口を作る」操作である。
-    ⚠ **アクセストークンの検証が DB を引かなくなったので、止められた利用者でも
-    手元の 1 枚は寿命まで通る。** その 1 枚で新しい入り口を作られては、止めた意味が
-    半分無くなる ——ここだけは、いまの状態を確かめてから通す。
+    Enrolling or removing two-factor auth or passkeys "creates a new entrance".
+    ⚠ **Since access token verification no longer hits the DB, a suspended user's token in hand
+    stays valid until it expires.** Letting that token create a new entrance would half defeat
+    the suspension, so here alone the current state is checked before passing.
 
-    確かめているのは :func:`get_current_session` である（利用者が生きていること、
-    IdP 側で止められていないこと）。**出し直しの経路と同じ関門**を使う。
+    The check is :func:`get_current_session` (the user is active and not suspended at the IdP).
+    **The same gate as the reissue paths** is used.
     """
     from presentation.fastapi.services.token_service import TokenService
 
     token = _extract_token(credentials, access_token_cookie)
     principal, _ = TokenService.verify_access_token_with_reason(token or "")
-    if principal is None:  # pragma: no cover - 関門を通った時点で必ず読める
+    if principal is None:  # pragma: no cover - always readable once the gate is passed
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "invalid_token"},
@@ -377,12 +385,13 @@ REAUTHENTICATION_REQUIRED = "reauthentication_required"
 
 
 def ensure_recent_sign_in(principal: AuthenticatedPrincipal) -> None:
-    """**入り口そのものを作り替える操作**の前に、入り直したばかりかを確かめる（ADR-0076 §10）。
+    """Before **operations that change the entrance itself**, check the user just signed in again
+    (ADR-0076 §10).
 
-    盗まれたセッションでパスキーを足す・メールを替えると、そのあとはパスワードも
-    二要素も無しに入り続けられる。「最後に実際にサインインしてから
-    ``RECENT_SIGN_IN_SECONDS`` 以内」でなければ 403 で断り、画面は入り直しへ送る。
-    パスワードを持たない（SSO だけの）利用者にも同じように効く。
+    Adding a passkey or changing the email with a stolen session would allow continued access
+    without password or second factor. Unless within ``RECENT_SIGN_IN_SECONDS`` of the last
+    actual sign-in, reject with 403 and the UI sends the user to sign in again.
+    It applies equally to users without a password (SSO only).
     """
     signed_in_at = principal.authenticated_at
     limit = timedelta(seconds=settings.recent_sign_in_seconds)
@@ -396,15 +405,15 @@ def ensure_recent_sign_in(principal: AuthenticatedPrincipal) -> None:
 async def require_recent_sign_in(
     principal: AuthenticatedPrincipal = Depends(get_current_principal),
 ) -> AuthenticatedPrincipal:
-    """:func:`ensure_recent_sign_in` を関門として掛ける依存関数。"""
+    """:func:`ensure_recent_sign_in` applied as a gate (dependency)."""
     ensure_recent_sign_in(principal)
     return principal
 
 
 def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
-    """指定された権限を全て保持している場合のみアクセスを許可する依存関数ファクトリ。
+    """Dependency factory that allows access only if all the given permissions are held.
 
-    使用例::
+    Example::
 
         @router.get("/api/admin/users")
         def list_users(
@@ -435,11 +444,11 @@ def require_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrin
 
 
 def require_any_permission(*codes: str) -> Callable[..., Awaitable[AuthenticatedPrincipal]]:
-    """指定された権限を **いずれか 1 つでも** 保持していればアクセスを許可する。
+    """Allow access if **any one** of the given permissions is held.
 
-    ある資源を読む理由が複数の職掌にまたがるとき（ロールの一覧は「ロールを管理
-    する」ためにも「ユーザーへロールを割り当てる」ためにも要る。ADR-0078 §2）に使う。
-    **書き込みには使わない** — 権限を足す側は 1 つの scope で明示する。
+    Used when reasons to read a resource span several duties (the role list is needed both to
+    "manage roles" and to "assign roles to users"; ADR-0078 §2).
+    **Not for writes**: granting sides state a single scope explicitly.
     """
 
     async def _check(

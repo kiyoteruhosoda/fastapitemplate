@@ -1,11 +1,11 @@
-"""再起動要求の監視。
+"""Watching for restart requests.
 
-各プロセスが自分のスコープ宛の要求を拾い、自分自身を終了させる。復帰は Docker
-の restart policy に任せる。
+Each process picks up requests addressed to its own scope and terminates itself. Coming back is
+left to Docker's restart policy.
 
-判定は「起動時に読んだ要求の token と現在の token が違うか」で行う。時刻の
-大小で判定すると、アプリコンテナと DB の時計がずれている場合に自分が保存した
-直後の要求を「まだ未来の要求」と誤認して再起動ループに入り得る。
+The decision is "does the current token differ from the one read at startup". Comparing times
+could, when the app container's clock and the DB's clock differ, mistake a request saved just
+now for "a request still in the future" and fall into a restart loop.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ DEFAULT_POLL_INTERVAL_SECONDS = 10.0
 
 
 class RestartWatcher:
-    """再起動要求をポーリングし、対象なら終了シグナルを出す常駐スレッド。"""
+    """Resident thread that polls restart requests and sends a termination signal when targeted."""
 
     def __init__(
         self,
@@ -47,11 +47,11 @@ class RestartWatcher:
 
     @property
     def baseline_token(self) -> str | None:
-        """このプロセスが起動時に見た要求の token（比較の基準）。"""
+        """Token of the request this process saw at startup (the comparison baseline)."""
         return self._baseline_token
 
     def start(self) -> None:
-        """基準値を確定させてから監視スレッドを開始する。"""
+        """Fix the baseline, then start the watcher thread."""
         if self._thread is not None:
             return
         self._baseline_token = self._current_token()
@@ -62,7 +62,7 @@ class RestartWatcher:
         )
         self._thread.start()
         logger.info(
-            "再起動要求の監視を開始しました: scope=%s baseline=%s",
+            "Started watching restart requests: scope=%s baseline=%s",
             self._scope.value,
             self._baseline_token or "-",
             extra={"event": "restart.watch.start"},
@@ -72,15 +72,15 @@ class RestartWatcher:
         self._stop_event.set()
 
     def should_restart(self, request: RestartRequest | None) -> bool:
-        """*request* がこのプロセスの再起動を要求しているか。"""
+        """Whether *request* asks this process to restart."""
         if request is None:
             return False
         return request.token != self._baseline_token
 
     def check_once(self) -> bool:
-        """1 回だけ要求を確認し、対象なら終了シグナルを出す。
+        """Check requests once and send a termination signal if targeted.
 
-        戻り値は終了シグナルを出したかどうか。
+        Returns whether a termination signal was sent.
         """
         request = self._store.load(self._scope)
         if request is None or not self.should_restart(request):
@@ -100,8 +100,8 @@ class RestartWatcher:
                 if self.check_once():
                     return
             except Exception:
-                # DB 一時障害などで監視スレッドを死なせない
-                logger.debug("再起動要求の確認に失敗しました", exc_info=True)
+                # Do not let a transient DB failure kill the watcher thread
+                logger.debug("Failed to check restart requests", exc_info=True)
 
 
 __all__ = ["DEFAULT_POLL_INTERVAL_SECONDS", "RestartWatcher"]

@@ -1,12 +1,12 @@
 /**
- * システムログ画面（`log` テーブルの検索・閲覧）。
+ * System log page (search and browse the `log` table).
  *
- * 「システムが何をしたか」の運用ログ。「誰が何をしたか」は監査ログ画面
- * （`/admin/audit-logs`）で見る。行の `requestId` をそちらの絞り込みに入れれば、
- * 同じリクエストの記録を突き合わせられる。
+ * Operational logs of "what the system did". "Who did what" is on the audit log page
+ * (`/admin/audit-logs`). Entering a row's `requestId` in that page's filter lets you match up
+ * the records of the same request.
  *
- * 絞り込みの選択肢（ログレベル）はバックエンドから取得する。列挙を画面へ写して
- * 二重管理しないため。
+ * The filter options (log levels) are fetched from the backend, so the enumeration is not
+ * copied into the frontend and maintained twice.
  */
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 
@@ -42,7 +42,7 @@ interface FilterOptions {
   levels: string[]
 }
 
-/** どの操作が検索を起こしたか。押した操作にだけ実行中の目印を出すために持つ。 */
+/** Which action triggered the search. Held so the running marker shows only on the pressed action. */
 type SearchTrigger = 'search' | 'reset' | 'previous' | 'next'
 
 const EMPTY_FILTERS: LogFilters = {
@@ -56,8 +56,8 @@ const EMPTY_FILTERS: LogFilters = {
 
 export function SystemLogsPage() {
   const { t } = useI18n()
-  // 入力中の値（form）と、実際に検索した値（applied）を分ける。入力の途中で
-  // 検索が走らないようにし、ページ送りは検索済みの条件を保ったまま行う。
+  // Keep the values being typed (form) separate from the values actually searched (applied),
+  // so no search runs mid-typing and pagination keeps the searched conditions.
   const [form, setForm] = useState<LogFilters>(EMPTY_FILTERS)
   const [applied, setApplied] = useState<LogFilters>(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
@@ -65,7 +65,7 @@ export function SystemLogsPage() {
   const [expanded, setExpanded] = useState<number | null>(null)
   const [trigger, setTrigger] = useState<SearchTrigger | null>(null)
   const { result, searching } = useLogSearch<LogEntry>('/api/admin/logs', applied, page)
-  // 取得していないあいだは目印を出さない（初回の読み込みは誰も押していない）。
+  // No marker while not fetching (nobody pressed anything for the initial load).
   const pendingTrigger = searching ? trigger : null
 
   useEffect(() => {
@@ -250,7 +250,7 @@ export function SystemLogsPage() {
         </div>
       )}
 
-      {/* ページ送りは押しても表の中身が入れ替わるまで変化がないので、押した側に目印を出す。 */}
+      {/* Pagination shows no change until the table content is replaced, so mark the pressed control. */}
       <div className="pager">
         <ActionButton
           type="button"

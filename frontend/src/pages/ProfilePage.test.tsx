@@ -1,9 +1,9 @@
 /**
- * プロフィールの自己編集（メールアドレス・表示名）と表示設定の配置。
+ * Profile self-editing (email address, display name) and placement of display settings.
  *
- * 保存が PUT /api/auth/me に飛ぶこと、成功でトーストが出て /me を引き直すこと、
- * 言語・テーマの選択がこのページに出ること（ADR-0080 §3）、サインインの手段は
- * 別画面で入口だけがあること（ADR-0080 §4）を確認する。
+ * Checks that saving sends PUT /api/auth/me, that success shows a toast and refetches /me,
+ * that language and theme selection appear on this page (ADR-0080 §3), and that sign-in
+ * methods are on a separate page with only an entry point here (ADR-0080 §4).
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -16,7 +16,7 @@ import { AuthProvider, useAuth } from '../store/AuthContext'
 import { ThemeProvider } from '../theme'
 import { ProfilePage } from './ProfilePage'
 
-/** 実アプリと同じく、/me の解決後にだけページをマウントする（RequireAuth 相当）。 */
+/** As in the real app, mount the page only after /me resolves (equivalent to RequireAuth). */
 function Gate() {
   const { user } = useAuth()
   if (!user) return null
@@ -40,7 +40,7 @@ const { apiGet, apiPut, apiPost } = vi.hoisted(() => ({
   apiPost: vi.fn(),
 }))
 
-// トークンは Cookie で運ばれるので、この層に保持の口はもう無い（ADR-0076 §4）。
+// Tokens travel in cookies, so this layer no longer has a place to hold them (ADR-0076 §4).
 vi.mock('../services/api', () => ({
   api: { get: apiGet, put: apiPut, post: apiPost },
   errorMessageKey: () => 'error.unknown_error',
@@ -48,7 +48,7 @@ vi.mock('../services/api', () => ({
 
 const SETTINGS = { languages: ['en'], default_locale: 'en', default_theme: 'light' }
 
-/** いまの場所（入り直しへ送られたかを見る）。 */
+/** The current location (to see whether it was sent to sign in again). */
 function LocationProbe() {
   const location = useLocation()
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
@@ -79,14 +79,14 @@ describe('ProfilePage', () => {
     vi.clearAllMocks()
     apiGet.mockResolvedValue(ME)
     apiPut.mockResolvedValue(ME)
-    // jsdom は matchMedia を持たない（ThemeProvider が OS の配色を見る）。
+    // jsdom has no matchMedia (ThemeProvider looks at the OS color scheme).
     vi.stubGlobal(
       'matchMedia',
       vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
     )
   })
 
-  it('メールアドレスと表示名を保存すると PUT /api/auth/me が飛び、/me を引き直す', async () => {
+  it('saving email and display name sends PUT /api/auth/me and refetches /me', async () => {
     await renderPage()
 
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
@@ -100,14 +100,14 @@ describe('ProfilePage', () => {
         username: 'renamed',
       })
     })
-    // 保存後にトーストが出て、認証状態（/me）を取り直す
+    // After saving a toast appears and the auth state (/me) is refetched
     await waitFor(() => {
       expect(screen.getByText('Saved.')).toBeInTheDocument()
     })
     expect(apiGet).toHaveBeenCalledWith('/api/auth/me')
   })
 
-  it('保存に失敗するとエラートーストを出す', async () => {
+  it('shows an error toast when saving fails', async () => {
     await renderPage()
     apiPut.mockRejectedValueOnce(new Error('boom'))
 
@@ -118,7 +118,7 @@ describe('ProfilePage', () => {
     })
   })
 
-  it('入り直しを求められたら、知らせてログイン画面へ送り、戻り先にこの画面を持たせる', async () => {
+  it('on a re-sign-in request notifies, goes to login and keeps this page as the return target', async () => {
     await renderPage()
     apiPut.mockRejectedValueOnce(
       Object.assign(new Error('403'), { code: 'reauthentication_required' }),
@@ -134,7 +134,7 @@ describe('ProfilePage', () => {
     ).toBeInTheDocument()
   })
 
-  it('IdP と結び付いている人には入力欄を出さず、IdP で直す案内を出す', async () => {
+  it('for users linked to an IdP shows no inputs and points them to the IdP', async () => {
     apiGet.mockResolvedValue({ ...ME, profile_managed_by_idp: true })
     render(
       <MemoryRouter initialEntries={['/profile']}>
@@ -157,14 +157,14 @@ describe('ProfilePage', () => {
     expect(screen.getByText(/admin@example.com/)).toBeInTheDocument()
   })
 
-  it('言語・テーマの選択がこのページに出る', async () => {
+  it('shows language and theme selection on this page', async () => {
     await renderPage()
 
     expect(screen.getByLabelText('Language')).toBeInTheDocument()
     expect(screen.getByLabelText('Theme')).toBeInTheDocument()
   })
 
-  it('サインインの手段は別画面で、入口だけが出る', async () => {
+  it('keeps sign-in methods on a separate page with only an entry point', async () => {
     await renderPage()
 
     expect(screen.getByRole('link', { name: 'Open security settings' })).toHaveAttribute(

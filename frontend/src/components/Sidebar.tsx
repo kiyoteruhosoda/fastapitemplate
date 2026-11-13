@@ -1,4 +1,4 @@
-/** ナビゲーション。表示はロール名ではなく scope で制御する。 */
+/** Navigation. Visibility is controlled by scope, not by role name. */
 import type { RefObject } from 'react'
 import { NavLink } from 'react-router-dom'
 
@@ -22,7 +22,7 @@ const TOP_ITEMS: Item[] = [
   { to: '/notes', labelKey: 'nav.notes', scopes: ['note:view'] },
 ]
 
-/** 階層メニュー。グループは、表示できる項目が 1 つも無ければ見出しごと出さない。 */
+/** Nested menu. A group is hidden together with its heading if none of its items can be shown. */
 const GROUPS: Group[] = [
   {
     labelKey: 'nav.group.admin',
@@ -42,7 +42,7 @@ const GROUPS: Group[] = [
   {
     labelKey: 'nav.group.system',
     items: [
-      // テナントの外側（ADR-0079 §1）。運用者とサポート担当にだけ出る（ADR-0084）
+      // Outside the tenant (ADR-0079 §1). Shown only to operators and support staff (ADR-0084)
       { to: '/system/tenants', labelKey: 'nav.tenants', scopes: ['tenant:view'] },
       { to: '/system/administrators', labelKey: 'nav.systemAdmins', scopes: ['system:manage'] },
       { to: '/admin/config', labelKey: 'nav.config', scopes: ['system-settings:view'] },
@@ -54,11 +54,12 @@ const GROUPS: Group[] = [
 ]
 
 /**
- * *open* は狭い画面のドロワーの開閉。広い画面では CSS 側で常に表示されるため、
- * この値は `data-open` 属性としてだけ渡す（`index.css` のメディアクエリが解釈する）。
+ * *open* is the drawer state on narrow screens. On wide screens CSS always shows it, so
+ * this value is passed only as the `data-open` attribute (interpreted by the media queries
+ * in `index.css`).
  *
- * 閉じるボタンは狭い画面だけに出る（ドロワーはヘッダーを覆うので、
- * 開いているあいだの操作をここで完結させる）。
+ * The close button appears only on narrow screens (the drawer covers the header, so
+ * everything while it is open is done from here).
  */
 export function Sidebar({
   open,
@@ -67,7 +68,7 @@ export function Sidebar({
 }: {
   open: boolean
   onClose: () => void
-  /** 開いているあいだ Tab をこの中に閉じ込めるために AppLayout が使う。 */
+  /** Used by AppLayout to trap Tab inside this while it is open. */
   navRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useI18n()

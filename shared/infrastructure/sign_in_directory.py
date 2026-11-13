@@ -1,14 +1,14 @@
-"""メールアドレスで利用者を引く入口（ADR-0079 §1 決定 8・ADR-0079 §4）。
+"""Entry point for looking up users by email (ADR-0079 §1 decision 8, ADR-0079 §4).
 
-メールアドレスの一意は**同じ席の中だけ**: 同じテナントの中、またはテナントに属さない人
-（システム管理者）の中。別のテナントには同じメールアドレスの人が居てよい（assay の別の
-テナントに同じ人が居るのと同じ）。だから、メールアドレスだけでは人は決まらない ——
-どの席で探すかを必ず添える。
+Email addresses are unique **only within the same seat**: inside the same tenant, or among people
+outside the tenants (system administrators). Another tenant may have someone with the same address
+(just as the same person may exist in different assay tenants). So an email alone does not
+identify a person; always say which seat to search.
 
-入口（``/login``）の決め方:
+How the entry (``/login``) decides:
 
-- テナントの名前（``/t/<slug>/login``）があれば、そのテナントの中で探す
-- 無ければ、まずテナントに属さない人。居なければ、テナントが 1 つだけの環境ではそのテナント
+- With a tenant name (``/t/<slug>/login``), search inside that tenant
+- Otherwise, first people outside the tenants. If none, in a single-tenant environment, that tenant
 """
 
 from __future__ import annotations
@@ -28,12 +28,12 @@ def _seat(tenant_id: int | None) -> sa.Select[User]:
 
 
 def account_with_email(session: Session, email: str, tenant_id: int | None) -> User | None:
-    """その席（テナント、または ``None`` ＝ テナントの外）でメールアドレスが一致する利用者。"""
+    """User whose email matches in that seat (a tenant, or ``None`` = outside the tenants)."""
     return session.scalar(_seat(tenant_id).where(User.email == email))
 
 
 def email_taken(session: Session, email: str, tenant_id: int | None, *, except_user_id: int | None = None) -> bool:
-    """同じ席に、ほかにこのメールアドレスの人が居るか。"""
+    """Whether someone else in the same seat has this email."""
     query = _seat(tenant_id).where(User.email == email)
     if except_user_id is not None:
         query = query.where(User.id != except_user_id)
@@ -41,7 +41,7 @@ def email_taken(session: Session, email: str, tenant_id: int | None, *, except_u
 
 
 def account_signing_in(session: Session, email: str, tenant_slug: str | None) -> User | None:
-    """入口で入ろうとしている利用者（上の決め方）。見つからなければ ``None``。"""
+    """User trying to sign in at the entry (decided as above). ``None`` if not found."""
     if tenant_slug:
         tenant = tenant_named(session, tenant_slug)
         return account_with_email(session, email, tenant.id) if tenant is not None else None

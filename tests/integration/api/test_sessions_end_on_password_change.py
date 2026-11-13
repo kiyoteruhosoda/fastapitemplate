@@ -1,10 +1,11 @@
-"""パスワードを変えたら、それより前に始まったログインを終わらせる（ADR-0076 §8）。
+"""Changing the password ends sign-ins that started before it (ADR-0076 §8).
 
-更新トークンはサーバーに控えが無く、署名だけで確かめている。区切りが無いと、
-パスワードを変えても盗まれた更新トークンは寿命（既定 14 日）いっぱい使える。
+Refresh tokens have no server-side record and are verified by signature alone. Without a cutoff,
+a stolen refresh token stays usable for its full lifetime (14 days by default) even after the
+password is changed.
 
-「盗まれた側」のセッションは ``other_client`` が**少し前に**張ったものとして作る。
-``iat`` は秒までしか持たないので、同じ秒の中で出したトークンは区切りでは落ちない。
+The "stolen" session is created as one that ``other_client`` established **a little earlier**.
+``iat`` only has second precision, so tokens issued within the same second are not cut off.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ _PASSWORD = master_data.DEFAULT_ADMIN_PASSWORD
 
 @contextmanager
 def _issued_earlier(seconds: int) -> Iterator[None]:
-    """この中で出したトークンの ``iat`` を、*seconds* 秒前にする。"""
+    """Sets the ``iat`` of tokens issued in this block to *seconds* seconds ago."""
     moment = datetime.now(UTC) - timedelta(seconds=seconds)
     with patch("presentation.fastapi.services.token_service.utcnow_aware", return_value=moment):
         yield
@@ -42,9 +43,9 @@ def _refresh(client: TestClient) -> int:
 
 
 def _stolen_session(other_client: TestClient, email: str, password: str) -> None:
-    """盗まれた側のセッション。パスワードを変えるより前に張られている。"""
-    # ⚠ 更新も時計を戻したまま行う。戻さずに更新すると、新しいトークンに入れ替わって
-    #   「前に始まったログイン」ではなくなる
+    """The stolen session, established before the password change."""
+    # ⚠ Refresh with the clock still turned back too. Refreshing without it would replace the token
+    #   so it is no longer "a sign-in that started earlier"
     with _issued_earlier(10):
         sign_in(other_client, email, password)
         assert _refresh(other_client) == 200
@@ -63,13 +64,13 @@ def test_changing_the_password_ends_earlier_sessions_but_keeps_this_one(
     )
     assert changed.status_code == 200, changed.text
 
-    # 盗まれた側は、更新もトークンの出し直しもできない
+    # The stolen side can neither refresh nor reissue tokens
     assert _refresh(other_client) == 401
     switched = other_client.post(
         "/api/auth/switch-role", headers={CSRF_HEADER: other_client.cookies[CSRF_COOKIE]}, json={"role": None}
     )
     assert switched.status_code == 401
-    # 変えた本人のこのセッションは、出し直したトークンで続く
+    # The changer's own session continues with the reissued token
     assert _refresh(client) == 200
     assert client.get("/api/auth/me").status_code == 200
 
@@ -81,7 +82,7 @@ def test_resetting_the_password_ends_earlier_sessions(
     client.post("/api/auth/forgot-password", json={"email": _EMAIL})
     row = db_session.scalar(select(PasswordResetToken))
     assert row is not None
-    # 平文はハッシュしか残らないので、既知の値で置き直す
+    # Only the hash of the plaintext remains, so reset it to a known value
     token = secrets.token_urlsafe(32)
     row.token_hash = hashlib.sha256(token.encode()).hexdigest()
     db_session.commit()
@@ -90,7 +91,7 @@ def test_resetting_the_password_ends_earlier_sessions(
     assert reset.status_code == 200, reset.text
 
     assert _refresh(other_client) == 401
-    # 新しいパスワードでは入り直せる
+    # The new password lets you sign in again
     sign_in(client, _EMAIL, "reset-password-1")
     assert _refresh(client) == 200
 
@@ -117,7 +118,7 @@ def test_an_administrator_setting_the_password_ends_the_users_sessions(
 def test_changes_other_than_the_password_keep_sessions(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str], db_session: Session
 ) -> None:
-    """名前を変えただけでは区切らない（区切るのはパスワードを変えたときだけ）。"""
+    """Changing only the name is not a cutoff (only a password change is)."""
     created = client.post(
         "/api/admin/users",
         headers=admin_headers,

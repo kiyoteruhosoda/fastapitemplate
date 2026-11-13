@@ -1,8 +1,9 @@
 /**
- * テナントの管理画面（ADR-0079 §1・§5）。システム管理者だけが使う。
+ * Tenant management page (ADR-0079 §1, §5). Used only by system admins.
  *
- * 見るのは、台帳と人数だけを並べること・登録と指名で招待を送れたかを知らせること・
- * 止めたテナントしか消せず、消すには短い名前を打ち直すこと。
+ * Checks that only the ledger and head counts are listed, that registering and appointing report
+ * whether the invitation was sent, and that only suspended tenants can be deleted, after retyping
+ * the short name.
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -63,7 +64,7 @@ async function renderPage(tenants: object[] = [ACME, SUSPENDED]) {
       </ToastProvider>
     </I18nProvider>,
   )
-  // 一覧を読み終えるまで待つ（空の台帳もある）
+  // Wait until the list has loaded (the ledger may be empty)
   await waitFor(() => {
     expect(apiGet).toHaveBeenCalledWith('/api/system/tenants')
   })
@@ -72,7 +73,7 @@ async function renderPage(tenants: object[] = [ACME, SUSPENDED]) {
 
 function rowOf(name: string): HTMLElement {
   const row = screen.getByRole('rowheader', { name }).closest('tr')
-  if (!row) throw new Error(`${name} の行が無い`)
+  if (!row) throw new Error(`no row for ${name}`)
   return row
 }
 
@@ -81,10 +82,10 @@ function type(label: string | HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } })
 }
 
-/** 入力の検査を通さずに送る（空のまま送ったときにサーバーが断る道を見る）。 */
+/** Submits without input validation (to exercise the server refusing an empty submission). */
 function submitWithout(button: HTMLElement) {
   const form = button.closest('form')
-  if (!form) throw new Error('フォームが無い')
+  if (!form) throw new Error('no form')
   fireEvent.submit(form)
 }
 
@@ -96,7 +97,7 @@ describe('TenantsPage', () => {
     apiDelete.mockResolvedValue(undefined)
   })
 
-  it('台帳と人数だけを並べる（入口・SSO の有無・有効な人 / 全員・状態）', async () => {
+  it('lists only the ledger and head counts (entry, SSO or not, active / all, state)', async () => {
     await renderPage()
     const acme = within(rowOf('Acme'))
     expect(acme.getByText('/t/acme/login')).toBeInTheDocument()
@@ -108,7 +109,7 @@ describe('TenantsPage', () => {
     expect(gone.getByText('Suspended')).toBeInTheDocument()
   })
 
-  it('登録すると、最初の管理者を指名して招待を送れたかを知らせる', async () => {
+  it('on register appoints the first admin and reports whether the invitation was sent', async () => {
     apiPost.mockResolvedValue({ tenant: ACME, designation: { user_id: 9, invitation_sent: false } })
     await renderPage([])
     fireEvent.click(screen.getByRole('button', { name: 'Register a tenant' }))
@@ -123,7 +124,7 @@ describe('TenantsPage', () => {
       expect(apiPost).toHaveBeenCalledWith('/api/system/tenants', {
         slug: 'acme',
         display_name: 'Acme',
-        // 空の連携先は「SSO を使わない」
+        // An empty IdP means "do not use SSO"
         issuer: null,
         client_id: null,
         first_admin: { email: 'boss@acme.example', username: 'boss' },
@@ -134,7 +135,7 @@ describe('TenantsPage', () => {
     expect(apiGet).toHaveBeenCalledTimes(2)
   })
 
-  it('断られたら理由を出し、ダイアログは開いたまま', async () => {
+  it('shows the reason when refused and keeps the dialog open', async () => {
     apiPost.mockRejectedValue(new ApiError(409, 'issuer_already_registered'))
     await renderPage([])
     fireEvent.click(screen.getByRole('button', { name: 'Register a tenant' }))
@@ -147,13 +148,13 @@ describe('TenantsPage', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('編集は今の値で始まり、連携先を空にすると SSO を外す', async () => {
+  it('starts editing with the current values, and clearing the IdP removes SSO', async () => {
     await renderPage()
     fireEvent.click(within(rowOf('Acme')).getByRole('button', { name: 'Edit' }))
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByLabelText('Tenant name')).toHaveValue('Acme')
     expect(dialog.getByLabelText(/IdP issuer URL/)).toHaveValue('https://idp.example.test/acme')
-    // 編集では短い名前も管理者も変えない
+    // Editing changes neither the short name nor the admin
     expect(dialog.queryByLabelText(/Short name/)).not.toBeInTheDocument()
     expect(dialog.queryByLabelText("Tenant administrator's email")).not.toBeInTheDocument()
     type(dialog.getByLabelText(/IdP issuer URL/), '')
@@ -169,7 +170,7 @@ describe('TenantsPage', () => {
     })
   })
 
-  it('管理者を指名し直すと、そのテナントへ招待する', async () => {
+  it('re-appointing an admin invites them to that tenant', async () => {
     apiPost.mockResolvedValue({ user_id: 10, invitation_sent: true })
     await renderPage()
     fireEvent.click(
@@ -189,7 +190,7 @@ describe('TenantsPage', () => {
     expect(await screen.findByText('The invitation was sent.')).toBeInTheDocument()
   })
 
-  it('止める・再開するを切り替える', async () => {
+  it('toggles suspend and resume', async () => {
     await renderPage()
     fireEvent.click(within(rowOf('Acme')).getByRole('button', { name: 'Suspend' }))
     await waitFor(() => {
@@ -201,7 +202,7 @@ describe('TenantsPage', () => {
     })
   })
 
-  it('消せるのは止めたテナントだけで、短い名前を打ち直すまで押せない', async () => {
+  it('deletes only suspended tenants, disabled until the short name is retyped', async () => {
     await renderPage()
     expect(within(rowOf('Acme')).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
 
@@ -220,7 +221,7 @@ describe('TenantsPage', () => {
     })
   })
 
-  it('tenant:view だけ（サポート担当）なら一覧だけで、変える操作のボタンを出さない', async () => {
+  it('with only tenant:view (support) shows just the list without change buttons', async () => {
     scopes.granted = ['tenant:view']
     await renderPage()
     expect(within(rowOf('Acme')).getByText('/t/acme/login')).toBeInTheDocument()

@@ -1,8 +1,8 @@
-"""コンテンツ設定の API（ADR-0084 §3・ADR-0085）。
+"""Content settings API (ADR-0084 §3, ADR-0085).
 
-見るには ``content-settings:view``、変えるには ``content-settings:write``。
+Viewing needs ``content-settings:view``; changing needs ``content-settings:write``.
 
-効くのは主体のテナントの中だけ。変えたら監査ログに項目名を残す（値は残さない）。
+Only affects the principal's own tenant. Changes record the item names in the audit log (not the values).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from shared.kernel.database.session import get_db
 
 router = APIRouter(prefix="/api/admin/content-settings", tags=["admin"])
 
-#: reason 列は 255 文字
+#: The reason column is 255 characters
 _MAX_REASON_LENGTH = 255
 
 
@@ -36,7 +36,7 @@ class ContentSettingResponse(BaseModel):
     value_type: str
     value: str | bool | int
     default: str | bool | int
-    #: テナントが値を保存しているか（偽なら既定値で動いている）
+    #: Whether the tenant saved a value (false means the default is in effect)
     stored: bool
     choices: list[str]
     minimum: int | None
@@ -44,7 +44,7 @@ class ContentSettingResponse(BaseModel):
 
 
 class ContentSettingsUpdateRequest(BaseModel):
-    #: キー → 新しい値。``null`` は既定値へ戻す
+    #: Key -> new value. ``null`` resets to the default
     values: dict[str, str | bool | int | None]
 
 

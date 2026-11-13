@@ -1,11 +1,11 @@
-"""サインアウトを IdP まで通す経路（RP-Initiated Logout 1.0）。
+"""Carrying sign-out through to the IdP (RP-Initiated Logout 1.0).
 
-確かめたいのは 3 つ。
+Three things are checked.
 
-1. **既定では通さない。** 設定を足さない限り、振る舞いが変わらないこと。
-2. 有効にしたときだけ IdP へ送り出し、名乗り（``client_id``）と戻り先を載せること。
-3. **通せない場面を失敗にしないこと。** IdP が対応していない・discovery が引けない
-   ときも、利用者はログイン画面へ着く。
+1. **Off by default.** Behaviour does not change unless the setting is added.
+2. Only when enabled, send the user to the IdP with the identity (``client_id``) and the return URL.
+3. **Situations where it cannot be carried through are not failures.** Even when the IdP does not
+   support it or discovery cannot be fetched, the user lands on the sign-in screen.
 """
 
 from __future__ import annotations
@@ -39,19 +39,19 @@ _APP_BASE = "https://app.example.test"
 
 @dataclass
 class _StubGateway:
-    """``end_session_url`` だけを持つ IdP。返す値をテストごとに差し替える。"""
+    """An IdP that has only ``end_session_url``. Each test replaces the returned value."""
 
-    #: ``None`` = この IdP は RP-Initiated Logout に対応していない
+    #: ``None`` = this IdP does not support RP-Initiated Logout
     end_session: str | None = _END_SESSION
-    #: 真なら discovery が引けない状況を演じる
+    #: If true, simulate discovery being unreachable
     unavailable: bool = False
     seen: list[EndSessionRequest] = field(default_factory=list)
 
     def authorization_url(self, request: AuthorizationRequest) -> str:  # pragma: no cover
-        raise AssertionError("この試験では認可要求は出ない")
+        raise AssertionError("No authorization request is made in this test")
 
     def exchange_code(self, exchange: CodeExchange) -> Mapping[str, Any]:  # pragma: no cover
-        raise AssertionError("この試験ではコード交換は出ない")
+        raise AssertionError("No code exchange is made in this test")
 
     def end_session_url(self, request: EndSessionRequest) -> str | None:
         if self.unavailable:
@@ -80,7 +80,7 @@ def make_client(
     gateway: _StubGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> _MakeClient:
-    """SSO を有効にしたアプリを作る。RP ログアウトの可否は呼び出し側が決める。"""
+    """Creates an app with SSO enabled. The caller decides whether RP logout is available."""
 
     def _make(*, rp_logout: bool | None = None) -> TestClient:
         from presentation.fastapi.app import create_app
@@ -107,7 +107,7 @@ def _logout(client: TestClient, *, site: str | None = "same-origin") -> httpx2.R
 
 
 def test_the_default_does_not_reach_the_idp(make_client: _MakeClient, gateway: _StubGateway) -> None:
-    """設定を足さない限り振る舞いを変えない。**ここが既定であることが要件。**"""
+    """Behaviour does not change unless the setting is added. **That this is the default is the requirement.**"""
     with make_client() as client:
         response = _logout(client)
     assert response.status_code == 303
@@ -130,14 +130,14 @@ def test_enabling_it_sends_the_browser_to_the_idp(make_client: _MakeClient, gate
 
 
 def test_the_landing_uri_defaults_to_the_app_base_url(make_client: _MakeClient, gateway: _StubGateway) -> None:
-    """設定を 1 つ増やさずに戻り先を決める。**2 か所に書くとずれる。**"""
+    """Determines the return URL without adding a setting. **Writing it in two places makes them drift.**"""
     with make_client(rp_logout=True) as client:
         _logout(client)
     assert gateway.seen[0].post_logout_redirect_uri == f"{_APP_BASE}/api/auth/sso/signed-out"
 
 
 def test_an_idp_without_the_endpoint_is_not_an_error(make_client: _MakeClient, gateway: _StubGateway) -> None:
-    """対応していない IdP でも、利用者はログイン画面に着く。"""
+    """Even with an IdP that does not support it, the user lands on the sign-in screen."""
     gateway.end_session = None
     with make_client(rp_logout=True) as client:
         response = _logout(client)
@@ -146,7 +146,7 @@ def test_an_idp_without_the_endpoint_is_not_an_error(make_client: _MakeClient, g
 
 
 def test_an_unreachable_idp_is_not_an_error(make_client: _MakeClient, gateway: _StubGateway) -> None:
-    """discovery が引けなくても断らない。アプリ側のセッションは既に終わっている。"""
+    """Not refused even if discovery cannot be fetched. The app-side session has already ended."""
     gateway.unavailable = True
     with make_client(rp_logout=True) as client:
         response = _logout(client)
@@ -155,7 +155,7 @@ def test_an_unreachable_idp_is_not_an_error(make_client: _MakeClient, gateway: _
 
 
 def test_the_landing_route_returns_to_the_login_screen(make_client: _MakeClient) -> None:
-    """IdP に登録するのはこの経路。**SPA のルーティングとは切り離しておく。**"""
+    """This is the path registered with the IdP. **Keep it separate from SPA routing.**"""
     with make_client(rp_logout=True) as client:
         response = client.get("/api/auth/sso/signed-out", follow_redirects=False)
     assert response.status_code == 303
@@ -163,11 +163,11 @@ def test_the_landing_route_returns_to_the_login_screen(make_client: _MakeClient)
 
 
 def test_a_cross_site_request_cannot_end_the_sso_session(make_client: _MakeClient, gateway: _StubGateway) -> None:
-    """よその頁から呼ばれた遷移では IdP まで通さない。
+    """A navigation triggered from another site does not go through to the IdP.
 
-    ⚠ **この口は未認証で状態を変える。**しかも変えるのは全アプリで共有された IdP の
-    セッション。守らないと ``<img src="…/logout">`` を置くだけで他アプリからも
-    締め出せる。**IdP の確認画面はあてにできない**（assay は挟まない）。
+    ⚠ **This entrance changes state without authentication.** And what it changes is the IdP session
+    shared by every app. Unprotected, placing ``<img src="…/logout">`` anywhere would lock users out
+    from other apps too. **The IdP confirmation screen cannot be relied on** (assay does not show one).
     """
     with make_client(rp_logout=True) as client:
         response = _logout(client, site="cross-site")
@@ -177,7 +177,7 @@ def test_a_cross_site_request_cannot_end_the_sso_session(make_client: _MakeClien
 
 
 def test_a_same_site_request_cannot_end_the_sso_session(make_client: _MakeClient, gateway: _StubGateway) -> None:
-    """兄弟のサブドメインからも通さない。通すのは自分のオリジンからだけ。"""
+    """Not from sibling subdomains either. Only from our own origin."""
     with make_client(rp_logout=True) as client:
         response = _logout(client, site="same-site")
     assert response.headers["location"] == "/login"
@@ -185,17 +185,17 @@ def test_a_same_site_request_cannot_end_the_sso_session(make_client: _MakeClient
 
 
 def test_the_user_typing_the_url_is_allowed(make_client: _MakeClient) -> None:
-    """アドレス欄・ブックマークからは通す（``none``）。よその頁からは作れない値。"""
+    """Allowed from the address bar or bookmarks (``none``), a value other sites cannot produce."""
     with make_client(rp_logout=True) as client:
         response = _logout(client, site="none")
     assert response.headers["location"].startswith(_END_SESSION)
 
 
 def test_a_browser_without_the_header_is_allowed(make_client: _MakeClient) -> None:
-    """ヘッダーを付けない古いブラウザを締め出さない。
+    """Do not lock out old browsers that do not send the header.
 
-    塞ぎたいのは**よその頁から起こした遷移**で、そこでは今のブラウザが必ず付ける。
-    無い場合まで閉じると、古い環境でサインアウトできなくなるほうの実害が勝つ。
+    What we want to block is **navigation triggered from another site**, where current browsers always
+    send it. Closing it when absent too would do more harm by making sign-out impossible on old setups.
     """
     with make_client(rp_logout=True) as client:
         response = _logout(client, site=None)
@@ -203,10 +203,10 @@ def test_a_browser_without_the_header_is_allowed(make_client: _MakeClient) -> No
 
 
 def test_the_screen_learns_the_setting_from_me(make_client: _MakeClient) -> None:
-    """判断は ``/me`` に載せて届ける。**サインアウトのたびに問い合わせを増やさない。**
+    """The decision is delivered on ``/me``. **No extra request on every sign-out.**
 
-    ``/provider`` でも返しているが、あちらはログイン画面のためのもの。ログイン済みの
-    画面が引くと、サインアウトの経路に往復が 1 つ増える。
+    ``/provider`` returns it too, but that is for the sign-in screen. If a signed-in screen fetched
+    it, the sign-out path would gain one more round trip.
     """
     with make_client(rp_logout=True) as client:
         client.post(

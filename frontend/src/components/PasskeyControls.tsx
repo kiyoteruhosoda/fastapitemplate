@@ -1,7 +1,8 @@
 /**
- * パスキーの登録・削除。プロフィールページの「パスキー」区画に出す（ADR-0080 §4）。
+ * Registering and deleting passkeys. Shown in the "Passkeys" section of the profile page
+ * (ADR-0080 §4).
  *
- * 見出しと区画の枠は呼び出し側（ProfilePage）が持ち、ここは中身だけを描く。
+ * The heading and section frame belong to the caller (ProfilePage); this renders only the content.
  */
 import { useCallback, useEffect, useState } from 'react'
 
@@ -27,7 +28,7 @@ interface Passkey {
   last_used_at: string | null
 }
 
-/** 登録済みのパスキーの一覧（1 件も無ければ呼び出し側が代わりの文を出す）。 */
+/** List of registered passkeys (if there are none, the caller shows alternative text). */
 function PasskeyTable({
   passkeys,
   onRemove,
@@ -35,7 +36,7 @@ function PasskeyTable({
 }: {
   passkeys: Passkey[]
   onRemove: (id: number) => void
-  /** 削除中のパスキー（その行だけスピナーを出す）。 */
+  /** Passkey being deleted (the spinner shows only on that row). */
   removingId: number | null
 }) {
   const { t, locale } = useI18n()

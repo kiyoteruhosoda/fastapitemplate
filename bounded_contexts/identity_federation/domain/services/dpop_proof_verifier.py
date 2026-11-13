@@ -1,4 +1,4 @@
-"""DPoP の証明の形と署名を確かめる口（ADR-0103。実装は Infrastructure 層）。"""
+"""Endpoint verifying the shape and signature of DPoP proofs (ADR-0103. Implemented in Infrastructure)."""
 
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ from bounded_contexts.identity_federation.domain.value_objects.dpop_proof import
 
 class DpopProofVerifier(Protocol):
     def verify(self, proof: str, requirements: DpopProofRequirements) -> VerifiedDpopProof:
-        """``typ``・``alg``（ES256）・``jwk``（P-256 の公開鍵）・署名・``htm``・``htu``・``iat``・``ath`` を見る。
+        """Check ``typ``, ``alg`` (ES256), ``jwk`` (P-256 public key), signature, ``htm``, ``htu``, ``iat`` and ``ath``.
 
-        合わなければ ``DpopProofRejectedError``。使い回し（``jti``）は見ない（記録は呼び出し側）。
+        On mismatch ``DpopProofRejectedError``. Reuse (``jti``) is not checked (recording is the caller's job).
         """
         ...
 

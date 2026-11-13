@@ -1,12 +1,13 @@
 /**
- * テナントごとの入口（`/t/<slug>/login`。ADR-0079 §1 決定 8・ADR-0079 §4）。
+ * Per-tenant entry points (`/t/<slug>/login`; ADR-0079 §1 decision 8, ADR-0079 §4).
  *
- * テナントが 1 つだけの環境では、入口に名前を付けなくてよい（`/login`）。複数あるときは、
- * テナントの利用者はそのテナントの入口から入る。入った入口を覚えておき、サインアウトや
- * 期限切れのあとはそこへ戻す。
+ * With a single tenant the entry point needs no name (`/login`). With several, a tenant's users
+ * sign in through that tenant's entry point. Remember the entry point used, and return there after
+ * sign-out or expiry.
  *
- * ⚠ **覚えるのは使い勝手のためだけ。** 権限には関わらない（入口を書き換えても、入れるのは
- * そのテナントの利用者だけ）。読めない・書けないブラウザでは覚えずに共通の入口へ戻す。
+ * WARNING: **Remembering it is for convenience only.** It has nothing to do with authorization
+ * (even if the entry point is rewritten, only that tenant's users can sign in). Browsers that
+ * can't read or write it don't remember and fall back to the shared entry point.
  */
 
 const STORAGE_KEY = 'signInTenant'
@@ -16,7 +17,7 @@ export function rememberTenant(tenant: string | undefined): void {
     if (tenant) window.localStorage.setItem(STORAGE_KEY, tenant)
     else window.localStorage.removeItem(STORAGE_KEY)
   } catch {
-    // 覚えられなくても入れる
+    // Sign-in still works even if it can't be remembered
   }
 }
 
@@ -28,12 +29,12 @@ export function rememberedTenant(): string | undefined {
   }
 }
 
-/** 入口の画面の経路。 */
+/** Path of the entry-point screen. */
 export function loginPathOf(tenant: string | undefined): string {
   return tenant ? `/t/${encodeURIComponent(tenant)}/login` : '/login'
 }
 
-/** パスワードを忘れたときの画面の経路（入口と同じテナント）。 */
+/** Path of the forgot-password screen (same tenant as the entry point). */
 export function forgotPasswordPathOf(tenant: string | undefined): string {
   return tenant ? `/t/${encodeURIComponent(tenant)}/forgot-password` : '/forgot-password'
 }

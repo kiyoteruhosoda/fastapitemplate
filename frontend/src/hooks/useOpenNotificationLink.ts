@@ -1,5 +1,5 @@
 /**
- * お知らせの行き先を開く。アプリの中（`/items`）は画面の切り替えで、外は別のタブで開く。
+ * Open a notice's destination. In-app paths (`/items`) switch the screen; others open in a new tab.
  */
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'

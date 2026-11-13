@@ -1,19 +1,19 @@
-"""audit コンテキスト — 「何が起きたか」を記録し、後から検証できるようにする。
+"""audit context -- records "what happened" so it can be verified later.
 
-2 種類の記録を扱う。どちらも ``requestId`` で突き合わせられる。
+It handles two kinds of records. Both can be matched by ``requestId``.
 
 ============== ================= ==================================================
-記録            テーブル          残すもの
+Record         Table             What it keeps
 ============== ================= ==================================================
-監査ログ        ``audit_log``     **誰が何をしたか**（ログイン・ユーザー管理・設定変更）
-アプリログ      ``log``           **システムが何をしたか**（リクエスト・警告・例外）
+Audit log      ``audit_log``     **Who did what** (sign-in, user management, setting changes)
+App log        ``log``           **What the system did** (requests, warnings, exceptions)
 ============== ================= ==================================================
 
-書き込みの責務は分かれている。
+Responsibility for writing is split.
 
-- 監査ログ: 本コンテキストが書く（``application/use_cases/record_audit_event.py``）。
-- アプリログ: 横断的関心事なので :mod:`shared.kernel.logging` の ``DbLogHandler``
-  が書く。本コンテキストは**読むだけ**。
+- Audit log: written by this context (``application/use_cases/record_audit_event.py``).
+- App log: a cross-cutting concern, written by ``DbLogHandler`` in :mod:`shared.kernel.logging`.
+  This context **only reads** it.
 
-どちらも PII を含めない。詳細は ``docs/decisions/ADR-0075-logs-and-audit.md``。
+Neither contains PII. Details in ``docs/decisions/ADR-0075-logs-and-audit.md``.
 """

@@ -1,4 +1,4 @@
-/** 二要素認証の登録の画面（ADR-0093）。確定したらトークンを更新して /me を読み直す。 */
+/** Two-factor enrollment page (ADR-0093). On confirmation it refreshes the token and reloads /me. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,7 +55,7 @@ describe('TwoFactorSetupPage', () => {
     })
   })
 
-  it('確定するとトークンを更新し、開こうとしていた画面が出る', async () => {
+  it('on confirmation refreshes the token and shows the page that was being opened', async () => {
     render(
       <MemoryRouter>
         <I18nProvider settings={SETTINGS}>

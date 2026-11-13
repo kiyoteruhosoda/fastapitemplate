@@ -1,4 +1,4 @@
-"""ID 連携ユースケースの入出力（Presentation 層はこれを Pydantic へ写す）。"""
+"""Inputs and outputs of identity federation use cases (Presentation maps these to Pydantic)."""
 
 from __future__ import annotations
 
@@ -15,22 +15,22 @@ from bounded_contexts.identity_federation.domain.value_objects.login_transaction
 
 @dataclass(frozen=True)
 class SsoProviderDto:
-    """ログイン画面に「SSO で入る」ボタンを出すかどうかの判断材料。"""
+    """Input for whether the login screen shows the "Sign in with SSO" button."""
 
     enabled: bool
     display_name: str
-    #: サインアウトを IdP まで通すか（ADR: RP-Initiated Logout）。画面はこれが真の
-    #: ときだけ、サインアウト後に ``/api/auth/sso/logout`` へ遷移する。
+    #: Whether sign-out is carried through to the IdP (ADR: RP-Initiated Logout). Only when true
+    #: does the screen navigate to ``/api/auth/sso/logout`` after sign-out.
     rp_logout_enabled: bool = False
 
 
 @dataclass(frozen=True)
 class SsoAuthorizationDto:
-    """IdP へ送り出すための材料。
+    """Inputs for sending to the IdP.
 
-    ``transaction`` は送り出したブラウザの Cookie へ署名して預ける往復状態で、
-    戻ってきたときに「同じブラウザか」を確かめるために使う（ログイン CSRF を
-    止める）。サーバー側に控えは残らない（ADR-0077 §1）。
+    ``transaction`` is the round-trip state signed and entrusted to the sending browser's cookie,
+    used on return to check "is it the same browser" (stops login CSRF).
+    No copy remains server-side (ADR-0077 §1).
     """
 
     authorization_url: str
@@ -39,7 +39,7 @@ class SsoAuthorizationDto:
 
 @dataclass(frozen=True)
 class ContinuedSessionDto:
-    """画面を出さずに続けるログイン（ADR-0104）。戻ってきたとき、同じ人ならこれを引き継ぐ。"""
+    """A login continued silently (ADR-0104). Carried over on return if it's the same person."""
 
     user_id: int
     active_role: str | None
@@ -49,10 +49,10 @@ class ContinuedSessionDto:
 
 @dataclass(frozen=True)
 class ResolvedAccountDto:
-    """IdP の名乗りを、このアプリの利用者へ落とした結果。
+    """Result of resolving the IdP's identity to a user of this app.
 
-    ``provisioned`` / ``linked`` は監査ログのための区別（初めて作ったのか、
-    既にあるアカウントへ結び付けたのか）。
+    ``provisioned`` / ``linked`` distinguish for the audit log (newly created, or
+    bound to an existing account).
     """
 
     user_id: int
@@ -62,7 +62,7 @@ class ResolvedAccountDto:
 
 @dataclass(frozen=True)
 class SsoHandoffDto:
-    """コールバックが SPA へ渡すもの（引き換え券と戻り先）。"""
+    """What the callback hands to the SPA (redemption ticket and return target)."""
 
     ticket: str
     redirect_to: str
@@ -71,10 +71,10 @@ class SsoHandoffDto:
 
 @dataclass(frozen=True)
 class SsoSessionDto:
-    """引き換え券から取り出したログイン結果。
+    """Login result taken out of a redemption ticket.
 
-    ``login`` は発行するトークンへ刻む（ADR-0077 §3）。刻んでおかないと、停止の通知が
-    届いても**どのトークンを無効にすればよいかが分からない**。
+    ``login`` is stamped into the issued tokens (ADR-0077 §3). Without it, when a logout notice
+    arrives **we can't tell which tokens to invalidate**.
     """
 
     user_id: int
@@ -84,9 +84,9 @@ class SsoSessionDto:
 
 @dataclass(frozen=True)
 class FederatedLinkDto:
-    """設定画面に出す「自分の連携の状態」（ADR-0077 §5）。
+    """The caller's own link status shown on the settings screen (ADR-0077 §5).
 
-    ``available`` が偽なら、画面はこの区画そのものを出さない（SSO が無効）。
+    If ``available`` is false, the screen hides this whole section (SSO disabled).
     """
 
     available: bool

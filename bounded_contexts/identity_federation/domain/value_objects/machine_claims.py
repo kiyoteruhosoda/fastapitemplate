@@ -1,11 +1,13 @@
-"""機械のトークンの主体（ADR-0082 §1 決定 3）。
+"""Subject of a machine token (ADR-0082 §1 decision 3).
 
-署名・発行者・期限・宛名はゲートウェイが確かめる。ここで見るのは**主体がクライアント自身であること**:
+Signature, issuer, expiry and audience are checked by the gateway. This checks **that the subject is the
+client itself**:
 
-- ``sub_type == "client"`` —— 利用者のログイン用トークンと見分ける唯一の印
-- ``sub == client_id`` —— assay は 2 つを別々の材料から組み立てるので、揃っていることを確かめる
+- ``sub_type == "client"`` — the only marker distinguishing it from a user's login token
+- ``sub == client_id`` — assay builds the two from separate inputs, so check they agree
 
-⚠ 実装ごとに覚えさせず、ここ 1 か所に持つ（忘れると、誰かのログイン用トークンで機械の口が通る）。
+⚠ Kept in this one place rather than in each implementation (forgetting it would let someone's login token
+through the machine endpoint).
 """
 
 from __future__ import annotations

@@ -1,15 +1,15 @@
-"""管理 API の「権限を動かす操作」に掛ける関門（ADR-0078 §4）。
+"""Gate for admin API operations that move permissions (ADR-0078 §4).
 
-scope の検査（``require_permission``）が答えるのは「この画面を使えるか」まで。
-ここで答えるのは、その画面で**この相手に・この権限を**動かしてよいか。
+The scope check (``require_permission``) only answers "may this screen be used". This answers
+whether, on that screen, **this permission may be moved for this target**.
 
-- 自分が持っていない権限は、配ることも取り上げることもできない
-- 自分より多くの権限を持つ利用者には触れない
-- 自分のロールを変える・自分を止める・自分を消すことはできない
-- 「管理の要」を持つ有効な利用者を 0 人にする変更は通さない
+- You cannot grant or revoke permissions you don't hold
+- You cannot touch users who hold more permissions than you
+- You cannot change your own roles, suspend yourself or delete yourself
+- A change that leaves zero active users with the "key admin" permissions is rejected
 
-操作する人とリクエストの DB セッションを 1 つにまとめた :class:`Administration`
-として受け取る（関門はどれも、この 2 つを材料にする）。
+Takes an :class:`Administration` bundling the operator and the request's DB session (every gate
+works from these two).
 """
 
 from __future__ import annotations
@@ -32,29 +32,31 @@ from shared.kernel.database.session import get_db
 
 
 def permissions_of(roles: Iterable[Role]) -> frozenset[str]:
-    """ロールの束が持つ権限の和集合。"""
+    """Union of the permissions held by a set of roles."""
     return frozenset(p.code for role in roles for p in role.permissions)
 
 
 @dataclass(frozen=True)
 class Administration:
-    """誰が（``actor``）、どのセッションで（``db``）管理の操作をしているか。"""
+    """Who (``actor``) is performing the admin operation, in which session (``db``)."""
 
     actor: AuthenticatedPrincipal
     db: Session
 
     @property
     def members(self) -> TenantMembers:
-        """操作する人のテナントの利用者・グループ（ADR-0079 §1）。テナントに属さない人は 403。"""
+        """Users and groups of the operator's tenant (ADR-0079 §1). 403 for someone outside any
+        tenant."""
         if self.actor.tenant_id is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": TENANT_REQUIRED})
         return TenantMembers(self.db, self.actor.tenant_id)
 
     def ensure_within_authority(self, required: Iterable[str]) -> None:
-        """``required`` をすべて操作する人が持っていなければ 403。
+        """403 unless the operator holds all of ``required``.
 
-        比べるのは**いま有効な権限**（アクティブロールで絞った後。ADR-0078 §1）である。
-        弱いロールで操作している間は、強い権限は配れない。
+        The comparison uses the **currently effective permissions** (after narrowing by the
+        active role; ADR-0078 §1). While operating with a weaker role, stronger permissions
+        cannot be granted.
         """
         missing = beyond(self.actor.permissions, required)
         if missing:
@@ -64,9 +66,10 @@ class Administration:
             )
 
     def ensure_not_yourself(self, user: User) -> None:
-        """自分のロール・有効状態・存在は、管理画面から変えさせない。
+        """Your own roles, active state and existence cannot be changed from the admin console.
 
-        自分を締め出す事故を防ぐのと、権限の変更には必ず別の人の手を通すため。
+        This prevents accidentally locking yourself out and ensures permission changes always
+        pass through another person.
         """
         if user.id == self.actor.user_id:
             raise HTTPException(
@@ -75,11 +78,11 @@ class Administration:
             )
 
     def ensure_an_administrator_remains(self) -> None:
-        """変更を ``flush`` して数え直す。「管理の要」を持つ有効な利用者が 0 人なら 409。
+        """``flush`` the change and recount. 409 if zero active users hold the "key admin" permissions.
 
-        アクセストークンは寿命まで通るので（ADR-0076 §5）、ロールを外された人の古い
-        1 枚でも、ここまでの関門は通り抜けうる。最後はいまの DB の状態で確かめる。
-        例外はリクエストのセッションを rollback させるので、変更は残らない。
+        Access tokens stay valid until they expire (ADR-0076 §5), so an old token of someone
+        whose role was removed may get through the gates above. The final check uses the current
+        DB state. The exception rolls back the request's session, so the change is not kept.
         """
         self.db.flush()
         if count_active_administrators(self.db, self.actor.tenant_id) == 0:

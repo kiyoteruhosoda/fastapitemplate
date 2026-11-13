@@ -1,11 +1,12 @@
-"""Android App Links の検証ファイル（ADR-0081 §1）。
+"""Android App Links verification file (ADR-0081 §1).
 
-アプリは assay でのログインを ``https://<このホスト>/app/oauth2redirect`` で受け取る。
-Android がこの戻り先を**ブラウザではなくアプリへ**渡すのは、このファイルでホストと
-アプリの結び付きを確かめられたときだけである。
+The app receives the assay login at ``https://<this host>/app/oauth2redirect``.
+Android hands this redirect **to the app instead of the browser** only when this file confirms
+the link between the host and the app.
 
-⚠ **中身は環境変数だけで決める**（``ANDROID_APP_PACKAGE`` / ``ANDROID_APP_CERT_FINGERPRINTS``）。
-画面から変えられると、別のアプリに認可コードを渡す宣言を書けてしまう。
+⚠ **Its content is set only by environment variables** (``ANDROID_APP_PACKAGE`` /
+``ANDROID_APP_CERT_FINGERPRINTS``). If it could be changed from the UI, someone could declare a
+different app as the recipient of authorization codes.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""content_settings コンテキストの SQLAlchemy モデル（ADR-0085）。"""
+"""SQLAlchemy models of the content_settings context (ADR-0085)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from shared.kernel.database.db import Base
 
 
 class ContentSettingModel(Base):
-    """テナントが変えたコンテンツ設定の値。既定値のままの項目は行を持たない。"""
+    """Content setting values a tenant changed. Items left at the default have no row."""
 
     __tablename__ = "content_settings"
     __table_args__ = (
@@ -24,7 +24,7 @@ class ContentSettingModel(Base):
     id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     tenant_id: Mapped[int] = mapped_column(BigIntPk, sa.ForeignKey("tenants.id"), nullable=False, index=True)
     key: Mapped[str] = mapped_column(sa.String(100), nullable=False)
-    #: 値は JSON で持つ（文字列・真偽・整数）
+    #: The value is stored as JSON (string, bool or integer)
     value: Mapped[str] = mapped_column(sa.Text(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(sa.DateTime(), nullable=False, default=utcnow, onupdate=utcnow)
 

@@ -1,7 +1,7 @@
-"""WebAuthn の Relying Party 操作インターフェース（実装は Infrastructure 層）。
+"""Interface for WebAuthn Relying Party operations (implemented in Infrastructure).
 
-ブラウザとやり取りする JSON は素の ``dict`` として扱い、WebAuthn ライブラリの
-型をドメイン・アプリケーション層へ持ち込まない。
+JSON exchanged with the browser is handled as plain ``dict``s, so the WebAuthn library's
+types are not carried into the domain or application layers.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 @dataclass(frozen=True)
 class PublicKeyOptions:
-    """ブラウザの ``navigator.credentials`` に渡すオプションとチャレンジ。"""
+    """Options and challenge passed to the browser's ``navigator.credentials``."""
 
     public_key: dict[str, Any]
     challenge: str
@@ -21,7 +21,7 @@ class PublicKeyOptions:
 
 @dataclass(frozen=True)
 class VerifiedRegistration:
-    """登録レスポンスの検証結果。"""
+    """Result of verifying a registration response."""
 
     credential_id: str
     public_key: str
@@ -34,7 +34,7 @@ class VerifiedRegistration:
 
 @dataclass(frozen=True)
 class VerifiedAssertion:
-    """認証レスポンスの検証結果。"""
+    """Result of verifying an authentication response."""
 
     credential_id: str
     sign_count: int
@@ -49,18 +49,18 @@ class WebAuthnRelyingParty(Protocol):
         display_name: str,
         exclude_credential_ids: Sequence[str] = (),
     ) -> PublicKeyOptions:
-        """パスキー登録用のオプションを組み立てる。"""
+        """Build the options for passkey registration."""
 
     def verify_registration(self, *, credential: Mapping[str, Any], expected_challenge: str) -> VerifiedRegistration:
-        """登録レスポンスを検証する。失敗時は
-        :class:`~bounded_contexts.account_security.domain.exceptions.PasskeyVerificationError`。
+        """Verify a registration response. Raises
+        :class:`~bounded_contexts.account_security.domain.exceptions.PasskeyVerificationError` on failure.
         """
 
     def create_authentication_options(self, *, allow_credential_ids: Sequence[str] = ()) -> PublicKeyOptions:
-        """パスキー認証用のオプションを組み立てる。
+        """Build the options for passkey authentication.
 
-        ``allow_credential_ids`` が空なら、認証器が自分で資格情報を選ぶ
-        （ユーザー名を入力しないログイン）。
+        If ``allow_credential_ids`` is empty, the authenticator picks the credential itself
+        (login without entering a username).
         """
 
     def verify_authentication(
@@ -71,12 +71,12 @@ class WebAuthnRelyingParty(Protocol):
         stored_public_key: str,
         stored_sign_count: int,
     ) -> VerifiedAssertion:
-        """認証レスポンスを検証する。失敗時は
-        :class:`~bounded_contexts.account_security.domain.exceptions.PasskeyVerificationError`。
+        """Verify an authentication response. Raises
+        :class:`~bounded_contexts.account_security.domain.exceptions.PasskeyVerificationError` on failure.
         """
 
     def extract_credential_id(self, credential: Mapping[str, Any]) -> str | None:
-        """レスポンスから資格情報 ID を取り出す（検証前に保存済みの鍵を引くため）。"""
+        """Extract the credential ID from a response (to look up the stored key before verification)."""
 
 
 __all__ = [

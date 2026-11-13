@@ -1,8 +1,8 @@
-"""ログインの失敗を宛名ごとに数えて、しばらく断る（ADR-0076 §9）。
+"""Counting sign-in failures per target and refusing for a while (ADR-0076 §9).
 
-見たいのは、**上限で 429 になること**（正しいパスワードでも）・**時間が過ぎれば
-入れること**・**二要素のコードの間違いも数えること**・**未知の宛名も同じに扱うこと**・
-**再設定の要求も数えること**・**断り始めたことが監査に残ること**。
+Checked: **429 at the limit** (even with the correct password), **getting in again once time
+passes**, **wrong two-factor codes count too**, **unknown targets are treated the same**,
+**reset requests count too**, and **the start of refusals is audited**.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ RIGHT = {"email": ADMIN, "password": PASSWORD}
 
 @pytest.fixture(autouse=True)
 def _small_limit(monkeypatch: pytest.MonkeyPatch) -> None:
-    """3 回で断る（既定の 5 回だと試行が長い）。"""
+    """Refuse after 3 (the default of 5 makes the test long)."""
     monkeypatch.setenv("LOGIN_MAX_FAILURES", "3")
 
 
@@ -41,7 +41,7 @@ def test_the_limit_refuses_even_the_right_password(client: TestClient) -> None:
 
     assert refused.status_code == 429
     assert refused.json()["detail"]["error"] == "too_many_attempts"
-    # いつ再開できるかを本文とヘッダーの両方で
+    # When it can resume, in both the body and the header
     assert refused.json()["detail"]["retry_after_seconds"] > 0
     assert refused.headers["Retry-After"] == str(refused.json()["detail"]["retry_after_seconds"])
 
@@ -56,7 +56,7 @@ def test_the_lock_lifts_when_the_time_has_passed(client: TestClient) -> None:
 
 
 def test_wrong_second_factor_codes_are_counted(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """パスワードが分かった相手に、6 桁のコードを総当たりさせない。"""
+    """Someone who knows the password cannot brute-force the 6-digit code."""
     enrollment = client.post("/api/account/security/two-factor/enrollment", headers=admin_headers)
     assert enrollment.status_code == 200, enrollment.text
     secret = str(enrollment.json()["secret"])
@@ -76,7 +76,7 @@ def test_wrong_second_factor_codes_are_counted(client: TestClient, admin_headers
 
 
 def test_an_unknown_address_is_refused_the_same_way(client: TestClient) -> None:
-    # 実在するものだけが 429 になるなら、それで存在が分かってしまう
+    # If only existing targets got 429, that would reveal their existence
     _fail(client, "nobody@example.com", 3)
 
     refused = client.post(LOGIN, json={"email": "nobody@example.com", "password": "anything"})
@@ -92,7 +92,7 @@ def test_a_successful_login_forgets_the_failures(client: TestClient) -> None:
     _fail(client, ADMIN, 2)
     assert client.post(LOGIN, json=RIGHT).status_code == 200
 
-    # 忘れているので、また 2 回までは 401 のまま
+    # Forgotten, so again up to 2 attempts stay 401
     _fail(client, ADMIN, 2)
     assert client.post(LOGIN, json=RIGHT).status_code == 200
 
@@ -101,10 +101,10 @@ def test_locking_is_recorded_in_the_audit_log(
     client: TestClient, other_client: TestClient, system_admin_headers: dict[str, str]
 ) -> None:
     _fail(other_client, "nobody@example.com", 3)
-    # 断っているあいだの試行も残る（当たられていることが見える）
+    # Attempts during the refusal are recorded too (so being targeted is visible)
     assert other_client.post(LOGIN, json={"email": "nobody@example.com", "password": "x"}).status_code == 429
 
-    # 宛先の分からない失敗は全体の記録（ADR-0079 §2）。システム管理者が読む
+    # Failures with an unknown target are system-wide records (ADR-0079 §2). Read by the system administrator
     headers = system_admin_headers
     locked = client.get("/api/admin/audit-logs", headers=headers, params={"event_type": "login.locked"}).json()
     assert [entry["reason"] for entry in locked["entries"]] == ["unknown_email"]
@@ -124,5 +124,5 @@ def test_password_reset_requests_are_counted_even_when_they_succeed(client: Test
 
     refused = client.post("/api/auth/forgot-password", json={"email": ADMIN})
     assert refused.status_code == 429
-    # ログインの籠とは別。再設定を叩かれてもログインは断られない
+    # Separate from the sign-in bucket. Hammering reset does not get sign-in refused
     assert client.post(LOGIN, json=RIGHT).status_code == 200

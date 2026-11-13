@@ -21,7 +21,7 @@ import { ThemeProvider } from './theme'
 
 function render(settings: UiSettings) {
   const container = document.getElementById('root')
-  if (!container) throw new Error('#root が index.html に見つかりません')
+  if (!container) throw new Error('#root not found in index.html')
 
   createRoot(container).render(
     <StrictMode>
@@ -29,8 +29,8 @@ function render(settings: UiSettings) {
         <ThemeProvider settings={settings}>
           <AuthProvider>
             <ToastProvider>
-              {/* 新しい版の知らせはどの画面でもいちばん上に出す（ADR-0106）。
-                  帯がヘッダーの上に来るよう、画面より前に置く。 */}
+              {/* The new-version notice is shown at the very top on every screen (ADR-0106).
+                  Placed before the screen so the banner sits above the header. */}
               <AppUpdatePrompt watch={watchForUpdate} />
               <BrowserRouter>
                 <App />
@@ -44,11 +44,12 @@ function render(settings: UiSettings) {
 }
 
 /**
- * メンテナンス中・停止中の画面（ADR-0080 §10）。
+ * The under-maintenance / stopped screen (ADR-0080 §10).
  *
- * ⚠ **アプリとは別の root に描く。** 遅れて読み込む部品が欠けてアプリの木が落ちても
- * 出せるようにするため。アプリの画面は消さずに隠すだけなので、戻ったときは入力の途中も
- * 含めてそのまま戻る。root は初めて閉じたときに作る（そのときの言語で描く）。
+ * ⚠ **Rendered in a root separate from the app**, so it can still show even if a lazily
+ * loaded component is missing and the app tree crashes. The app screen is only hidden, not
+ * removed, so on return everything comes back as it was, including half-entered input. The root
+ * is created the first time the app closes (rendered in the language at that time).
  */
 function watchOutage(settings: UiSettings) {
   const app = document.getElementById('root')
@@ -75,8 +76,8 @@ function watchOutage(settings: UiSettings) {
 
 watchLazyLoadFailures()
 
-// 言語・テーマの既定値は描画前に取得する。取得後に切り替えると、初回表示で
-// 一瞬だけ違う言語・配色が見えてしまう。取得に失敗しても既定値で描画する。
+// Fetch the default language and theme before rendering. Switching after fetching would flash
+// the wrong language/colours on first paint. If the fetch fails, render with the defaults.
 void loadUiSettings().then((settings) => {
   watchOutage(settings)
   render(settings)

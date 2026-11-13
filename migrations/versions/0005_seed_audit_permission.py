@@ -1,11 +1,11 @@
 """seed audit permission
 
-監査ログ閲覧の権限（``audit:view``）を投入し、``admin`` ロールへ付与する。値の
-正本は ``shared/domain/auth/master_data.py``（ここへ直書きしない）。
+Seed the permission to view audit logs (``audit:view``) and grant it to the ``admin`` role. The
+values live in ``shared/domain/auth/master_data.py`` (not hard-coded here).
 
-投入は ``seed_master_data`` の再実行で行う。冪等（既存の行は変更しない）なので、
-マスタデータへ権限コードを足したときはこのように「もう一度流す」だけで既存 DB へ
-反映できる。
+Seeding is done by re-running ``seed_master_data``. It is idempotent (existing rows are not
+changed), so when a permission code is added to the master data, "running it again" like this is
+enough to apply it to existing DBs.
 
 Revision ID: seed_audit_permission
 Revises: audit_log

@@ -1,17 +1,17 @@
-"""アプリログ（``log`` テーブル）のまとめ書きミドルウェア。
+"""Middleware that batch-writes app logs (the ``log`` table).
 
-リクエスト中に出たログ行を、**リクエストの処理が完全に終わってから**一度に書く。
-処理の途中で別コネクションから INSERT すると、リクエストのセッションが握った
-書き込みロックと衝突し、SQLite では busy timeout（5 秒）の末に行が失われる
-（:mod:`shared.kernel.logging.pending_records`）。
+Log rows emitted during a request are written at once **after the request has fully finished**.
+An INSERT from another connection mid-request collides with the write lock held by the request's
+session, and on SQLite the row is lost after the busy timeout (5 s)
+(:mod:`shared.kernel.logging.pending_records`).
 
-**素の ASGI ミドルウェアとして書いている**（``BaseHTTPMiddleware`` を使わない）。
-FastAPI は ``yield`` を使う依存（``get_db`` の commit）をレスポンス送出の**後**に
-閉じるため、``call_next`` が戻った時点ではまだセッションが開いている。
-``await self.app(...)`` は下流を最後まで待つので、確実に commit / rollback の後になる。
+**Written as a plain ASGI middleware** (not ``BaseHTTPMiddleware``). FastAPI closes ``yield``
+dependencies (``get_db``'s commit) **after** sending the response, so the session is still open
+when ``call_next`` returns. ``await self.app(...)`` waits for the downstream to finish, so this
+reliably runs after commit / rollback.
 
-監査ログにも同じ仕組みがあるが、書き込みの持ち主が違うので分けている
-（アプリログはロギング基盤、監査ログは audit コンテキスト。ADR-0075 §1）。
+Audit logs have the same mechanism, but the writes have a different owner, so they are separate
+(app logs belong to the logging infrastructure, audit logs to the audit context; ADR-0075 §1).
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from shared.kernel.logging.db_log_handler import write_log_rows
 from shared.kernel.logging.pending_records import install_pending_log_records
 
-# このロガーは DbLogHandler の除外対象（``shared.kernel.logging`` 配下）。
-# 書き込み失敗のログがまた書き込みを誘発しないようにするため。
+# This logger is excluded by DbLogHandler (it lives under ``shared.kernel.logging``),
+# so a log about a failed write does not trigger another write.
 logger = logging.getLogger("shared.kernel.logging.deferred_writes")
 
 
@@ -44,8 +44,8 @@ class DeferredLogWriteMiddleware:
             try:
                 write_log_rows(pending.drain())
             except Exception:
-                # DB へ書けなくても stdout の構造化ログは出ている。処理は止めない
-                logger.exception("ログの DB 書き込みに失敗しました")
+                # Structured logs still reach stdout even if the DB write fails. Don't stop
+                logger.exception("Failed to write logs to the DB")
 
 
 __all__ = ["DeferredLogWriteMiddleware"]

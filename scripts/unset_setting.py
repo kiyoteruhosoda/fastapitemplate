@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""画面で保存した設定を 1 つ消す（＝環境変数か既定値へ戻す）。
+"""Remove one setting saved via the UI (i.e. fall back to the env var or default).
 
     python scripts/unset_setting.py LOCAL_LOGIN_ENABLED
     python scripts/unset_setting.py --list
 
-⚠ **締め出しからの戻り道である。** 解決の順序は **DB > 環境変数 > 既定値** なので、
-画面で保存した値は環境変数では上書きできない（ADR-0074 §1）。`LOCAL_LOGIN_ENABLED`
-を偽にしたまま IdP が落ちる、のような**画面に入れない状態**からは、保存を消して
-環境変数・既定値へ戻す。
+⚠ **This is the way back from a lockout.** Resolution order is **DB > env var > default**, so a
+value saved in the UI cannot be overridden by an env var (ADR-0074 §1). From a state where
+**the UI can't be reached** (e.g. `LOCAL_LOGIN_ENABLED` set to false and then the IdP goes down),
+remove the saved value to fall back to the env var / default.
 
-⚠ **消すのは 1 鍵だけ。** 行ごと削ると、他の設定まで既定へ戻る。
+⚠ **Removes a single key only.** Deleting the whole row would reset other settings too.
 
-⚠ **値は出さない。** 秘密が入っている鍵もあるので、出すのは鍵の名前だけである。
+⚠ **Values are never printed.** Some keys hold secrets, so only key names are shown.
 """
 
 from __future__ import annotations
@@ -37,23 +37,23 @@ def main(argv: list[str]) -> int:
     stored = dict(row.setting_json) if row and isinstance(row.setting_json, dict) else {}
 
     if argv[0] == "--list":
-        print(f"画面で保存されている鍵（{len(stored)} 件）:")
+        print(f"Keys saved via the UI ({len(stored)}):")
         for key in sorted(stored):
             print(f"  {key}")
         return 0
 
     key = argv[0]
     if row is None or key not in stored:
-        print(f"{key} は画面で保存されていない（消すものが無い）。", file=sys.stderr)
+        print(f"{key} is not saved via the UI (nothing to remove).", file=sys.stderr)
         return 1
 
     del stored[key]
-    # ⚠ **新しい dict を代入する。** 中身を書き換えるだけでは JSON 列の変更を
-    #   SQLAlchemy が拾わないことがある。
+    # ⚠ **Assign a new dict.** Mutating it in place may not be detected by SQLAlchemy as a
+    #   change to the JSON column.
     row.setting_json = stored
     session.commit()
-    print(f"{key} の保存を消した。次に読むときは環境変数か既定値へ戻る。")
-    print("⚠ 起動時にしか読まれない鍵は、プロセスを起こし直すまで効かない。")
+    print(f"Removed the saved value of {key}. The next read falls back to the env var or default.")
+    print("⚠ Keys read only at startup take effect after the process is restarted.")
     return 0
 
 

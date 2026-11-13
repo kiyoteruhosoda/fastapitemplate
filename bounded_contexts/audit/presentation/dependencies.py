@@ -1,9 +1,9 @@
-"""audit コンテキストの ``Depends()`` 用依存関数。
+"""``Depends()`` dependencies of the audit context.
 
-具象（SQLAlchemy 実装）の組み立てはここだけで行い、ルーターにはユースケースを
-渡す。リクエスト文脈（``requestId``・接続元・操作主体）は
-:mod:`shared.kernel.logging.request_context` から取り込むため、監査を記録する
-ルーターは追跡情報を引数で受け取らない。
+The concrete classes (SQLAlchemy implementations) are assembled only here, and routers receive use
+cases. The request context (``requestId``, client address, acting principal) is taken from
+:mod:`shared.kernel.logging.request_context`, so routers that record audits do not receive
+tracking information as arguments.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 def current_audit_context() -> AuditRequestContext:
-    """処理中のリクエストの追跡情報を値オブジェクトへ束ねる。"""
+    """Bundle the tracking information of the request in progress into a value object."""
     return AuditRequestContext(
         request_id=current_request_id(),
         ip_address=current_ip_address(),
@@ -59,15 +59,16 @@ def current_audit_context() -> AuditRequestContext:
 
 
 def record_audit_event() -> RecordAuditEvent:
-    """このリクエストの監査イベント記録口。
+    """Audit event recorder for this request.
 
-    積む先はリクエストの控え。実際の書き込みは処理が終わってから
+    Events go to the request's queue. The actual write is done after processing by
     :class:`~bounded_contexts.audit.presentation.middleware.AuditRecordingMiddleware`
-    が行う（ADR-0075 §1）。DB セッションを受け取らないのはそのため。
+    (ADR-0075 §1). That is why it does not take a DB session.
 
-    控えが無い（ミドルウェアが外れている）ときは捨て先を渡して本処理は通し、
-    警告を残す。監査が黙って止まる方が、記録できないことで機能が落ちるより悪い
-    ——が、黙って止まったことに気付けないのはもっと悪いため。
+    When there is no queue (the middleware is missing), it hands out a discarding sink, lets the
+    work proceed, and leaves a warning. Auditing silently stopping is worse than features failing
+    because nothing can be recorded -- but being unable to notice that it silently stopped is
+    worse still.
     """
     pending = current_pending_events()
     if pending is None:
@@ -84,7 +85,7 @@ def search_audit_logs(
     db: Annotated[Session, Depends(get_db)],
     principal: Annotated[AuthenticatedPrincipal, Depends(get_current_principal)],
 ) -> SearchAuditLogs:
-    # 読めるのは自分のテナントの記録だけ（ADR-0079 §1）。絞りはリポジトリの入口で掛ける
+    # Only one's own tenant's records are readable (ADR-0079 §1). The filter is applied at the repository entry
     return SearchAuditLogs(SqlAuditLogQuery(db, principal.tenant_id))
 
 
@@ -92,7 +93,7 @@ def search_application_logs(db: Annotated[Session, Depends(get_db)]) -> SearchAp
     return SearchApplicationLogs(SqlApplicationLogQuery(db))
 
 
-# 監査を記録するルーターが使う共通の型注釈
+# Common type annotation used by routers that record audits
 AuditRecorderDep = Annotated[RecordAuditEvent, Depends(record_audit_event)]
 
 __all__ = [

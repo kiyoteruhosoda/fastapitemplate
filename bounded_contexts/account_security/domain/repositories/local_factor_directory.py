@@ -1,4 +1,4 @@
-"""第二要素の棚卸しのインターフェース（実装は Infrastructure 層。ADR-0076 §7）。"""
+"""Interface for the second-factor inventory (implemented in Infrastructure; ADR-0076 §7)."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ from bounded_contexts.account_security.domain.value_objects.local_factors import
 
 class LocalFactorDirectory(Protocol):
     def factors_by_user(self) -> dict[int, LocalFactors]:
-        """利用者 ID → 第二要素。1 つも持たない利用者は載らない。
+        """User ID → second factors. Users with none are not included.
 
-        ⚠ **全員分をまとめて返す。** 1 人ずつ引く形にすると、画面が利用者の数だけ
-        問い合わせることになる。
+        ⚠ **Returns everyone at once.** Looking them up one by one would make the screen
+        query once per user.
         """
 
     def factors_of(self, user_id: int) -> LocalFactors:
-        """1 人分だけ数える。**自分の設定画面のように、相手が 1 人と決まっている
-        ときだけ使う**（一覧からは呼ばない）。
+        """Count for one user only. **Use only when the target is known to be a single person,
+        such as one's own settings screen** (never call it from a list).
         """
 
 

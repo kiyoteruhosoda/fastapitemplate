@@ -10,21 +10,21 @@ async function signIn(page: Page, password: string): Promise<void> {
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
 }
 
-test('ログインしていなければログイン画面へ送られる', async ({ page }) => {
+test('redirects to the sign-in screen when not signed in', async ({ page }) => {
   await page.goto('/')
 
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('heading', { name: 'ログイン' })).toBeVisible()
 })
 
-test('パスワードを間違えるとログイン画面に留まる', async ({ page }) => {
+test('stays on the sign-in screen with a wrong password', async ({ page }) => {
   await signIn(page, 'not-the-password')
 
   await expect(page.getByText('メールアドレスまたはパスワードが正しくありません。')).toBeVisible()
   await expect(page).toHaveURL(/\/login$/)
 })
 
-test('ログインは読み込み直しても続き、ログアウトで終わる', async ({ page }) => {
+test('sign-in survives a reload and ends with sign-out', async ({ page }) => {
   await signIn(page, ADMIN.password)
   const dashboard = page.getByRole('heading', { name: '管理ダッシュボード' })
   await expect(dashboard).toBeVisible()

@@ -8,18 +8,18 @@ from bounded_contexts.notification.domain.entities.push_subscription import Push
 class IPushSubscriptionRepository(ABC):
     @abstractmethod
     def save(self, subscription: PushSubscription) -> None:
-        """登録する。同じ ``endpoint`` が既にあれば持ち主と鍵を書き換える。
+        """Register it. If the same ``endpoint`` already exists, overwrite its owner and keys.
 
-        同じ端末で別の人がログインし直したときは、後の人の購読になる。
+        When someone else signs in again on the same device, the subscription becomes the later user's.
         """
 
     @abstractmethod
     def remove(self, user_id: int, endpoint: str) -> None:
-        """本人の購読を外す（他人の ``endpoint`` は外さない）。"""
+        """Remove the user's own subscription (never another user's ``endpoint``)."""
 
     @abstractmethod
     def remove_endpoint(self, endpoint: str) -> None:
-        """通知サービスが「もう無い」と答えた購読を外す。"""
+        """Remove a subscription the push service reported as gone."""
 
     @abstractmethod
     def for_users(self, user_ids: list[int]) -> list[PushSubscription]: ...

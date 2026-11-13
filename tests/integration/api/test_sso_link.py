@@ -1,13 +1,12 @@
-"""本人の操作で IdP の口座と結び付ける導線（ADR-0077 §5）。
+"""The flow where a user links their own IdP account (ADR-0077 §5).
 
-ログインの往復（``test_sso_login``）と同じ経路で戻ってくるが、後始末が違う。
-ここで確かめるのは
+It returns via the same route as the sign-in round trip (``test_sso_login``) but the follow-up
+differs. Checked here:
 
-- 始めるには**入っていること**が要る（未認証は 401）
-- 戻りの結び付け先は**往復を始めた利用者**で、いまのセッションではない
-- 外すと入れなくなる利用者は断る
+- Starting requires **being signed in** (unauthenticated gets 401)
+- The link target on return is **the user who started the round trip**, not the current session
+- Users who could no longer sign in after unlinking are refused
 
-の 3 つ。
 """
 
 from __future__ import annotations
@@ -73,7 +72,7 @@ def sso_app(engine: sa.Engine, gateway: _StubGateway, monkeypatch: pytest.Monkey
 
 @pytest.fixture
 def signed_in(sso_app: Any) -> Iterator[tuple[TestClient, dict[str, str]]]:
-    """管理者として入ったブラウザと、更新系に要る CSRF ヘッダー。"""
+    """A browser signed in as the administrator, and the CSRF header needed for writes."""
     with TestClient(sso_app) as client:
         headers = sign_in(client, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
         yield client, headers
@@ -110,14 +109,14 @@ def test_a_completed_round_trip_links_the_identity(signed_in: tuple[TestClient, 
     body = client.get("/api/auth/sso/link", headers=headers).json()
     assert body["linked"] is True
     assert body["linked_at"].endswith("Z")
-    # 管理者はパスワードを持っているので、外しても入り口が残る。
+    # The administrator has a password, so a way in remains after unlinking.
     assert body["can_unlink"] is True
 
 
 def test_the_identity_is_not_linked_after_signing_out(
     signed_in: tuple[TestClient, dict[str, str]],
 ) -> None:
-    """⚠ 往復の途中で入れ替わったブラウザで、誰かの口座へ結び付けない。"""
+    """⚠ Do not link someone's account in a browser that was swapped mid round trip."""
     client, headers = signed_in
     state = _start_link(client, headers)
     assert client.post("/api/auth/logout", headers=headers).status_code == 200
@@ -131,7 +130,7 @@ def test_an_identity_that_belongs_to_someone_else_is_refused(
     sso_app: Any,
     engine: sa.Engine,
 ) -> None:
-    """⚠ 横取りになるので断る。片方が先に結び付けた相手は、もう片方には渡らない。"""
+    """⚠ That would be a takeover, so refuse. An account already linked by one side does not go to the other."""
     with TestClient(sso_app) as first:
         headers = sign_in(first, master_data.DEFAULT_ADMIN_EMAIL, master_data.DEFAULT_ADMIN_PASSWORD)
         state = _start_link(first, headers)
@@ -146,7 +145,7 @@ def test_an_identity_that_belongs_to_someone_else_is_refused(
 
 
 def test_the_last_entrance_is_not_removed(sso_app: Any, engine: sa.Engine) -> None:
-    """⚠ パスワードもパスキーも無い利用者からは外させない（締め出しになる）。"""
+    """⚠ Users with neither a password nor a passkey cannot unlink (it would lock them out)."""
     email, password = _make_second_user(engine)
     with TestClient(sso_app) as client:
         headers = sign_in(client, email, password)
@@ -169,7 +168,7 @@ def test_a_link_can_be_removed_while_a_password_remains(
 
     assert client.delete("/api/auth/sso/link", headers=headers).status_code == 200
     assert client.get("/api/auth/sso/link", headers=headers).json()["linked"] is False
-    # 2 回目は「結び付いていない」。
+    # The second time it is "not linked".
     assert client.delete("/api/auth/sso/link", headers=headers).status_code == 404
 
 
@@ -182,7 +181,7 @@ def _open(engine: sa.Engine) -> Session:
 
 
 def _make_second_user(engine: sa.Engine) -> tuple[str, str]:
-    """管理者とは別の利用者を 1 人作る。"""
+    """Creates one user separate from the administrator."""
     from werkzeug.security import generate_password_hash
 
     from shared.infrastructure.models import User
@@ -202,7 +201,7 @@ def _make_second_user(engine: sa.Engine) -> tuple[str, str]:
 
 
 def _drop_password(engine: sa.Engine, email: str) -> None:
-    """ローカルのパスワードを落とす（IdP でしか入れない利用者にする。ADR-0076 §6）。"""
+    """Drops the local password (making a user who can only sign in via the IdP; ADR-0076 §6)."""
     from shared.infrastructure.models import User
 
     with _open(engine) as session:

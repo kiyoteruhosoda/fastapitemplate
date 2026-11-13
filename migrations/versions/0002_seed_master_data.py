@@ -1,7 +1,7 @@
 """seed master data
 
-ロール・権限・初期管理者を投入する。値の正本は
-``shared/domain/auth/master_data.py``（ここへ直書きしない）。
+Seed roles, permissions and the initial administrator. The values live in
+``shared/domain/auth/master_data.py`` (not hard-coded here).
 
 Revision ID: seed_master_data
 Revises: init_master
@@ -28,8 +28,8 @@ def upgrade() -> None:
 
     session = Session(bind=op.get_bind())
     seed_master_data(session)
-    # 初期管理者を据えるのは**据え付けのこの 1 回だけ**（ADR-0078 §3）。あとから
-    # 権限を足すマイグレーションは ``seed_master_data`` しか呼ばない。
+    # The initial administrator is seated **only this once, at setup** (ADR-0078 §3). Later
+    # migrations that add permissions call only ``seed_master_data``.
     ensure_default_admin(session, password=os.environ.get("ADMIN_INITIAL_PASSWORD") or None)
     session.flush()
 

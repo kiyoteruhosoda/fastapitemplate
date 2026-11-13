@@ -1,33 +1,33 @@
-"""管理画面（Config）の設定項目定義。
+"""Setting item definitions for the admin console (Config).
 
-キーを追加したら ``system_settings_defaults.py`` と ``settings.py`` も更新する
-（CLAUDE.md「設定管理」参照）。
+When adding a key, also update ``system_settings_defaults.py`` and ``settings.py``
+(see CLAUDE.md "Settings management").
 
-各項目のキー:
+Keys of each item:
 
-- ``key`` / ``category`` / ``value_type``: 必須。
-- ``label``: 英語の既定ラベル。表示文言の翻訳はフロントエンド側で行う
-  （``config.field.<KEY>`` を辞書に持たせ、無ければこのラベルを使う）。
-- ``secret``: 画面へ値を返さない（``********`` に伏せる）。
-- ``choices``: 選択肢を持つ項目。値と表示用ラベルの組。
-- ``restart_scopes``: **起動時にしか読まれない**設定に付ける。保存時に管理画面が
-  「再起動が必要」と提示し、そこから再起動を要求できる
-  （:mod:`shared.kernel.restart`）。空なら保存と同時に反映される。
+- ``key`` / ``category`` / ``value_type``: required.
+- ``label``: default English label. Display text is translated in the frontend
+  (via ``config.field.<KEY>`` in the dictionary; this label is used if absent).
+- ``secret``: the value is not returned to the UI (masked as ``********``).
+- ``choices``: for items with options. Pairs of value and display label.
+- ``restart_scopes``: set on settings **read only at startup**. On save, the admin console shows
+  "restart required" and lets you request a restart from there
+  (:mod:`shared.kernel.restart`). If empty, the setting applies on save.
 """
 
 from __future__ import annotations
 
 from shared.kernel.restart import RestartScope
 
-# 起動時にしか読まれない設定（アプリケーションファクトリで一度だけ評価される）
+# Settings read only at startup (evaluated once in the application factory)
 _RESTART_WEB: tuple[str, ...] = (RestartScope.WEB.value,)
 
 SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
-    # --- 認証 ---
+    # --- Authentication ---
     {
-        # ⚠ **これが「止めたら効くまで」の上限時間になる**（ADR-0076 §5）。検証は DB を
-        #   引かないので、止められた利用者が弾かれるのは次の更新のときである。
-        #   長くするほど、停止・権限の取り上げが遅れて効く。
+        # ⚠ **This is the upper bound on "time until a suspension takes effect"** (ADR-0076 §5).
+        #   Verification doesn't hit the DB, so a suspended user is rejected at the next refresh.
+        #   The longer it is, the later suspensions and permission revocations take effect.
         "key": "ACCESS_TOKEN_EXPIRES_SECONDS",
         "category": "auth",
         "label": "Access token lifetime (seconds)",
@@ -40,7 +40,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "integer",
     },
     {
-        # 偽でも振り替えは続ける。変えて効くのは次の更新から（ADR-0101）
+        # Rotation continues even when false. A change takes effect from the next refresh (ADR-0101)
         "key": "REFRESH_TOKEN_SLIDING_ENABLED",
         "category": "auth",
         "label": "Extend the refresh token lifetime on each refresh",
@@ -82,7 +82,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Login lock duration after too many failures (seconds)",
         "value_type": "integer",
     },
-    # --- 二要素認証（TOTP） ---
+    # --- Two-factor authentication (TOTP) ---
     {
         "key": "TOTP_ISSUER",
         "category": "two_factor",
@@ -95,7 +95,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Accepted time-step drift",
         "value_type": "integer",
     },
-    # --- パスキー（WebAuthn） ---
+    # --- Passkeys (WebAuthn) ---
     {"key": "WEBAUTHN_RP_ID", "category": "passkey", "label": "Relying party ID (domain)", "value_type": "string"},
     {"key": "WEBAUTHN_RP_NAME", "category": "passkey", "label": "Relying party name", "value_type": "string"},
     {"key": "WEBAUTHN_ORIGIN", "category": "passkey", "label": "Expected browser origin", "value_type": "string"},
@@ -105,7 +105,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Challenge lifetime (seconds)",
         "value_type": "integer",
     },
-    # --- 一般 ---
+    # --- General ---
     {"key": "APP_BASE_URL", "category": "general", "label": "Application base URL", "value_type": "string"},
     {"key": "LANGUAGES", "category": "general", "label": "Selectable languages", "value_type": "list"},
     {
@@ -135,7 +135,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Trusted reverse proxy hops",
         "value_type": "integer",
     },
-    # --- メール ---
+    # --- Mail ---
     {"key": "MAIL_ENABLED", "category": "mail", "label": "Enable mail sending", "value_type": "boolean"},
     {"key": "MAIL_SERVER", "category": "mail", "label": "SMTP server", "value_type": "string"},
     {"key": "MAIL_PORT", "category": "mail", "label": "SMTP port", "value_type": "integer"},
@@ -144,7 +144,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
     {"key": "MAIL_USERNAME", "category": "mail", "label": "SMTP username", "value_type": "string"},
     {"key": "MAIL_PASSWORD", "category": "mail", "label": "SMTP password", "value_type": "string", "secret": True},
     {"key": "MAIL_DEFAULT_SENDER", "category": "mail", "label": "Default sender address", "value_type": "string"},
-    # --- ログ ---
+    # --- Logging ---
     {
         "key": "LOG_LEVEL",
         "category": "logging",
@@ -161,8 +161,8 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "restart_scopes": _RESTART_WEB,
     },
     {
-        # 保存と同時に反映される（ハンドラが 1 レコードごとに参照する）ため
-        # restart_scopes は付けない。
+        # Applied on save (the handler reads it for every record), so no
+        # restart_scopes.
         "key": "LOG_DB_MIN_LEVEL",
         "category": "logging",
         "label": "Minimum level written to the database",
@@ -176,7 +176,7 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         ],
     },
     {
-        # 掃除のたびに読み直すため restart_scopes は付けない（ADR-0075 §3）。
+        # Re-read on every purge, so no restart_scopes (ADR-0075 §3).
         "key": "LOG_RETENTION_DAYS",
         "category": "logging",
         "label": "Keep application logs for (days, 0 = forever)",
@@ -188,8 +188,8 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Keep audit logs for (days, 0 = forever)",
         "value_type": "integer",
     },
-    # --- 通知（ADR-0081 §3） ---
-    # 送るたびに読むので restart_scopes は付けない。
+    # --- Notifications (ADR-0081 §3) ---
+    # Read on every send, so no restart_scopes.
     {
         "key": "WEB_PUSH_VAPID_PRIVATE_KEY_FILE",
         "category": "notification",
@@ -203,14 +203,14 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "string",
     },
     {
-        # ADR-0081 §5。送るたびに読むので restart_scopes は付けない。
+        # ADR-0081 §5. Read on every send, so no restart_scopes.
         "key": "FCM_SERVICE_ACCOUNT_FILE",
         "category": "notification",
         "label": "Firebase service account key file (JSON) for app notifications",
         "value_type": "string",
     },
-    # --- スマホアプリの最新版（ADR-0081 §4） ---
-    # 答えは 5 分ごとに読み直すので restart_scopes は付けない。
+    # --- Latest mobile app version (ADR-0081 §4) ---
+    # The answer is re-read every 5 minutes, so no restart_scopes.
     {
         "key": "APP_RELEASE_S3_ENDPOINT_URL",
         "category": "app_release",
@@ -248,9 +248,9 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Download page URL",
         "value_type": "string",
     },
-    # --- SSO（外部 IdP との連携。ADR-0077 §1 / ADR-0076 §3） ---
-    # 接続先とクライアント認証の方式は起動時にしか読まれないわけではないが、
-    # 実際に効くのは次の認可要求からなので再起動は要らない。
+    # --- SSO (federation with an external IdP; ADR-0077 §1 / ADR-0076 §3) ---
+    # The endpoint and client auth method are not read only at startup; they take effect
+    # from the next authorization request, so no restart is needed.
     {"key": "OIDC_ENABLED", "category": "sso", "label": "Enable SSO", "value_type": "boolean"},
     {
         "key": "OIDC_DISPLAY_NAME",
@@ -258,8 +258,9 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "label": "Sign-in button label",
         "value_type": "string",
     },
-    # 連携先（発行者とクライアント ID）はテナントごとに tenants が持つ（ADR-0079 §4）。ここの 2 つは
-    # 既定のテナントを作るときの初期値で、発行者は定期照合（ADR-0077 §7）の相手にも使う。
+    # The federation target (issuer and client ID) is held per tenant in tenants (ADR-0079 §4).
+    # These two are initial values for creating the default tenant; the issuer is also the
+    # counterpart of the periodic reconciliation (ADR-0077 §7).
     {
         "key": "OIDC_ISSUER",
         "category": "sso",
@@ -341,8 +342,8 @@ SYSTEM_SETTING_DEFINITIONS: list[dict[str, object]] = [
         "value_type": "list",
     },
     {
-        # ⚠ **引き直すのは既定のロールだけである**（ADR-0077 §6）。真にすると、
-        #   管理画面で足したロールが**毎回のログインで消える**。
+        # ⚠ **Only the default roles are re-derived** (ADR-0077 §6). When true, roles added in
+        #   the admin console **disappear on every login**.
         "key": "OIDC_ROLE_SYNC",
         "category": "sso",
         "label": "Re-apply the default roles on every login",

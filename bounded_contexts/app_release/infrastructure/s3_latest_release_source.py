@@ -1,13 +1,13 @@
-"""配布面（S3 互換の置き場。Garage）から ``latest.json`` を読む（ADR-0081 §4）。
+"""Read ``latest.json`` from the distribution store (S3-compatible storage, Garage) (ADR-0081 §4).
 
-⚠ **秘密の鍵は値ではなく場所で持つ。** 設定にあるのはファイルのパス
-（``APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE``）だけで、中身は読むたびにファイルから
-取る。設定の一覧・管理画面・バックアップに値が載らない。鍵を回したときも、
-ファイルを差し替えれば次の読みから効く。
+⚠ **The secret key is held by location, not by value.** The settings hold only the file path
+(``APP_RELEASE_S3_SECRET_ACCESS_KEY_FILE``); the contents are read from the file on every read.
+The value never appears in settings listings, the admin screen or backups. When the key is
+rotated, replacing the file takes effect from the next read.
 
-⚠ **鍵には ``artifacts`` の読み取りだけを持たせる。** 配布面には全アプリの成果物が
-並んでいて、書ける鍵を渡すと、このサーバーが破られたときに配っている APK を
-すり替えられる。
+⚠ **Give the key read-only access to ``artifacts`` only.** The distribution store holds every
+app's artifacts; with a writable key, a compromise of this server would let the distributed
+APKs be swapped.
 """
 
 from __future__ import annotations
@@ -26,11 +26,11 @@ from bounded_contexts.app_release.domain.app_release import (
 from bounded_contexts.app_release.infrastructure.release_manifest import read_release_manifest
 from shared.kernel.settings.settings import settings
 
-#: 置き場への接続・応答の待ち時間（秒）。端末は答えを待っているので、置き場が
-#: 詰まっているときに長く待たせない。
+#: Connect/response timeout for the store (seconds). The device is waiting for the answer,
+#: so don't keep it waiting long when the store is stuck.
 _TIMEOUT_SECONDS = 3
 
-#: ``latest.json`` は数百バイト。これを超えるものは読まずに断る。
+#: ``latest.json`` is a few hundred bytes. Anything larger is refused without reading.
 _MAX_MANIFEST_BYTES = 64 * 1024
 
 
@@ -56,7 +56,7 @@ class S3LatestReleaseSource:
 
     @property
     def configured(self) -> bool:
-        """読む先が揃っているか。1 つでも欠けていれば機能を使っていないとみなす。"""
+        """Whether everything to read from is set. If any is missing, the feature is treated as unused."""
         return all(
             (
                 self.endpoint_url,
@@ -77,7 +77,7 @@ class S3LatestReleaseSource:
         try:
             secret = Path(self.secret_access_key_file).read_text(encoding="utf-8").strip()
         except OSError as exc:
-            # パスは秘密ではないので出してよい（どこを直せばよいかが分かる）。
+            # The path is not secret, so it is fine to include (it shows what to fix).
             raise AppReleaseUnavailableError(
                 f"cannot read the secret access key file {self.secret_access_key_file}: {exc.strerror}"
             ) from exc
@@ -93,8 +93,8 @@ class S3LatestReleaseSource:
             aws_access_key_id=self.access_key_id,
             aws_secret_access_key=secret_access_key,
             config=Config(
-                # Garage はバケット名をホスト名に載せる形（virtual-hosted）を
-                # 名前解決できない。パスに載せる。
+                # Garage cannot resolve the bucket name placed in the host name
+                # (virtual-hosted style). Put it in the path.
                 s3={"addressing_style": "path"},
                 connect_timeout=_TIMEOUT_SECONDS,
                 read_timeout=_TIMEOUT_SECONDS,

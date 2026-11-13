@@ -1,4 +1,4 @@
-"""お知らせ 1 通（ADR-0081 §3）。"""
+"""A single notification (ADR-0081 §3)."""
 
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ from bounded_contexts.notification.domain.value_objects.content import Notificat
 
 @dataclass(frozen=True)
 class Notification:
-    #: 保存するまでは ``None``。
+    #: ``None`` until saved.
     id: int | None
     content: NotificationContent
     channels: frozenset[NotificationChannel]
     audience: Audience
-    #: 送った管理者。利用者を消しても ID のまま残る。
+    #: The admin who sent it. Stays as an ID even if the user is deleted.
     sender_user_id: int | None
     sent_at: datetime
 
@@ -29,7 +29,7 @@ class Notification:
 
 @dataclass(frozen=True)
 class InboxEntry:
-    """ある利用者の手元にある 1 通（既読・閉じたかを持つ）。"""
+    """One notification as held by a given user (with read/dismissed state)."""
 
     notification: Notification
     read_at: datetime | None
@@ -38,7 +38,7 @@ class InboxEntry:
 
 @dataclass(frozen=True)
 class SentNotification:
-    """送った記録（管理画面の履歴）。何人に配り、何人が読んだか。"""
+    """Sent record (admin console history): how many it was delivered to and how many read it."""
 
     notification: Notification
     recipient_count: int

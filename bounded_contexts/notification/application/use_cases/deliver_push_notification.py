@@ -1,11 +1,11 @@
-"""送ったお知らせを、宛先の人の端末へ届ける（ADR-0081 §3 / ADR-0081 §5）。
+"""Deliver a sent notification to the recipients' devices (ADR-0081 §3 / ADR-0081 §5).
 
-届け先は 2 種類ある。ブラウザ・PWA の購読（Web Push）と、スマホアプリの登録トークン（FCM）。
-送れる設定になっているほうだけへ送る。
+There are two kinds of targets: browser/PWA subscriptions (Web Push) and mobile app tokens (FCM).
+Send only to those that are configured.
 
-⚠ **1 台の失敗で残りを止めない。** 通知サービスが「もう無い」と答えた宛先
-（端末でブラウザのデータを消した・アプリを消した）はここで外す。それ以外の失敗は
-宛先を残して数えるだけにする（通知サービスの一時的な不調で宛先を失わない）。
+⚠ **One device's failure does not stop the rest.** Targets the push service reports as gone
+(browser data cleared or app uninstalled) are removed here. Other failures keep the target
+and are only counted (so a temporary push service problem doesn't lose targets).
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Web Push の送り手（ADR-0081 §3）。通知サービスへは行かず、送ろうとした要求を見る。"""
+"""Web Push sender (ADR-0081 §3). Does not reach the push service; inspects the request it tried to send."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def key_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def subscription() -> PushSubscription:
-    """ブラウザが作る購読と同じ形（端末側の鍵を本物で作る）。"""
+    """Same shape as a browser-made subscription (the device-side keys are real)."""
     device_key = ec.generate_private_key(ec.SECP256R1())
     p256dh = device_key.public_key().public_bytes(
         serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
@@ -111,7 +111,7 @@ def test_sends_an_encrypted_signed_request(
     assert headers["ttl"] == str(24 * 60 * 60)
     assert headers["Authorization"].startswith("vapid t=")
     assert f"k={sender.public_key()}" in headers["Authorization"]
-    # 本文は暗号化されている（平文の題が見えない）
+    # The body is encrypted (the plaintext title is not visible)
     assert "題".encode() not in call["data"]
     assert json.dumps("題", ensure_ascii=False).encode() not in call["data"]
 

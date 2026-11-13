@@ -9,7 +9,7 @@ def test_admin_users_require_permission(client: TestClient) -> None:
 
 
 def test_user_crud_and_role_scope(client: TestClient, other_client: TestClient, admin_headers: dict[str, str]) -> None:
-    # 作成
+    # Create
     response = client.post(
         "/api/admin/users",
         headers=admin_headers,
@@ -24,14 +24,14 @@ def test_user_crud_and_role_scope(client: TestClient, other_client: TestClient, 
     user_id = response.json()["id"]
     assert response.json()["roles"] == ["member"]
 
-    # member ロールでは items 閲覧のみ・管理系は 403。
-    # セッションは Cookie なので、別の利用者は別のクライアントで持つ（ADR-0076 §4）。
+    # The member role can only view items; admin endpoints give 403.
+    # The session is a cookie, so another user is held by another client (ADR-0076 §4).
     member_headers = sign_in(other_client, "member@example.com", "member-pass-1")
     assert other_client.get("/api/items").status_code == 200
     assert other_client.post("/api/items", headers=member_headers, json={"name": "x"}).status_code == 403
     assert other_client.get("/api/admin/users").status_code == 403
 
-    # 更新（無効化）
+    # Update (deactivate)
     response = client.put(
         f"/api/admin/users/{user_id}",
         headers=admin_headers,
@@ -40,17 +40,17 @@ def test_user_crud_and_role_scope(client: TestClient, other_client: TestClient, 
     assert response.status_code == 200
     assert response.json()["is_active"] is False
 
-    # 削除
+    # Delete
     assert client.delete(f"/api/admin/users/{user_id}", headers=admin_headers).status_code == 204
     users = client.get("/api/admin/users", headers=admin_headers).json()
     assert all(u["id"] != user_id for u in users)
 
 
 def test_admin_can_reset_another_users_password(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """`user:manage` 保持者によるパスワード上書き。
+    """Password override by a holder of `user:manage`.
 
-    メール送信が無効な環境で締め出されたときの復旧手段
-    （`docs/OPERATIONS.md`「管理者がパスワードを忘れてサインインできないとき」）。
+    The recovery path when locked out in an environment with email sending disabled
+    (`docs/OPERATIONS.md` section 「管理者がパスワードを忘れてサインインできないとき」).
     """
     created = client.post(
         "/api/admin/users",

@@ -1,11 +1,11 @@
-"""OpenID Provider との往復（httpx + PyJWT）。
+"""Round trips with the OpenID Provider (httpx + PyJWT).
 
-認可コードフロー + PKCE（``S256``）を実装する。暗黙フローは使わない——
-ID トークンがブラウザの URL を通り、履歴とアクセスログへ残るため。
+Implements the authorization code flow + PKCE (``S256``). The implicit flow is not used —
+the ID token would pass through the browser URL and remain in history and access logs.
 
-ID トークンは **JWKS の公開鍵で署名を検証**し、発行者・対象者・``nonce`` まで
-確かめる。グループやメールアドレスを ID トークンに載せない IdP のために、
-UserInfo も引いて足りないクレームを補う。
+The ID token is **verified against the JWKS public key**, and the issuer, audience and
+``nonce`` are checked. For IdPs that don't put groups or email in the ID token,
+UserInfo is also fetched to fill in missing claims.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class HttpxOidcProviderGateway:
         self._metadata = metadata if metadata is not None else OidcMetadataCache(timeout_seconds=timeout_seconds)
 
     # ------------------------------------------------------------------
-    # 送り出し
+    # Sending out
     # ------------------------------------------------------------------
 
     def authorization_url(self, request: AuthorizationRequest) -> str:
@@ -71,12 +71,12 @@ class HttpxOidcProviderGateway:
             "code_challenge_method": "S256",
         }
         if request.acr_values:
-            # 空白区切り（OIDC Core §3.1.2.1）。要求しないときはパラメータごと出さない
-            # ——空文字を送ると「空の要求」として扱う IdP がある。
+            # Space-separated (OIDC Core §3.1.2.1). When nothing is required, omit the parameter entirely
+            # — some IdPs treat an empty string as "an empty requirement".
             parameters["acr_values"] = " ".join(request.acr_values)
         if request.silent:
-            # IdP で入っていればそのまま code が返り、入っていなければ画面を出さずに
-            # ``error=login_required`` などで戻る（OIDC Core §3.1.2.1。ADR-0077 §9）。
+            # If signed in at the IdP a code comes back directly; if not, it returns silently with
+            # ``error=login_required`` etc. (OIDC Core §3.1.2.1. ADR-0077 §9).
             parameters["prompt"] = "none"
         separator = "&" if "?" in metadata.authorization_endpoint else "?"
         return f"{metadata.authorization_endpoint}{separator}{urlencode(parameters)}"
@@ -85,18 +85,18 @@ class HttpxOidcProviderGateway:
         provider = request.provider
         metadata = self._metadata.metadata(provider.issuer)
         if not metadata.end_session_endpoint:
-            # 対応していない OP。呼ぶ側が「通せない」と分かるように None で返す。
+            # The OP doesn't support it. Return None so the caller knows it can't go through.
             return None
         parameters = {"client_id": provider.client_id}
         if request.post_logout_redirect_uri:
-            # ⚠ **OP に登録済みの URI でなければ使われない。** 未登録でも失敗はせず、
-            #   OP 自身の完了ページで止まる（サインアウトそのものは効く）。
+            # ⚠ **Only used if the URI is registered with the OP.** If unregistered nothing fails;
+            #   it stops at the OP's own completion page (the sign-out itself still works).
             parameters["post_logout_redirect_uri"] = request.post_logout_redirect_uri
         separator = "&" if "?" in metadata.end_session_endpoint else "?"
         return f"{metadata.end_session_endpoint}{separator}{urlencode(parameters)}"
 
     # ------------------------------------------------------------------
-    # 引き換え
+    # Redemption
     # ------------------------------------------------------------------
 
     def exchange_code(self, exchange: CodeExchange) -> Mapping[str, Any]:
@@ -121,40 +121,40 @@ class HttpxOidcProviderGateway:
             "client_id": provider.client_id,
         }
         if provider.credential.uses_private_key:
-            # 秘密鍵で署名したアサーションで名乗る（ADR-0077 §1）。Basic は使わない。
+            # Authenticate with an assertion signed by the private key (ADR-0077 §1). Basic is not used.
             form.update(_assertion_fields(provider, metadata.token_endpoint))
             return self._post_form(metadata.token_endpoint, form, None)
         secret = provider.credential.secret
         if metadata.token_auth_methods and _BASIC_AUTH not in metadata.token_auth_methods:
-            # Basic を受け付けない IdP には本文で送る（client_secret_post）
+            # For IdPs that don't accept Basic, send in the body (client_secret_post)
             form["client_secret"] = secret
             return self._post_form(metadata.token_endpoint, form, None)
         return self._post_form(metadata.token_endpoint, form, (provider.client_id, secret))
 
     def _decode(self, metadata: ProviderMetadata, token: str, **options: Any) -> dict[str, Any]:
-        """署名鍵を引いて検証する。**鍵の取得も同じ呼び出しの中**で行う。
+        """Fetch the signing key and verify. **Key fetching happens in the same call** too.
 
-        ⚠ **鍵の取得を呼び手の try の外へ出さない。** JWT として壊れた入力は鍵を引く
-        時点で ``jwt.DecodeError`` になる。外に出すと検証の網から漏れて 500 になる
-        （未認証の相手が ``Bearer ごみ`` を投げるだけで起こせる）。
+        ⚠ **Don't move key fetching outside the caller's try.** Input broken as a JWT becomes
+        ``jwt.DecodeError`` at key lookup. Moved outside, it escapes the verification net and
+        becomes a 500 (an unauthenticated party can trigger it just by sending ``Bearer garbage``).
         """
         key = self._metadata.signing_key(metadata.jwks_uri, token)
         claims: dict[str, Any] = jwt.decode(
             token,
             key,
             algorithms=list(metadata.signing_algorithms),
-            # 発行者は discovery 文書のもの（引きに行った先と一致することは
-            # OidcMetadataCache が確かめている）
+            # The issuer is the discovery document's (OidcMetadataCache checks it matches
+            # where we fetched it from)
             issuer=metadata.issuer,
             **options,
         )
         return claims
 
     def _verify(self, metadata: ProviderMetadata, exchange: CodeExchange, id_token: str) -> dict[str, Any]:
-        """署名・発行者・対象者・``nonce`` を確かめる。
+        """Check signature, issuer, audience and ``nonce``.
 
-        ``nonce`` の照合を落とすと、別の場面で取った ID トークンを持ち込む
-        （リプレイ）攻撃を止められない。
+        Skipping the ``nonce`` check leaves attacks that bring in an ID token obtained elsewhere
+        (replay) unstopped.
         """
         try:
             claims = self._decode(metadata, id_token, audience=exchange.provider.client_id)
@@ -167,15 +167,15 @@ class HttpxOidcProviderGateway:
         return claims
 
     # ------------------------------------------------------------------
-    # 停止の伝播（ADR-0077 §3）
+    # Logout propagation (ADR-0077 §3)
     # ------------------------------------------------------------------
 
     def verify_logout_token(self, verification: LogoutTokenVerification) -> Mapping[str, Any]:
-        """``logout_token`` を JWT として確かめる（署名・発行者・対象者・期限）。
+        """Verify ``logout_token`` as a JWT (signature, issuer, audience, expiry).
 
-        ``exp`` と ``iat`` を**必須**にする。仕様は ``exp`` を必須にしていないが、
-        無ければ「いつまで有効な通知か」を判断できず、一度傍受された通知を
-        いつまでも投げ返せる。自前 idp (assay) は双方を必ず載せる（ADR-0078 §3）。
+        ``exp`` and ``iat`` are **required**. The spec doesn't require ``exp``, but without it we
+        can't tell "until when the notice is valid", and an intercepted notice could be replayed
+        forever. Our own idp (assay) always includes both (ADR-0078 §3).
         """
         provider = verification.provider
         metadata = self._metadata.metadata(provider.issuer)
@@ -191,9 +191,9 @@ class HttpxOidcProviderGateway:
             raise InvalidLogoutTokenError from error
 
     def _userinfo(self, metadata: ProviderMetadata, access_token: str, claims: Mapping[str, Any]) -> dict[str, Any]:
-        """UserInfo を引いて補う。取れなくてもログインは続ける。
+        """Fetch UserInfo to fill in. Login continues even if it can't be fetched.
 
-        **``sub`` が食い違う応答は捨てる**（別人の情報で上書きされないように）。
+        **Responses with a mismatched ``sub`` are discarded** (so nobody else's data overwrites it).
         """
         try:
             document = self._get_json(metadata.userinfo_endpoint, access_token)
@@ -235,11 +235,11 @@ class HttpxOidcProviderGateway:
 
 
 def _assertion_fields(provider: IdentityProvider, token_endpoint: str) -> dict[str, str]:
-    """``private_key_jwt`` でトークン要求に足す 2 つの値。
+    """The two values ``private_key_jwt`` adds to the token request.
 
-    ``aud`` はトークンエンドポイントの URL。idp は ``<issuer>/token`` と
-    ``<issuer>`` の両方を受けるが、discovery から得た値をそのまま使うほうが
-    食い違わない。
+    ``aud`` is the token endpoint URL. idp accepts both ``<issuer>/token`` and
+    ``<issuer>``, but using the value from discovery as is avoids
+    mismatches.
     """
     assertion = build_client_assertion(
         ClientAssertionRequest(

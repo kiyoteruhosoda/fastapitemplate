@@ -1,11 +1,11 @@
 """init master schema (consolidated baseline)
 
-現行の SQLAlchemy モデル定義から生成した、全テーブルを一括作成する
-単一のベースライン・マイグレーション。
+A single baseline migration that creates every table at once, generated from the current
+SQLAlchemy model definitions.
 
-ロール・権限・管理者ユーザー等のマスタデータは本マイグレーションには
-含めず、直後の ``0002_seed_master_data``（および
-``python scripts/seed_master_data.py``）で投入する（冪等）。
+Master data such as roles, permissions and the admin user is not part of this migration; it is
+seeded right after by ``0002_seed_master_data`` (and
+``python scripts/seed_master_data.py``) (idempotent).
 
 Revision ID: init_master
 Revises:

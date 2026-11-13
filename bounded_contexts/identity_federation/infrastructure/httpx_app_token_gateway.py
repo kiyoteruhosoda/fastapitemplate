@@ -1,4 +1,4 @@
-"""``AppTokenGateway`` の実装（assay の discovery と JWKS を使う）。"""
+"""Implementation of ``AppTokenGateway`` (uses assay's discovery and JWKS)."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ from bounded_contexts.identity_federation.infrastructure.oidc_metadata import (
 
 logger = logging.getLogger(__name__)
 
-#: assay のアクセストークンの ``typ``（RFC 9068）。ID トークンを持ち込ませないため確かめる。
+#: ``typ`` of assay access tokens (RFC 9068). Checked so ID tokens can't be smuggled in.
 _ACCESS_TOKEN_TYPE = "at+jwt"
-#: アクセストークンは RS256 だけ（assay の実装）。対称鍵と ``none`` は入れない。
+#: Access tokens are RS256 only (assay's implementation). No symmetric keys and no ``none``.
 _ALGORITHMS = ["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"]
 
 
@@ -36,14 +36,14 @@ class HttpxAppTokenGateway:
         try:
             if str(jwt.get_unverified_header(token).get("typ", "")).lower() != _ACCESS_TOKEN_TYPE:
                 raise AppAccessTokenRejectedError
-            # ⚠ 鍵の取得も try の中（壊れた入力が 500 に化けないように）
+            # ⚠ Key fetching is inside the try too (so broken input doesn't turn into a 500)
             key = self._metadata.signing_key(metadata.jwks_uri, token)
             claims: dict[str, Any] = jwt.decode(
                 token,
                 key,
                 algorithms=_ALGORITHMS,
                 issuer=metadata.issuer,
-                # 人のログインのトークンの宛先は常にこれ（assay ADR-0042 決定 6）
+                # The audience of human login tokens is always this (assay ADR-0042 decision 6)
                 audience=f"{metadata.issuer}/userinfo",
                 options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )
@@ -55,14 +55,14 @@ class HttpxAppTokenGateway:
     def verify_id_token(self, issuer: str, id_token: str, client_ids: frozenset[str]) -> Mapping[str, Any]:
         metadata = self._metadata.metadata(issuer)
         try:
-            # ⚠ 鍵の取得も try の中（壊れた入力が 500 に化けないように）
+            # ⚠ Key fetching is inside the try too (so broken input doesn't turn into a 500)
             key = self._metadata.signing_key(metadata.jwks_uri, id_token)
             claims: dict[str, Any] = jwt.decode(
                 id_token,
                 key,
                 algorithms=_ALGORITHMS,
                 issuer=metadata.issuer,
-                # 宛先はアプリの client_id（ID トークンの aud）。受け取ってよいアプリのものだけ
+                # The audience is the app's client_id (the ID token's aud). Only apps we may accept
                 audience=sorted(client_ids),
                 options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )

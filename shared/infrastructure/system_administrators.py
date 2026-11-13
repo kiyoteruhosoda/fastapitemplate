@@ -1,4 +1,4 @@
-"""システム管理者（テナントの外側の人。ADR-0079 §1・§3）を作る。"""
+"""Create system administrators (people outside the tenants; ADR-0079 §1, §3)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ from shared.infrastructure.sign_in_directory import email_taken
 
 
 def create_system_administrator(session: Session, *, email: str, username: str, password: str) -> bool:
-    """テナントに属さない ``system-admin`` を作る。同じメールアドレスの人が居れば作らず ``False``。"""
+    """Create a ``system-admin`` outside the tenants. If someone has the same email, create nothing
+    and return ``False``."""
     if email_taken(session, email, None):
         return False
     user = User(email=email, username=username, password_hash=generate_password_hash(password), is_active=True)

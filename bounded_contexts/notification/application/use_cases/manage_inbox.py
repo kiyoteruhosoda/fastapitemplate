@@ -1,4 +1,4 @@
-"""利用者の手元のお知らせ（ベルと画面上部）を読む・既読にする・閉じる。"""
+"""Read, mark as read and dismiss a user's own notifications (bell and top of screen)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from bounded_contexts.notification.application.dto.notification_dto import Inbox
 from bounded_contexts.notification.domain.exceptions import NotificationNotFoundError
 from bounded_contexts.notification.domain.repositories.notification_repository import INotificationRepository
 
-#: ベルの一覧に出す件数の上限。古いものは一覧から落ちるだけで消えはしない。
+#: Max number of entries in the bell list. Older ones only drop out of the list; they are not deleted.
 INBOX_LIMIT = 50
 
 

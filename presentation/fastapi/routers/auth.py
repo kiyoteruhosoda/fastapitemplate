@@ -1,14 +1,15 @@
-"""認証 API（ログイン・トークン更新・パスワード変更／リセット）。
+"""Authentication API (login, token refresh, password change / reset).
 
-認証の結果は監査ログ（``audit_log``）へも残す。失敗したログイン試行は
-``result=failure`` で記録され、``reason`` に「なぜ失敗したか」の分類が入る
-（パスワード・メールアドレスそのものは記録しない。ADR-0075 §1）。
+Authentication results are also recorded in the audit log (``audit_log``). Failed login attempts
+are recorded with ``result=failure``, with a "why it failed" category in ``reason``
+(passwords and email addresses themselves are never recorded; ADR-0075 §1).
 
-ログインの資格情報検証そのものは :class:`~presentation.fastapi.services.login_service.LoginService`
-が持つ。ここは受け取った結果をトークンと Cookie に載せる HTTP の関心事だけを扱う。
+Login credential verification itself belongs to
+:class:`~presentation.fastapi.services.login_service.LoginService`. This module only handles the
+HTTP concern of putting the result into tokens and cookies.
 
-ログアウトは記録しない。Cookie を落とすだけの未認証エンドポイントで、操作した
-利用者を特定できないため。
+Logout is not recorded: it is an unauthenticated endpoint that only drops cookies, and the user
+cannot be identified.
 """
 
 from __future__ import annotations
@@ -84,7 +85,7 @@ CurrentSessionDep = Annotated[CurrentSession, Depends(get_current_session)]
 
 
 def _me_response(user: User, principal: AuthenticatedPrincipal, *, profile_managed_by_idp: bool) -> MeResponse:
-    """本人の情報。scope は「いま有効なもの」、roles は「切り替えられる先」。"""
+    """The caller's own info. scopes are "currently effective", roles are "switchable to"."""
     return MeResponse(
         user_id=user.id,
         email=user.email,
@@ -101,7 +102,7 @@ def _me_response(user: User, principal: AuthenticatedPrincipal, *, profile_manag
 
 @router.post("/login", response_model=SessionResponse, dependencies=[Depends(require_local_login)])
 def login(body: LoginRequest, response: Response, login_service: LoginServiceDep) -> SessionResponse:
-    """パスワード認証。二要素認証が有効なら ``totp_code`` も必須になる。"""
+    """Password authentication. ``totp_code`` is also required if two-factor auth is enabled."""
     user = login_service.authenticate(body)
     logger.info("login_succeeded")
     return establish_session(response, user)
@@ -114,14 +115,14 @@ def refresh(
     audit: AuditRecorderDep,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_TOKEN_COOKIE)] = None,
 ) -> SessionResponse | JSONResponse:
-    """トークンを更新する。アクティブロール（ADR-0078 §1）は引き継ぐ。
+    """Refresh tokens. The active role (ADR-0078 §1) carries over.
 
-    SSO で入ったログインの札は受けない（ADR-0104）。
+    Refresh tokens of SSO logins are not accepted (ADR-0104).
 
-    一度使ったトークンが戻ってきたら、そのログインだけを終わらせる（ADR-0091）。
+    If an already-used token comes back, only that login is ended (ADR-0091).
 
-    ⚠ **本文でトークンを受け取らない**（ADR-0076 §4）。受け取る口を残すと、SPA が
-    トークンを手元に持ち続ける理由になる。
+    ⚠ **Tokens are not accepted in the body** (ADR-0076 §4). Keeping such an endpoint would give
+    the SPA a reason to keep holding tokens.
     """
     refreshed = TokenService.verify_refresh_token(refresh_token or "", session=db)
     if refreshed is None:
@@ -131,7 +132,7 @@ def refresh(
         )
     if refreshed.standing == RefreshStanding.REUSED:
         refresh_sessions.end(db, refreshed.refresh_session_id)
-        # 401 で抜けると要求のセッションは rollback されるので、終わらせたことをここで確定する
+        # Leaving with 401 rolls back the request's session, so commit the termination here
         db.commit()
         logger.warning("refresh_token_reused")
         audit.execute(
@@ -141,17 +142,20 @@ def refresh(
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
     if refreshed.federated_login is not None:
-        # SSO で入ったログインは更新しない（ADR-0104）。この仕組みより前に出した札が残っていても通さない
-        # ——盗まれた Cookie から使い続けられるのを塞ぐのが目的なので、ここで止めないと 14 日残る
+        # SSO logins are not refreshed (ADR-0104). Reject even refresh tokens issued before this
+        # mechanism: the point is to stop use of stolen cookies, and if not stopped here they
+        # would last 14 days
         return _refuse_federated_refresh(db, refreshed.refresh_session_id)
-    # 更新は入り直しではない。最後に実際にサインインした時刻も引き継ぐ（ADR-0076 §10）
+    # A refresh is not a re-sign-in. The time of the last actual sign-in carries over too
+    # (ADR-0076 §10)
     return establish_session(response, refreshed.user, refreshed.carry)
 
 
 def _refuse_federated_refresh(db: Session, refresh_session_id: str) -> JSONResponse:
-    """SSO で入ったログインの更新の札を断り、控えと札を消す。画面は IdP へ問い合わせ直す。
+    """Reject an SSO login's refresh token and delete the record and token. The UI asks the IdP again.
 
-    例外ではなく応答を返す。札を落とす ``Set-Cookie`` を 401 に載せるため。
+    Returns a response instead of raising, so the 401 can carry the ``Set-Cookie`` that drops
+    the token.
     """
     refresh_sessions.end(db, refresh_session_id)
     response = JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": {"error": "invalid_token"}})
@@ -165,10 +169,10 @@ def logout(
     db: DbDep,
     logout_token: Annotated[str | None, Cookie(alias=LOGOUT_TOKEN_COOKIE)] = None,
 ) -> StatusResponse:
-    """このログインだけを終わらせる（ほかの端末は続く。ADR-0091）。"""
+    """End only this login (other devices continue; ADR-0091)."""
     if logout_token:
         TokenService.end_refresh_session(logout_token, session=db)
-        # 振り替えと同じ行のロックを応答まで持ち越さない（session_cookies.py）
+        # Like rotation, don't hold the row lock until the response (session_cookies.py)
         db.commit()
     clear_access_token_cookie(response)
     return StatusResponse(status="ok")
@@ -186,12 +190,12 @@ def switch_role(
     current: CurrentSessionDep,
     audit: AuditRecorderDep,
 ) -> SessionResponse:
-    """アクティブロールを切り替え、新しいトークンを発行する（ADR-0078 §1）。
+    """Switch the active role and issue new tokens (ADR-0078 §1).
 
-    ``role`` が ``null`` なら「すべてのロール」（保有権限の和集合）に戻す。
-    保有していないロールへは切り替えられない（権限は増えない）。
+    If ``role`` is ``null``, revert to "all roles" (union of held permissions).
+    You cannot switch to a role you don't hold (permissions never increase).
 
-    ⚠ **入り口（IdP のセッション）はそのまま引き継ぐ**（ADR-0077 §3）。
+    ⚠ **The entrance (IdP session) carries over unchanged** (ADR-0077 §3).
     """
     user = current.user
     if body.role is not None and body.role not in user.role_names:
@@ -221,22 +225,24 @@ def update_me(
     db: DbDep,
     audit: AuditRecorderDep,
 ) -> MeResponse:
-    """本人のメールアドレス・表示名を変更する（ADR-0080 §3）。
+    """Change the caller's own email address and display name (ADR-0080 §3).
 
-    監査ログの ``reason`` には変更した項目名だけを入れ、値そのもの
-    （メールアドレス・表示名）は記録しない（ADR-0075 §1）。
+    The audit log ``reason`` holds only the names of changed fields, never the values
+    (email address, display name) (ADR-0075 §1).
     """
     user = db.get(User, principal.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "invalid_token"})
     if SqlFederatedIdentityRepository(db).is_linked(user.id):
-        # ログインのたびに IdP の値で上書きされるので、受けると黙って戻る（ADR-0094）
+        # Overwritten by the IdP's values on every login, so accepting it would silently revert
+        # (ADR-0094)
         if (body.email, body.username) != (user.email, user.username):
             audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="profile_managed_by_idp")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"error": "profile_managed_by_idp"})
         return _me_response(user, principal, profile_managed_by_idp=True)
     if body.email != user.email:
-        # メールは再設定のメールの宛先。替えるのは入り直したばかりのときだけ（ADR-0076 §10）
+        # The email is where reset emails go. Change it only right after re-signing in
+        # (ADR-0076 §10)
         ensure_recent_sign_in(principal)
     if email_taken(db, body.email, user.tenant_id, except_user_id=user.id):
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
@@ -250,9 +256,9 @@ def update_me(
     user.email = body.email
     user.username = body.username
     try:
-        # 事前の SELECT は同時更新の相手が見えない（TOCTOU）。一意制約の違反を
-        # ここで確定させてから成功の監査を積む（積んだ後に失敗すると、更新は
-        # ロールバックされたのに監査だけ success で残ってしまう）。
+        # A prior SELECT can't see a concurrent update (TOCTOU). Settle any unique constraint
+        # violation here before queuing the success audit (failing after queuing would leave a
+        # success audit for an update that was rolled back).
         db.flush()
     except IntegrityError:
         audit.execute(AuditEventType.PROFILE_UPDATED, AuditResult.FAILURE, reason="email_already_exists")
@@ -268,15 +274,15 @@ def change_password(
     current: CurrentSessionDep,
     audit: AuditRecorderDep,
 ) -> StatusResponse:
-    """パスワードを変え、**それより前に始まった他のログインを終わらせる**（ADR-0076 §8）。
+    """Change the password and **end other logins that started before it** (ADR-0076 §8).
 
-    盗まれた更新トークンを止めるのが目的なので、変えた本人のこのセッションだけは
-    新しいトークンを出し直して続ける（ロールと入り口は引き継ぐ）。
+    The goal is to stop stolen refresh tokens, so only this session of the person who changed it
+    continues with newly issued tokens (role and entrance carry over).
     """
     user = current.user
     if user.password_hash is None or not check_password_hash(user.password_hash, body.current_password):
-        # ⚠ **パスワードを持たない利用者もここで断る**（ADR-0076 §6）。理由は分けない
-        # ——「持っていない」を教えると、入り口の有無を外から数えられる。
+        # ⚠ **Users without a password are rejected here too** (ADR-0076 §6), with no distinct
+        # reason: revealing "has none" would let outsiders count who has which entrances.
         audit.execute(
             AuditEventType.PASSWORD_CHANGED,
             AuditResult.FAILURE,
@@ -288,7 +294,7 @@ def change_password(
         )
     user.password_hash = generate_password_hash(body.new_password)
     user.end_sessions()
-    # 今のパスワードを確かめた直後なので、入り直したものとして扱う（ADR-0076 §10）
+    # The current password was just verified, so treat it as a re-sign-in (ADR-0076 §10)
     establish_session(
         response,
         user,
@@ -296,7 +302,7 @@ def change_password(
             active_role=current.active_role,
             federated_login=current.federated_login,
             signed_in_with_passkey=current.signed_in_with_passkey,
-            # 行は作り直すが、延長なしの寿命は延ばさない（ADR-0101）
+            # The row is recreated, but a non-sliding lifetime is not extended (ADR-0101)
             lifetime_from_session_id=current.refresh_session_id,
         ),
     )
@@ -312,17 +318,17 @@ def forgot_password(
     audit: AuditRecorderDep,
     throttle: Annotated[ThrottleLogin, Depends(security.throttle_login)],
 ) -> StatusResponse:
-    """再設定リンクを送る。
+    """Send a reset link.
 
-    未認証のエンドポイントなので、監査ログでは要求されたアカウントを**対象**として
-    記録し、実行者は空のままにする。メールアドレスを知っていれば誰でも叩けるため、
-    アカウントの持ち主を実行者に据えると本人の操作に見えてしまう（ADR-0075 §1）。
+    This endpoint is unauthenticated, so the audit log records the requested account as the
+    **target** and leaves the actor empty. Anyone who knows the email address can call it, so
+    recording the owner as actor would look like their own action (ADR-0075 §1).
     """
-    # 宛名ごとに数える。**成功も数える** ——成功しても相手にメールが届くので、
-    # 数えないと宛名を知っているだけで受信箱を埋められる（ADR-0076 §9）
+    # Count per identifier. **Successes count too**: a success still sends an email, so without
+    # counting, knowing the address would be enough to flood the inbox (ADR-0076 §9)
     throttle.require_allowed(PURPOSE_PASSWORD_RESET, body.email, utcnow())
     throttle.record_attempt(PURPOSE_PASSWORD_RESET, body.email, utcnow())
-    # ユーザーの存在有無に関わらず同じ応答を返す（列挙攻撃対策）
+    # Same response whether or not the user exists (against enumeration attacks)
     user_id = PasswordResetService().request_reset(db, body.email, body.tenant)
     audit.execute(
         AuditEventType.PASSWORD_RESET_REQUESTED,
@@ -335,9 +341,10 @@ def forgot_password(
 
 @router.post("/reset-password", response_model=StatusResponse, dependencies=[Depends(require_local_login)])
 def reset_password(body: ResetPasswordRequest, db: DbDep, audit: AuditRecorderDep) -> StatusResponse:
-    """トークンで新しいパスワードを設定する。
+    """Set a new password using a token.
 
-    こちらも未認証（トークンの提示だけ）なので、対象として記録し実行者は空にする。
+    This is also unauthenticated (only the token is presented), so record as target with an
+    empty actor.
     """
     user_id = PasswordResetService().reset(db, body.token, body.new_password)
     if user_id is None:

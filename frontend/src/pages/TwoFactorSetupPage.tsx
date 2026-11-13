@@ -1,7 +1,9 @@
 /**
- * 二要素認証の登録（ADR-0093）。登録が要るログインでは、どの経路を開いてもこの画面だけが出る。
+ * Two-factor authentication enrollment (ADR-0093). For a login that requires enrollment, only this
+ * page is shown whichever route is opened.
  *
- * 確定したらトークンを更新する。サーバーは更新のときに登録待ちかを決め直すので、これで権限が戻る。
+ * Once confirmed, the token is refreshed. The server re-decides on refresh whether enrollment is
+ * pending, so the permissions come back.
  */
 import { ActionButton } from '../components/ActionButton'
 import { AppMark } from '../components/AppMark'

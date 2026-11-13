@@ -1,12 +1,12 @@
-"""ドメイン例外 → HTTP 応答の対応付け。
+"""Mapping of domain exceptions to HTTP responses.
 
-ルーターごとに ``try/except`` を書き散らさないよう、アプリケーション全体の
-例外ハンドラとして一度だけ登録する。応答本文はエラーコードのみで、表示文言は
-フロントエンドが決める（CLAUDE.md「国際化」）。
+Registered once as an application-wide exception handler so that ``try/except`` isn't scattered
+across routers. The response body is just the error code; the display text is decided by the
+frontend ("Internationalization" in CLAUDE.md).
 
-失敗の記録は横断的な受け皿（:func:`~presentation.fastapi.error_handling.log_failed_request`）
-へ委ねる。ここで独自に記録すると、``HTTPException`` 由来の失敗とレベルや
-フィールドの揃わない行が混ざり、ログを絞り込めなくなる。
+Logging of failures is left to the cross-cutting handler
+(:func:`~presentation.fastapi.error_handling.log_failed_request`). Logging separately here would mix
+in lines whose level and fields don't match failures from ``HTTPException``, making logs hard to filter.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def register_account_security_error_handler(app: FastAPI) -> None:
         detail: dict[str, str | int] = {"error": error.code}
         headers: dict[str, str] = {}
         if isinstance(error, TooManyAttemptsError):
-            # いつまで待てばよいかを返す（ADR-0076 §9）。画面はこれを待ち時間として出せる
+            # Return how long to wait (ADR-0076 §9). The screen can show it as the wait time
             detail["retry_after_seconds"] = error.retry_after_seconds
             headers["Retry-After"] = str(error.retry_after_seconds)
         return JSONResponse(status_code=status_code, content={"detail": detail}, headers=headers)

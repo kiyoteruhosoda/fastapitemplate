@@ -1,4 +1,4 @@
-"""コンテンツ設定を読む・変える（ADR-0085）。"""
+"""Read and change content settings (ADR-0085)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class ContentSettingEntry:
     value_type: str
     value: SettingValue
     default: SettingValue
-    #: テナントが値を保存しているか（偽なら既定値で動いている）
+    #: Whether the tenant saved a value (false means the default is in effect)
     stored: bool
     choices: tuple[str, ...]
     minimum: int | None
@@ -52,7 +52,7 @@ class ContentSettingsBook:
         return self._current().value_of(definition)
 
     def change(self, changes: Mapping[str, object]) -> list[str]:
-        """変えた項目のキー（並べ替え済み）を返す。誤りがあれば何も変えずに例外を上げる。"""
+        """Return the keys of the changed items (sorted). On any error, change nothing and raise."""
         accepted = self._current().checked(changes)
         for key, value in accepted.items():
             if value is None:

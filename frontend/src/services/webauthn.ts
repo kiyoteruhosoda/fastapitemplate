@@ -1,9 +1,9 @@
 /**
- * パスキー（WebAuthn）のブラウザ側処理。
+ * Browser-side handling of passkeys (WebAuthn).
  *
- * サーバーは base64url 文字列の JSON でオプションを返し、同じ形式で
- * レスポンスを受け取る（py_webauthn 互換）。ここではその変換と
- * `navigator.credentials` の呼び出しだけを行う。外部ライブラリは使わない。
+ * The server returns options as JSON with base64url strings and accepts responses in the same
+ * format (py_webauthn compatible). This only does that conversion and the
+ * `navigator.credentials` calls. No external libraries.
  */
 
 export interface PasskeyChallenge {
@@ -11,7 +11,7 @@ export interface PasskeyChallenge {
   public_key: Record<string, unknown>
 }
 
-/** 利用者が操作を取り消したときに投げる。エラー表示を分けるため。 */
+/** Thrown when the user cancels the operation, so the error display can differ. */
 export const PASSKEY_CANCELLED = 'passkey_cancelled'
 
 export function isPasskeySupported(): boolean {
@@ -38,7 +38,7 @@ function bufferToBase64url(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-/** base64url の資格情報リストを WebAuthn の記述子へ変換する。 */
+/** Convert a base64url credential list into WebAuthn descriptors. */
 function toDescriptors(source: unknown): PublicKeyCredentialDescriptor[] {
   if (!Array.isArray(source)) return []
   return source.map((item) => {
@@ -50,7 +50,7 @@ function toDescriptors(source: unknown): PublicKeyCredentialDescriptor[] {
   })
 }
 
-/** サーバーが返した JSON のうち、ArrayBuffer が要る項目だけを変換する。 */
+/** Convert only the fields of the server's JSON that need an ArrayBuffer. */
 function toCreationOptions(source: Record<string, unknown>): PublicKeyCredentialCreationOptions {
   const user = source.user as { id: string; name: string; displayName: string }
   return {
@@ -74,7 +74,7 @@ function assertCredential(credential: Credential | null): PublicKeyCredential {
   return credential as PublicKeyCredential
 }
 
-/** 認証器へ新しいパスキーを作らせ、サーバーへ送る形へ整える。 */
+/** Have the authenticator create a new passkey and shape it for sending to the server. */
 export async function createPasskey(
   publicKey: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -96,7 +96,7 @@ export async function createPasskey(
   }
 }
 
-/** 登録済みのパスキーで署名させ、サーバーへ送る形へ整える。 */
+/** Have it sign with a registered passkey and shape it for sending to the server. */
 export async function assertPasskey(
   publicKey: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -119,7 +119,7 @@ export async function assertPasskey(
   }
 }
 
-/** ブラウザが投げる取り消し（NotAllowedError）を判定する。 */
+/** Detect the browser's cancellation (NotAllowedError). */
 export function isPasskeyCancellation(error: unknown): boolean {
   if (error instanceof Error && error.message === PASSKEY_CANCELLED) return true
   return error instanceof DOMException && error.name === 'NotAllowedError'

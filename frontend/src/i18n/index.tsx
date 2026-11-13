@@ -1,12 +1,12 @@
 /**
- * 軽量 i18n（言語別 JSON 辞書）。
+ * Lightweight i18n (one JSON dictionary per language).
  *
- * 新規メッセージは英語キーで en.json に定義し、ja.json へ日本語訳を手動追記する
- * （CLAUDE.md「国際化」参照）。
+ * Define new messages in en.json under English keys, and add the Japanese translation to
+ * ja.json by hand (see the 国際化（i18n） section of CLAUDE.md).
  *
- * 選択の優先順位は「利用者の選択（localStorage）> ブラウザの言語 >
- * サーバーの既定値（DEFAULT_LOCALE）」。選べる言語は管理画面の LANGUAGES で
- * 絞り込める。
+ * Precedence: the user's choice (localStorage) > the browser language >
+ * the server default (DEFAULT_LOCALE). The selectable languages can be narrowed with
+ * LANGUAGES on the admin screen.
  */
 import {
   createContext,
@@ -26,7 +26,7 @@ export type Locale = 'en' | 'ja'
 
 const DICTIONARIES: Record<Locale, Record<string, string>> = { en, ja }
 const STORAGE_KEY = 'locale'
-/** 何も選べないときに必ず使える言語（en.json が翻訳の基準）。 */
+/** Always-available language when nothing else can be chosen (en.json is the translation baseline). */
 const FALLBACK_LOCALE: Locale = 'en'
 
 export const LOCALE_LABELS: Record<Locale, string> = {
@@ -34,12 +34,12 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   ja: '日本語',
 }
 
-/** `{name}` 形式のプレースホルダに差し込む値。 */
+/** Values substituted into `{name}`-style placeholders. */
 export type TranslationParams = Record<string, string | number>
 
 interface I18nValue {
   locale: Locale
-  /** 選択できる言語（管理画面の LANGUAGES で絞られる）。 */
+  /** Selectable languages (narrowed by LANGUAGES on the admin screen). */
   locales: Locale[]
   setLocale: (locale: Locale) => void
   t: (key: string, params?: TranslationParams) => string
@@ -57,8 +57,9 @@ function availableLocales(settings: UiSettings): Locale[] {
 }
 
 /**
- * 選んだ言語の控え。⚠ 保存領域を読めない・書けないブラウザ（サイトデータを拒否した Chrome など）では
- * `localStorage` に触れるだけで例外になる。控えは使い勝手のためだけなので、無いものとして続ける。
+ * Remembered language choice. ⚠ In browsers that cannot read or write storage (e.g. Chrome with
+ * site data blocked), merely touching `localStorage` throws. The memo is only a convenience, so
+ * carry on as if there were none.
  */
 function storedLocale(): string | null {
   try {
@@ -72,7 +73,7 @@ function storeLocale(next: Locale): void {
   try {
     localStorage.setItem(STORAGE_KEY, next)
   } catch {
-    // 控えられなくても、この画面では切り替わる
+    // Even if it cannot be remembered, the switch still applies on this page
   }
 }
 
@@ -105,7 +106,7 @@ export function I18nProvider({
   const locales = useMemo(() => availableLocales(settings), [settings])
   const [locale, setLocaleState] = useState<Locale>(() => initialLocale(locales, settings))
 
-  // <html lang> を合わせる。読み上げソフトやブラウザの翻訳が正しく働く。
+  // Keep <html lang> in sync so screen readers and browser translation work correctly.
   useEffect(() => {
     document.documentElement.lang = locale
   }, [locale])

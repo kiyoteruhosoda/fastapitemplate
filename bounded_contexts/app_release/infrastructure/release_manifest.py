@@ -1,7 +1,7 @@
-"""配布面の ``latest.json`` を読む（ADR-0081 §4）。
+"""Read ``latest.json`` from the distribution store (ADR-0081 §4).
 
-書き手はアプリの配布手順（deploy-repo の ``bin/flutter-release.sh`` の stage 4）で、
-次の形をしている::
+It is written by the app release procedure (stage 4 of deploy-repo's ``bin/flutter-release.sh``)
+and looks like this::
 
     {
       "app": "photonestapp",
@@ -14,8 +14,8 @@
       "built_at": "2026-09-27T01:02:03Z"
     }
 
-使うのは ``version`` と ``built_at`` だけ。⚠ ``build`` は**ビルド番号ではない**
-（焼いた時刻とコミットの組）。ビルド番号は ``version`` の ``+`` の後ろにある。
+Only ``version`` and ``built_at`` are used. ⚠ ``build`` is **not the build number**
+(it is a build-time + commit pair). The build number is after the ``+`` in ``version``.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from bounded_contexts.app_release.domain.app_release import (
 
 
 def read_release_manifest(document: bytes) -> AppRelease:
-    """``latest.json`` の中身から版を取り出す。読めなければ :class:`AppReleaseUnavailableError`。"""
+    """Extract the release from ``latest.json`` contents. Raises :class:`AppReleaseUnavailableError` if unreadable."""
     try:
         data = json.loads(document)
     except (ValueError, UnicodeDecodeError) as exc:
@@ -45,7 +45,7 @@ def read_release_manifest(document: bytes) -> AppRelease:
 
 
 def _built_at(value: object) -> datetime | None:
-    """焼いた時刻。無い・読めないときは ``None``（版の知らせには要らないので落とさない）。"""
+    """Build time. ``None`` when missing or unparsable (not needed for the release notice, so don't fail)."""
     if not isinstance(value, str) or not value:
         return None
     try:

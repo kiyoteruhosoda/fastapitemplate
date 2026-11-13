@@ -1,14 +1,14 @@
-"""監査イベントに付随するリクエスト情報。
+"""Request information attached to audit events.
 
-``request_id`` は ``log`` テーブルと同じ値を入れる。これにより「1 リクエストの
-アプリログ」と「そのリクエストで起きた監査イベント」を突き合わせられる。
+``request_id`` holds the same value as in the ``log`` table, so "the application logs of one
+request" can be matched with "the audit events that happened in that request".
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# DDL と一致させる上限（超過分は保存前に切り詰める）
+# Limit matching the DDL (excess is truncated before saving)
 MAX_IP_ADDRESS_LENGTH = 45
 MAX_USER_AGENT_LENGTH = 512
 MAX_REQUEST_ID_LENGTH = 36
@@ -16,7 +16,7 @@ MAX_REQUEST_ID_LENGTH = 36
 
 @dataclass(frozen=True)
 class AuditRequestContext:
-    """接続元と追跡キー。リクエスト外（スクリプト実行等）では全て ``None``。"""
+    """Client address and tracking key. All ``None`` outside a request (scripts etc.)."""
 
     request_id: str | None = None
     ip_address: str | None = None
@@ -24,7 +24,7 @@ class AuditRequestContext:
 
     @classmethod
     def empty(cls) -> AuditRequestContext:
-        """リクエスト文脈が無いときの値。"""
+        """Value when there is no request context."""
         return cls()
 
 

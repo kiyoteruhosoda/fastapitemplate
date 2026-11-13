@@ -1,13 +1,13 @@
-"""``DpopProofVerifier`` の実装（PyJWT。ADR-0103）。
+"""Implementation of ``DpopProofVerifier`` (PyJWT. ADR-0103).
 
-assay の ``domain::dpop`` と同じ確かめをする:
+Performs the same checks as assay's ``domain::dpop``:
 
-- ``typ`` は ``dpop+jwt``、``alg`` は ES256 だけ（Android Keystore の P-256 の鍵）
-- ``jwk`` は P-256 の公開鍵だけ。秘密の値（``d``）を含むものは断る
-- 署名が ``jwk`` で通る
-- ``htm`` は大文字のメソッドと完全一致、``htu`` は問い合わせと断片を外して比べる
-- ``iat`` は今より 120 秒前から 60 秒後まで
-- ``ath`` がアクセストークンの SHA-256 の base64url
+- ``typ`` is ``dpop+jwt``, ``alg`` is ES256 only (P-256 keys in Android Keystore)
+- ``jwk`` is a P-256 public key only. Anything containing the private value (``d``) is refused
+- The signature verifies with ``jwk``
+- ``htm`` exactly matches the uppercase method; ``htu`` is compared with query and fragment removed
+- ``iat`` from 120 s before now to 60 s after
+- ``ath`` is the base64url of the access token's SHA-256
 """
 
 from __future__ import annotations
@@ -45,13 +45,14 @@ def _b64url_decode(value: str) -> bytes:
 
 
 def jwk_thumbprint(x: str, y: str) -> str:
-    """P-256 の公開鍵の JWK Thumbprint（RFC 7638。必須の欄を辞書順・空白なしで並べた JSON の SHA-256）。"""
+    """JWK Thumbprint of a P-256 public key (RFC 7638: SHA-256 of JSON with the required members in
+    lexicographic order, no whitespace)."""
     canonical = json.dumps({"crv": "P-256", "kty": "EC", "x": x, "y": y}, separators=(",", ":"), sort_keys=True)
     return _b64url(hashlib.sha256(canonical.encode()).digest())
 
 
 def access_token_hash(access_token: str) -> str:
-    """``ath``（RFC 9449 §4.2）。"""
+    """``ath`` (RFC 9449 §4.2)."""
     return _b64url(hashlib.sha256(access_token.encode()).digest())
 
 
@@ -63,7 +64,7 @@ def _comparable_uri(uri: str) -> str | None:
 
 
 def _public_p256(jwk: Any) -> tuple[str, str]:
-    """``jwk`` から ``x``・``y`` を取り出す。P-256 の公開鍵でなければ断る。"""
+    """Extract ``x`` and ``y`` from ``jwk``. Refuse unless it's a P-256 public key."""
     if not isinstance(jwk, dict) or "d" in jwk:
         raise DpopProofRejectedError
     if jwk.get("kty") != "EC" or jwk.get("crv") != "P-256":
@@ -72,7 +73,7 @@ def _public_p256(jwk: Any) -> tuple[str, str]:
     if not isinstance(x, str) or not isinstance(y, str):
         raise DpopProofRejectedError
     try:
-        # 32 バイトに戻ることまで見る（指紋の JSON に値をそのまま入れる）
+        # Also check they decode back to 32 bytes (the values go into the thumbprint JSON as is)
         if len(_b64url_decode(x)) != 32 or len(_b64url_decode(y)) != 32:
             raise DpopProofRejectedError
     except ValueError as error:

@@ -1,9 +1,9 @@
-"""WebAuthn チャレンジ（登録・認証の 1 回限りの乱数）。
+"""WebAuthn challenge (a one-time random value for registration/authentication).
 
-チャレンジはブラウザへ渡し、署名付きで返ってきたものと一致するかを検証する。
-発行したプロセスと検証するプロセスが別になり得る（Gunicorn は複数ワーカーで
-動く）ため、プロセスのメモリではなく DB に置く。利用者へは ``challenge_id``
-だけを返し、チャレンジそのものは往復させない。
+The challenge is handed to the browser and checked against the signed one that comes back.
+The issuing process and the verifying process may differ (Gunicorn runs multiple workers),
+so it lives in the DB rather than process memory. Only ``challenge_id`` is returned to the
+user; the challenge itself does not make the round trip.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-# 用途。DB ネイティブ ENUM は使わない方針のため、許可値は Python 側で管理する
-# （CLAUDE.md「DB モデリング」参照）。
+# Purpose. DB-native ENUMs are not used by policy, so allowed values are managed in Python
+# (see "DB modeling" in CLAUDE.md).
 CHALLENGE_PURPOSE_REGISTRATION = "registration"
 CHALLENGE_PURPOSE_AUTHENTICATION = "authentication"
 CHALLENGE_PURPOSES: tuple[str, ...] = (

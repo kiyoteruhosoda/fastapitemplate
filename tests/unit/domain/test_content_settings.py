@@ -1,4 +1,4 @@
-"""コンテンツ設定の定義と値の確かめ（ADR-0085）。"""
+"""Content-settings definitions and value validation (ADR-0085)."""
 
 from __future__ import annotations
 

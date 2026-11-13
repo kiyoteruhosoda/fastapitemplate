@@ -43,10 +43,10 @@ def test_permission_list(client: TestClient, admin_headers: dict[str, str]) -> N
 def _sign_in_user_manager(
     client: TestClient, manager_client: TestClient, admin_headers: dict[str, str]
 ) -> dict[str, str]:
-    """``user:manage`` だけを持つ「ユーザー係」で**別のクライアント**にサインインする。
+    """Signs in on a **separate client** as a "user clerk" holding only ``user:manage``.
 
-    セッションは Cookie で持つので（ADR-0076 §4）、管理者と同じクライアントで
-    ログインすると管理者のセッションが置き換わってしまう。
+    The session is held in a cookie (ADR-0076 §4), so signing in on the same client as the
+    administrator would replace the administrator's session.
     """
     created = client.post(
         "/api/admin/roles",
@@ -71,7 +71,7 @@ def _sign_in_user_manager(
 def test_user_manager_can_read_the_role_catalog(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """ユーザーへロールを割り当てるには、どんなロールがあるか読めなければならない。"""
+    """To assign roles to users, one must be able to read which roles exist."""
     headers = _sign_in_user_manager(client, other_client, admin_headers)
 
     response = client.get("/api/admin/roles", headers=headers)
@@ -83,7 +83,7 @@ def test_user_manager_can_read_the_role_catalog(
 def test_user_manager_cannot_change_roles(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """読めても変えられない（権限を配る側は role:manage のまま）。"""
+    """Readable but not changeable (granting stays with role:manage)."""
     headers = _sign_in_user_manager(client, other_client, admin_headers)
     role_id = next(r["id"] for r in client.get("/api/admin/roles", headers=headers).json() if r["name"] == "member")
 
@@ -95,7 +95,7 @@ def test_user_manager_cannot_change_roles(
 def test_role_catalog_still_requires_a_permission(
     client: TestClient, other_client: TestClient, admin_headers: dict[str, str]
 ) -> None:
-    """「いずれか」に緩めたのは 2 つの scope の間だけで、無権限には開かない。"""
+    """The "any of" relaxation is only between the two scopes; it does not open to people without permission."""
     added = client.post(
         "/api/admin/users",
         headers=admin_headers,
@@ -115,7 +115,7 @@ def test_role_catalog_still_requires_a_permission(
 
 
 def test_renaming_a_role_to_a_name_in_use_is_a_conflict(client: TestClient, admin_headers: dict[str, str]) -> None:
-    """一意制約に当てて 500 にせず、作るときと同じ 409 で断る（task #762）。"""
+    """Hitting the unique constraint does not give 500; it is refused with the same 409 as on create (task #762)."""
     created = client.post(
         "/api/admin/roles",
         headers=admin_headers,

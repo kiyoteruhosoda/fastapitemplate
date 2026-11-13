@@ -1,7 +1,7 @@
-"""WebAuthn Relying Party の実装（``webauthn`` / py_webauthn）。
+"""WebAuthn Relying Party implementation (``webauthn`` / py_webauthn).
 
-ライブラリの型はこのモジュールの外へ出さない。オプションは JSON へ落として
-``dict`` で返し、検証結果はドメインの値オブジェクトへ詰め替える。
+The library's types never leave this module. Options are serialized to JSON and returned as a
+``dict``; verification results are repacked into domain value objects.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ class PyWebAuthnRelyingParty:
     origin: str
 
     # ------------------------------------------------------------------
-    # 登録
+    # Registration
     # ------------------------------------------------------------------
 
     def create_registration_options(
@@ -66,12 +66,12 @@ class PyWebAuthnRelyingParty:
             user_display_name=display_name,
             attestation=AttestationConveyancePreference.NONE,
             authenticator_selection=AuthenticatorSelectionCriteria(
-                # ログインは資格情報を指定せずに始める（メールアドレスの入力が
-                # 要らない）。認証器が自分で選べる形で保存されていないと、
-                # 登録できても後から使えないパスキーになるため REQUIRED。
+                # Login starts without specifying a credential (no email address input needed).
+                # If the credential is not stored in a form the authenticator can pick by itself,
+                # the passkey registers but can't be used later, hence REQUIRED.
                 resident_key=ResidentKeyRequirement.REQUIRED,
-                # パスキーだけでログインできる＝パスワードも TOTP も通らない。
-                # 端末を拾っただけで入れないよう、生体・PIN の確認を必須にする。
+                # A passkey alone logs in = neither password nor TOTP is checked.
+                # Require biometric/PIN verification so that merely picking up a device isn't enough.
                 user_verification=UserVerificationRequirement.REQUIRED,
             ),
             exclude_credentials=_descriptors(exclude_credential_ids),
@@ -88,7 +88,7 @@ class PyWebAuthnRelyingParty:
                 require_user_verification=True,
             )
         except Exception as exc:
-            logger.warning("パスキー登録の検証に失敗しました: %s", type(exc).__name__)
+            logger.warning("Passkey registration verification failed: %s", type(exc).__name__)
             raise PasskeyVerificationError from exc
 
         return VerifiedRegistration(
@@ -102,7 +102,7 @@ class PyWebAuthnRelyingParty:
         )
 
     # ------------------------------------------------------------------
-    # 認証
+    # Authentication
     # ------------------------------------------------------------------
 
     def create_authentication_options(self, *, allow_credential_ids: Sequence[str] = ()) -> PublicKeyOptions:
@@ -132,7 +132,7 @@ class PyWebAuthnRelyingParty:
                 require_user_verification=True,
             )
         except Exception as exc:
-            logger.warning("パスキー認証の検証に失敗しました: %s", type(exc).__name__)
+            logger.warning("Passkey authentication verification failed: %s", type(exc).__name__)
             raise PasskeyVerificationError from exc
 
         return VerifiedAssertion(
@@ -153,8 +153,8 @@ def _descriptors(
         try:
             descriptors.append(PublicKeyCredentialDescriptor(id=base64url_to_bytes(credential_id)))
         except Exception:
-            # 壊れたレコードのために発行そのものを失敗させない
-            logger.debug("資格情報 ID を復号できませんでした", exc_info=True)
+            # Don't fail the issuance itself because of a broken record
+            logger.debug("Could not decode a credential ID", exc_info=True)
     return descriptors or None
 
 
@@ -166,7 +166,7 @@ def _to_public_key_options(options: Any) -> PublicKeyOptions:
 
 
 def _as_text(value: Any) -> str | None:
-    """列挙型・文字列・``None`` を素の文字列へ揃える。"""
+    """Normalize enums, strings and ``None`` to plain strings."""
     if value is None:
         return None
     return str(getattr(value, "value", value))

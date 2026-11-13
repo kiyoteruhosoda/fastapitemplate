@@ -3,14 +3,14 @@ import { defineConfig, devices } from '@playwright/test'
 import { ADMIN } from './e2e/admin'
 
 /**
- * E2E（実ブラウザの煙試験）の設定（ADR-0072 §6）。
+ * E2E (real-browser smoke tests) configuration (ADR-0072 §6).
  *
- * 本物のサーバー（FastAPI ＋ 使い捨ての SQLite ＋ ビルドした画面）を立て、Chromium で
- * 画面を通す。Vitest（jsdom）には Service Worker が無いので、SW の働きはここでしか見られない。
+ * Starts a real server (FastAPI + throwaway SQLite + built frontend) and drives the screens in
+ * Chromium. Vitest (jsdom) has no Service Worker, so SW behaviour can only be checked here.
  *
  *   npm run test:e2e
  *
- * ⚠ 画面のビルドとサーバーの起動は webServer が毎回行う（立ちっぱなしのサーバーを使い回さない）。
+ * ⚠ webServer builds the frontend and starts the server every run (no reuse of a running server).
  */
 const PORT = process.env.E2E_PORT ?? '8100'
 const BASE_URL = `http://127.0.0.1:${PORT}`
@@ -19,19 +19,19 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  // 試験は 1 つのサーバーと DB を共有し、service-worker.spec.ts は配った sw.js を書き換える。
-  // 並べて走らせない。
+  // Tests share one server and DB, and service-worker.spec.ts rewrites the served sw.js.
+  // Don't run them in parallel.
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  // CI では落ちたときに trace 付きの HTML レポートを持ち帰る（e2e.yml）。
+  // On CI, keep an HTML report with traces when tests fail (e2e.yml).
   reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: BASE_URL,
-    // 試験は画面の日本語の文言で要素を探す。
+    // Tests find elements by the Japanese text on screen.
     locale: 'ja-JP',
-    // retries が 0 なので、1 回目の失敗の trace を残す。
+    // retries is 0, so keep the trace of the first failure.
     trace: 'retain-on-failure',
   },
   projects: [
@@ -39,8 +39,8 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // Playwright のブラウザが入っていない手元では、PLAYWRIGHT_CHROMIUM_EXECUTABLE で
-        // 入っている Chrome を指す。CI（Playwright の像）では使わない。
+        // On local machines without Playwright's browsers, point PLAYWRIGHT_CHROMIUM_EXECUTABLE
+        // at an installed Chrome. Not used on CI (the Playwright image).
         ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
           ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } }
           : {}),
@@ -51,7 +51,7 @@ export default defineConfig({
     command: 'npm run build && bash e2e/run-server.sh',
     url: `${BASE_URL}/readyz`,
     reuseExistingServer: false,
-    // 画面のビルドとマイグレーションを含む。
+    // Includes the frontend build and migrations.
     timeout: 300_000,
     env: {
       E2E_PORT: PORT,

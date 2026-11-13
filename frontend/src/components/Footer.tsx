@@ -17,10 +17,10 @@ export function Footer() {
       })
   }, [])
 
-  // ⚠ **`v` を付けない。** 版はコミットの短縮ハッシュで、意味のある版数ではない。
-  //   サーバ側の値にも付けていないので、ここで足すと `vv11eeceb` と二重になる。
-  // ⚠ **git_sha を括弧で添えない。** 版がコミットの短縮ハッシュになった以上、
-  //   同じ値が 2 回並ぶだけ（`47fbe59 (47fbe59)`）。枝で焼いたときは版のほうに
-  //   枝の名前が付くので、出すなら版 1 つでよい。
+  // Note: **no `v` prefix.** The version is a short commit hash, not a meaningful version
+  //   number. The server-side value has none either, so adding one here gives `vv11eeceb`.
+  // Note: **do not append git_sha in parentheses.** Now that the version is the short commit
+  //   hash, it would just repeat the same value (`47fbe59 (47fbe59)`). Branch builds put the
+  //   branch name in the version, so the version alone is enough.
   return <footer className="footer">{info ? info.version : ''}</footer>
 }

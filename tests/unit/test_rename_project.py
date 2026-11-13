@@ -1,4 +1,4 @@
-"""名前の付け替えのスクリプト（ADR-0099）。リポジトリの写しの中で実際に流す。"""
+"""The renaming script (ADR-0099). Actually runs it inside a copy of the repository."""
 
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT = "scripts/rename_project.sh"
-# [t] を挟む。付け替えの対象にならないように（スクリプトと同じ）
+# Split with [t] so it is not itself a rename target (same as the script)
 _OLD = "fastapi[t]emplate"
 _NEW = "renamed-app"
 _RECORDS = (":!docs/CHANGELOG.md", ":!docs/decisions")
 
 pytestmark = pytest.mark.skipif(
     subprocess.run(["grep", "-q", _OLD, str(_ROOT / "pyproject.toml")], check=False).returncode != 0,
-    reason="付け替え済みの派生アプリでは流さない",
+    reason="Not run in a derived app that has already been renamed",
 )
 
 
@@ -33,7 +33,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.fixture
 def copy(tmp_path: Path) -> Path:
-    """追跡しているファイルだけを写した、新しいリポジトリ。"""
+    """A fresh repository containing a copy of only the tracked files."""
     tracked = _git(_ROOT, "ls-files", "-z").stdout.split("\0")
     for name in filter(None, tracked):
         source = _ROOT / name

@@ -1,14 +1,14 @@
-"""IdP 側のログインセッション 1 つ分の宛名（ADR-0077 §3）。
+"""Address of one IdP-side login session (ADR-0077 §3).
 
-``(issuer, subject)`` は「誰か」で、``session_id``（ID トークンの ``sid``）は
-「どのログインか」。停止の伝播はこの 3 つ組を宛名にして届く ——``sid`` まで
-分かっていれば**その端末のセッションだけ**を落とせる。
+``(issuer, subject)`` is "who", and ``session_id`` (the ID token's ``sid``) is
+"which login". Logout propagation arrives addressed by this triple — if ``sid`` is
+known, **only that device's session** can be dropped.
 
-``session_id`` が ``None`` になるのは 2 通りある。
+``session_id`` is ``None`` in two cases.
 
-- **IdP が ``sid`` を出さない。** この場合は利用者単位でしか失効できない。
-- **停止の通知に ``sid`` が無い**（利用者ごと止めた）。このときは
-  その利用者のセッションを**すべて**落とす。
+- **The IdP doesn't provide ``sid``.** Then revocation is only possible per user.
+- **The logout notice has no ``sid``** (the whole user was stopped). Then
+    **all** of that user's sessions are dropped.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
-"""アクティブロールの切り替え（ADR-0078 §1）。
+"""Switching the active role (ADR-0078 §1).
 
-複数ロールを持つユーザーが、いま使うロールを 1 つに絞れること・戻せること、
-そして絞ったあいだは他のロールの権限で操作できないことを確認する。
+Confirms that a user with several roles can narrow down to one role in use and switch back, and
+that while narrowed they cannot act with the other roles' permissions.
 """
 
 from __future__ import annotations
@@ -37,10 +37,10 @@ def _sign_in(client: TestClient) -> dict[str, str]:
 
 
 def _switch(client: TestClient, headers: dict[str, str], role: str | None) -> tuple[int, dict[str, str]]:
-    """切り替えて、成功したら新しいセッションのヘッダーを返す。
+    """Switches, and on success returns the headers of the new session.
 
-    トークンは Cookie に載り替わる（ADR-0076 §4）。CSRF トークンも新しくなるので
-    読み直す。
+    The token is replaced in the cookie (ADR-0076 §4). The CSRF token is renewed too, so it is read
+    again.
     """
     response = client.post("/api/auth/switch-role", headers=headers, json={"role": role})
     if response.status_code != 200:
@@ -53,7 +53,7 @@ def test_me_lists_every_granted_role(client: TestClient, admin_headers: dict[str
     me = client.get("/api/auth/me", headers=_sign_in(client)).json()
 
     assert me["roles"] == ["manager", "member"]
-    # 既定は「すべてのロール」= 保有権限の和集合
+    # The default is "all roles" = the union of held permissions
     assert me["active_role"] is None
     assert "item:write" in me["scopes"]
 
@@ -65,9 +65,9 @@ def test_switching_narrows_the_effective_scopes(client: TestClient, admin_header
 
     me = client.get("/api/auth/me", headers=headers).json()
     assert me["active_role"] == "member"
-    # member が持つのは dashboard:view / gui:view / item:view / note:view だけ
+    # member only has dashboard:view / gui:view / item:view / note:view
     assert me["scopes"] == ["dashboard:view", "gui:view", "item:view", "note:view"]
-    # 絞り込んだあいだは manager 側の権限では通らない
+    # While narrowed, the manager-side permissions do not pass
     assert client.get("/api/admin/logs", headers=headers).status_code == 403
 
 
@@ -104,7 +104,7 @@ def test_refresh_keeps_the_active_role(client: TestClient, admin_headers: dict[s
     refreshed = client.post("/api/auth/refresh", headers=headers)
     assert refreshed.status_code == 200
 
-    # 更新でセッションが載せ替わっても、アクティブロールは引き継がれる（ADR-0078 §1）。
+    # Even when refresh replaces the session, the active role carries over (ADR-0078 §1).
     me = client.get("/api/auth/me").json()
     assert me["active_role"] == "member"
 
@@ -115,14 +115,14 @@ def test_revoking_the_active_role_drops_its_scopes(
     admin_headers: dict[str, str],
     db_session: Session,
 ) -> None:
-    """切り替えた後にロールを外されたら、**次の更新で**そのトークンの権限は残らない。
+    """If a role is removed after switching, the token keeps none of its permissions **from the next refresh**.
 
-    ⚠ **手元のアクセストークンは寿命まで効いたままである**（ADR-0076 §5）。検証が DB を
-    引かなくなったので、外した瞬間には反映されない。上限はアクセストークンの寿命
-    （既定 5 分）で、**引き締めているのは更新の側**である。
+    ⚠ **The access token in hand stays effective until it expires** (ADR-0076 §5). Verification no
+    longer queries the DB, so removal is not reflected instantly. The bound is the access-token
+    lifetime (5 minutes by default), and **it is the refresh side that tightens it**.
     """
     _create_multi_role_user(client, admin_headers)
-    # Cookie でセッションを持つので、利用者ごとにクライアントを分ける（ADR-0076 §4）。
+    # Sessions are held in cookies, so each user gets their own client (ADR-0076 §4).
     _switch(other_client, _sign_in(other_client), "member")
 
     user = db_session.scalar(select(User).where(User.email == _EMAIL))
@@ -134,7 +134,7 @@ def test_revoking_the_active_role_drops_its_scopes(
     )
     assert updated.status_code == 200
 
-    # ⚠ 外した直後は、まだ効いている（引き受けた緩さ）。
+    # ⚠ Right after removal it still works (the accepted looseness).
     assert other_client.get("/api/auth/me").json()["scopes"]
 
     refreshed = other_client.post("/api/auth/refresh", headers={CSRF_HEADER: other_client.cookies[CSRF_COOKIE]})

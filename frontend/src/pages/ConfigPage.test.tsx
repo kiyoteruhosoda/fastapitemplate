@@ -1,4 +1,4 @@
-/** システム設定の画面。断られた保存を黙って捨てない（ADR-0101）。 */
+/** System settings page. A rejected save is not silently discarded (ADR-0101). */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,13 +64,13 @@ describe('ConfigPage', () => {
     apiGet.mockResolvedValue(ITEMS)
   })
 
-  it('期間と延長の有無が出て、未設定の延長はありになっている', async () => {
+  it('shows the period and whether it extends, with an unset extension shown as on', async () => {
     renderPage()
     expect(await screen.findByDisplayValue('1209600')).toBeInTheDocument()
     expect(document.getElementById('config-REFRESH_TOKEN_SLIDING_ENABLED')).toBeChecked()
   })
 
-  it('断られた保存は理由を出し、入力を残す', async () => {
+  it('shows the reason for a rejected save and keeps the input', async () => {
     apiPut.mockRejectedValue(new Error('refused'))
     renderPage()
     const period = await screen.findByDisplayValue('1209600')

@@ -1,9 +1,9 @@
-"""モデル共通の型・関数。
+"""Types and functions shared by the models.
 
-- 主キー等の ``BigInteger`` は SQLite テストとの両立のため
-  ``with_variant(sa.Integer(), "sqlite")`` を使う（CLAUDE.md「DB モデリング」）。
-- 時刻は常に UTC（naive datetime で保存する）。生成は
-  :func:`shared.kernel.timestamps.utcnow` に集約する。
+- ``BigInteger`` for primary keys etc. uses ``with_variant(sa.Integer(), "sqlite")`` to stay
+  compatible with SQLite tests ("DB modeling" in CLAUDE.md).
+- Times are always UTC (stored as naive datetimes). Generation is centralized in
+  :func:`shared.kernel.timestamps.utcnow`.
 """
 
 from __future__ import annotations

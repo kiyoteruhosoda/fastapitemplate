@@ -1,9 +1,9 @@
-"""SSO ログインの開始（認可要求の組み立て）。
+"""Starting SSO login (building the authorization request).
 
-``state`` / ``nonce`` / PKCE の ``code_verifier`` をここで作り、IdP の認可
-エンドポイントへの URL と**往復状態**を返す。往復状態はサーバー側に控えを持たず、
-呼び出し側（Presentation 層）が署名付き Cookie にしてブラウザへ預ける
-（ADR-0077 §1）。表も掃除も要らない。
+Creates ``state`` / ``nonce`` / PKCE ``code_verifier`` here and returns the URL to the IdP's
+authorization endpoint and the **round-trip state**. No server-side copy of the round-trip
+state is kept; the caller (Presentation) entrusts it to the browser as a signed cookie
+(ADR-0077 §1). No table and no cleanup needed.
 """
 
 from __future__ import annotations
@@ -42,13 +42,13 @@ from bounded_contexts.identity_federation.domain.value_objects.transaction_purpo
 class StartSsoLogin:
     provider: IdentityProvider | None
     gateway: OidcProviderGateway
-    #: 認可要求に載せる ``acr_values``（空 = 要求しない）。ADR-0076 §3 決定 1。
+    #: ``acr_values`` to put in the authorization request (empty = none required). ADR-0076 §3 decision 1.
     acr_values: tuple[str, ...] = ()
 
     def execute(self, *, redirect_to: str | None = None, silent: bool = False) -> SsoAuthorizationDto:
-        """IdP へ送り出す URL と、ブラウザへ預ける往復状態を返す。
+        """Return the URL to send to the IdP and the round-trip state to entrust to the browser.
 
-        ``silent`` なら IdP に画面を出させない（``prompt=none``。ADR-0077 §9）。
+        If ``silent``, the IdP is told not to show a screen (``prompt=none``. ADR-0077 §9).
         """
         provider = require_usable(self.provider)
         transaction = LoginTransaction(
@@ -62,11 +62,11 @@ class StartSsoLogin:
         return authorization_for(provider, self.gateway, transaction, self.acr_values)
 
     def renew(self, continued: ContinuedSessionDto | None) -> SsoAuthorizationDto:
-        """切れたログインを画面を出さずに続ける往復（見えない枠の中。ADR-0104）。
+        """Round trip that silently continues an expired login (inside a hidden frame. ADR-0104).
 
-        常に ``prompt=none``。``continued`` は手元に残っていた期限切れのトークンから読んだもので、
-        戻ってきた人が同じなら、ロール・サインインした時刻を引き継ぐ。読めなければ ``None``
-        （そのときは新しいログインとして入る）。
+        Always ``prompt=none``. ``continued`` is read from the leftover expired token; if the person
+        who comes back is the same, the role and sign-in time are carried over. ``None`` if unreadable
+        (then it signs in as a new login).
         """
         provider = require_usable(self.provider)
         transaction = LoginTransaction(
@@ -90,11 +90,11 @@ def authorization_for(
     transaction: LoginTransaction,
     acr_values: tuple[str, ...],
 ) -> SsoAuthorizationDto:
-    """往復状態から認可要求の URL を組む。
+    """Build the authorization request URL from the round-trip state.
 
-    ログインの往復と連携の往復（ADR-0077 §5）で**まったく同じ**なので 1 か所に置く。
-    違うのは往復状態の中身（``purpose`` と ``user_id``）だけで、IdP へ送るものは
-    変わらない ——戻り先の URI も 1 つしか登録しない。
+    It is **exactly the same** for login and linking round trips (ADR-0077 §5), so it lives in one place.
+    Only the round-trip state contents (``purpose`` and ``user_id``) differ; what is sent to the IdP
+    doesn't change — only one redirect URI is registered.
     """
     authorization_url = gateway.authorization_url(
         AuthorizationRequest(

@@ -1,10 +1,11 @@
 """password token purpose
 
-``password_reset_tokens.purpose`` を足す（ADR-0079 §5）。``reset`` は本人の申し込み、``invitation`` は
-管理者の招待で、招待だけはパスワードを持たない利用者に最初のパスワードを決めさせる
-（ADR-0076 §6 の「持たせるのは管理者が明示的に設定したとき」に当たる）。
+Add ``password_reset_tokens.purpose`` (ADR-0079 §5). ``reset`` is requested by the user;
+``invitation`` is an administrator's invitation, and only an invitation lets a user without a
+password choose their first one (the "given only when an administrator explicitly sets it" case
+of ADR-0076 §6).
 
-いまある行は全部 ``reset``。
+All existing rows are ``reset``.
 
 Revision ID: password_token_purpose
 Revises: email_unique_per_tenant

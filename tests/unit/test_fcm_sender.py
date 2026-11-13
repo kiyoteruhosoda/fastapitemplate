@@ -1,4 +1,4 @@
-"""FCM（HTTP v1）の送り手（ADR-0081 §5）。Google へは行かず、送ろうとした要求を見る。"""
+"""FCM (HTTP v1) sender (ADR-0081 §5). Does not reach Google; inspects the request it tried to send."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def account_file(tmp_path: Path, key: rsa.RSAPrivateKey) -> Path:
 
 
 class _Google:
-    """OAuth と FCM の代わり。受けた要求を覚え、決めた答えを返す。"""
+    """Stand-in for OAuth and FCM. Remembers requests received and returns preset answers."""
 
     def __init__(self, send_status: int = 200, send_body: object | None = None) -> None:
         self.send_status = send_status
