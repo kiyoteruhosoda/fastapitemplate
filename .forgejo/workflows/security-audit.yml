@@ -1,0 +1,66 @@
+name: Security Audit
+
+# Detects known vulnerabilities in the locked dependencies (uv.lock, package-lock.json), so that a newly
+# published vulnerability turns main red (deck "main CI" list -> ci-fixer, task #995).
+# The pattern, the npm threshold and how to write exceptions: deploy-repo
+# docs/decisions/ADR-0002 (task #1012).
+#
+# When it runs:
+# - PRs that touch dependencies (or this file): check what that PR is about to bring in
+# - Push to main: check the merged result
+# - Weekly: newly published vulnerabilities appear even when dependencies do not change
+#
+# npm: low / moderate tend to show up in dev-only toolchains, and if they keep showing up
+# red becomes the norm and nobody looks, so `npm audit` fails at high and above.
+# osv-scanner fails on any known vulnerability in the lock file.
+on:
+  pull_request:
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - "frontend/package-lock.json"
+      - "frontend/package.json"
+      - ".forgejo/workflows/security-audit.yml"
+  push:
+    branches:
+      - main
+  schedule:
+    # Mondays. The minute differs per repository so the weekly runs of all repositories
+    # do not pile up on the runners at once.
+    - cron: "27 0 * * 1"
+
+# When the same branch (PR) is pushed again, cancel the old run and check only the latest commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python (osv-scanner)
+    runs-on: [self-hosted, nolumialab]
+    # ⚠ The default is 6 hours. A hung job eats the slots and the runner, so cap it.
+    timeout-minutes: 20
+    container:
+      # ci-lang image with osv-scanner baked in (deploy-repo host/services/builders/ci-lang).
+      # The weekly builder rebuild swaps this digest.
+      image: hub.nolumia.com:5000/builder/ci-node24@sha256:e5c381eed0118d123a39d3282129b35b00cc8d2d83c37f270e94ac2f4aac02be
+    steps:
+      - uses: actions/checkout@v6
+      - name: Audit uv.lock
+        run: |
+          osv-scanner scan source --lockfile uv.lock
+
+  node:
+    name: Node (npm audit)
+    runs-on: [self-hosted, nolumialab]
+    # ⚠ The default is 6 hours. A hung job eats the slots and the runner, so cap it.
+    timeout-minutes: 20
+    container:
+      # ci-lang image with osv-scanner baked in (deploy-repo host/services/builders/ci-lang).
+      # The weekly builder rebuild swaps this digest.
+      image: hub.nolumia.com:5000/builder/ci-node24@sha256:e5c381eed0118d123a39d3282129b35b00cc8d2d83c37f270e94ac2f4aac02be
+    steps:
+      - uses: actions/checkout@v6
+      - name: Audit package-lock.json
+        run: |
+          (cd frontend && npm audit --audit-level=high)
