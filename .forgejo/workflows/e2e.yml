@@ -21,6 +21,9 @@ jobs:
     # Run the whole job inside the official Playwright image (browsers, OS deps and Node 24).
     # ⚠ Keep the image version equal to `@playwright/test` (the version check step below enforces it).
     # The digest is the multi-arch index digest of the tag on mcr.microsoft.com.
+    # ⚠ The build host's disk-reclaim keeps this image only because it matches `mcr.microsoft.com/playwright:`
+    #   (CI_TOOL_IMAGES in deploy-repo host/disk-reclaim/reclaim.py, deploy-repo #633). If you move to another
+    #   image, add it there too, or it is deleted between jobs and runs fail with "No such image" (e2e.yml #839).
     # `--ipc=host` keeps Chromium from crashing on a small /dev/shm (recommended by Playwright).
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d
