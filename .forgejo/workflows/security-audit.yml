@@ -43,7 +43,7 @@ jobs:
     container:
       # ci-lang image with osv-scanner baked in (deploy-repo host/services/builders/ci-lang).
       # The weekly builder rebuild swaps this digest.
-      image: hub.nolumia.com:5000/builder/ci-node24@sha256:e5c381eed0118d123a39d3282129b35b00cc8d2d83c37f270e94ac2f4aac02be
+      image: hub.nolumia.com:5000/builder/ci-node24@sha256:c62edf8d34b8fdd46f5faedeca324f69aebd056194b80d132496463ede483996
     steps:
       - uses: actions/checkout@v6
       - name: Audit uv.lock
@@ -58,7 +58,7 @@ jobs:
     container:
       # ci-lang image with osv-scanner baked in (deploy-repo host/services/builders/ci-lang).
       # The weekly builder rebuild swaps this digest.
-      image: hub.nolumia.com:5000/builder/ci-node24@sha256:e5c381eed0118d123a39d3282129b35b00cc8d2d83c37f270e94ac2f4aac02be
+      image: hub.nolumia.com:5000/builder/ci-node24@sha256:c62edf8d34b8fdd46f5faedeca324f69aebd056194b80d132496463ede483996
     steps:
       - uses: actions/checkout@v6
       - name: Audit package-lock.json
