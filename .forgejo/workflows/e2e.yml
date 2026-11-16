@@ -26,10 +26,10 @@ jobs:
     #   image, add it there too, or it is deleted between jobs and runs fail with "No such image" (e2e.yml #839).
     # `--ipc=host` keeps Chromium from crashing on a small /dev/shm (recommended by Playwright).
     container:
-      image: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d
+      image: mcr.microsoft.com/playwright:v1.65.1-noble@sha256:1507cbfc550a63a6b7396791ca4f00df17beb56342d2447b3f106c306f525579
       options: --ipc=host
     env:
-      PLAYWRIGHT_VERSION: "1.65.0"
+      PLAYWRIGHT_VERSION: "1.65.1"
       # Python installed by uv also comes from forge (same as ci.yml).
       UV_PYTHON_INSTALL_MIRROR: "https://git.nolumia.com/astral-sh/python-build-standalone/releases/download"
 
