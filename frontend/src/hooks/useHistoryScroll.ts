@@ -61,7 +61,7 @@ function read(key: string): number | null {
   try {
     const raw = window.sessionStorage.getItem(PREFIX + key)
     const value = raw === null ? null : Number(raw)
-    return value !== null && Number.isFinite(value) && value > 0 ? value : null
+    return value !== null && Number.isFinite(value) && value >= 0 ? value : null
   } catch {
     return null
   }
@@ -178,8 +178,10 @@ export function useHistoryScroll(): void {
       return
     }
 
-    const target = key === null ? null : read(key)
-    if (target === null) return
+    if (key === null) return
+    // ⚠ No record means the reader never moved on that screen, i.e. was at the top. It must still
+    //   be put back: the page keeps the position of the screen just left (restoration is manual).
+    const target = read(key) ?? 0
     restoring.current = true
     return restoreWhenReachable(target, () => {
       restoring.current = false
