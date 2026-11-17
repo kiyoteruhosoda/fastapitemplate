@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 
 import { AppLayout } from './components/AppLayout'
+import { useHistoryScroll } from './hooks/useHistoryScroll'
 import { useI18n } from './i18n'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AppReturnPage } from './pages/AppReturnPage'
@@ -52,6 +53,8 @@ function RequireAuth() {
 }
 
 export default function App() {
+  // Back/forward returns to where the reader was, on every screen (ADR-0107)
+  useHistoryScroll()
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
