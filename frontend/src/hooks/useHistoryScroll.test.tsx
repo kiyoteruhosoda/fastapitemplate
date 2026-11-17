@@ -5,7 +5,7 @@
  * ResizeObserver are stood in for here, and `window.scrollTo` is watched.
  */
 import { act, render } from '@testing-library/react'
-import { MemoryRouter, useNavigate, type NavigateFunction } from 'react-router-dom'
+import { BrowserRouter, MemoryRouter, useNavigate, type NavigateFunction } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useHistoryScroll, WAIT_LIMIT_MS } from './useHistoryScroll'
@@ -50,7 +50,7 @@ function lastScroll(): number | undefined {
   return call?.[1]
 }
 
-function renderApp() {
+function renderApp(router: 'memory' | 'browser' = 'memory') {
   let navigate: NavigateFunction | null = null
   function Harness() {
     useHistoryScroll()
@@ -58,9 +58,15 @@ function renderApp() {
     return null
   }
   render(
-    <MemoryRouter initialEntries={['/items']}>
-      <Harness />
-    </MemoryRouter>,
+    router === 'memory' ? (
+      <MemoryRouter initialEntries={['/items']}>
+        <Harness />
+      </MemoryRouter>
+    ) : (
+      <BrowserRouter>
+        <Harness />
+      </BrowserRouter>
+    ),
   )
   return (to: string | number) => {
     act(() => {
@@ -82,6 +88,8 @@ describe('useHistoryScroll', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: VIEWPORT })
     scrollTo = vi.fn()
     vi.stubGlobal('scrollTo', scrollTo)
+    // A fresh visit: the first entry has no history state yet
+    window.history.replaceState(null, '', '/items')
   })
 
   afterEach(() => {
@@ -119,6 +127,24 @@ describe('useHistoryScroll', () => {
     go(-1)
     // The browser clamps the short page to the top while the data is loading
     scrollPageTo(0)
+    growPage(5000)
+    expect(lastScroll()).toBe(1200)
+  })
+
+  it('returns to the first screen of a visit with the real browser history', async () => {
+    const go = renderApp('browser')
+    pageHeight = 5000
+    scrollPageTo(1200)
+    go('/items/7')
+    pageHeight = VIEWPORT
+    scrollTo.mockClear()
+
+    // jsdom delivers the back navigation (popstate) in a later task
+    await act(async () => {
+      window.history.back()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(window.location.pathname).toBe('/items')
     growPage(5000)
     expect(lastScroll()).toBe(1200)
   })

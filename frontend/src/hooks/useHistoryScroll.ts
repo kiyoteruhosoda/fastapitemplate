@@ -30,10 +30,32 @@ export const WAIT_LIMIT_MS = 5000
 const USER_INPUT_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
 
 /**
- * BrowserRouter gives the first entry of a tab (no history state) the key `default`. Every fresh
- * tab and every typed URL has it, so it does not identify an entry: never keep or restore it.
+ * BrowserRouter gives an entry without a key in its history state (the first screen of a visit: a
+ * bookmark, a typed URL, a link from another site) the key `default`. Every such visit shares it, so
+ * it does not identify an entry.
  */
 const NO_ENTRY_KEY = 'default'
+
+/**
+ * Give the current history entry a key of its own, in the same place react-router keeps its keys
+ * (`history.state.key`), and return it. react-router reads it from there when the reader comes back
+ * to this entry (and after a reload), so the entry is then identified like any other.
+ *
+ * ⚠ Written straight into the history state instead of navigating (replace) to the same URL: a
+ *   navigation from the outer frame would race with the screens' own redirects (e.g. to sign-in).
+ */
+function keyThisEntry(): string | null {
+  try {
+    const raw: unknown = window.history.state
+    const state = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
+    if (typeof state.key === 'string') return state.key
+    const key = Math.random().toString(36).slice(2, 10)
+    window.history.replaceState({ ...state, key }, '')
+    return key
+  } catch {
+    return null
+  }
+}
 
 function read(key: string): number | null {
   try {
@@ -134,11 +156,14 @@ export function useHistoryScroll(): void {
     }
   }, [])
 
+  const { pathname, hash } = location
   useLayoutEffect(() => {
-    const key = location.key === NO_ENTRY_KEY ? null : location.key
+    // ⚠ The first screen of a visit is usually the list itself (opened from a bookmark), so it
+    //   must be able to come back too: key its entry here.
+    const key = location.key === NO_ENTRY_KEY ? keyThisEntry() : location.key
     const previousPath = lastPath.current
     entry.current = key
-    lastPath.current = location.pathname
+    lastPath.current = pathname
 
     if (navigation !== NavigationType.Pop) {
       // A new screen starts at the top; a change of filters on the same screen stays put.
@@ -146,8 +171,8 @@ export function useHistoryScroll(): void {
       if (
         navigation === NavigationType.Push &&
         previousPath !== null &&
-        previousPath !== location.pathname &&
-        location.hash === ''
+        previousPath !== pathname &&
+        hash === ''
       )
         window.scrollTo(0, 0)
       return
@@ -159,5 +184,5 @@ export function useHistoryScroll(): void {
     return restoreWhenReachable(target, () => {
       restoring.current = false
     })
-  }, [location.key, location.pathname, location.hash, navigation])
+  }, [location.key, pathname, hash, navigation])
 }
