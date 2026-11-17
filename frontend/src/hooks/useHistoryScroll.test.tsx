@@ -149,6 +149,29 @@ describe('useHistoryScroll', () => {
     expect(lastScroll()).toBe(1200)
   })
 
+  it('returns to the top when the list was read at the top', () => {
+    const go = renderApp()
+    pageHeight = 5000
+    go('/items/7')
+    // The reader scrolls down on the detail screen, then comes back
+    scrollPageTo(2000)
+    scrollTo.mockClear()
+    go(-1)
+    expect(lastScroll()).toBe(0)
+  })
+
+  it('returns to the top when the reader scrolled back up to it before leaving', () => {
+    const go = renderApp()
+    pageHeight = 5000
+    scrollPageTo(1200)
+    scrollPageTo(0)
+    go('/items/7')
+    scrollPageTo(2000)
+    scrollTo.mockClear()
+    go(-1)
+    expect(lastScroll()).toBe(0)
+  })
+
   it('also returns on forward', () => {
     const go = renderApp()
     go('/items/7')
