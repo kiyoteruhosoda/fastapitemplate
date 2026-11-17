@@ -42,3 +42,4 @@
 | [ADR-0105](ADR-0105-local-times-carry-their-zone.md) | 画面の時刻と時間帯 | 閲覧者の時間帯に直した時刻の後ろに `UTC+9` の形で時間帯を付ける。時刻を文字にするのは `services/localTime.ts` だけ（ほかは ESLint が止める） |
 | [ADR-0106](ADR-0106-update-notice-is-a-top-bar.md) | 新しい版の知らせの場所 | どの画面でもいちばん上の帯に出し、下へ送っても残す。ヘッダーは帯の真下に貼り付く（`--update-bar-height`） |
 | [ADR-0107](ADR-0107-back-returns-to-the-same-place.md) | 戻ったときの位置 | 「戻る」「進む」では見ていた位置へ、データが描けて高さが足りるのを待って戻す。外枠で全画面に効かせる。リンクで別の画面を開いたら先頭から |
+| [ADR-0108](ADR-0108-npm-audit-blocks-only-what-reaches-users.md) | npm の弱点の検査 | `npm audit --omit=dev`（画面に届く部品）だけ high 以上で止め、道具は知らせるだけ。道具経由で届く workbox は `dependencies` に書く（deploy-repo ADR-0003） |
