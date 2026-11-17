@@ -11,7 +11,8 @@ name: Security Audit
 # - Weekly: newly published vulnerabilities appear even when dependencies do not change
 #
 # npm: low / moderate tend to show up in dev-only toolchains, and if they keep showing up
-# red becomes the norm and nobody looks, so `npm audit` fails at high and above.
+# red becomes the norm and nobody looks, so `npm audit` fails at high and above — and only for what
+# reaches users (`--omit=dev`). The build and test tools are reported, not blocked (deploy-repo ADR-0003, ADR-0108).
 # osv-scanner fails on any known vulnerability in the lock file.
 on:
   pull_request:
@@ -61,6 +62,14 @@ jobs:
       image: hub.nolumia.com:5000/builder/ci-node24@sha256:c62edf8d34b8fdd46f5faedeca324f69aebd056194b80d132496463ede483996
     steps:
       - uses: actions/checkout@v6
-      - name: Audit package-lock.json
+      # What reaches users blocks; the build and test tools only report (deploy-repo ADR-0003, ADR-0108, the owner's
+      # decision of 2026-11-17). The workbox pieces that ship (page and Service Worker) are listed in "dependencies" so they count.
+      - name: Audit what reaches users
         run: |
-          (cd frontend && npm audit --audit-level=high)
+          (cd frontend && npm audit --audit-level=high --omit=dev)
+      - name: Report the build and test tools (does not block)
+        run: |
+          cd frontend
+          if ! npm audit --audit-level=high; then
+            echo "::warning::A build or test tool has a known vulnerability (report above). It never reaches users, so it does not block (deploy-repo ADR-0003, ADR-0108)."
+          fi
